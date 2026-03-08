@@ -1,10 +1,108 @@
-# Python-generated files
+# Python stuff
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[oc]
+*.py[codz]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
 build/
 dist/
-wheels/
-*.egg-info
 
-# Virtual environments
+# Unit test / coverage reports
+.hypothesis/
+.cache
+coverage.xml
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# Sphinx documentation
+docs/_build/
+
+# mkdocs documentation
+/site
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+__pypackages__/
+
+# Redis
+*.rdb
+*.aof
+*.pid
+
+# Environments
+.env
+.envrc
 .venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Cython debug symbols
+cython_debug/
+
+# Visual Studio Code
+.vscode/
+
+# Ruff stuff:
+.ruff_cache/
+
+# PyPI configuration file
+.pypirc
+
+
+# React stuff
+
+# Dependencies
+node_modules/
+.vite/
+
+# Build artifacts and temporary files
+build/
+dist/
+public/build/
+.awcache
+*.tgz
+*.zip
+
+# Logs and debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Local history, caches, and configuration files
+.eslintcache
+.stylelintcache
+.npm
+.yarn-integrity
+.idea
+.vscode
+*.iml
+
+# OS and Editor files
+.DS_Store
+.hg
+.lock-wscript
+.nyc_output
+coverage/
