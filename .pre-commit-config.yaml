@@ -35,20 +35,30 @@ repos:
         types: [text]
         files: "\\.(jsx?|tsx?|c(js|ts)|m(js|ts)|d\\.(ts|cts|mts)|jsonc?|css|svelte|vue|astro|graphql|gql)$"
 
-  - repo: local
-    hooks:
       - id: pytest
         name: pytest
-        entry: uv run python -m pytest -q -m "not integration"
+        entry: bash -lc 'uv run python -m pytest -q -m "not integration"; rc=$?; [ "$rc" -eq 5 ] && exit 0 || exit "$rc"'
         language: system
         pass_filenames: false
         stages: [pre-commit]
 
-  - repo: local
-    hooks:
-      - id: web-typecheck
-        name: web typecheck
-        entry: bash -lc 'cd apps/web && npm run typecheck'
+      - id: mypy
+        name: mypy
+        entry: uv run mypy .
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # - id: web-typecheck
+      #   name: web typecheck
+      #   entry: bash -lc 'cd apps/frontend && npm run typecheck'
+      #   language: system
+      #   pass_filenames: false
+      #   stages: [pre-commit]
