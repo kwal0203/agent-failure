@@ -1,0 +1,90 @@
+from typing import Mapping, cast
+from apps.control_plane.src.application.session_lifecycle.ports import (
+    SessionRepository,
+    SessionRow,
+)
+from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
+from sqlalchemy.orm import Session
+from sqlalchemy.engine import CursorResult
+from sqlalchemy import select, update
+from uuid import UUID, uuid4
+from apps.control_plane.src.application.session_lifecycle.schemas import (
+    TransitionResult,
+)
+from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+from .models import SessionModel, SessionTransitionEventModel
+from .errors import StateMismatch
+from datetime import datetime, timezone
+
+
+class SQLAlchemySessionRepository(SessionRepository):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_for_update(self, session_id: UUID) -> SessionRow | None:
+        stmt = (
+            select(SessionModel).where(SessionModel.id == session_id).with_for_update()
+        )
+
+        row = self._db.execute(stmt).scalar_one_or_none()
+        if row is None:
+            return None
+
+        return SessionRow(id=row.id, state=SessionState(row.state))
+
+    def update_state(
+        self,
+        session_id: UUID,
+        from_state: SessionState,
+        to_state: SessionState,
+        actor: str,
+        reason: str | None,
+    ) -> None:
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id, SessionModel.state == from_state.value
+            )
+            .values(
+                state=to_state.value,
+                last_transition_actor=actor,
+                last_transition_reason=reason,
+            )
+        )
+
+        result = cast(CursorResult[object], self._db.execute(stmt))
+        if result.rowcount != 1:
+            raise StateMismatch(session_id=session_id, from_state=from_state)
+
+    def insert_transition_event(
+        self,
+        session_id: UUID,
+        prev_state: SessionState,
+        next_state: SessionState,
+        trigger: Trigger,
+        actor: str,
+        metadata: Mapping[str, object],
+        idempotency_key: UUID,
+    ) -> TransitionResult:
+        transition_id = uuid4()
+
+        event = SessionTransitionEventModel(
+            id=transition_id,
+            session_id=session_id,
+            prev_state=prev_state.value,
+            next_state=next_state.value,
+            trigger=trigger.value,
+            actor=actor,
+            event_metadata=dict(metadata),
+            idempotency_key=idempotency_key,
+            created_at=datetime.now(timezone.utc),
+        )
+
+        self._db.add(event)
+
+        return TransitionResult(
+            transition_id=transition_id,
+            session_id=session_id,
+            prev_state=prev_state,
+            next_state=next_state,
+        )
