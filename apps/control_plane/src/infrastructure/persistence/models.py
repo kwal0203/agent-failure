@@ -73,3 +73,40 @@ class SessionTransitionEventModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class IdempotencyRecordModel(Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "operation", "idempotency_key", name="uq_idempo_operation_key"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+
+    operation: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    idempotency_key: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+
+    session_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True, index=True
+    )
+
+    transition_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("session_transition_events.id"),
+        nullable=True,
+        index=True,
+    )
+
+    response_payload: Mapped[dict[str, object] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

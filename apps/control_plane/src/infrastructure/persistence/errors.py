@@ -7,3 +7,7 @@ class StateMismatch(Exception):
         super().__init__(f"Session {session_id} was not in expected state {from_state}")
         self.session_id = session_id
         self.from_state = from_state
+
+
+class DataIntegrityError(Exception):
+    pass

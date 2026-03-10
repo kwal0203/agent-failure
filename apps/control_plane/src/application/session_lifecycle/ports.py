@@ -49,6 +49,9 @@ class UnitOfWork(Protocol):
     @property
     def sessions(self) -> SessionRepository: ...
 
+    @property
+    def idempotency(self) -> IdempotencyStore: ...
+
     def transaction(self) -> ContextManager[None]: ...
 
 
