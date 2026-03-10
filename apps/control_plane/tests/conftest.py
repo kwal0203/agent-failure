@@ -11,6 +11,10 @@ from apps.control_plane.src.infrastructure.persistence.models import Base
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
+    SQLAlchemyUnitOfWork,
+)
+from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 
 load_dotenv()
 
@@ -50,3 +54,18 @@ def db_session(engine: Engine) -> Generator[Session, None, None]:
 @pytest.fixture
 def repo(db_session: Session) -> SQLAlchemySessionRepository:
     return SQLAlchemySessionRepository(db=db_session)
+
+
+@pytest.fixture
+def uow() -> SQLAlchemyUnitOfWork:
+    return SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+
+
+@pytest.fixture
+def idempotency_store() -> object:
+    return object()
+
+
+@pytest.fixture
+def outbox() -> object:
+    return object()

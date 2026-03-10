@@ -46,7 +46,8 @@ class SessionRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
-    sessions: SessionRepository
+    @property
+    def sessions(self) -> SessionRepository: ...
 
     def transaction(self) -> ContextManager[None]: ...
 
