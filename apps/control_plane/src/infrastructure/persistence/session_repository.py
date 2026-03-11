@@ -81,6 +81,9 @@ class SQLAlchemySessionRepository(SessionRepository):
         )
 
         self._db.add(event)
+        # Ensure the transition event row exists before idempotency save
+        # writes a FK reference to this transition_id in the same transaction.
+        self._db.flush()
 
         return TransitionResult(
             transition_id=transition_id,

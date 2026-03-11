@@ -135,18 +135,16 @@ def test_insert_transition_event_enforces_idempotency_uniqueness(
         metadata={"reason_code": "lauch_succeeded"},
         idempotency_key=idem_key,
     )
-    db_session.flush()
-
-    repo.insert_transition_event(
-        session_id=row.id,
-        prev_state=SessionState.PROVISIONING,
-        next_state=SessionState.ACTIVE,
-        trigger=Trigger.PROVISIONING_SUCCEEDED,
-        actor="system",
-        metadata={"reason_code": "provisioning_succeeded"},
-        idempotency_key=idem_key,
-    )
 
     with pytest.raises(IntegrityError):
-        db_session.flush()
+        repo.insert_transition_event(
+            session_id=row.id,
+            prev_state=SessionState.PROVISIONING,
+            next_state=SessionState.ACTIVE,
+            trigger=Trigger.PROVISIONING_SUCCEEDED,
+            actor="system",
+            metadata={"reason_code": "provisioning_succeeded"},
+            idempotency_key=idem_key,
+        )
+
     db_session.rollback()
