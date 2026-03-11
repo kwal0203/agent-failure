@@ -20,8 +20,11 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
 
+import pytest
 
-def test_transition_session_replay_is_idempotent(engine) -> None:
+
+@pytest.mark.usefixtures("engine")
+def test_transition_session_replay_is_idempotent() -> None:
     session_id = uuid4()
     idempotency_key = uuid4()
 
