@@ -24,7 +24,26 @@ class SessionModel(Base):
     id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4
     )
+    lab_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    lab_version_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+
     state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    runtime_substate: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resume_mode: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="hot_resume"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     last_transition_actor: Mapped[str] = mapped_column(String(32), nullable=False)
     last_transition_reason: Mapped[str | None] = mapped_column(
         String(32), nullable=True

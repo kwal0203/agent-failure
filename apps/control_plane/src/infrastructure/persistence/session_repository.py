@@ -3,6 +3,10 @@ from apps.control_plane.src.application.session_lifecycle.ports import (
     SessionRepository,
     SessionRow,
 )
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
+    SessionMetadataDTO,
+)
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import CursorResult
@@ -90,4 +94,29 @@ class SQLAlchemySessionRepository(SessionRepository):
             session_id=session_id,
             prev_state=prev_state,
             next_state=next_state,
+        )
+
+
+class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_session_metadata(self, session_id: UUID) -> SessionMetadataDTO | None:
+        stmt = select(SessionModel).where(SessionModel.id == session_id)
+        result = self._db.execute(statement=stmt).scalar_one_or_none()
+        if result is None:
+            return None
+
+        return SessionMetadataDTO(
+            id=result.id,
+            lab_id=result.lab_id,
+            lab_version_id=result.lab_version_id,
+            state=result.state,
+            runtime_substate=result.runtime_substate,
+            resume_mode=result.resume_mode,
+            # TODO: Move interactive derivation to application/service mapping.
+            interactive=result.state in {SessionState.ACTIVE, SessionState.IDLE},
+            created_at=result.created_at,
+            started_at=result.started_at,
+            ended_at=result.ended_at,
         )

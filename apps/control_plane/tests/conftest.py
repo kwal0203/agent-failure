@@ -59,13 +59,3 @@ def repo(db_session: Session) -> SQLAlchemySessionRepository:
 @pytest.fixture
 def uow() -> SQLAlchemyUnitOfWork:
     return SQLAlchemyUnitOfWork(session_factory=SessionFactory)
-
-
-@pytest.fixture
-def idempotency_store() -> object:
-    return object()
-
-
-@pytest.fixture
-def outbox() -> object:
-    return object()
