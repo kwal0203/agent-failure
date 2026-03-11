@@ -2,12 +2,14 @@ from apps.control_plane.src.application.session_lifecycle.ports import (
     UnitOfWork,
     SessionRepository,
     IdempotencyStore,
+    Outbox,
 )
 from sqlalchemy.orm import Session, sessionmaker
 from contextlib import contextmanager
 from collections.abc import Iterator
 from .session_repository import SQLAlchemySessionRepository
 from .idempotency_store import PostgresIdempotencyStore
+from .outbox import SQLAlchemyOutbox
 
 
 class SQLAlchemyUnitOfWork(UnitOfWork):
@@ -15,6 +17,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
         self._session_factory = session_factory
         self._sessions: SessionRepository | None = None
         self._idempotency: IdempotencyStore | None = None
+        self._outbox: Outbox | None = None
 
     @property
     def sessions(self) -> SessionRepository:
@@ -28,11 +31,18 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
             raise RuntimeError("No active idempotency store")
         return self._idempotency
 
+    @property
+    def outbox(self) -> Outbox:
+        if self._outbox is None:
+            raise RuntimeError("No active outbox")
+        return self._outbox
+
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
         self._sessions = SQLAlchemySessionRepository(db=db_session)
         self._idempotency = PostgresIdempotencyStore(db=db_session)
+        self._outbox = SQLAlchemyOutbox(db=db_session)
 
         try:
             yield
@@ -44,3 +54,4 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
             db_session.close()
             self._sessions = None
             self._idempotency = None
+            self._outbox = None

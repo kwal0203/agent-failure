@@ -45,17 +45,6 @@ class SessionRepository(Protocol):
     ) -> TransitionResult: ...
 
 
-class UnitOfWork(Protocol):
-    @property
-    def sessions(self) -> SessionRepository: ...
-
-    @property
-    def idempotency(self) -> IdempotencyStore: ...
-
-    def transaction(self) -> ContextManager[None]: ...
-
-
-# TODO: what tasks do we want to run on successful transition?
 class Outbox(Protocol):
     def enqueue_for_transition(
         self,
@@ -66,3 +55,16 @@ class Outbox(Protocol):
         metadata: Mapping[str, object],
         transition_id: UUID,
     ) -> None: ...
+
+
+class UnitOfWork(Protocol):
+    @property
+    def sessions(self) -> SessionRepository: ...
+
+    @property
+    def idempotency(self) -> IdempotencyStore: ...
+
+    @property
+    def outbox(self) -> Outbox: ...
+
+    def transaction(self) -> ContextManager[None]: ...

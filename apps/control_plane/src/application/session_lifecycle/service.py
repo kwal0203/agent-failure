@@ -4,7 +4,7 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     Trigger,
     TRANSITIONS,
 )
-from .ports import UnitOfWork, Outbox
+from .ports import UnitOfWork
 from .schemas import TransitionResult
 from .validators import validate_transition
 from .errors import SessionNotFound, InvalidTransition
@@ -17,7 +17,6 @@ def transition_session(
     metadata: Mapping[str, object],
     idempotency_key: UUID,
     uow: UnitOfWork,
-    outbox: Outbox,
 ) -> TransitionResult:
     with uow.transaction():
         existing = uow.idempotency.get(key=idempotency_key)
@@ -63,7 +62,7 @@ def transition_session(
             idempotency_key=idempotency_key,
         )
 
-        outbox.enqueue_for_transition(
+        uow.outbox.enqueue_for_transition(
             session_id=session_id,
             prev_state=current_state,
             next_state=next_state,

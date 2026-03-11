@@ -2,6 +2,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import (
     String,
+    Integer,
+    Text,
     DateTime,
     ForeignKey,
     UniqueConstraint,
@@ -106,6 +108,40 @@ class IdempotencyRecordModel(Base):
     response_payload: Mapped[dict[str, object] | None] = mapped_column(
         JSONB, nullable=True
     )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class OutboxEventModel(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+
+    # Domain event identity
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    aggregate_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+
+    # Event payload to replay/dispatch
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+
+    # Dispatch lifecycle
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", index=True
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
