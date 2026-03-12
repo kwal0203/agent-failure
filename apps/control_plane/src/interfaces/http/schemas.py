@@ -29,3 +29,20 @@ class SessionMetadataResponse(BaseModel):
 
 class GetSessionMetadataResponse(BaseModel):
     session: SessionMetadataResponse
+
+
+class SessionResponse(BaseModel):
+    id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    state: str
+    resume_mode: str
+    created_at: datetime
+
+
+class CreateSessionResponse(BaseModel):
+    session: SessionResponse
+
+
+class CreateSessionRequest(BaseModel):
+    lab_id: UUID
