@@ -7,40 +7,30 @@ from .schemas import (
     SessionMetadataResponse,
     ApiErrorEnvelope,
     ApiError,
-    CreateSessionResponse,
     SessionResponse,
+    CreateSessionResponse,
     CreateSessionRequest,
 )
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionMetadataRepository,
 )
-from apps.control_plane.src.application.session_create.service import create_session
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
-    CreateSessionRepository,
-    LabRepository,
+    CreateSessionUnitOfWork,
 )
 
 from apps.control_plane.src.application.session_create.types import PrincipalContext
-from apps.control_plane.src.application.session_create.schemas import (
-    CreateSessionResult,
-)
+from apps.control_plane.src.application.session_create.service import create_session
 
 from sqlalchemy.orm import Session
 from collections.abc import AsyncIterator
-from apps.control_plane.src.application.common.ports import IdempotencyStore
 
 from .auth import Principal, get_current_principal, UnauthenticatedError
-from .dependencies import (
-    get_admission_policy,
-    get_idempotency_store,
-    get_lab_repository,
-    get_session_repository,
-)
+from .dependencies import get_admission_policy, get_create_session_uow
 
 
 @asynccontextmanager
@@ -107,12 +97,8 @@ def get_metadata(
 def create_session_endpoint(
     request: CreateSessionRequest,
     principal: Principal = Depends(get_current_principal),
-    lab_repo: LabRepository = Depends(get_lab_repository),
     admission_policy: AdmissionPolicy = Depends(get_admission_policy),
-    idempotency_store: IdempotencyStore[CreateSessionResult] = Depends(
-        get_idempotency_store
-    ),
-    sessions: CreateSessionRepository = Depends(get_session_repository),
+    uow: CreateSessionUnitOfWork = Depends(get_create_session_uow),
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
 ) -> CreateSessionResponse | JSONResponse | None:
     # TODO: Spec alignment: Idempotency-Key is opaque. Refactor downstream
@@ -137,13 +123,10 @@ def create_session_endpoint(
     result = create_session(
         principal=application_principal,
         admission_policy=admission_policy,
-        lab_repo=lab_repo,
-        sessions=sessions,
-        idempotency_store=idempotency_store,
         lab_id=request.lab_id,
         idempotency_key=key,
+        uow=uow,
     )
-
     session = SessionResponse(
         id=result.session_id,
         lab_id=result.lab_id,
@@ -152,4 +135,5 @@ def create_session_endpoint(
         resume_mode=result.resume_mode,
         created_at=result.created_at,
     )
+
     return CreateSessionResponse(session=session)

@@ -1,6 +1,9 @@
-from typing import Protocol
+from typing import Protocol, ContextManager
 from uuid import UUID
 from dataclasses import dataclass
+from datetime import datetime
+from apps.control_plane.src.application.common.ports import IdempotencyStore
+
 from .schemas import CreateSessionResult
 
 
@@ -13,10 +16,6 @@ class AdmissionDecision:
     details: dict[str, object] | None
 
 
-class LabRepository(Protocol):
-    def validate_lab(self, lab_id: UUID) -> bool: ...
-
-
 class AdmissionPolicy(Protocol):
     def check_launch_allowed(
         self, user_id: UUID, lab_id: UUID
@@ -27,3 +26,36 @@ class CreateSessionRepository(Protocol):
     def create_provision_session(
         self, lab_id: UUID, actor_id: UUID, actor_role: str
     ) -> CreateSessionResult: ...
+
+
+class OutboxCreateSession(Protocol):
+    def enqueue_for_session_creation(
+        self,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID | None,
+        resume_mode: str,
+        requester_user_id: UUID,
+        idempotency_key: str,
+        requested_at: datetime | None,
+    ) -> None: ...
+
+
+class LabRepository(Protocol):
+    def validate_lab(self, lab_id: UUID) -> bool: ...
+
+
+class CreateSessionUnitOfWork(Protocol):
+    @property
+    def sessions(self) -> CreateSessionRepository: ...
+
+    @property
+    def idempotency(self) -> IdempotencyStore[CreateSessionResult]: ...
+
+    @property
+    def outbox(self) -> OutboxCreateSession: ...
+
+    @property
+    def lab_repo(self) -> LabRepository: ...
+
+    def transaction(self) -> ContextManager[None]: ...
