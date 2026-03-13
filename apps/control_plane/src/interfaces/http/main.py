@@ -101,10 +101,6 @@ def create_session_endpoint(
     uow: CreateSessionUnitOfWork = Depends(get_create_session_uow),
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
 ) -> CreateSessionResponse | JSONResponse | None:
-    # TODO: Spec alignment: Idempotency-Key is opaque. Refactor downstream
-    # app/persistence types to str for idempotency keys (currently UUID-based).
-
-    # Idempotency key validity check
     key = idempotency_key.strip()
     if not key or len(key) > 128:
         body = ApiErrorEnvelope(

@@ -1,5 +1,6 @@
 from typing import Iterator
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from contextlib import contextmanager
 
 from apps.control_plane.src.application.session_create.ports import (
@@ -12,12 +13,20 @@ from apps.control_plane.src.application.session_create.schemas import (
     CreateSessionResult,
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
+from apps.control_plane.src.application.session_create.errors import (
+    DuplicateIdempotencyKeyError,
+)
 
 from .db import sessionmaker
 from .session_repository import PostgresCreateSessionRepository
 from .idempotency_store import PostgresCreateSessionIdempotencyStore
 from .outbox_create_session import SQLAlchemyOutboxCreateSession
 from .lab_repository import PostgresLabRepository
+
+
+def _is_idempo_unique_violoation(exc: IntegrityError) -> bool:
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    return constraint == "uq_idempo_operation_key"
 
 
 class SQLAlchemyCreateSessionUnitOfWork(CreateSessionUnitOfWork):
@@ -63,6 +72,14 @@ class SQLAlchemyCreateSessionUnitOfWork(CreateSessionUnitOfWork):
         try:
             yield
             db_session.commit()
+        except IntegrityError as exc:
+            db_session.rollback()
+            if _is_idempo_unique_violoation(exc=exc):
+                raise DuplicateIdempotencyKeyError(
+                    code="DUPLICATE_IDEMPOTENCY_KEY",
+                    details={"constraint": "uq_idempo_operation_key"},
+                )
+            raise
         except Exception:
             db_session.rollback()
             raise

@@ -49,7 +49,7 @@ class DegradedModeRestrictionError(Exception):
         details: dict[str, object] | None = None,
     ) -> None:
         self.message = message
-        self.details = details
+        self.details = details or {}
         super().__init__(self.message)
 
 
@@ -84,5 +84,14 @@ class AdmissionDecisionError(Exception):
         self, code: str | None, details: dict[str, object] | None = None
     ) -> None:
         self.code = code
-        self.details = details
+        self.details = details or {}
         super().__init__(f"Unhandled admission denial code: {code}")
+
+
+class DuplicateIdempotencyKeyError(Exception):
+    def __init__(
+        self, code: str | None, details: dict[str, object] | None = None
+    ) -> None:
+        self.code = code
+        self.details = details or {}
+        super().__init__("Duplicate idempotency key detected.")
