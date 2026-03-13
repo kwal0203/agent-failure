@@ -11,5 +11,5 @@ class TransitionResult(BaseModel):
 
 
 class IdempotencyRecord(BaseModel):
-    key: UUID
+    key: str
     result: TransitionResult | None = None

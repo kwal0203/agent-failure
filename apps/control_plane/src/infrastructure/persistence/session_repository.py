@@ -1,24 +1,37 @@
-from typing import Mapping, cast
+from apps.control_plane.src.application.session_create.schemas import (
+    CreateSessionResult,
+)
+from apps.control_plane.src.application.session_create.ports import (
+    CreateSessionRepository,
+)
+
 from apps.control_plane.src.application.session_lifecycle.ports import (
     SessionRepository,
     SessionRow,
 )
+from apps.control_plane.src.application.session_lifecycle.schemas import (
+    TransitionResult,
+)
+
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
     SessionMetadataDTO,
 )
-from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
-from sqlalchemy.orm import Session
-from sqlalchemy.engine import CursorResult
-from sqlalchemy import select, update
-from uuid import UUID, uuid4
-from apps.control_plane.src.application.session_lifecycle.schemas import (
-    TransitionResult,
+
+from apps.control_plane.src.domain.session_lifecycle.state_machine import (
+    SessionState,
+    Trigger,
 )
-from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+from datetime import datetime, timezone
+from typing import Mapping, cast
+from uuid import UUID, uuid4
+
 from .models import SessionModel, SessionTransitionEventModel
 from .errors import StateMismatch
-from datetime import datetime, timezone
 
 
 class SQLAlchemySessionRepository(SessionRepository):
@@ -68,7 +81,7 @@ class SQLAlchemySessionRepository(SessionRepository):
         trigger: Trigger,
         actor: str,
         metadata: Mapping[str, object],
-        idempotency_key: UUID,
+        idempotency_key: str,
     ) -> TransitionResult:
         transition_id = uuid4()
 
@@ -119,4 +132,32 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             created_at=result.created_at,
             started_at=result.started_at,
             ended_at=result.ended_at,
+        )
+
+
+class PostgresCreateSessionRepository(CreateSessionRepository):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def create_provision_session(
+        self, lab_id: UUID, actor_id: UUID, actor_role: str
+    ) -> CreateSessionResult:
+        session = SessionModel(
+            lab_id=lab_id,
+            state=SessionState.PROVISIONING.value,
+            last_transition_actor=actor_role,
+            last_transition_reason=None,
+        )
+        self._db.add(session)
+        self._db.flush()
+        self._db.refresh(session)
+
+        return CreateSessionResult(
+            session_id=session.id,
+            lab_id=lab_id,
+            lab_version_id=session.lab_version_id,
+            state=session.state,
+            resume_mode=session.resume_mode,
+            created_at=session.created_at,
+            requester_user_id=actor_id,
         )

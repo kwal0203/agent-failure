@@ -15,11 +15,13 @@ def transition_session(
     trigger: Trigger,
     actor: str,
     metadata: Mapping[str, object],
-    idempotency_key: UUID,
+    idempotency_key: str,
     uow: UnitOfWork,
 ) -> TransitionResult:
     with uow.transaction():
-        existing = uow.idempotency.get(key=idempotency_key)
+        existing = uow.idempotency.get(
+            operation="transition_session", key=idempotency_key
+        )
         if existing is not None:
             return existing
 
@@ -71,5 +73,9 @@ def transition_session(
             transition_id=transition_result.transition_id,
         )
 
-        uow.idempotency.save(key=idempotency_key, result=transition_result)
+        uow.idempotency.save(
+            operation="transition_session",
+            key=idempotency_key,
+            result=transition_result,
+        )
         return transition_result

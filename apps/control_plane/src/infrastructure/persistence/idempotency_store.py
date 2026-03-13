@@ -1,8 +1,11 @@
-from uuid import UUID
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
-from apps.control_plane.src.application.session_lifecycle.ports import IdempotencyStore
+from apps.control_plane.src.application.common.ports import IdempotencyStore
+
 from apps.control_plane.src.application.session_lifecycle.schemas import (
     TransitionResult,
+)
+from apps.control_plane.src.application.session_create.schemas import (
+    CreateSessionResult,
 )
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -10,14 +13,14 @@ from .models import IdempotencyRecordModel, SessionTransitionEventModel
 from .errors import DataIntegrityError
 
 
-class PostgresIdempotencyStore(IdempotencyStore):
+class PostgresTransitionIdempotencyStore(IdempotencyStore[TransitionResult]):
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def get(self, key: UUID) -> TransitionResult | None:
+    def get(self, operation: str, key: str) -> TransitionResult | None:
         record = self._db.execute(
             statement=select(IdempotencyRecordModel).where(
-                IdempotencyRecordModel.operation == "transition_session",
+                IdempotencyRecordModel.operation == operation,
                 IdempotencyRecordModel.idempotency_key == key,
             )
         ).scalar_one_or_none()
@@ -42,12 +45,43 @@ class PostgresIdempotencyStore(IdempotencyStore):
             next_state=SessionState(event.next_state),
         )
 
-    def save(self, key: UUID, result: TransitionResult) -> None:
+    def save(self, operation: str, key: str, result: TransitionResult) -> None:
         record = IdempotencyRecordModel(
-            operation="transition_session",
+            operation=operation,
             idempotency_key=key,
             session_id=result.session_id,
             transition_id=result.transition_id,
             response_payload=None,
+        )
+        self._db.add(instance=record)
+
+
+class PostgresCreateSessionIdempotencyStore(IdempotencyStore[CreateSessionResult]):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get(self, operation: str, key: str) -> CreateSessionResult | None:
+        record = self._db.execute(
+            select(IdempotencyRecordModel).where(
+                IdempotencyRecordModel.operation == operation,
+                IdempotencyRecordModel.idempotency_key == key,
+            )
+        ).scalar_one_or_none()
+
+        if record is None:
+            return None
+
+        if record.session_id is None or record.response_payload is None:
+            raise DataIntegrityError
+
+        return CreateSessionResult.model_validate(record.response_payload)
+
+    def save(self, operation: str, key: str, result: CreateSessionResult) -> None:
+        record = IdempotencyRecordModel(
+            operation=operation,
+            idempotency_key=key,
+            session_id=result.session_id,
+            transition_id=None,
+            response_payload=result.model_dump(mode="json"),
         )
         self._db.add(instance=record)

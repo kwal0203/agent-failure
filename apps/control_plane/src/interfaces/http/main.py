@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Header
+from fastapi import FastAPI, Depends, Request, Header
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from uuid import UUID
@@ -8,17 +8,39 @@ from .schemas import (
     ApiErrorEnvelope,
     ApiError,
     CreateSessionResponse,
+    SessionResponse,
     CreateSessionRequest,
 )
-from sqlalchemy.orm import Session
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionMetadataRepository,
 )
+from apps.control_plane.src.application.session_create.service import create_session
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
+from apps.control_plane.src.application.session_create.ports import (
+    AdmissionPolicy,
+    CreateSessionRepository,
+    LabRepository,
+)
+
+from apps.control_plane.src.application.session_create.types import PrincipalContext
+from apps.control_plane.src.application.session_create.schemas import (
+    CreateSessionResult,
+)
+
+from sqlalchemy.orm import Session
 from collections.abc import AsyncIterator
+from apps.control_plane.src.application.common.ports import IdempotencyStore
+
+from .auth import Principal, get_current_principal, UnauthenticatedError
+from .dependencies import (
+    get_admission_policy,
+    get_idempotency_store,
+    get_lab_repository,
+    get_session_repository,
+)
 
 
 @asynccontextmanager
@@ -27,6 +49,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(UnauthenticatedError)
+async def handle_unauthenticated(
+    request: Request, exc: UnauthenticatedError
+) -> JSONResponse:
+    body = ApiErrorEnvelope(
+        error=ApiError(
+            code="UNAUTHENTICATED",
+            message="Missing or invalid bearer token",
+            retryable=False,
+            details=None,
+        )
+    )
+    return JSONResponse(content=body.model_dump(mode="json"), status_code=401)
 
 
 @app.get(
@@ -67,73 +104,52 @@ def get_metadata(
 
 
 @app.post("/api/v1/sessions", response_model=CreateSessionResponse, status_code=202)
-def create_session(
+def create_session_endpoint(
     request: CreateSessionRequest,
+    principal: Principal = Depends(get_current_principal),
+    lab_repo: LabRepository = Depends(get_lab_repository),
+    admission_policy: AdmissionPolicy = Depends(get_admission_policy),
+    idempotency_store: IdempotencyStore[CreateSessionResult] = Depends(
+        get_idempotency_store
+    ),
+    sessions: CreateSessionRepository = Depends(get_session_repository),
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
-    authorization: str = Header(..., alias="Authorization"),
-    db: Session = Depends(get_db_session),
 ) -> CreateSessionResponse | JSONResponse | None:
     # TODO: Spec alignment: Idempotency-Key is opaque. Refactor downstream
     # app/persistence types to str for idempotency keys (currently UUID-based).
-    # Creates a new session for a published lab.
 
-    if not authorization.startswith("Bearer "):
-        error_body = ApiError(
-            code="UNAUTHENTICATED",
-            message="Missing or invalid bearer token",
-            retryable=False,
-            details=None,
-        )
-        error_envelope = ApiErrorEnvelope(error=error_body)
-        return JSONResponse(
-            content=error_envelope.model_dump(mode="json"), status_code=401
-        )
-
-    token = authorization.removeprefix("Bearer ").strip()
-    if not token:
-        error_body = ApiError(
-            code="UNAUTHENTICATED",
-            message="Missing or invalid bearer token",
-            retryable=False,
-            details=None,
-        )
-        error_envelope = ApiErrorEnvelope(error=error_body)
-        return JSONResponse(
-            content=error_envelope.model_dump(mode="json"), status_code=401
-        )
-
+    # Idempotency key validity check
     key = idempotency_key.strip()
-    if not key:
-        error_body = ApiError(
-            code="INVALID_IDEMPOTENCY_KEY",
-            message="Valid Idempotency-Key header is required",
-            retryable=False,
-            details=None,
+    if not key or len(key) > 128:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="INVALID_IDEMPOTENCY_KEY",
+                message="Valid Idempotency-Key header is required",
+                retryable=False,
+                details=None,
+            )
         )
-        error_envelope = ApiErrorEnvelope(error=error_body)
-        return JSONResponse(
-            content=error_envelope.model_dump(mode="json"), status_code=400
-        )
+        return JSONResponse(status_code=400, content=body.model_dump(mode="json"))
 
-    if len(key) > 128:
-        error_body = ApiError(
-            code="INVALID_IDEMPOTENCY_KEY",
-            message="Idempotency-Key is too long",
-            retryable=False,
-            details=None,
-        )
-        error_envelope = ApiErrorEnvelope(error=error_body)
-        return JSONResponse(
-            content=error_envelope.model_dump(mode="json"), status_code=400
-        )
+    application_principal = PrincipalContext(
+        user_id=principal.user_id, role=principal.role
+    )
+    result = create_session(
+        principal=application_principal,
+        admission_policy=admission_policy,
+        lab_repo=lab_repo,
+        sessions=sessions,
+        idempotency_store=idempotency_store,
+        lab_id=request.lab_id,
+        idempotency_key=key,
+    )
 
-    return None
-
-    # - authenticated learner or admin acting as a learner in future-supported workflows
-
-    # - validates lab availability
-
-    # - validates quota and degraded-mode restrictions
-    # - creates a durable session row if the idempotency key has not been used
-
-    # - returns the existing session if the same idempotency key is replayed for the same logical request
+    session = SessionResponse(
+        id=result.session_id,
+        lab_id=result.lab_id,
+        lab_version_id=result.lab_version_id,
+        state=result.state,
+        resume_mode=result.resume_mode,
+        created_at=result.created_at,
+    )
+    return CreateSessionResponse(session=session)

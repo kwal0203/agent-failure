@@ -10,7 +10,7 @@ from apps.control_plane.src.application.session_lifecycle.schemas import (
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.errors import DataIntegrityError
 from apps.control_plane.src.infrastructure.persistence.idempotency_store import (
-    PostgresIdempotencyStore,
+    PostgresTransitionIdempotencyStore,
 )
 from apps.control_plane.src.infrastructure.persistence.models import (
     IdempotencyRecordModel,
@@ -40,14 +40,14 @@ def _insert_transition_event(
     next_state: SessionState = SessionState.PROVISIONING,
 ) -> SessionTransitionEventModel:
     event = SessionTransitionEventModel(
-        id=uuid4(),
+        id=str(uuid4()),
         session_id=session_id,
         prev_state=prev_state.value,
         next_state=next_state.value,
         trigger="LAUNCH_SUCCEEDED",
         actor="system",
         event_metadata={},
-        idempotency_key=uuid4(),
+        idempotency_key=str(uuid4()),
     )
     db_session.add(event)
     db_session.flush()
@@ -55,16 +55,16 @@ def _insert_transition_event(
 
 
 def test_get_returns_none_when_key_missing(db_session: Session) -> None:
-    store = PostgresIdempotencyStore(db=db_session)
-    assert store.get(uuid4()) is None
+    store = PostgresTransitionIdempotencyStore(db=db_session)
+    assert store.get(operation="transition_session", key=str(uuid4())) is None
 
 
 def test_save_then_get_returns_transition_result(db_session: Session) -> None:
-    store = PostgresIdempotencyStore(db=db_session)
+    store = PostgresTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
     event = _insert_transition_event(db_session, session.id)
 
-    key = uuid4()
+    key = str(uuid4())
     result = TransitionResult(
         transition_id=event.id,
         session_id=session.id,
@@ -72,10 +72,10 @@ def test_save_then_get_returns_transition_result(db_session: Session) -> None:
         next_state=SessionState.PROVISIONING,
     )
 
-    store.save(key=key, result=result)
+    store.save(operation="transition_session", key=key, result=result)
     db_session.flush()
 
-    loaded = store.get(key)
+    loaded = store.get(operation="transition_session", key=key)
     assert loaded is not None
     assert loaded.transition_id == result.transition_id
     assert loaded.session_id == result.session_id
@@ -84,10 +84,10 @@ def test_save_then_get_returns_transition_result(db_session: Session) -> None:
 
 
 def test_save_enforces_unique_operation_key(db_session: Session) -> None:
-    store = PostgresIdempotencyStore(db=db_session)
+    store = PostgresTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
     event = _insert_transition_event(db_session, session.id)
-    key = uuid4()
+    key = str(uuid4())
 
     result = TransitionResult(
         transition_id=event.id,
@@ -96,10 +96,10 @@ def test_save_enforces_unique_operation_key(db_session: Session) -> None:
         next_state=SessionState.PROVISIONING,
     )
 
-    store.save(key=key, result=result)
+    store.save(operation="transition_session", key=key, result=result)
     db_session.flush()
 
-    store.save(key=key, result=result)
+    store.save(operation="transition_session", key=key, result=result)
     with pytest.raises(IntegrityError):
         db_session.flush()
 
@@ -107,9 +107,9 @@ def test_save_enforces_unique_operation_key(db_session: Session) -> None:
 def test_get_raises_data_integrity_when_transition_id_missing(
     db_session: Session,
 ) -> None:
-    store = PostgresIdempotencyStore(db=db_session)
+    store = PostgresTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
-    key = uuid4()
+    key = str(uuid4())
 
     record = IdempotencyRecordModel(
         operation="transition_session",
@@ -122,7 +122,7 @@ def test_get_raises_data_integrity_when_transition_id_missing(
     db_session.flush()
 
     with pytest.raises(DataIntegrityError):
-        store.get(key)
+        store.get(operation="transition_session", key=key)
 
 
 def test_save_rejects_missing_transition_event_fk(db_session: Session) -> None:
@@ -130,9 +130,9 @@ def test_save_rejects_missing_transition_event_fk(db_session: Session) -> None:
 
     record = IdempotencyRecordModel(
         operation="transition_session",
-        idempotency_key=uuid4(),
+        idempotency_key=str(uuid4()),
         session_id=session.id,
-        transition_id=uuid4(),  # references non-existent transition row
+        transition_id=uuid4(),  # TODO: references non-existent transition row
         response_payload=None,
     )
     db_session.add(record)

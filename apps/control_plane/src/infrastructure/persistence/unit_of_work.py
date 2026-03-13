@@ -1,14 +1,18 @@
 from apps.control_plane.src.application.session_lifecycle.ports import (
     UnitOfWork,
     SessionRepository,
-    IdempotencyStore,
     Outbox,
 )
+from apps.control_plane.src.application.common.ports import IdempotencyStore
+from apps.control_plane.src.application.session_lifecycle.schemas import (
+    TransitionResult,
+)
+
 from sqlalchemy.orm import Session, sessionmaker
 from contextlib import contextmanager
 from collections.abc import Iterator
 from .session_repository import SQLAlchemySessionRepository
-from .idempotency_store import PostgresIdempotencyStore
+from .idempotency_store import PostgresTransitionIdempotencyStore
 from .outbox import SQLAlchemyOutbox
 
 
@@ -16,7 +20,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
         self._sessions: SessionRepository | None = None
-        self._idempotency: IdempotencyStore | None = None
+        self._idempotency: IdempotencyStore[TransitionResult] | None = None
         self._outbox: Outbox | None = None
 
     @property
@@ -26,7 +30,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
         return self._sessions
 
     @property
-    def idempotency(self) -> IdempotencyStore:
+    def idempotency(self) -> IdempotencyStore[TransitionResult]:
         if self._idempotency is None:
             raise RuntimeError("No active idempotency store")
         return self._idempotency
@@ -41,7 +45,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
         self._sessions = SQLAlchemySessionRepository(db=db_session)
-        self._idempotency = PostgresIdempotencyStore(db=db_session)
+        self._idempotency = PostgresTransitionIdempotencyStore(db=db_session)
         self._outbox = SQLAlchemyOutbox(db=db_session)
 
         try:

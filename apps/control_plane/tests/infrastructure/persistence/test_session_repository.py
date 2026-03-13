@@ -89,7 +89,7 @@ def test_insert_transition_event_persists_and_returns_result(
     repo: SQLAlchemySessionRepository, db_session: Session
 ) -> None:
     row = _insert_session(db_session=db_session, state=SessionState.CREATED)
-    idem_key = uuid4()
+    idem_key = str(uuid4())
 
     result = repo.insert_transition_event(
         session_id=row.id,
@@ -124,7 +124,7 @@ def test_insert_transition_event_enforces_idempotency_uniqueness(
     repo: SQLAlchemySessionRepository, db_session: Session
 ) -> None:
     row = _insert_session(db_session=db_session, state=SessionState.CREATED)
-    idem_key = uuid4()
+    idem_key = str(uuid4())
 
     repo.insert_transition_event(
         session_id=row.id,

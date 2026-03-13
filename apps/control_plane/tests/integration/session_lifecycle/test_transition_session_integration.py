@@ -26,7 +26,7 @@ import pytest
 @pytest.mark.usefixtures("engine")
 def test_transition_session_replay_is_idempotent() -> None:
     session_id = uuid4()
-    idempotency_key = uuid4()
+    idempotency_key = str(uuid4())
 
     # Seed a CREATED session row.
     with SessionFactory() as seed_db:

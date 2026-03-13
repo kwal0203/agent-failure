@@ -6,6 +6,7 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
     Trigger,
 )
+from apps.control_plane.src.application.common.ports import IdempotencyStore
 from typing import Mapping
 
 
@@ -13,12 +14,6 @@ from typing import Mapping
 class SessionRow:
     id: UUID
     state: SessionState
-
-
-class IdempotencyStore(Protocol):
-    def get(self, key: UUID) -> TransitionResult | None: ...
-
-    def save(self, key: UUID, result: TransitionResult) -> None: ...
 
 
 class SessionRepository(Protocol):
@@ -41,7 +36,7 @@ class SessionRepository(Protocol):
         trigger: Trigger,
         actor: str,
         metadata: Mapping[str, object],
-        idempotency_key: UUID,
+        idempotency_key: str,
     ) -> TransitionResult: ...
 
 
@@ -62,7 +57,7 @@ class UnitOfWork(Protocol):
     def sessions(self) -> SessionRepository: ...
 
     @property
-    def idempotency(self) -> IdempotencyStore: ...
+    def idempotency(self) -> IdempotencyStore[TransitionResult]: ...
 
     @property
     def outbox(self) -> Outbox: ...

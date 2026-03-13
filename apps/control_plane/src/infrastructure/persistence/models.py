@@ -88,8 +88,8 @@ class SessionTransitionEventModel(Base):
         "metadata", JSONB, nullable=False, default=dict
     )
 
-    idempotency_key: Mapped[PyUUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+    idempotency_key: Mapped[str] = mapped_column(
+        String(128), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -109,8 +109,8 @@ class IdempotencyRecordModel(Base):
     )
 
     operation: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    idempotency_key: Mapped[PyUUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+    idempotency_key: Mapped[str] = mapped_column(
+        String(128), nullable=False, index=True
     )
 
     session_id: Mapped[PyUUID | None] = mapped_column(
