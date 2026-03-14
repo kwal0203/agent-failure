@@ -33,6 +33,7 @@ def test_transition_session_replay_is_idempotent() -> None:
         seed_db.add(
             SessionModel(
                 id=session_id,
+                owner_user_id=uuid4(),
                 state=SessionState.CREATED.value,
                 last_transition_actor="seed",
                 last_transition_reason=None,

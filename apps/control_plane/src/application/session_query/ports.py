@@ -9,6 +9,7 @@ class SessionMetadataDTO:
     id: UUID
     lab_id: UUID | None
     lab_version_id: UUID | None
+    owner_user_id: UUID
     state: str
     runtime_substate: str | None
     resume_mode: str

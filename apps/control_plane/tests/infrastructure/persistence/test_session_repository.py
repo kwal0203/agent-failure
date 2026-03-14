@@ -21,6 +21,7 @@ def _insert_session(
 ) -> SessionModel:
     row = SessionModel(
         id=uuid4(),
+        owner_user_id=uuid4(),
         state=state,
         last_transition_actor="seed",
         last_transition_reason=None,

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from uuid import UUID, uuid4
+from uuid import UUID, uuid5, NAMESPACE_URL
 from fastapi import Header
 
 
@@ -23,4 +23,18 @@ def get_current_principal(
     if not token:
         raise UnauthenticatedError()
 
-    return Principal(user_id=uuid4(), role="learner")
+    parts = token.split(":")
+    if len(parts) not in (2, 3) or parts[0] != "local":
+        raise UnauthenticatedError()
+
+    username = parts[1].strip()
+    if not username:
+        raise UnauthenticatedError()
+
+    role = "learner"
+    if len(parts) == 3:
+        role = parts[2].strip() or "learner"
+
+    user_id = uuid5(namespace=NAMESPACE_URL, name=f"local-user:{username}")
+
+    return Principal(user_id=user_id, role=role)

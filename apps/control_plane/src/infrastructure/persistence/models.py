@@ -28,6 +28,9 @@ class SessionModel(Base):
     lab_version_id: Mapped[PyUUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    owner_user_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
 
     state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     runtime_substate: Mapped[str | None] = mapped_column(String(32), nullable=True)

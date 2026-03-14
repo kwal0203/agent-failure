@@ -124,6 +124,7 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             id=result.id,
             lab_id=result.lab_id,
             lab_version_id=result.lab_version_id,
+            owner_user_id=result.owner_user_id,
             state=result.state,
             runtime_substate=result.runtime_substate,
             resume_mode=result.resume_mode,
@@ -144,6 +145,7 @@ class PostgresCreateSessionRepository(CreateSessionRepository):
     ) -> CreateSessionResult:
         session = SessionModel(
             lab_id=lab_id,
+            owner_user_id=actor_id,
             state=SessionState.PROVISIONING.value,
             last_transition_actor=actor_role,
             last_transition_reason=None,

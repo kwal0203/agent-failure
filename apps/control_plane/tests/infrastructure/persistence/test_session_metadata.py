@@ -15,6 +15,7 @@ def _insert_session(db_session: Session, *, state: SessionState) -> SessionModel
         id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
+        owner_user_id=uuid4(),
         state=state.value,
         runtime_substate="WAITING_FOR_INPUT"
         if state in {SessionState.ACTIVE, SessionState.IDLE}
