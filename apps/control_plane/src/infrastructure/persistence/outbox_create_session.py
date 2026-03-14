@@ -35,7 +35,7 @@ class SQLAlchemyOutboxCreateSession(OutboxCreateSession):
         }
 
         event = OutboxEventModel(
-            event_type="session.provisioning_requested.v1",
+            event_type="session.provisioning.v1",
             aggregate_id=session_id,
             payload=payload,
         )
