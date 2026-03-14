@@ -17,6 +17,10 @@ from apps.control_plane.src.infrastructure.persistence.lab_repository import (
 )
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     PostgresCreateSessionRepository,
+    SQLAlchemySessionMetadataRepository,
+)
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.db import (
     get_db_session,
@@ -56,3 +60,9 @@ def get_session_repository(
 
 def get_create_session_uow() -> CreateSessionUnitOfWork:
     return SQLAlchemyCreateSessionUnitOfWork(session_factory=SessionFactory)
+
+
+def get_session_metadata_repository(
+    db: Session = Depends(get_db_session),
+) -> SessionMetadataRepository:
+    return SQLAlchemySessionMetadataRepository(db=db)
