@@ -1,8 +1,8 @@
-"""Add session metadata columns to the sessions table.
+"""baseline schema
 
-Revision ID: 4c7b79bbf30e
-Revises: faa5264afd76
-Create Date: 2026-03-11 11:17:00.974369
+Revision ID: d5e238bc5d10
+Revises:
+Create Date: 2026-03-14 13:23:33.708127
 
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "4c7b79bbf30e"
-down_revision: Union[str, Sequence[str], None] = "faa5264afd76"
+revision: str = "d5e238bc5d10"
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -72,6 +72,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("lab_id", sa.UUID(), nullable=True),
         sa.Column("lab_version_id", sa.UUID(), nullable=True),
+        sa.Column("owner_user_id", sa.UUID(), nullable=False),
         sa.Column("state", sa.String(length=32), nullable=False),
         sa.Column("runtime_substate", sa.String(length=32), nullable=True),
         sa.Column("resume_mode", sa.String(length=32), nullable=False),
@@ -87,6 +88,9 @@ def upgrade() -> None:
         sa.Column("last_transition_reason", sa.String(length=32), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index(
+        op.f("ix_sessions_owner_user_id"), "sessions", ["owner_user_id"], unique=False
+    )
     op.create_index(op.f("ix_sessions_state"), "sessions", ["state"], unique=False)
     op.create_table(
         "session_transition_events",
@@ -98,7 +102,7 @@ def upgrade() -> None:
         sa.Column("trigger", sa.String(length=64), nullable=False),
         sa.Column("actor", sa.String(length=128), nullable=False),
         sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("idempotency_key", sa.UUID(), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=128), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -142,7 +146,7 @@ def upgrade() -> None:
         "idempotency_records",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("operation", sa.String(length=64), nullable=False),
-        sa.Column("idempotency_key", sa.UUID(), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=128), nullable=False),
         sa.Column("session_id", sa.UUID(), nullable=True),
         sa.Column("transition_id", sa.UUID(), nullable=True),
         sa.Column(
@@ -220,6 +224,7 @@ def downgrade() -> None:
     )
     op.drop_table("session_transition_events")
     op.drop_index(op.f("ix_sessions_state"), table_name="sessions")
+    op.drop_index(op.f("ix_sessions_owner_user_id"), table_name="sessions")
     op.drop_table("sessions")
     op.drop_index(op.f("ix_outbox_events_status"), table_name="outbox_events")
     op.drop_index(op.f("ix_outbox_events_event_type"), table_name="outbox_events")
