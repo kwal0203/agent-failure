@@ -1,7 +1,11 @@
-from fastapi import FastAPI, Depends, Request, Header
+from fastapi import FastAPI, Depends, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
 from uuid import UUID
+
 from .schemas import (
     GetSessionMetadataResponse,
     SessionMetadataResponse,
@@ -38,11 +42,23 @@ from apps.control_plane.src.application.session_create.errors import (
     AdmissionDecisionError,
 )
 
-from sqlalchemy.orm import Session
-from collections.abc import AsyncIterator
+from .dependencies import (
+    get_admission_policy,
+    get_create_session_uow,
+    get_session_metadata_repository,
+)
+from .auth import (
+    Principal,
+    UnauthenticatedError,
+    get_current_principal,
+    get_current_principal_ws,
+)
+from .stream_messages import SessionStatusMessage, SessionStatusPayload
+from .session_manager import WebSocketSessionManager
 
-from .auth import Principal, get_current_principal, UnauthenticatedError
-from .dependencies import get_admission_policy, get_create_session_uow
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -51,6 +67,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 
 
 @app.exception_handler(UnauthenticatedError)
@@ -257,3 +275,69 @@ def create_session_endpoint(
             )
         )
         return JSONResponse(content=body.model_dump(mode="json"), status_code=500)
+
+
+@app.websocket("/api/v1/sessions/{session_id}/stream")
+async def session_stream_ws(
+    websocket: WebSocket,
+    session_id: UUID,
+    repo: SQLAlchemySessionMetadataRepository = Depends(
+        get_session_metadata_repository
+    ),
+):
+    # - Authz rules:
+    #   - missing/invalid auth => deny.
+    #   - non-owner/non-admin => deny.
+    try:
+        principal = get_current_principal_ws(websocket=websocket)
+    except UnauthenticatedError:
+        await websocket.close(code=1008, reason="unauthenticated")
+        logger.warning(f"session stream denied unauthenticated session_id={session_id}")
+        return
+
+    # - owner/admin => allow.
+    # - Query session metadata using existing query path (get_session_metadata + repo).
+    try:
+        metadata = get_session_metadata(
+            session_id=session_id,
+            principal_user_id=principal.user_id,
+            principal_user_role=principal.role,
+            repo=repo,
+        )
+    except ForbiddenErrorSessionQuery:
+        await websocket.close(code=1008, reason="forbidden")
+        logger.warning(
+            f"session stream denied forbidden session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+        )
+        return
+
+    if metadata is None:
+        await websocket.close(code=1008, reason="session not found")
+        return
+
+    # - On allow: accept, register with manager, send initial SESSION_STATUS.
+    await ws_manager.connect(session_id=session_id, websocket=websocket)
+    logger.info(
+        f"session stream connect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+    )
+    try:
+        body = SessionStatusPayload(
+            state=metadata.state,
+            runtime_substate=metadata.runtime_substate,
+            interactive=metadata.interactive,
+        )
+        message = SessionStatusMessage(
+            session_id=session_id, timestamp=datetime.now(timezone.utc), payload=body
+        )
+        await websocket.send_json(message.model_dump(mode="json"))
+        # - Keep connection alive with a simple receive loop.
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # - In finally: manager disconnect + log disconnect.
+        ws_manager.disconnect(session_id=session_id, websocket=websocket)
+        logger.info(
+            f"session stream disconnect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+        )
