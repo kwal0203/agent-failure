@@ -25,6 +25,15 @@ from apps.control_plane.src.application.session_create.ports import (
 
 from apps.control_plane.src.application.session_create.types import PrincipalContext
 from apps.control_plane.src.application.session_create.service import create_session
+from apps.control_plane.src.application.session_create.errors import (
+    LabNotAvailableError,
+    QuotaExceededError,
+    RateLimitedError,
+    DegradedModeRestrictionError,
+    InvalidIdempotencyKeyError,
+    ForbiddenError,
+    AdmissionDecisionError,
+)
 
 from sqlalchemy.orm import Session
 from collections.abc import AsyncIterator
@@ -93,7 +102,18 @@ def get_metadata(
     return GetSessionMetadataResponse(session=http_obj)
 
 
-@app.post("/api/v1/sessions", response_model=CreateSessionResponse, status_code=202)
+@app.post(
+    "/api/v1/sessions",
+    response_model=CreateSessionResponse,
+    status_code=202,
+    responses={
+        400: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        429: {"model": ApiErrorEnvelope},
+        503: {"model": ApiErrorEnvelope},
+    },
+)
 def create_session_endpoint(
     request: CreateSessionRequest,
     principal: Principal = Depends(get_current_principal),
@@ -116,20 +136,102 @@ def create_session_endpoint(
     application_principal = PrincipalContext(
         user_id=principal.user_id, role=principal.role
     )
-    result = create_session(
-        principal=application_principal,
-        admission_policy=admission_policy,
-        lab_id=request.lab_id,
-        idempotency_key=key,
-        uow=uow,
-    )
-    session = SessionResponse(
-        id=result.session_id,
-        lab_id=result.lab_id,
-        lab_version_id=result.lab_version_id,
-        state=result.state,
-        resume_mode=result.resume_mode,
-        created_at=result.created_at,
-    )
 
-    return CreateSessionResponse(session=session)
+    try:
+        result = create_session(
+            principal=application_principal,
+            admission_policy=admission_policy,
+            lab_id=request.lab_id,
+            idempotency_key=key,
+            uow=uow,
+        )
+        session = SessionResponse(
+            id=result.session_id,
+            lab_id=result.lab_id,
+            lab_version_id=result.lab_version_id,
+            state=result.state,
+            resume_mode=result.resume_mode,
+            created_at=result.created_at,
+        )
+
+        return CreateSessionResponse(session=session)
+    except LabNotAvailableError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="LAB_NOT_AVAILABLE",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=404)
+    except QuotaExceededError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="QUOTA_EXCEEDED",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=429)
+    except RateLimitedError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="RATE_LIMITED",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=429)
+    except DegradedModeRestrictionError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="DEGRADED_MODE_RESTRICTION",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=503)
+    except InvalidIdempotencyKeyError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="INVALID_IDEMPOTENCY_KEY",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=400)
+    except ForbiddenError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="FORBIDDEN",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=403)
+    except AdmissionDecisionError as exc:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="ADMISSION_DENIED",
+                message=exc.message,
+                retryable=False,
+                details=exc.details,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=400)
+    except Exception:
+        body = ApiErrorEnvelope(
+            error=ApiError(
+                code="INTERNAL_ERROR",
+                message="unexpected server error.",
+                retryable=False,
+                details=None,
+            )
+        )
+        return JSONResponse(content=body.model_dump(mode="json"), status_code=500)

@@ -96,8 +96,6 @@ def create_session(
                 operation="create_session", key=idempotency_key, result=session
             )
 
-            # TODO: Outbox enqueue
-            # NOTE: Are the session attributes immediately available after session creation?
             uow.outbox.enqueue_for_session_creation(
                 session_id=session.session_id,
                 lab_id=lab_id,

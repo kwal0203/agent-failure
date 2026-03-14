@@ -81,17 +81,25 @@ class ForbiddenError(Exception):
 
 class AdmissionDecisionError(Exception):
     def __init__(
-        self, code: str | None, details: dict[str, object] | None = None
+        self,
+        code: str | None,
+        message: str = "You are not authorized.",
+        details: dict[str, object] | None = None,
     ) -> None:
         self.code = code
+        self.message = message
         self.details = details or {}
         super().__init__(f"Unhandled admission denial code: {code}")
 
 
 class DuplicateIdempotencyKeyError(Exception):
     def __init__(
-        self, code: str | None, details: dict[str, object] | None = None
+        self,
+        code: str | None,
+        message: str = "You are not authorized.",
+        details: dict[str, object] | None = None,
     ) -> None:
         self.code = code
+        self.message = message
         self.details = details or {}
         super().__init__("Duplicate idempotency key detected.")
