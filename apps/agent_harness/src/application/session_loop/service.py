@@ -25,8 +25,6 @@ def run_single_turn(
         # websocket prompt admission/validation is wired into the harness call chain.
         messages = context_builder.build_messages(turn=turn)
         request = ModelRequest(messages=messages)
-        # TODO(E5-T2): Replace local fake model client wiring with real gateway/provider
-        # adapter that raises typed provider exceptions.
         for chunk in model_client.stream(payload=request):
             chunks.append(chunk)
             # TODO(E3-T3,E5-T4): Route chunk events to typed stream + durable trace sink
@@ -47,7 +45,9 @@ def run_single_turn(
         # TODO(E3-T3,E5-T4): Emit typed denial/failure stream message and durable trace.
         event_sink.on_failure(failure=failure)
         return HarnessTurnResult(chunks=chunks, failure=failure)
-    except SessionLoopProviderFailureError as exc:
+    except (
+        SessionLoopProviderFailureError
+    ) as exc:  # NOTE: Application level provider errors
         failure = HarnessFailure(
             code="provider_failure", message=exc.message, details=exc.details
         )

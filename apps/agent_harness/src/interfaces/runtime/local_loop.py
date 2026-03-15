@@ -5,6 +5,11 @@ from apps.agent_harness.src.application.session_loop.types import (
 from apps.agent_harness.src.application.session_loop.service import run_single_turn
 from .dependencies import get_context_builder, get_event_sink, get_model_client
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
 
 def run_local_one_turn(turn: HarnessTurnInput) -> HarnessTurnResult:
     model_client = get_model_client()
