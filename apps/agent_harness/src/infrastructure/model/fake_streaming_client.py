@@ -8,9 +8,6 @@ from apps.agent_harness.src.application.session_loop.types import (
 
 
 class LocalV1ModelClient(ModelClientPort):
-    def __init__(self) -> None:
-        super().__init__()
-
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]:
         user_prompt = next(
             (m.content for m in payload.messages if m.role == "user"),

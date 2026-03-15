@@ -12,7 +12,7 @@ class ModelClientPort(Protocol):
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]: ...
 
 
-class LabContextBuilder(Protocol):
+class LabContextBuilderPort(Protocol):
     def build_messages(self, turn: HarnessTurnInput) -> list[ChatMessage]: ...
 
 

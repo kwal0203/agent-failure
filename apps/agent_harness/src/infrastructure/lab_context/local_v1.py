@@ -1,4 +1,4 @@
-from apps.agent_harness.src.application.session_loop.ports import LabContextBuilder
+from apps.agent_harness.src.application.session_loop.ports import LabContextBuilderPort
 from apps.agent_harness.src.application.session_loop.types import (
     ChatMessage,
     HarnessTurnInput,
@@ -7,7 +7,7 @@ from apps.agent_harness.src.application.session_loop.types import (
 from uuid import UUID
 
 
-class LocalV1LabContextBuilder(LabContextBuilder):
+class LocalV1LabContextBuilder(LabContextBuilderPort):
     SUPPORTED_LAB_ID: UUID = UUID("11111111-1111-1111-1111-111111111111")
     SUPPORTED_LAB_VERSION_ID: UUID = UUID("22222222-2222-2222-2222-222222222222")
 
