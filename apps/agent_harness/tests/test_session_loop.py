@@ -30,7 +30,7 @@ class FailingModelClient:
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]:
         _ = payload
         raise SessionLoopProviderFailureError(
-            message="model stream failed", details=None
+            message="model stream failed", details={"provider": "openrouter"}
         )
 
 
@@ -140,6 +140,7 @@ def test_run_single_turn_returns_provider_failure_when_model_stream_fails() -> N
     assert result.failure is not None
     assert result.failure.code == "provider_failure"
     assert result.failure.message == "model stream failed"
+    assert result.failure.details == {"provider": "openrouter"}
     assert sink.failures
     assert sink.failures[0].code == "provider_failure"
 
