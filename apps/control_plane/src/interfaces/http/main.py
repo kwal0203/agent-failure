@@ -41,6 +41,8 @@ from apps.control_plane.src.application.session_create.errors import (
     ForbiddenError,
     AdmissionDecisionError,
 )
+from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
+from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
 
 from .dependencies import (
     get_admission_policy,
@@ -53,10 +55,20 @@ from .auth import (
     get_current_principal,
     get_current_principal_ws,
 )
-from .stream_messages import SessionStatusMessage, SessionStatusPayload
+from .stream_messages import (
+    SessionStatusMessage,
+    SessionStatusPayload,
+    UserPromptMessage,
+    PolicyDenialMessage,
+    PolicyDenialPayload,
+    AgentTextChunkMessage,
+    AgentTextChunkPayload,
+)
 from .session_manager import WebSocketSessionManager
 
 import logging
+import asyncio
+
 
 logger = logging.getLogger(__name__)
 
@@ -277,6 +289,114 @@ def create_session_endpoint(
         return JSONResponse(content=body.model_dump(mode="json"), status_code=500)
 
 
+async def handle_user_prompt(
+    websocket: WebSocket,
+    session_id: UUID,
+    principal: Principal,
+    prompt_content: str,
+    db: Session,
+):
+    repo = SQLAlchemySessionMetadataRepository(db=db)
+
+    if not ws_manager.try_begin_turn(session_id=session_id):
+        await websocket.send_json(
+            PolicyDenialMessage(
+                type="POLICY_DENIAL",
+                session_id=session_id,
+                timestamp=datetime.now(timezone.utc),
+                payload=PolicyDenialPayload(
+                    reason_code="TURN_IN_PROGRESS", message="Turn in progress"
+                ),
+            ).model_dump(mode="json")
+        )
+        return
+
+    metadata = get_session_metadata(
+        session_id=session_id,
+        principal_user_id=principal.user_id,
+        principal_user_role=principal.role,
+        repo=repo,
+    )
+    try:
+        if metadata is None:
+            await websocket.send_json(
+                PolicyDenialMessage(
+                    type="POLICY_DENIAL",
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc),
+                    payload=PolicyDenialPayload(
+                        reason_code="SESSION_NOT_FOUND", message="Session not found"
+                    ),
+                ).model_dump(mode="json")
+            )
+            return
+
+        if not metadata.interactive:
+            await websocket.send_json(
+                PolicyDenialMessage(
+                    type="POLICY_DENIAL",
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc),
+                    payload=PolicyDenialPayload(
+                        reason_code="SESSION_NOT_INTERACTIVE",
+                        message="Session not interactive",
+                    ),
+                ).model_dump(mode="json")
+            )
+            return
+
+        if metadata.lab_id is None or metadata.lab_version_id is None:
+            await websocket.send_json(
+                PolicyDenialMessage(
+                    type="POLICY_DENIAL",
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc),
+                    payload=PolicyDenialPayload(
+                        reason_code="SESSION_MISSING_CONTEXT",
+                        message="Session is missing lab context (lab id or lab version id)",
+                    ),
+                ).model_dump(mode="json")
+            )
+            return
+
+        turn = HarnessTurnInput(
+            session_id=metadata.id,
+            lab_id=metadata.lab_id,
+            lab_version_id=metadata.lab_version_id,
+            prompt=prompt_content,
+        )
+
+        result = await asyncio.to_thread(run_local_one_turn, turn)
+        if result.failure is not None:
+            await websocket.send_json(
+                PolicyDenialMessage(
+                    type="POLICY_DENIAL",
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc),
+                    payload=PolicyDenialPayload(
+                        reason_code=result.failure.code.upper(),
+                        message=result.failure.message,
+                    ),
+                ).model_dump(mode="json")
+            )
+            return
+
+        # Success path
+        for chunk in result.chunks:
+            await websocket.send_json(
+                AgentTextChunkMessage(
+                    type="AGENT_TEXT_CHUNK",
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc),
+                    payload=AgentTextChunkPayload(
+                        content=chunk.content, final=chunk.final
+                    ),
+                ).model_dump(mode="json")
+            )
+    finally:
+        ws_manager.end_turn(session_id=session_id)
+
+
 @app.websocket("/api/v1/sessions/{session_id}/stream")
 async def session_stream_ws(
     websocket: WebSocket,
@@ -284,6 +404,7 @@ async def session_stream_ws(
     repo: SQLAlchemySessionMetadataRepository = Depends(
         get_session_metadata_repository
     ),
+    db: Session = Depends(get_db_session),
 ):
     # - Authz rules:
     #   - missing/invalid auth => deny.
@@ -330,9 +451,50 @@ async def session_stream_ws(
             session_id=session_id, timestamp=datetime.now(timezone.utc), payload=body
         )
         await websocket.send_json(message.model_dump(mode="json"))
-        # - Keep connection alive with a simple receive loop.
         while True:
-            await websocket.receive_text()
+            incoming = await websocket.receive_json()
+
+            try:
+                prompt_msg = UserPromptMessage.model_validate(incoming)
+            except Exception:
+                await websocket.send_json(
+                    PolicyDenialMessage(
+                        type="POLICY_DENIAL",
+                        session_id=session_id,
+                        timestamp=datetime.now(timezone.utc),
+                        payload=PolicyDenialPayload(
+                            reason_code="INVALID_MESSAGE",
+                            message="Invalid websocket message shape",
+                        ),
+                    ).model_dump(mode="json")
+                )
+                continue
+
+            if prompt_msg.type != "USER_PROMPT":
+                continue
+
+            if prompt_msg.session_id != session_id:
+                await websocket.send_json(
+                    PolicyDenialMessage(
+                        type="POLICY_DENIAL",
+                        session_id=session_id,
+                        timestamp=datetime.now(timezone.utc),
+                        payload=PolicyDenialPayload(
+                            reason_code="SESSION_ID_MISMATCH",
+                            message="Message session_id does not match stream session_id",
+                        ),
+                    ).model_dump(mode="json")
+                )
+                continue
+
+            await handle_user_prompt(
+                websocket=websocket,
+                session_id=session_id,
+                principal=principal,
+                prompt_content=prompt_msg.payload.content,
+                db=db,
+            )
+
     except WebSocketDisconnect:
         pass
     finally:
