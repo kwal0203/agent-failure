@@ -4,17 +4,15 @@ from datetime import datetime
 from typing import Literal
 
 
+ServerMessageType = Literal[
+    "SESSION_STATUS", "AGENT_TEXT_CHUNK", "TRACE_EVENT", "POLICY_DENIAL", "SYSTEM_ERROR"
+]
+
+
 class SessionStatusPayload(BaseModel):
     state: str
     runtime_substate: str | None
     interactive: bool
-
-
-class SessionStatusMessage(BaseModel):
-    type: Literal["SESSION_STATUS"] = "SESSION_STATUS"
-    session_id: UUID
-    timestamp: datetime
-    payload: SessionStatusPayload
 
 
 class UserPromptPayload(BaseModel):
@@ -33,20 +31,36 @@ class PolicyDenialPayload(BaseModel):
     message: str
 
 
-class PolicyDenialMessage(BaseModel):
-    type: Literal["POLICY_DENIAL"]
-    session_id: UUID
-    timestamp: datetime
-    payload: PolicyDenialPayload
-
-
 class AgentTextChunkPayload(BaseModel):
     content: str
     final: bool
 
 
-class AgentTextChunkMessage(BaseModel):
-    type: Literal["AGENT_TEXT_CHUNK"]
+class TraceEventPayload(BaseModel):
+    event_code: str
+    message: str
+
+
+class SystemErrorPayload(BaseModel):
+    error_code: str
+    message: str
+
+
+ServerPayload = (
+    SessionStatusPayload
+    | AgentTextChunkPayload
+    | PolicyDenialPayload
+    | TraceEventPayload
+    | SystemErrorPayload
+)
+
+
+class ServerMessageEnvelope(BaseModel):
+    type: ServerMessageType
     session_id: UUID
     timestamp: datetime
-    payload: AgentTextChunkPayload
+    payload: ServerPayload
+    event_index: int | None = None
+    request_id: UUID | None = None
+    correlation_id: UUID | None = None
+    final: bool | None = None

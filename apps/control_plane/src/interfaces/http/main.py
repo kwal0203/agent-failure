@@ -2,7 +2,6 @@ from fastapi import FastAPI, Depends, Request, Header, WebSocket, WebSocketDisco
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -10,7 +9,6 @@ from .schemas import (
     GetSessionMetadataResponse,
     SessionMetadataResponse,
     ApiErrorEnvelope,
-    ApiError,
     SessionResponse,
     CreateSessionResponse,
     CreateSessionRequest,
@@ -56,15 +54,17 @@ from .auth import (
     get_current_principal_ws,
 )
 from .stream_messages import (
-    SessionStatusMessage,
-    SessionStatusPayload,
     UserPromptMessage,
-    PolicyDenialMessage,
-    PolicyDenialPayload,
-    AgentTextChunkMessage,
-    AgentTextChunkPayload,
 )
 from .session_manager import WebSocketSessionManager
+from .http_responses import build_api_error_response
+from .message_builders import (
+    build_policy_denial_message,
+    build_agent_text_chunk_message,
+    build_session_status_message,
+    build_trace_event_message,
+    build_system_error_message,
+)
 
 import logging
 import asyncio
@@ -87,15 +87,9 @@ ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 async def handle_unauthenticated(
     request: Request, exc: UnauthenticatedError
 ) -> JSONResponse:
-    body = ApiErrorEnvelope(
-        error=ApiError(
-            code="UNAUTHENTICATED",
-            message="Missing or invalid bearer token",
-            retryable=False,
-            details=None,
-        )
+    return build_api_error_response(
+        "UNAUTHENTICATED", "Missing or invalid bearer token", False, 401
     )
-    return JSONResponse(content=body.model_dump(mode="json"), status_code=401)
 
 
 @app.get(
@@ -118,15 +112,12 @@ def get_metadata(
             repo=repo,
         )
         if session_metadata is None:
-            error_body = ApiError(
-                code="SESSION_NOT_FOUND",
-                message="Session not found",
-                retryable=False,
-                details={"session_id": str(session_id)},
-            )
-            error_envelope = ApiErrorEnvelope(error=error_body)
-            return JSONResponse(
-                status_code=404, content=error_envelope.model_dump(mode="json")
+            return build_api_error_response(
+                "SESSION_NOT_FOUND",
+                "Session not found",
+                False,
+                404,
+                {"session_id": str(session_id)},
             )
 
         http_obj = SessionMetadataResponse(
@@ -143,15 +134,9 @@ def get_metadata(
         )
         return GetSessionMetadataResponse(session=http_obj)
     except ForbiddenErrorSessionQuery as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="FORBIDDEN",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "FORBIDDEN", exc.message, False, 403, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=403)
 
 
 @app.post(
@@ -175,15 +160,12 @@ def create_session_endpoint(
 ) -> CreateSessionResponse | JSONResponse | None:
     key = idempotency_key.strip()
     if not key or len(key) > 128:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="INVALID_IDEMPOTENCY_KEY",
-                message="Valid Idempotency-Key header is required",
-                retryable=False,
-                details=None,
-            )
+        return build_api_error_response(
+            "INVALID_IDEMPOTENCY_KEY",
+            "Valid Idempotency-Key header is required",
+            False,
+            400,
         )
-        return JSONResponse(status_code=400, content=body.model_dump(mode="json"))
 
     application_principal = PrincipalContext(
         user_id=principal.user_id, role=principal.role
@@ -208,85 +190,37 @@ def create_session_endpoint(
 
         return CreateSessionResponse(session=session)
     except LabNotAvailableError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="LAB_NOT_AVAILABLE",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "LAB_NOT_AVAILABLE", exc.message, False, 404, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=404)
     except QuotaExceededError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="QUOTA_EXCEEDED",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "QUOTA_EXCEEDED", exc.message, False, 429, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=429)
     except RateLimitedError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="RATE_LIMITED",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "RATE_LIMITED", exc.message, False, 429, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=429)
     except DegradedModeRestrictionError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="DEGRADED_MODE_RESTRICTION",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "DEGRADED_MODE_RESTRICTION", exc.message, False, 503, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=503)
     except InvalidIdempotencyKeyError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="INVALID_IDEMPOTENCY_KEY",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "INVALID_IDEMPOTENCY_KEY", exc.message, False, 400, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=400)
     except ForbiddenError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="FORBIDDEN",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "FORBIDDEN", exc.message, False, 403, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=403)
     except AdmissionDecisionError as exc:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="ADMISSION_DENIED",
-                message=exc.message,
-                retryable=False,
-                details=exc.details,
-            )
+        return build_api_error_response(
+            "ADMISSION_DENIED", exc.message, False, 400, exc.details
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=400)
     except Exception:
-        body = ApiErrorEnvelope(
-            error=ApiError(
-                code="INTERNAL_ERROR",
-                message="unexpected server error.",
-                retryable=False,
-                details=None,
-            )
+        return build_api_error_response(
+            "INTERNAL_ERROR", "unexpected server error", False, 500, None
         )
-        return JSONResponse(content=body.model_dump(mode="json"), status_code=500)
 
 
 async def handle_user_prompt(
@@ -299,15 +233,11 @@ async def handle_user_prompt(
     repo = SQLAlchemySessionMetadataRepository(db=db)
 
     if not ws_manager.try_begin_turn(session_id=session_id):
-        await websocket.send_json(
-            PolicyDenialMessage(
-                type="POLICY_DENIAL",
-                session_id=session_id,
-                timestamp=datetime.now(timezone.utc),
-                payload=PolicyDenialPayload(
-                    reason_code="TURN_IN_PROGRESS", message="Turn in progress"
-                ),
-            ).model_dump(mode="json")
+        await ws_manager.send_to(
+            websocket,
+            build_policy_denial_message(
+                session_id, "TURN_IN_PROGRESS", "Turn in progress"
+            ),
         )
         return
 
@@ -319,80 +249,79 @@ async def handle_user_prompt(
     )
     try:
         if metadata is None:
-            await websocket.send_json(
-                PolicyDenialMessage(
-                    type="POLICY_DENIAL",
-                    session_id=session_id,
-                    timestamp=datetime.now(timezone.utc),
-                    payload=PolicyDenialPayload(
-                        reason_code="SESSION_NOT_FOUND", message="Session not found"
-                    ),
-                ).model_dump(mode="json")
+            await ws_manager.send_to(
+                websocket,
+                build_policy_denial_message(
+                    session_id, "SESSION_NOT_FOUND", "Session not found"
+                ),
             )
             return
 
         if not metadata.interactive:
-            await websocket.send_json(
-                PolicyDenialMessage(
-                    type="POLICY_DENIAL",
-                    session_id=session_id,
-                    timestamp=datetime.now(timezone.utc),
-                    payload=PolicyDenialPayload(
-                        reason_code="SESSION_NOT_INTERACTIVE",
-                        message="Session not interactive",
-                    ),
-                ).model_dump(mode="json")
+            await ws_manager.send_to(
+                websocket,
+                build_policy_denial_message(
+                    session_id, "SESSION_NOT_INTERACTIVE", "Session not interactive"
+                ),
             )
             return
 
         if metadata.lab_id is None or metadata.lab_version_id is None:
-            await websocket.send_json(
-                PolicyDenialMessage(
-                    type="POLICY_DENIAL",
-                    session_id=session_id,
-                    timestamp=datetime.now(timezone.utc),
-                    payload=PolicyDenialPayload(
-                        reason_code="SESSION_MISSING_CONTEXT",
-                        message="Session is missing lab context (lab id or lab version id)",
-                    ),
-                ).model_dump(mode="json")
+            await ws_manager.send_to(
+                websocket,
+                build_policy_denial_message(
+                    session_id,
+                    "SESSION_MISSING_CONTEXT",
+                    "Session is missing lab context (lab id or lab version id)",
+                ),
             )
             return
 
-        turn = HarnessTurnInput(
-            session_id=metadata.id,
-            lab_id=metadata.lab_id,
-            lab_version_id=metadata.lab_version_id,
-            prompt=prompt_content,
-        )
+        try:
+            await ws_manager.send_to(
+                websocket,
+                build_trace_event_message(session_id, "TURN_STARTED", "Turn started"),
+            )
+            turn = HarnessTurnInput(
+                session_id=metadata.id,
+                lab_id=metadata.lab_id,
+                lab_version_id=metadata.lab_version_id,
+                prompt=prompt_content,
+            )
 
-        result = await asyncio.to_thread(run_local_one_turn, turn)
-        if result.failure is not None:
-            await websocket.send_json(
-                PolicyDenialMessage(
-                    type="POLICY_DENIAL",
-                    session_id=session_id,
-                    timestamp=datetime.now(timezone.utc),
-                    payload=PolicyDenialPayload(
-                        reason_code=result.failure.code.upper(),
-                        message=result.failure.message,
+            await ws_manager.send_to(
+                websocket,
+                build_trace_event_message(
+                    session_id, "MODEL_REQUEST_STARTED", "Model request started"
+                ),
+            )
+            result = await asyncio.to_thread(run_local_one_turn, turn)
+            if result.failure is not None:
+                await ws_manager.send_to(
+                    websocket,
+                    build_policy_denial_message(
+                        session_id, result.failure.code.upper(), result.failure.message
                     ),
-                ).model_dump(mode="json")
+                )
+                return
+
+            # Success path
+            for chunk in result.chunks:
+                await ws_manager.send_to(
+                    websocket,
+                    build_agent_text_chunk_message(
+                        session_id, chunk.content, chunk.final
+                    ),
+                )
+        except Exception:
+            logger.exception(f"session prompt handling failed session_id={session_id}")
+            await ws_manager.send_to(
+                websocket,
+                build_system_error_message(
+                    session_id, "INTERNAL_ERROR", "Unexpected server error"
+                ),
             )
             return
-
-        # Success path
-        for chunk in result.chunks:
-            await websocket.send_json(
-                AgentTextChunkMessage(
-                    type="AGENT_TEXT_CHUNK",
-                    session_id=session_id,
-                    timestamp=datetime.now(timezone.utc),
-                    payload=AgentTextChunkPayload(
-                        content=chunk.content, final=chunk.final
-                    ),
-                ).model_dump(mode="json")
-            )
     finally:
         ws_manager.end_turn(session_id=session_id)
 
@@ -436,37 +365,36 @@ async def session_stream_ws(
         await websocket.close(code=1008, reason="session not found")
         return
 
+    if metadata.runtime_substate is None:
+        await websocket.close(code=1008, reason="session runtime substate not found")
+        return
+
     # - On allow: accept, register with manager, send initial SESSION_STATUS.
     await ws_manager.connect(session_id=session_id, websocket=websocket)
     logger.info(
         f"session stream connect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
     )
     try:
-        body = SessionStatusPayload(
-            state=metadata.state,
-            runtime_substate=metadata.runtime_substate,
-            interactive=metadata.interactive,
+        await ws_manager.send_to(
+            websocket,
+            build_session_status_message(
+                session_id,
+                metadata.state,
+                metadata.runtime_substate,
+                metadata.interactive,
+            ),
         )
-        message = SessionStatusMessage(
-            session_id=session_id, timestamp=datetime.now(timezone.utc), payload=body
-        )
-        await websocket.send_json(message.model_dump(mode="json"))
         while True:
             incoming = await websocket.receive_json()
 
             try:
                 prompt_msg = UserPromptMessage.model_validate(incoming)
             except Exception:
-                await websocket.send_json(
-                    PolicyDenialMessage(
-                        type="POLICY_DENIAL",
-                        session_id=session_id,
-                        timestamp=datetime.now(timezone.utc),
-                        payload=PolicyDenialPayload(
-                            reason_code="INVALID_MESSAGE",
-                            message="Invalid websocket message shape",
-                        ),
-                    ).model_dump(mode="json")
+                await ws_manager.send_to(
+                    websocket,
+                    build_policy_denial_message(
+                        session_id, "INVALID_MESSAGE", "Invalid websocket message shape"
+                    ),
                 )
                 continue
 
@@ -474,16 +402,13 @@ async def session_stream_ws(
                 continue
 
             if prompt_msg.session_id != session_id:
-                await websocket.send_json(
-                    PolicyDenialMessage(
-                        type="POLICY_DENIAL",
-                        session_id=session_id,
-                        timestamp=datetime.now(timezone.utc),
-                        payload=PolicyDenialPayload(
-                            reason_code="SESSION_ID_MISMATCH",
-                            message="Message session_id does not match stream session_id",
-                        ),
-                    ).model_dump(mode="json")
+                await ws_manager.send_to(
+                    websocket,
+                    build_policy_denial_message(
+                        session_id,
+                        "SESSION_ID_MISMATCH",
+                        "Message session_id does not match stream session_id",
+                    ),
                 )
                 continue
 

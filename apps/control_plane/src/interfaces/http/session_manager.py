@@ -1,6 +1,6 @@
 from uuid import UUID
 from fastapi import WebSocket
-from .stream_messages import SessionStatusMessage
+from .stream_messages import ServerMessageEnvelope
 
 
 class WebSocketSessionManager:
@@ -31,11 +31,11 @@ class WebSocketSessionManager:
             self._connections_by_session.pop(session_id, None)
 
     async def send_to(
-        self, websocket: WebSocket, message: SessionStatusMessage
+        self, websocket: WebSocket, message: ServerMessageEnvelope
     ) -> None:
         await websocket.send_json(data=message.model_dump(mode="json"))
 
-    async def broadcast(self, session_id: UUID, message: SessionStatusMessage) -> None:
+    async def broadcast(self, session_id: UUID, message: ServerMessageEnvelope) -> None:
         for ws in list(self._connections_by_session.get(session_id, ())):
             await ws.send_json(data=message.model_dump(mode="json"))
 
