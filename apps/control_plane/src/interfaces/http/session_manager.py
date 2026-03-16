@@ -6,6 +6,16 @@ from .stream_messages import SessionStatusMessage
 class WebSocketSessionManager:
     def __init__(self) -> None:
         self._connections_by_session: dict[UUID, set[WebSocket]] = {}
+        self._turn_in_progress: set[UUID] = set()
+
+    def try_begin_turn(self, session_id: UUID) -> bool:
+        if session_id in self._turn_in_progress:
+            return False
+        self._turn_in_progress.add(session_id)
+        return True
+
+    def end_turn(self, session_id: UUID) -> None:
+        self._turn_in_progress.discard(session_id)
 
     async def connect(self, session_id: UUID, websocket: WebSocket) -> None:
         await websocket.accept()
