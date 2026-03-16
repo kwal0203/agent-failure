@@ -1,6 +1,7 @@
 import threading
 import time
 from datetime import datetime, timezone
+from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -84,6 +85,15 @@ def _user_prompt_message(session_id: UUID, content: str) -> dict[str, object]:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "payload": {"content": content},
     }
+
+
+def _assert_required_server_message_fields(
+    msg: dict[str, Any], *, expected_type: str, session_id: UUID
+) -> None:
+    assert msg["type"] == expected_type
+    assert msg["session_id"] == str(session_id)
+    assert "timestamp" in msg
+    assert "payload" in msg
 
 
 @pytest.mark.usefixtures("engine")
@@ -221,12 +231,25 @@ def test_user_prompt_is_accepted_for_interactive_session(
         ) as ws:
             _ = ws.receive_json()  # initial SESSION_STATUS
             ws.send_json(_user_prompt_message(session.id, "hello"))
+            trace_msg_1 = ws.receive_json()
+            trace_msg_2 = ws.receive_json()
             msg = ws.receive_json()
     finally:
         app.dependency_overrides.clear()
 
-    assert msg["type"] == "AGENT_TEXT_CHUNK"
-    assert msg["session_id"] == str(session.id)
+    _assert_required_server_message_fields(
+        trace_msg_1, expected_type="TRACE_EVENT", session_id=session.id
+    )
+    assert trace_msg_1["payload"]["event_code"] == "TURN_STARTED"
+
+    _assert_required_server_message_fields(
+        trace_msg_2, expected_type="TRACE_EVENT", session_id=session.id
+    )
+    assert trace_msg_2["payload"]["event_code"] == "MODEL_REQUEST_STARTED"
+
+    _assert_required_server_message_fields(
+        msg, expected_type="AGENT_TEXT_CHUNK", session_id=session.id
+    )
     assert msg["payload"]["content"] == "response chunk"
     assert msg["payload"]["final"] is True
 
@@ -264,6 +287,8 @@ def test_user_prompt_overlapping_turn_is_denied(
                 _ = ws2.receive_json()  # initial SESSION_STATUS
 
                 ws1.send_json(_user_prompt_message(session.id, "first"))
+                _ = ws1.receive_json()  # TRACE_EVENT TURN_STARTED
+                _ = ws1.receive_json()  # TRACE_EVENT MODEL_REQUEST_STARTED
                 assert started.wait(timeout=1.0)
 
                 ws2.send_json(_user_prompt_message(session.id, "second"))
@@ -271,7 +296,9 @@ def test_user_prompt_overlapping_turn_is_denied(
     finally:
         app.dependency_overrides.clear()
 
-    assert msg["type"] == "POLICY_DENIAL"
+    _assert_required_server_message_fields(
+        msg, expected_type="POLICY_DENIAL", session_id=session.id
+    )
     assert msg["payload"]["reason_code"] == "TURN_IN_PROGRESS"
 
 
@@ -284,7 +311,7 @@ def test_user_prompt_non_interactive_session_is_denied(
         db_session,
         owner_username=owner_username,
         state=SessionState.COMPLETED,
-        runtime_substate=None,
+        runtime_substate="FINISHED",
     )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
@@ -300,5 +327,42 @@ def test_user_prompt_non_interactive_session_is_denied(
     finally:
         app.dependency_overrides.clear()
 
-    assert msg["type"] == "POLICY_DENIAL"
+    _assert_required_server_message_fields(
+        msg, expected_type="POLICY_DENIAL", session_id=session.id
+    )
     assert msg["payload"]["reason_code"] == "SESSION_NOT_INTERACTIVE"
+
+
+@pytest.mark.usefixtures("engine")
+def test_user_prompt_internal_failure_emits_system_error(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+
+    def _crash_run_local_one_turn(_turn: object) -> HarnessTurnResult:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(main_module, "run_local_one_turn", _crash_run_local_one_turn)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()  # initial SESSION_STATUS
+            ws.send_json(_user_prompt_message(session.id, "crash"))
+            _ = ws.receive_json()  # TRACE_EVENT TURN_STARTED
+            _ = ws.receive_json()  # TRACE_EVENT MODEL_REQUEST_STARTED
+            msg = ws.receive_json()
+    finally:
+        app.dependency_overrides.clear()
+
+    _assert_required_server_message_fields(
+        msg, expected_type="SYSTEM_ERROR", session_id=session.id
+    )
+    assert msg["payload"]["error_code"] == "INTERNAL_ERROR"
+    assert isinstance(msg["payload"]["message"], str)
