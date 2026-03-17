@@ -1,0 +1,21 @@
+apiVersion: agent-failure/v1alpha1
+kind: RuntimeImageLock
+metadata:
+  environment: staging
+images:
+  - lab_slug: baseline
+    lab_version: "0.1.0"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:d76d3e32b94af1bb097c75d7b295b98543078399fbc3010d7d9f7658fc59f2b0"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:d76d3e32b94af1bb097c75d7b295b98543078399fbc3010d7d9f7658fc59f2b0"
+    build_git_sha: "9f69565"
+    built_at_utc: "2026-03-17T19:57:17Z"
+    status: "active"
+  - lab_slug: baseline
+    lab_version: "0.0.9"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:b4c973591f94cd851d291c85168808e314941f56199e7a180a3d2e4de7bab9c3"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:b4c973591f94cd851d291c85168808e314941f56199e7a180a3d2e4de7bab9c3"
+    build_git_sha: "9f69565"
+    built_at_utc: "2026-03-17T20:21:07Z"
+    status: "revoked"

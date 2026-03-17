@@ -284,6 +284,51 @@ Implemented baseline staging provisioning with local Kubernetes (`kind`) to sati
   - no runtime hardening/egress policy yet (covered by E4-T4/E4-T5)
   - no orchestrator provisioning integration yet (covered by E4-T3)
 
+#### E4-T2 Implementation Notes (Runtime Image Build/Publish Baseline)
+
+Implemented a scriptable runtime image pipeline for the initial supported V1 lab path with digest pinning and staging lock/selection files.
+
+- Runtime image build automation:
+  - `scripts/build_runtime_image.sh`
+  - builds `runtimes/baseline/Dockerfile`
+  - tags image with both release and source tags:
+    - `v1-baseline-<lab_version>`
+    - `sha-<git_sha>`
+  - writes build metadata artifact:
+    - `.artifacts/runtime-image-build.env`
+- Image scan before promotion:
+  - `scripts/scan_runtime_image.sh`
+  - gate configured for severity threshold (baseline: `CRITICAL`)
+  - writes scan output artifact:
+    - `.artifacts/runtime-image-scan.txt`
+- Publish path and digest capture:
+  - `scripts/push_runtime_image.sh`
+  - pushes runtime tags to registry
+  - resolves canonical digest reference (`repo@sha256:...`)
+  - writes release artifact:
+    - `.artifacts/runtime-image-release.env`
+- Digest lock for staging consumption:
+  - `deploy/k8s/staging/runtime-image.lock`
+  - includes digest-pinned image records for `baseline` lab versions
+  - includes active and revoked status examples
+- Default launch target selection:
+  - `deploy/k8s/staging/runtime-image-selection.yaml`
+  - default points to active lock entry (`baseline` / `0.1.0`)
+  - revoked entry is retained in lock but not selected by default
+
+Suggested command sequence:
+
+- `./scripts/build_runtime_image.sh`
+- `./scripts/scan_runtime_image.sh`
+- `./scripts/push_runtime_image.sh`
+- `./scripts/validate_runtime_lock.sh`
+
+Current limitations:
+
+- baseline pipeline is script-first and local-operator driven (full CI/CD promotion wiring follows later)
+- vulnerability gating is currently minimal baseline and can be tightened
+- orchestrator consumption of lock selection is implemented in follow-on ticket E4-T3
+
 ### Milestone 3: Trace pipeline, evaluator, and learner trace review
 
 | Task ID | Task Name | Workstream | Description | Dependencies | Estimate | Status |
