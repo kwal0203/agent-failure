@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from fastapi.testclient import TestClient
@@ -164,3 +165,56 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
+
+
+def test_get_session_metadata_returns_terminal_session_with_interactive_false(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    lab_id = uuid4()
+    lab_version_id = uuid4()
+    owner_username = "terminal-owner"
+    started_at = datetime.now(timezone.utc)
+    ended_at = datetime.now(timezone.utc)
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.COMPLETED.value,
+            runtime_substate=None,
+            resume_mode="hot_resume",
+            started_at=started_at,
+            ended_at=ended_at,
+            last_transition_actor="seed",
+            last_transition_reason="LAB_COMPLETED",
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "session" in body
+    session = body["session"]
+
+    assert session["id"] == str(session_id)
+    assert session["lab_id"] == str(lab_id)
+    assert session["lab_version_id"] == str(lab_version_id)
+    assert session["state"] == SessionState.COMPLETED.value
+    assert session["runtime_substate"] is None
+    assert session["interactive"] is False
+    assert session["created_at"] is not None
+    assert session["started_at"] is not None
+    assert session["ended_at"] is not None

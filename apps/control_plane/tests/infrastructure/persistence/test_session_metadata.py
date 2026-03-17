@@ -44,7 +44,6 @@ def test_get_session_metadata_returns_row(db_session: Session) -> None:
     assert result.state == SessionState.ACTIVE.value
     assert result.runtime_substate == "WAITING_FOR_INPUT"
     assert result.resume_mode == "hot_resume"
-    assert result.interactive is True
 
 
 def test_get_session_metadata_returns_none_for_missing(db_session: Session) -> None:
@@ -53,20 +52,3 @@ def test_get_session_metadata_returns_none_for_missing(db_session: Session) -> N
     result = repo.get_session_metadata(session_id=uuid4())
 
     assert result is None
-
-
-def test_get_session_metadata_derives_interactive_from_state(
-    db_session: Session,
-) -> None:
-    active_row = _insert_session(db_session, state=SessionState.ACTIVE)
-    completed_row = _insert_session(db_session, state=SessionState.COMPLETED)
-    repo = SQLAlchemySessionMetadataRepository(db=db_session)
-
-    active = repo.get_session_metadata(session_id=active_row.id)
-    completed = repo.get_session_metadata(session_id=completed_row.id)
-
-    assert active is not None
-    assert active.interactive is True
-
-    assert completed is not None
-    assert completed.interactive is False

@@ -95,7 +95,11 @@ async def handle_unauthenticated(
 @app.get(
     "/api/v1/sessions/{session_id}",
     response_model=GetSessionMetadataResponse,
-    responses={404: {"model": ApiErrorEnvelope}},
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+    },
 )
 def get_metadata(
     session_id: UUID,
@@ -145,9 +149,11 @@ def get_metadata(
     status_code=202,
     responses={
         400: {"model": ApiErrorEnvelope},
+        401: {"model": ApiErrorEnvelope},
         403: {"model": ApiErrorEnvelope},
         404: {"model": ApiErrorEnvelope},
         429: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
         503: {"model": ApiErrorEnvelope},
     },
 )
