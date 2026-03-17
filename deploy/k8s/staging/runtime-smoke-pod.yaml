@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: runtime-smoke
+  namespace: runtime-pool
+  labels:
+    app: runtime-smoke
+spec:
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: busybox:1.36
+      command: ["sh", "-c", "echo runtime-scheduling-ok && sleep 10"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
