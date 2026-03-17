@@ -106,3 +106,5 @@ lerna-debug.log*
 .lock-wscript
 .nyc_output
 coverage/
+
+.artifacts/
