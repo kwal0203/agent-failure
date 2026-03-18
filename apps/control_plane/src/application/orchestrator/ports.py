@@ -1,0 +1,52 @@
+from typing import Protocol, ContextManager
+from datetime import datetime
+from uuid import UUID
+from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
+from apps.control_plane.src.application.session_create.ports import LabRepository
+
+from .types import ProvisionResult, RuntimeProvisionRequest, PendingProvisioningEvent
+
+
+class RuntimeProvisionerPort(Protocol):
+    def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult: ...
+
+
+class RuntimeImageResolverPort(Protocol):
+    def resolve(self, lab_slug: str, lab_version: str) -> str: ...
+
+
+class OutboxProvisioningSessionPort(Protocol):
+    def claim_pending_provisioning(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingProvisioningEvent]: ...
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None: ...
+    def mark_retryable_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        backoff_seconds: int = 15,
+        failed_at: datetime | None = None,
+    ) -> None: ...
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None: ...
+
+
+class ProcessPendingOnceUnitOfWork(Protocol):
+    @property
+    def outbox(self) -> OutboxProvisioningSessionPort: ...
+
+    @property
+    def lifecycle_uow(self) -> UnitOfWork: ...
+
+    @property
+    def lab(self) -> LabRepository: ...
+
+    def transaction(self) -> ContextManager[None]: ...

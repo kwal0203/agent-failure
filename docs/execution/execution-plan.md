@@ -329,6 +329,41 @@ Current limitations:
 - vulnerability gating is currently minimal baseline and can be tightened
 - orchestrator consumption of lock selection is implemented in follow-on ticket E4-T3
 
+#### E4-T3 Implementation Notes (Orchestrator Provisioning Path Baseline)
+
+Implemented a baseline outbox-driven provisioning worker path that consumes session launch provisioning events, resolves runtime image configuration, provisions runtime, and transitions session lifecycle through the existing state machine service.
+
+- Launch -> provisioning request trigger:
+  - create-session path enqueues `session.provisioning.v1` outbox events
+  - producer adapter includes session/lab/runtime payload for worker consumption
+- Worker/service orchestration:
+  - application service: `process_pending_once`
+  - claims pending provisioning outbox events
+  - validates payload shape and UUID fields
+  - resolves lab binding + digest-pinned image ref
+  - calls runtime provisioner adapter
+  - marks provisioning outbox status as processed or failed
+- Runtime provisioning adapter:
+  - baseline adapter uses Kubernetes apply via `kubectl`
+  - creates runtime pod in `runtime-pool` namespace
+  - returns typed `ProvisionResult` (`accepted` / `ready` / `failed`)
+- Session lifecycle integration:
+  - success (`accepted`/`ready`) -> `Trigger.PROVISIONING_SUCCEEDED`
+  - failure -> `Trigger.PROVISIONING_FAILED`
+  - all lifecycle mutations go through `transition_session` (state machine path), not direct session row edits
+- Runtime worker entrypoint:
+  - `interfaces/runtime/provisioning_worker.py` exposes `run_once()` and `run_forever()`
+  - wires concrete dependencies (UoW, image resolver, provisioner)
+- Test coverage:
+  - application tests for worker service success/failure/malformed payload handling
+  - integration tests for launch->outbox->worker->transition success and failure paths
+
+Current limitations:
+
+- lifecycle transitions in pending-worker UoW are currently executed via nested lifecycle UoW with separate DB session/transaction from outbox claim/mark writes
+- runtime binding is currently a temporary baseline mapping (single supported V1 path), pending DB-backed lab/lab-version source of truth
+- retry/backoff classification is not yet fully implemented; baseline behavior treats failures as terminal in current worker flow
+
 ### Milestone 3: Trace pipeline, evaluator, and learner trace review
 
 | Task ID | Task Name | Workstream | Description | Dependencies | Estimate | Status |

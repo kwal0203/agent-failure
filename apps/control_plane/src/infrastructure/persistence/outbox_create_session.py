@@ -15,6 +15,8 @@ class SQLAlchemyOutboxCreateSession(OutboxCreateSession):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID | None,
+        lab_slug: str,
+        lab_version: str,
         resume_mode: str,
         requester_user_id: UUID,
         idempotency_key: str,
@@ -26,6 +28,8 @@ class SQLAlchemyOutboxCreateSession(OutboxCreateSession):
             "lab_version_id": str(lab_version_id)
             if lab_version_id is not None
             else None,
+            "lab_slug": lab_slug,
+            "lab_version": lab_version,
             "resume_mode": resume_mode,
             "requester_user_id": str(requester_user_id),
             "idempotency_key": str(idempotency_key),

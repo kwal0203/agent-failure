@@ -1,0 +1,7 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class K8sProvisionerConfig:
+    namespace: str = "runtime-pool"
+    kubectl_bin: str = "kubectl"
