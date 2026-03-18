@@ -1,5 +1,8 @@
-from apps.orchestrator.ports import RuntimeProvisionerPort
-from apps.orchestrator.types import ProvisionResult, RuntimeProvisionRequest
+from apps.control_plane.src.application.orchestrator.ports import RuntimeProvisionerPort
+from apps.control_plane.src.application.orchestrator.types import (
+    ProvisionResult,
+    RuntimeProvisionRequest,
+)
 from typing import Mapping
 
 from .types import K8sProvisionerConfig

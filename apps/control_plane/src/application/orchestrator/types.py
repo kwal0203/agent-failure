@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
-from typing import Literal, Mapping
+from typing import Literal, Mapping, Any
+
 
 Status = Literal["accepted", "ready", "failed"]
 
@@ -20,3 +21,11 @@ class ProvisionResult:
     runtime_id: str | None = None
     reason_code: str | None = None
     details: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class PendingProvisioningEvent:
+    outbox_event_id: UUID
+    session_id: UUID
+    payload: dict[str, Any]
+    attempt_count: int
