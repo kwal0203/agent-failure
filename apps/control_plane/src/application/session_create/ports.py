@@ -5,6 +5,7 @@ from datetime import datetime
 from apps.control_plane.src.application.common.ports import IdempotencyStore
 
 from .schemas import CreateSessionResult
+from .types import LabRuntimeBinding
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,8 @@ class OutboxCreateSession(Protocol):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID | None,
+        lab_slug: str,
+        lab_version: str,
         resume_mode: str,
         requester_user_id: UUID,
         idempotency_key: str,
@@ -43,6 +46,9 @@ class OutboxCreateSession(Protocol):
 
 class LabRepository(Protocol):
     def validate_lab(self, lab_id: UUID) -> bool: ...
+    def get_runtime_binding(
+        self, lab_id: UUID, lab_version_id: UUID
+    ) -> LabRuntimeBinding: ...
 
 
 class CreateSessionUnitOfWork(Protocol):

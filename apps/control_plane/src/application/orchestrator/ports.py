@@ -1,12 +1,18 @@
-from typing import Protocol
+from typing import Protocol, ContextManager
 from datetime import datetime
 from uuid import UUID
+from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
+from apps.control_plane.src.application.session_create.ports import LabRepository
 
 from .types import ProvisionResult, RuntimeProvisionRequest, PendingProvisioningEvent
 
 
 class RuntimeProvisionerPort(Protocol):
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult: ...
+
+
+class RuntimeImageResolverPort(Protocol):
+    def resolve(self, lab_slug: str, lab_version: str) -> str: ...
 
 
 class OutboxProvisioningSessionPort(Protocol):
@@ -31,3 +37,16 @@ class OutboxProvisioningSessionPort(Protocol):
         error_message: str,
         failed_at: datetime | None = None,
     ) -> None: ...
+
+
+class ProcessPendingOnceUnitOfWork(Protocol):
+    @property
+    def outbox(self) -> OutboxProvisioningSessionPort: ...
+
+    @property
+    def lifecycle_uow(self) -> UnitOfWork: ...
+
+    @property
+    def lab(self) -> LabRepository: ...
+
+    def transaction(self) -> ContextManager[None]: ...

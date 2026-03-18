@@ -2,6 +2,9 @@ from pathlib import Path
 from typing import Any, cast
 import yaml
 
+from apps.control_plane.src.application.orchestrator.ports import (
+    RuntimeImageResolverPort,
+)
 from .errors import (
     DefaultSelectionError,
     ImageNotFoundError,
@@ -11,7 +14,7 @@ from .errors import (
 from .types import RuntimeImageEntry
 
 
-class RuntimeImageResolver:
+class RuntimeImageResolver(RuntimeImageResolverPort):
     def __init__(self, lock_file: Path, selection_file: Path) -> None:
         self._lock_file = lock_file
         self._selection_file = selection_file

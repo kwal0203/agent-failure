@@ -96,10 +96,21 @@ def create_session(
                 operation="create_session", key=idempotency_key, result=session
             )
 
+            lab_version_id = session.lab_version_id
+            if lab_version_id is None:
+                raise RuntimeError(
+                    "create_session produced session without a lab_version_id"
+                )
+
+            binding = uow.lab_repo.get_runtime_binding(
+                lab_id=session.lab_id, lab_version_id=lab_version_id
+            )
             uow.outbox.enqueue_for_session_creation(
                 session_id=session.session_id,
                 lab_id=lab_id,
-                lab_version_id=session.lab_version_id,
+                lab_version_id=lab_version_id,
+                lab_slug=binding.lab_slug,
+                lab_version=binding.lab_version,
                 resume_mode=session.resume_mode,
                 requester_user_id=principal.user_id,
                 idempotency_key=idempotency_key,

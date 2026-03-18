@@ -143,6 +143,9 @@ class PostgresCreateSessionRepository(CreateSessionRepository):
     ) -> CreateSessionResult:
         session = SessionModel(
             lab_id=lab_id,
+            # TODO(E4 follow-up): replace placeholder lab_version_id assignment
+            # with real lab-version binding at launch time.
+            lab_version_id=uuid4(),
             owner_user_id=actor_id,
             state=SessionState.PROVISIONING.value,
             last_transition_actor=actor_role,

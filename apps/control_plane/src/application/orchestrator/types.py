@@ -29,3 +29,11 @@ class PendingProvisioningEvent:
     session_id: UUID
     payload: dict[str, Any]
     attempt_count: int
+
+
+@dataclass(frozen=True)
+class ProcessPendingOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int
