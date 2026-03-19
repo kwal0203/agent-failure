@@ -36,8 +36,13 @@ export default function SessionPage() {
   const { connectionState, messages, sendPrompt, reconnect } =
     useSessionStream(sessionId);
   const processedMessageCount = useRef(0);
-  const activeEntryRef = useRef("");
+  const transcriptViewportRef = useRef<HTMLDivElement | null>(null);
   const activeEntryTsRef = useRef<string | null>(null);
+  const displayedEntryRef = useRef("");
+  const pendingBufferRef = useRef("");
+  const finalizePendingRef = useRef(false);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastRevealAtMsRef = useRef(0);
   const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
   const [metadataError, setMetadataError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,6 +50,75 @@ export default function SessionPage() {
   const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
   const [activeEntry, setActiveEntry] = useState("");
   const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+
+  const resetActiveStream = () => {
+    displayedEntryRef.current = "";
+    pendingBufferRef.current = "";
+    finalizePendingRef.current = false;
+    activeEntryTsRef.current = null;
+    setActiveEntry("");
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  };
+
+  const drainRevealFrame = () => {
+    const revealIntervalMs = 60;
+    const now = performance.now();
+    if (now - lastRevealAtMsRef.current < revealIntervalMs) {
+      animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
+      return;
+    }
+
+    if (pendingBufferRef.current.length > 0) {
+      const buffer = pendingBufferRef.current;
+      const match = buffer.match(/^(\s*\S+\s*)/);
+      const reveal = match ? match[1] : buffer;
+      pendingBufferRef.current = buffer.slice(reveal.length);
+      displayedEntryRef.current += reveal;
+      lastRevealAtMsRef.current = now;
+      setActiveEntry(displayedEntryRef.current);
+      animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
+      return;
+    }
+
+    if (finalizePendingRef.current) {
+      const finalized = displayedEntryRef.current.trim();
+      if (finalized) {
+        setTranscriptEntries((entries) => {
+          const last = entries.length > 0 ? entries[entries.length - 1] : null;
+          if (
+            last &&
+            last.role === "agent" &&
+            last.content === finalized &&
+            last.timestamp === (activeEntryTsRef.current ?? new Date().toISOString())
+          ) {
+            return entries;
+          }
+          return [
+            ...entries,
+            {
+              role: "agent",
+              content: finalized,
+              timestamp: activeEntryTsRef.current ?? new Date().toISOString(),
+            },
+          ];
+        });
+      }
+      resetActiveStream();
+      setIsAwaitingResponse(false);
+      return;
+    }
+
+    animationFrameRef.current = null;
+  };
+
+  const ensureRevealLoop = () => {
+    if (animationFrameRef.current === null) {
+      animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
+    }
+  };
 
   useEffect(() => {
     if (!sessionId) return;
@@ -106,38 +180,11 @@ export default function SessionPage() {
         if (!activeEntryTsRef.current) {
           activeEntryTsRef.current = message.timestamp;
         }
-        const next = activeEntryRef.current + message.payload.content;
+        pendingBufferRef.current += message.payload.content;
         if (message.payload.final) {
-          const finalized = next.trim();
-          if (finalized) {
-            setTranscriptEntries((entries) => {
-              const last = entries.length > 0 ? entries[entries.length - 1] : null;
-              if (
-                last &&
-                last.role === "agent" &&
-                last.content === finalized &&
-                last.timestamp === (activeEntryTsRef.current ?? message.timestamp)
-              ) {
-                return entries;
-              }
-              return [
-                ...entries,
-                {
-                  role: "agent",
-                  content: finalized,
-                  timestamp: activeEntryTsRef.current ?? message.timestamp,
-                },
-              ];
-            });
-          }
-          activeEntryRef.current = "";
-          activeEntryTsRef.current = null;
-          setActiveEntry("");
-          setIsAwaitingResponse(false);
-        } else {
-          activeEntryRef.current = next;
-          setActiveEntry(next);
+          finalizePendingRef.current = true;
         }
+        ensureRevealLoop();
         continue;
       }
 
@@ -174,9 +221,7 @@ export default function SessionPage() {
     e.preventDefault();
     const text = prompt.trim();
     if (!text) return;
-    activeEntryRef.current = "";
-    activeEntryTsRef.current = null;
-    setActiveEntry("");
+    resetActiveStream();
     setIsAwaitingResponse(true);
     sendPrompt(text);
     setPrompt("");
@@ -192,6 +237,22 @@ export default function SessionPage() {
     if (Number.isNaN(date.getTime())) return isoTs;
     return date.toLocaleTimeString();
   };
+
+  const activeTokens = activeEntry.match(/(\s+|\S+)/g) ?? [];
+
+  useEffect(() => {
+    const viewport = transcriptViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [activeEntry, transcriptEntries.length]);
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   return (
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
@@ -231,12 +292,16 @@ export default function SessionPage() {
       </section>
 
       <section
+        ref={transcriptViewportRef}
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
           padding: 16,
           marginBottom: 16,
           minHeight: 220,
+          maxHeight: 420,
+          overflowY: "auto",
+          textAlign: "left",
         }}
       >
         <h2>Transcript</h2>
@@ -248,7 +313,7 @@ export default function SessionPage() {
             <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
               <strong>{entry.role.toUpperCase()}</strong> {formatTime(entry.timestamp)}
             </p>
-            <div style={{ margin: 0 }}>
+            <div className="transcript-markdown" style={{ margin: 0 }}>
               <ReactMarkdown>{entry.content}</ReactMarkdown>
             </div>
             {index < transcriptEntries.length - 1 && <hr />}
@@ -259,10 +324,40 @@ export default function SessionPage() {
             <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
               <strong>AGENT</strong> streaming...
             </p>
-            <ReactMarkdown>{activeEntry}</ReactMarkdown>
+            <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+              {activeTokens.map((token, index) => (
+                <span
+                  key={`${index}-${token}`}
+                  style={{
+                    display: "inline",
+                    opacity: 0,
+                    transform: "translateX(6px)",
+                    animationName: "wordIn",
+                    animationDuration: "220ms",
+                    animationTimingFunction: "ease-out",
+                    animationFillMode: "forwards",
+                  }}
+                >
+                  {token}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </section>
+
+      <style>{`
+        @keyframes wordIn {
+          from { opacity: 0; transform: translateX(6px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        .transcript-markdown p {
+          margin: 0 0 0.9em 0;
+        }
+        .transcript-markdown p:last-child {
+          margin-bottom: 0;
+        }
+      `}</style>
 
       <section
         style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}
