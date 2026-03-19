@@ -1,0 +1,292 @@
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import { useSessionStream } from "../hooks/useSessionStream";
+
+type SessionMetadata = {
+  id: string;
+  lab_id: string | null;
+  lab_version_id: string | null;
+  state: string;
+  runtime_substate: string | null;
+  resume_mode: string;
+  interactive: boolean;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+};
+
+type GetSessionMetadataResponse = {
+  session: SessionMetadata;
+};
+
+type TranscriptRole = "agent" | "policy" | "system";
+
+type TranscriptEntry = {
+  role: TranscriptRole;
+  content: string;
+  timestamp: string;
+};
+
+const API_BASE = "http://localhost:8000";
+const AUTH_HEADER = "Bearer local:kane:learner";
+
+export default function SessionPage() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const { connectionState, messages, sendPrompt, reconnect } =
+    useSessionStream(sessionId);
+  const processedMessageCount = useRef(0);
+  const activeEntryRef = useRef("");
+  const activeEntryTsRef = useRef<string | null>(null);
+  const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
+  const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
+  const [activeEntry, setActiveEntry] = useState("");
+  const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const run = async () => {
+      setLoading(true);
+      setMetadataError(null);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: AUTH_HEADER,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!res.ok) {
+          setMetadataError(`HTTP ${res.status}`);
+          return;
+        }
+
+        const data = (await res.json()) as GetSessionMetadataResponse;
+        setMetadata(data.session);
+      } catch (e) {
+        setMetadataError(e instanceof Error ? e.message : "request failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void run();
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (processedMessageCount.current > messages.length) {
+      processedMessageCount.current = 0;
+    }
+
+    const newMessages = messages.slice(processedMessageCount.current);
+    if (newMessages.length == 0) return;
+
+    for (const message of newMessages) {
+      if (message.type === "SESSION_STATUS") {
+        setMetadata((prev) =>
+          prev
+            ? {
+                ...prev,
+                state: message.payload.state,
+                runtime_substate: message.payload.runtime_substate,
+                interactive: message.payload.interactive,
+              }
+            : prev,
+        );
+        continue;
+      }
+
+      if (message.type === "AGENT_TEXT_CHUNK") {
+        if (!activeEntryTsRef.current) {
+          activeEntryTsRef.current = message.timestamp;
+        }
+        const next = activeEntryRef.current + message.payload.content;
+        if (message.payload.final) {
+          const finalized = next.trim();
+          if (finalized) {
+            setTranscriptEntries((entries) => {
+              const last = entries.length > 0 ? entries[entries.length - 1] : null;
+              if (
+                last &&
+                last.role === "agent" &&
+                last.content === finalized &&
+                last.timestamp === (activeEntryTsRef.current ?? message.timestamp)
+              ) {
+                return entries;
+              }
+              return [
+                ...entries,
+                {
+                  role: "agent",
+                  content: finalized,
+                  timestamp: activeEntryTsRef.current ?? message.timestamp,
+                },
+              ];
+            });
+          }
+          activeEntryRef.current = "";
+          activeEntryTsRef.current = null;
+          setActiveEntry("");
+          setIsAwaitingResponse(false);
+        } else {
+          activeEntryRef.current = next;
+          setActiveEntry(next);
+        }
+        continue;
+      }
+
+      if (message.type === "POLICY_DENIAL") {
+        setTranscriptEntries((entries) => [
+          ...entries,
+          {
+            role: "policy",
+            content: message.payload.message,
+            timestamp: message.timestamp,
+          },
+        ]);
+        setIsAwaitingResponse(false);
+        continue;
+      }
+
+      if (message.type === "SYSTEM_ERROR") {
+        setTranscriptEntries((entries) => [
+          ...entries,
+          {
+            role: "system",
+            content: message.payload.message,
+            timestamp: message.timestamp,
+          },
+        ]);
+        setIsAwaitingResponse(false);
+      }
+    }
+
+    processedMessageCount.current = messages.length;
+  }, [messages]);
+
+  const onSubmitPrompt = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const text = prompt.trim();
+    if (!text) return;
+    activeEntryRef.current = "";
+    activeEntryTsRef.current = null;
+    setActiveEntry("");
+    setIsAwaitingResponse(true);
+    sendPrompt(text);
+    setPrompt("");
+  };
+
+  const canSend =
+    connectionState === "open" &&
+    !isAwaitingResponse &&
+    (metadata?.interactive ?? false);
+
+  const formatTime = (isoTs: string) => {
+    const date = new Date(isoTs);
+    if (Number.isNaN(date.getTime())) return isoTs;
+    return date.toLocaleTimeString();
+  };
+
+  return (
+    <main style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
+      <header style={{ marginBottom: "16px" }}>
+        <h1>Session</h1>
+        <p>
+          <strong>session_id:</strong> {sessionId ?? "missing"}
+        </p>
+        <p>
+          <strong>WebSocket:</strong> {connectionState}
+        </p>
+        {(connectionState === "closed" || connectionState === "error") && (
+          <button type="button" onClick={reconnect}>
+            Reconnect
+          </button>
+        )}
+      </header>
+
+      <section
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
+        <h2>Status</h2>
+        {loading && <p>Loading...</p>}
+        {metadataError && <p style={{ color: "red" }}>Error: {metadataError}</p>}
+        {metadata && (
+          <>
+            <p>State: {metadata.state}</p>
+            <p>Runtime substate: {metadata.runtime_substate ?? "-"}</p>
+            <p>Interactive: {String(metadata.interactive)}</p>
+          </>
+        )}
+      </section>
+
+      <section
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 16,
+          minHeight: 220,
+        }}
+      >
+        <h2>Transcript</h2>
+        {transcriptEntries.length === 0 && !activeEntry && (
+          <p style={{ margin: 0 }}>(streamed agent text will appear here)</p>
+        )}
+        {transcriptEntries.map((entry, index) => (
+          <div key={`${index}-${entry.content.slice(0, 20)}`}>
+            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
+              <strong>{entry.role.toUpperCase()}</strong> {formatTime(entry.timestamp)}
+            </p>
+            <div style={{ margin: 0 }}>
+              <ReactMarkdown>{entry.content}</ReactMarkdown>
+            </div>
+            {index < transcriptEntries.length - 1 && <hr />}
+          </div>
+        ))}
+        {activeEntry && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
+              <strong>AGENT</strong> streaming...
+            </p>
+            <ReactMarkdown>{activeEntry}</ReactMarkdown>
+          </div>
+        )}
+      </section>
+
+      <section
+        style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}
+      >
+        <h2>Prompt</h2>
+        <form onSubmit={onSubmitPrompt}>
+          <textarea
+            rows={4}
+            placeholder="Type your prompt..."
+            style={{ width: "100%", marginBottom: 12 }}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            disabled={!canSend}
+          />
+          <button type="submit" disabled={!canSend}>
+            Send
+          </button>
+          {!canSend && (
+            <p style={{ marginTop: 8, opacity: 0.8 }}>
+              Prompt disabled: socket must be open, session interactive, and no turn in progress.
+            </p>
+          )}
+        </form>
+      </section>
+    </main>
+  );
+}
