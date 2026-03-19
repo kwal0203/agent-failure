@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from sqlalchemy.orm import Session
@@ -79,6 +80,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 
@@ -371,9 +380,9 @@ async def session_stream_ws(
         await websocket.close(code=1008, reason="session not found")
         return
 
-    if metadata.runtime_substate is None:
-        await websocket.close(code=1008, reason="session runtime substate not found")
-        return
+    # if metadata.runtime_substate is None:
+    #     await websocket.close(code=1008, reason="session runtime substate not found")
+    #     return
 
     # - On allow: accept, register with manager, send initial SESSION_STATUS.
     await ws_manager.connect(session_id=session_id, websocket=websocket)

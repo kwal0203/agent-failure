@@ -4,19 +4,12 @@ from apps.agent_harness.src.application.session_loop.types import (
     HarnessTurnInput,
 )
 
-from uuid import UUID
-
 
 class LocalV1LabContextBuilder(LabContextBuilderPort):
-    SUPPORTED_LAB_ID: UUID = UUID("11111111-1111-1111-1111-111111111111")
-    SUPPORTED_LAB_VERSION_ID: UUID = UUID("22222222-2222-2222-2222-222222222222")
-
     def build_messages(self, turn: HarnessTurnInput) -> list[ChatMessage]:
-        if (
-            turn.lab_id != self.SUPPORTED_LAB_ID
-            or turn.lab_version_id != self.SUPPORTED_LAB_VERSION_ID
-        ):
-            raise ValueError("unsupported_lab_path")
+        # TODO(E5 follow-up): restore strict lab-version gating once session create
+        # binds to canonical lab/version records instead of placeholder IDs.
+        _ = (turn.lab_id, turn.lab_version_id)
 
         return [
             ChatMessage(

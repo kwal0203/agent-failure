@@ -31,10 +31,10 @@ repos:
     hooks:
       - id: local-biome-check
         name: biome check
-        entry: npx biome check --write --files-ignore-unknown=true
+        entry: bash -lc 'cd apps/frontend && npx biome check --write --files-ignore-unknown=true .'
         language: system
-        types: [text]
-        files: "\\.(jsx?|tsx?|c(js|ts)|m(js|ts)|d\\.(ts|cts|mts)|jsonc?|css|svelte|vue|astro|graphql|gql)$"
+        pass_filenames: false
+        files: ^apps/frontend/
 
       - id: pytest
         name: pytest
@@ -57,9 +57,9 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-      # - id: web-typecheck
-      #   name: web typecheck
-      #   entry: bash -lc 'cd apps/frontend && npm run typecheck'
-      #   language: system
-      #   pass_filenames: false
-      #   stages: [pre-commit]
+      - id: web-typecheck
+        name: web typecheck
+        entry: bash -lc 'cd apps/frontend && npm run typecheck'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

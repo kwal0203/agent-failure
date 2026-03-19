@@ -10,31 +10,31 @@ This spec is intentionally lower-level than the PRD and TDD. It is written to re
 
 This specification covers:
 
-- durable session states  
-- transient runtime sub-states for active sessions  
-- allowed state transitions  
-- transition triggers  
-- ownership of state changes  
-- invariants that must always hold  
-- side effects attached to transitions  
-- reconciliation behavior when durable state and runtime state diverge  
+- durable session states
+- transient runtime sub-states for active sessions
+- allowed state transitions
+- transition triggers
+- ownership of state changes
+- invariants that must always hold
+- side effects attached to transitions
+- reconciliation behavior when durable state and runtime state diverge
 - timeout, expiry, failure, and resume semantics
 
 This specification does not define:
 
-- detailed API payload schemas  
-- exact database DDL  
-- detailed Kubernetes manifests  
+- detailed API payload schemas
+- exact database DDL
+- detailed Kubernetes manifests
 - evaluator rule content
 
 ## Core principles
 
-- A session has exactly one durable lifecycle state at a time.  
-- The Control Plane is the source of truth for durable session state.  
-- The frontend never authoritatively changes session state.  
-- The Orchestrator and Agent Harness may report runtime facts, but only the Control Plane persists lifecycle transitions.  
-- Runtime and evaluator events must be interpreted relative to the current durable session state.  
-- A transition may trigger side effects, but side effects do not become authoritative until the Control Plane commits the resulting state.  
+- A session has exactly one durable lifecycle state at a time.
+- The Control Plane is the source of truth for durable session state.
+- The frontend never authoritatively changes session state.
+- The Orchestrator and Agent Harness may report runtime facts, but only the Control Plane persists lifecycle transitions.
+- Runtime and evaluator events must be interpreted relative to the current durable session state.
+- A transition may trigger side effects, but side effects do not become authoritative until the Control Plane commits the resulting state.
 - Resume behavior must be explicit and lab-version dependent.
 
 ## Session identity
@@ -43,11 +43,11 @@ A session represents one learner’s run of one published lab version.
 
 A session is uniquely associated with:
 
-- one learner  
-- one lab  
-- one lab version  
-- one resume policy snapshot  
-- one durable trace stream  
+- one learner
+- one lab
+- one lab version
+- one resume policy snapshot
+- one durable trace stream
 - zero or one active lab containers at a given point in time
 
 A session is not reused across learners and is not repurposed for a different lab version.
@@ -122,46 +122,46 @@ These sub-states may be represented as runtime flags, an auxiliary session\_runt
 
 Allowed durable transitions are:
 
-- `CREATED -> PROVISIONING`  
-    
-- `CREATED -> FAILED`  
-    
-- `CREATED -> CANCELLED`  
-    
-- `PROVISIONING -> ACTIVE`  
-    
-- `PROVISIONING -> FAILED`  
-    
-- `PROVISIONING -> CANCELLED`  
-    
-- `PROVISIONING -> EXPIRED` only if provisioning TTL is exceeded and policy maps timeout to expiry instead of failure  
-    
-- `ACTIVE -> IDLE`  
-    
-- `ACTIVE -> COMPLETED`  
-    
-- `ACTIVE -> FAILED`  
-    
-- `ACTIVE -> EXPIRED`  
-    
-- `ACTIVE -> CANCELLED`  
-    
-- `IDLE -> ACTIVE`  
-    
-- `IDLE -> COMPLETED`  
-    
-- `IDLE -> FAILED`  
-    
-- `IDLE -> EXPIRED`  
-    
-- `IDLE -> CANCELLED`  
-    
-- `FAILED` is terminal  
-    
-- `COMPLETED` is terminal  
-    
-- `EXPIRED` is terminal  
-    
+- `CREATED -> PROVISIONING`
+
+- `CREATED -> FAILED`
+
+- `CREATED -> CANCELLED`
+
+- `PROVISIONING -> ACTIVE`
+
+- `PROVISIONING -> FAILED`
+
+- `PROVISIONING -> CANCELLED`
+
+- `PROVISIONING -> EXPIRED` only if provisioning TTL is exceeded and policy maps timeout to expiry instead of failure
+
+- `ACTIVE -> IDLE`
+
+- `ACTIVE -> COMPLETED`
+
+- `ACTIVE -> FAILED`
+
+- `ACTIVE -> EXPIRED`
+
+- `ACTIVE -> CANCELLED`
+
+- `IDLE -> ACTIVE`
+
+- `IDLE -> COMPLETED`
+
+- `IDLE -> FAILED`
+
+- `IDLE -> EXPIRED`
+
+- `IDLE -> CANCELLED`
+
+- `FAILED` is terminal
+
+- `COMPLETED` is terminal
+
+- `EXPIRED` is terminal
+
 - `CANCELLED` is terminal
 
 No other durable transitions are allowed without an explicit revision to this specification.
@@ -174,7 +174,7 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- learner requests a new session  
+- learner requests a new session
 - request passes authentication, authorization, quota, and lab-availability checks
 
 **Owner**:
@@ -183,18 +183,18 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Required checks**:
 
-- learner is authenticated  
-- learner is authorized to launch the lab  
-- lab is published and launchable  
-- session creation is within quota and platform policy  
+- learner is authenticated
+- learner is authorized to launch the lab
+- lab is published and launchable
+- session creation is within quota and platform policy
 - idempotency key is valid
 
 **Side effects**:
 
-- create durable session row if not already present  
-- snapshot lab version and resume policy  
-- initialize trace root  
-- emit audit or operational launch event  
+- create durable session row if not already present
+- snapshot lab version and resume policy
+- initialize trace root
+- emit audit or operational launch event
 - send provisioning request to Orchestrator
 
 ### 2\. Provisioning success
@@ -203,8 +203,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- Orchestrator reports runtime ready  
-- runtime health checks pass  
+- Orchestrator reports runtime ready
+- runtime health checks pass
 - Agent Harness bootstrap succeeds
 
 **Owner**:
@@ -213,9 +213,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- persist runtime identity metadata  
-- mark session interactive  
-- initialize runtime sub-state as `WAITING_FOR_INPUT`  
+- persist runtime identity metadata
+- mark session interactive
+- initialize runtime sub-state as `WAITING_FOR_INPUT`
 - emit session-ready trace event
 
 ### 3\. Provisioning failure
@@ -224,9 +224,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- pod/container creation failure  
-- readiness timeout  
-- bootstrap failure  
+- pod/container creation failure
+- readiness timeout
+- bootstrap failure
 - unrecoverable configuration error
 
 **Owner**:
@@ -235,8 +235,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- persist failure reason category and details  
-- emit failure event  
+- persist failure reason category and details
+- emit failure event
 - schedule cleanup of transient resources
 
 ### 4\. Learner disconnect or inactivity
@@ -245,8 +245,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- learner disconnects and no active turn is running, or  
-- active session exceeds idle threshold while resumable, or  
+- learner disconnects and no active turn is running, or
+- active session exceeds idle threshold while resumable, or
 - session is waiting for learner input and product policy classifies it as idle
 
 **Owner**:
@@ -255,8 +255,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- persist last-known resume point  
-- mark runtime sub-state as `DISCONNECTED_RESUMABLE` or equivalent if applicable  
+- persist last-known resume point
+- mark runtime sub-state as `DISCONNECTED_RESUMABLE` or equivalent if applicable
 - keep runtime alive or mark for warm reconstruction according to lab policy
 
 ### 5\. Reconnect/resume to interactive state
@@ -265,8 +265,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- learner reconnects to a resumable session  
-- session has not expired or been cancelled  
+- learner reconnects to a resumable session
+- session has not expired or been cancelled
 - runtime still exists or reconstruction succeeds under resume policy
 
 **Owner**:
@@ -275,9 +275,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- if hot resume, reattach to existing runtime stream  
-- if warm reconstruction, provision fresh runtime and restore allowed durable state  
-- emit resume trace event with resume mode  
+- if hot resume, reattach to existing runtime stream
+- if warm reconstruction, provision fresh runtime and restore allowed durable state
+- emit resume trace event with resume mode
 - mark runtime sub-state as `WAITING_FOR_INPUT`
 
 ### 6\. Successful completion
@@ -286,7 +286,7 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- lab success criteria met and product policy treats that as terminal, or  
+- lab success criteria met and product policy treats that as terminal, or
 - lab reaches explicit terminal condition with no further interaction allowed
 
 **Owner**:
@@ -295,9 +295,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- persist completion reason and final outcome  
-- stop accepting learner prompts  
-- schedule runtime cleanup  
+- persist completion reason and final outcome
+- stop accepting learner prompts
+- schedule runtime cleanup
 - keep learner-visible trace and results available according to retention policy
 
 ### 7\. Runtime failure after activation
@@ -306,9 +306,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- runtime crash  
-- unrecoverable Agent Harness error  
-- critical persistence failure that invalidates safe continuation  
+- runtime crash
+- unrecoverable Agent Harness error
+- critical persistence failure that invalidates safe continuation
 - reconciliation detects missing runtime where resume policy does not allow recovery
 
 **Owner**:
@@ -317,9 +317,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- persist failure reason  
-- emit failure trace event  
-- stop accepting prompts  
+- persist failure reason
+- emit failure trace event
+- stop accepting prompts
 - schedule cleanup and operator alerting if required
 
 ### 8\. Expiry
@@ -328,8 +328,8 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Trigger**:
 
-- maximum session duration exceeded  
-- idle TTL exceeded  
+- maximum session duration exceeded
+- idle TTL exceeded
 - provisioning TTL exceeded where policy maps to expiry
 
 **Owner**:
@@ -338,9 +338,9 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- stop accepting prompts  
-- record expiry reason  
-- terminate or clean up runtime  
+- stop accepting prompts
+- record expiry reason
+- terminate or clean up runtime
 - preserve learner-visible history according to retention policy
 
 ### 9\. Administrative cancellation
@@ -357,24 +357,24 @@ No other durable transitions are allowed without an explicit revision to this sp
 
 **Side effects**:
 
-- write audit log  
-- stop accepting prompts  
-- instruct Orchestrator to terminate runtime if present  
+- write audit log
+- stop accepting prompts
+- instruct Orchestrator to terminate runtime if present
 - emit cancellation event
 
 ## Disallowed transitions
 
 The following are explicitly disallowed:
 
-- any transition out of `COMPLETED`  
-- any transition out of `FAILED`  
-- any transition out of `EXPIRED`  
-- any transition out of `CANCELLED`  
-- `PROVISIONING -> IDLE`  
-- `CREATED -> ACTIVE`  
-- `ACTIVE -> PROVISIONING`  
-- `IDLE -> PROVISIONING`  
-- `COMPLETED -> ACTIVE`  
+- any transition out of `COMPLETED`
+- any transition out of `FAILED`
+- any transition out of `EXPIRED`
+- any transition out of `CANCELLED`
+- `PROVISIONING -> IDLE`
+- `CREATED -> ACTIVE`
+- `ACTIVE -> PROVISIONING`
+- `IDLE -> PROVISIONING`
+- `COMPLETED -> ACTIVE`
 - `FAILED -> ACTIVE`
 
 If future product behavior needs “restart,” it must create a new session or explicitly introduce a new state and migration plan.
@@ -391,32 +391,32 @@ Only one learner turn may be in progress at a time for a given session.
 
 A typical sequence is:
 
-- `WAITING_FOR_INPUT`  
-- learner prompt accepted  
-- `RUNNING_AGENT_TURN`  
-- optional `STREAMING_OUTPUT`  
-- optional `EXECUTING_TOOL`  
-- optional repeated output/tool cycles  
-- turn finalization  
+- `WAITING_FOR_INPUT`
+- learner prompt accepted
+- `RUNNING_AGENT_TURN`
+- optional `STREAMING_OUTPUT`
+- optional `EXECUTING_TOOL`
+- optional repeated output/tool cycles
+- turn finalization
 - `WAITING_FOR_INPUT`
 
 ### Prompt acceptance rules
 
 A new learner prompt may be accepted only if:
 
-- session durable state is `ACTIVE`  
-- runtime sub-state is compatible with a new turn, typically `WAITING_FOR_INPUT`  
-- no turn lock is held  
+- session durable state is `ACTIVE`
+- runtime sub-state is compatible with a new turn, typically `WAITING_FOR_INPUT`
+- no turn lock is held
 - quota and policy checks pass
 
 ### Denial rules
 
 A learner prompt must be rejected if:
 
-- session is not `ACTIVE`  
-- another turn is still in progress  
-- session is expired, failed, completed, or cancelled  
-- per-session or per-user quota is exceeded  
+- session is not `ACTIVE`
+- another turn is still in progress
+- session is expired, failed, completed, or cancelled
+- per-session or per-user quota is exceeded
 - lab policy disallows the requested action
 
 ## Ownership of state changes
@@ -447,31 +447,31 @@ The following invariants must always hold.
 
 ### Identity invariants
 
-- A session belongs to exactly one learner.  
-- A session points to exactly one lab version.  
+- A session belongs to exactly one learner.
+- A session points to exactly one lab version.
 - A session has exactly one durable lifecycle state at a time.
 
 ### Runtime invariants
 
-- At most one active runtime is attached to a session at a time unless a future migration explicitly supports handoff semantics.  
-- At most one learner turn is in progress at a time per session.  
+- At most one active runtime is attached to a session at a time unless a future migration explicitly supports handoff semantics.
+- At most one learner turn is in progress at a time per session.
 - A runtime that belongs to a non-interactive terminal session must not accept new prompts.
 
 ### Persistence invariants
 
-- Durable trace ordering is monotonic within a session.  
-- Lifecycle transitions are persisted before user-visible state is treated as authoritative.  
+- Durable trace ordering is monotonic within a session.
+- Lifecycle transitions are persisted before user-visible state is treated as authoritative.
 - Session completion or failure reason must be durably stored before cleanup deletes the runtime.
 
 ### Authorization invariants
 
-- Only the owner or an authorized admin may access session history.  
+- Only the owner or an authorized admin may access session history.
 - Only an authorized admin may cancel another learner’s session.
 
 ### Resume invariants
 
-- Resume mode must be explicit: hot resume, warm reconstruction, or not supported.  
-- Reconstructed sessions must not expose ephemeral state that was not declared durable by policy.  
+- Resume mode must be explicit: hot resume, warm reconstruction, or not supported.
+- Reconstructed sessions must not expose ephemeral state that was not declared durable by policy.
 - A learner must never be attached to another learner’s runtime or trace stream.
 
 ## Resume semantics
@@ -494,18 +494,18 @@ The lab or session policy does not permit continuation after disconnect, expiry,
 
 **Durable by default**:
 
-- session metadata  
-- learner prompts and model outputs already committed to trace  
-- evaluation outcomes already committed  
-- lab version reference  
+- session metadata
+- learner prompts and model outputs already committed to trace
+- evaluation outcomes already committed
+- lab version reference
 - declared accepted artifact references if artifacts are part of V1 in the future
 
 **Ephemeral by default**:
 
-- process memory inside runtime  
-- uncommitted streaming chunks  
-- temporary filesystem mutations unless explicitly snapshotted  
-- live network connections  
+- process memory inside runtime
+- uncommitted streaming chunks
+- temporary filesystem mutations unless explicitly snapshotted
+- live network connections
 - partial tool execution state not yet committed as durable output
 
 ## Timeout and expiry semantics
@@ -532,56 +532,56 @@ Because runtime truth and durable state can diverge, a reconciliation loop is re
 
 ### Reconciliation inputs
 
-- session table  
-- Orchestrator runtime status  
-- heartbeat or liveness signals  
-- WebSocket connection state  
-- evaluator outcomes  
+- session table
+- Orchestrator runtime status
+- heartbeat or liveness signals
+- WebSocket connection state
+- evaluator outcomes
 - cleanup task outcomes
 
 ### Reconciliation rules
 
-- If durable state is `ACTIVE` but runtime is gone and reconstruction is not allowed, transition to `FAILED`.  
-- If durable state is `ACTIVE` but learner is disconnected and idle threshold is exceeded, transition to `IDLE`.  
-- If durable state is `IDLE` and runtime is missing but warm reconstruction is supported, remain `IDLE` until learner reconnects or expiry occurs.  
-- If durable state is terminal and runtime still exists, cleanup should be retried until the runtime is removed.  
+- If durable state is `ACTIVE` but runtime is gone and reconstruction is not allowed, transition to `FAILED`.
+- If durable state is `ACTIVE` but learner is disconnected and idle threshold is exceeded, transition to `IDLE`.
+- If durable state is `IDLE` and runtime is missing but warm reconstruction is supported, remain `IDLE` until learner reconnects or expiry occurs.
+- If durable state is terminal and runtime still exists, cleanup should be retried until the runtime is removed.
 - If duplicate runtimes are detected for one session, mark the condition critical, prevent new interaction, and require operator or automated containment according to incident policy.
 
 ## Observability requirements
 
 For every lifecycle transition, the platform must record:
 
-- session id  
-- previous durable state  
-- next durable state  
-- trigger category  
-- actor or subsystem responsible  
-- reason code  
-- timestamp  
+- session id
+- previous durable state
+- next durable state
+- trigger category
+- actor or subsystem responsible
+- reason code
+- timestamp
 - correlation id or trace root id where applicable
 
 Metrics should include:
 
-- provisioning success/failure counts  
-- active sessions  
-- idle sessions  
-- completion counts by lab  
-- failure counts by failure category  
-- resume attempts and resume success by mode  
-- expiry counts  
+- provisioning success/failure counts
+- active sessions
+- idle sessions
+- completion counts by lab
+- failure counts by failure category
+- resume attempts and resume success by mode
+- expiry counts
 - reconciliation corrections
 
 ## Error classification
 
 Session-terminal failures should be classified into categories such as:
 
-- provisioning\_failure  
-- bootstrap\_failure  
-- runtime\_crash  
-- policy\_block\_terminal  
-- persistence\_failure  
-- provider\_failure\_terminal  
-- reconciliation\_failure  
+- provisioning\_failure
+- bootstrap\_failure
+- runtime\_crash
+- policy\_block\_terminal
+- persistence\_failure
+- provider\_failure\_terminal
+- reconciliation\_failure
 - administrative\_cancellation
 
 The exact set may evolve, but failures must be categorized, not only stored as opaque text.
@@ -592,43 +592,43 @@ The following tests are required for this lifecycle spec.
 
 ### State-transition tests
 
-- every allowed transition succeeds when preconditions hold  
-- every disallowed transition is rejected  
+- every allowed transition succeeds when preconditions hold
+- every disallowed transition is rejected
 - terminal states reject new prompts and lifecycle regression
 
 ### Concurrency tests
 
-- duplicate launch requests with same idempotency key do not create duplicate sessions  
-- concurrent prompts in one session do not run overlapping turns  
+- duplicate launch requests with same idempotency key do not create duplicate sessions
+- concurrent prompts in one session do not run overlapping turns
 - reconnect during active turn preserves session correctness
 
 ### Timeout tests
 
-- provisioning timeout transitions correctly  
-- idle timeout transitions correctly  
+- provisioning timeout transitions correctly
+- idle timeout transitions correctly
 - max-lifetime expiry transitions correctly
 
 ### Resume tests
 
-- hot resume reconnects correctly  
-- warm reconstruction restores only allowed durable state  
+- hot resume reconnects correctly
+- warm reconstruction restores only allowed durable state
 - no-resume labs correctly deny continuation
 
 ### Reconciliation tests
 
-- missing runtime is detected and corrected  
-- orphan runtime after terminal state is cleaned up  
+- missing runtime is detected and corrected
+- orphan runtime after terminal state is cleaned up
 - duplicate runtime condition is surfaced and contained
 
 ## Open design choices for implementation
 
 The following implementation choices remain open but must preserve this lifecycle contract:
 
-- whether transient sub-states are persisted or derived  
-- whether turn locks are DB-backed, in-memory with fencing, or queue-based  
-- whether reconciliation runs on polling, event-driven hooks, or both  
+- whether transient sub-states are persisted or derived
+- whether turn locks are DB-backed, in-memory with fencing, or queue-based
+- whether reconciliation runs on polling, event-driven hooks, or both
 - whether evaluator-triggered completion is written through a dedicated session-state service or directly through a validated Control Plane path
 
 ## Summary
 
-This state machine exists to ensure that learner interaction, runtime orchestration, trace persistence, evaluation, and operations all reason about the same session semantics. Any implementation that diverges from these durable states, allowed transitions, invariants, or ownership rules is non-compliant with the platform design.  
+This state machine exists to ensure that learner interaction, runtime orchestration, trace persistence, evaluation, and operations all reason about the same session semantics. Any implementation that diverges from these durable states, allowed transitions, invariants, or ownership rules is non-compliant with the platform design.
