@@ -33,6 +33,7 @@ class SessionModel(Base):
     )
 
     state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    runtime_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     runtime_substate: Mapped[str | None] = mapped_column(String(32), nullable=True)
     resume_mode: Mapped[str] = mapped_column(
         String(32), nullable=False, default="hot_resume"

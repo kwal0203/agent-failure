@@ -47,7 +47,9 @@ class SQLAlchemySessionRepository(SessionRepository):
         if row is None:
             return None
 
-        return SessionRow(id=row.id, state=SessionState(row.state))
+        return SessionRow(
+            id=row.id, runtime_id=row.runtime_id, state=SessionState(row.state)
+        )
 
     def update_state(
         self,

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Mapping
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -37,4 +38,28 @@ class SQLAlchemyOutbox(Outbox):
             aggregate_id=session_id,
             payload=payload,
         )
+        self._db.add(event)
+
+    def enqueue_for_cleanup(
+        self,
+        session_id: UUID,
+        runtime_id: str | None,
+        terminal_state: str | None,
+        reason_code: str | None,
+        requested_at: datetime | None,
+    ) -> None:
+        payload: dict[str, object] = {
+            "session_id": str(session_id),
+            "runtime_id": runtime_id,
+            "terminal_state": terminal_state,
+            "reason_code": reason_code,
+            "requested_at": requested_at.isoformat() if requested_at else None,
+        }
+
+        event = OutboxEventModel(
+            event_type="session.cleanup.requested.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
+
         self._db.add(event)

@@ -8,11 +8,13 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
 from typing import Mapping
+from datetime import datetime
 
 
 @dataclass
 class SessionRow:
     id: UUID
+    runtime_id: str | None
     state: SessionState
 
 
@@ -49,6 +51,15 @@ class Outbox(Protocol):
         trigger: Trigger,
         metadata: Mapping[str, object],
         transition_id: UUID,
+    ) -> None: ...
+
+    def enqueue_for_cleanup(
+        self,
+        session_id: UUID,
+        runtime_id: str | None,
+        terminal_state: str | None,
+        reason_code: str | None,
+        requested_at: datetime | None,
     ) -> None: ...
 
 

@@ -4,7 +4,14 @@ from uuid import UUID
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
 from apps.control_plane.src.application.session_create.ports import LabRepository
 
-from .types import ProvisionResult, RuntimeProvisionRequest, PendingProvisioningEvent
+from .types import (
+    ProvisionResult,
+    RuntimeProvisionRequest,
+    PendingProvisioningEvent,
+    PendingCleanupEvent,
+    RuntimeTeardownRequest,
+    RuntimeTeardownResult,
+)
 
 
 class RuntimeProvisionerPort(Protocol):
@@ -39,6 +46,33 @@ class OutboxProvisioningSessionPort(Protocol):
     ) -> None: ...
 
 
+class OutboxCleanupSessionPort(Protocol):
+    def claim_pending_cleanup(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingCleanupEvent]: ...
+
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None: ...
+
+    def mark_retryable_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        backoff_seconds: int = 15,
+        failed_at: datetime | None = None,
+    ) -> None: ...
+
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None: ...
+
+
 class ProcessPendingOnceUnitOfWork(Protocol):
     @property
     def outbox(self) -> OutboxProvisioningSessionPort: ...
@@ -50,3 +84,17 @@ class ProcessPendingOnceUnitOfWork(Protocol):
     def lab(self) -> LabRepository: ...
 
     def transaction(self) -> ContextManager[None]: ...
+
+
+class ProcessCleanupOnceUnitOfWork(Protocol):
+    @property
+    def outbox(self) -> OutboxCleanupSessionPort: ...
+
+    @property
+    def lifecycle_uow(self) -> UnitOfWork: ...
+
+    def transaction(self) -> ContextManager[None]: ...
+
+
+class RuntimeTeardownPort(Protocol):
+    def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
