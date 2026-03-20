@@ -37,3 +37,11 @@ class ProcessPendingOnceResult:
     succeeded_count: int
     failed_count: int
     retried_count: int
+
+
+@dataclass(frozen=True)
+class PendingCleanupEvent:
+    outbox_event_id: UUID
+    session_id: UUID
+    payload: dict[str, Any]
+    attempt_count: int
