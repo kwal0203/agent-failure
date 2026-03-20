@@ -9,6 +9,8 @@ from .types import (
     RuntimeProvisionRequest,
     PendingProvisioningEvent,
     PendingCleanupEvent,
+    RuntimeTeardownRequest,
+    RuntimeTeardownResult,
 )
 
 
@@ -92,3 +94,7 @@ class ProcessCleanupOnceUnitOfWork(Protocol):
     def lifecycle_uow(self) -> UnitOfWork: ...
 
     def transaction(self) -> ContextManager[None]: ...
+
+
+class RuntimeTeardownPort(Protocol):
+    def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
