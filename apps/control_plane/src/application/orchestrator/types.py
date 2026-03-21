@@ -83,3 +83,20 @@ class RuntimeInspectorResult:
     ready: bool | None = None
     reason: str | None = None
     details: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class ReconciliationCandidate:
+    state: str
+    session_id: UUID
+    runtime_id: str | None
+    runtime_substate: str | None
+    # updated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ReconciliationOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int

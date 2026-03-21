@@ -22,10 +22,16 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
     Trigger,
 )
+from apps.control_plane.src.application.orchestrator.ports import (
+    ReconciliationSessionQueryPort,
+)
+from apps.control_plane.src.application.orchestrator.types import (
+    ReconciliationCandidate,
+)
 
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update
+from sqlalchemy import select, update, and_, or_
 from datetime import datetime, timezone
 from typing import Mapping, cast
 from uuid import UUID, uuid4
@@ -166,3 +172,51 @@ class PostgresCreateSessionRepository(CreateSessionRepository):
             created_at=session.created_at,
             requester_user_id=actor_id,
         )
+
+
+class SQLAlchemyReconciliationSessionRepository(ReconciliationSessionQueryPort):
+    CANDIDATE_STATES: tuple[str, ...] = ("ACTIVE", "PROVISIONING")
+    CANDIDATE_TERMINAL_STATES: tuple[str, ...] = (
+        "COMPLETED",
+        "FAILED",
+        "EXPIRED",
+        "CANCELLED",
+    )
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> list[ReconciliationCandidate]:
+        candidate_rows = (
+            self._db.execute(
+                select(SessionModel)
+                .where(
+                    or_(
+                        SessionModel.state.in_(self.CANDIDATE_STATES),
+                        and_(
+                            SessionModel.state.in_(self.CANDIDATE_TERMINAL_STATES),
+                            SessionModel.runtime_id.is_not(None),
+                        ),
+                    )
+                )
+                .order_by(SessionModel.created_at.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
+
+        candidates: list[ReconciliationCandidate] = []
+        for row in candidate_rows:
+            candidates.append(
+                ReconciliationCandidate(
+                    state=row.state,
+                    session_id=row.id,
+                    runtime_id=row.runtime_id,
+                    runtime_substate=row.runtime_substate,
+                )
+            )
+
+        return candidates

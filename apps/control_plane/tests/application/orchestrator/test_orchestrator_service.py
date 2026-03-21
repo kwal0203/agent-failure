@@ -9,11 +9,14 @@ from uuid import UUID, uuid4
 from apps.control_plane.src.application.orchestrator.service import (
     process_cleanup_pending_once,
     process_pending_once,
+    process_reconciliation_once,
 )
 from apps.control_plane.src.application.orchestrator.types import (
     PendingCleanupEvent,
     PendingProvisioningEvent,
     ProvisionResult,
+    ReconciliationCandidate,
+    RuntimeInspectorResult,
     RuntimeProvisionRequest,
     RuntimeTeardownRequest,
     RuntimeTeardownResult,
@@ -235,6 +238,62 @@ class _FakeTeardown:
         if self._result is None:
             raise RuntimeError("fake teardown missing result")
         return self._result
+
+
+class _FakeReconciliationQueryRepo:
+    def __init__(self, sessions: list[ReconciliationCandidate]) -> None:
+        self._sessions = sessions
+
+    def get_reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> list[ReconciliationCandidate]:
+        _ = limit
+        return self._sessions
+
+
+class _FakeReconciliationOutbox:
+    def __init__(self) -> None:
+        self.cleanup_enqueues: list[dict[str, Any]] = []
+
+    def enqueue_for_cleanup(
+        self,
+        *,
+        session_id: UUID,
+        runtime_id: str | None,
+        terminal_state: str | None,
+        reason_code: str | None,
+        requested_at: datetime | None,
+    ) -> None:
+        self.cleanup_enqueues.append(
+            {
+                "session_id": session_id,
+                "runtime_id": runtime_id,
+                "terminal_state": terminal_state,
+                "reason_code": reason_code,
+                "requested_at": requested_at,
+            }
+        )
+
+
+class _FakeReconciliationUoW:
+    def __init__(self) -> None:
+        self._outbox = _FakeReconciliationOutbox()
+
+    @property
+    def outbox(self) -> _FakeReconciliationOutbox:
+        return self._outbox
+
+    @contextmanager
+    def transaction(self):
+        yield
+
+
+class _FakeInspector:
+    def __init__(self, responses: dict[UUID, RuntimeInspectorResult]) -> None:
+        self._responses = responses
+
+    def inspect(self, request):  # simple test double
+        return self._responses[request.session_id]
 
 
 def _event(*, payload: dict[str, Any]) -> PendingProvisioningEvent:
@@ -481,3 +540,180 @@ def test_process_cleanup_pending_once_invalid_payload_marks_terminal() -> None:
     assert len(outbox.retryable_calls) == 0
     assert len(outbox.terminal_calls) == 1
     assert len(teardown.requests) == 0
+
+
+def test_process_reconciliation_once_missing_runtime_transitions(
+    monkeypatch,
+) -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="ACTIVE",
+        session_id=session_id,
+        runtime_id="runtime-1",
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector(
+        {
+            session_id: RuntimeInspectorResult(
+                session_id=session_id,
+                requested_runtime_id="runtime-1",
+                matched_runtime_ids=tuple(),
+                exists=False,
+                duplicate_count=0,
+                phase=None,
+                ready=None,
+                reason="NotFound",
+            )
+        }
+    )
+
+    calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "apps.control_plane.src.application.orchestrator.service.transition_session",
+        _fake_transition_session,
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,  # type: ignore[arg-type]
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert len(calls) == 1
+    assert calls[0]["trigger"] == Trigger.RUNTIME_FAILED
+
+
+def test_process_reconciliation_once_terminal_with_runtime_enqueues_cleanup() -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="FAILED",
+        session_id=session_id,
+        runtime_id="runtime-1",
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector(
+        {
+            session_id: RuntimeInspectorResult(
+                session_id=session_id,
+                requested_runtime_id="runtime-1",
+                matched_runtime_ids=("runtime-1",),
+                exists=True,
+                duplicate_count=0,
+                phase="Failed",
+                ready=False,
+                reason="CrashLoopBackOff",
+            )
+        }
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,  # type: ignore[arg-type]
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert len(uow.outbox.cleanup_enqueues) == 1
+    assert uow.outbox.cleanup_enqueues[0]["reason_code"] == "ORPHAN_RUNTIME_DETECTED"
+
+
+def test_process_reconciliation_once_duplicate_runtimes_enqueues_extras_only() -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="ACTIVE",
+        session_id=session_id,
+        runtime_id="runtime-1",
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector(
+        {
+            session_id: RuntimeInspectorResult(
+                session_id=session_id,
+                requested_runtime_id="runtime-1",
+                matched_runtime_ids=("runtime-1", "runtime-2", "runtime-3"),
+                exists=True,
+                duplicate_count=2,
+                phase="Running",
+                ready=True,
+                reason=None,
+            )
+        }
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,  # type: ignore[arg-type]
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    enqueued_runtime_ids = [x["runtime_id"] for x in uow.outbox.cleanup_enqueues]
+    assert enqueued_runtime_ids == ["runtime-2", "runtime-3"]
+
+
+def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
+    monkeypatch,
+) -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="ACTIVE",
+        session_id=session_id,
+        runtime_id="runtime-1",
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector(
+        {
+            session_id: RuntimeInspectorResult(
+                session_id=session_id,
+                requested_runtime_id="runtime-1",
+                matched_runtime_ids=("runtime-1",),
+                exists=True,
+                duplicate_count=0,
+                phase="Failed",
+                ready=False,
+                reason="CrashLoopBackOff",
+            )
+        }
+    )
+    calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "apps.control_plane.src.application.orchestrator.service.transition_session",
+        _fake_transition_session,
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,  # type: ignore[arg-type]
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert len(calls) == 1
+    assert calls[0]["trigger"] == Trigger.RUNTIME_FAILED

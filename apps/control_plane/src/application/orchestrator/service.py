@@ -1,41 +1,43 @@
-from apps.control_plane.src.application.orchestrator.ports import (
-    ProcessPendingOnceUnitOfWork,
-    ProcessCleanupOnceUnitOfWork,
-)
-from apps.control_plane.src.application.orchestrator.types import (
-    RuntimeProvisionRequest,
-)
+from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
-)
-from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
-
-from .ports import RuntimeProvisionerPort, RuntimeImageResolverPort
-from .types import (
-    ProcessPendingOnceResult,
-    ProcessCleanupOnceResult,
-    RuntimeTeardownRequest,
-)
-
-from uuid import UUID
-from datetime import datetime, timezone
-
-from apps.control_plane.src.infrastructure.runtime.errors import (
-    ImageNotFoundError,
-    ImageRevokedError,
-    InvalidImageLockError,
-    DefaultSelectionError,
 )
 from apps.control_plane.src.application.session_lifecycle.errors import (
     SessionNotFound,
     InvalidTransition,
     TransitionValidationError,
 )
+from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
+from apps.control_plane.src.infrastructure.runtime.errors import (
+    ImageNotFoundError,
+    ImageRevokedError,
+    InvalidImageLockError,
+    DefaultSelectionError,
+)
 from apps.control_plane.src.infrastructure.persistence.errors import (
     DataIntegrityError,
     StateMismatch,
 )
-from apps.control_plane.src.application.orchestrator.ports import RuntimeTeardownPort
+from .ports import (
+    ProcessPendingOnceUnitOfWork,
+    ProcessCleanupOnceUnitOfWork,
+    RuntimeProvisionerPort,
+    RuntimeImageResolverPort,
+    RuntimeInspectorPort,
+    RuntimeTeardownPort,
+    ReconciliationSessionQueryPort,
+)
+from .types import (
+    RuntimeProvisionRequest,
+    ProcessPendingOnceResult,
+    ProcessCleanupOnceResult,
+    RuntimeTeardownRequest,
+    RuntimeInspectorRequest,
+    ReconciliationOnceResult,
+)
+
+from uuid import UUID
+from datetime import datetime, timezone
 
 import logging
 
@@ -318,5 +320,137 @@ def process_cleanup_pending_once(
     )
 
 
-def process_reconciliation_once():
-    return None
+def process_reconciliation_once(
+    session_query_repo: ReconciliationSessionQueryPort,
+    uow: UnitOfWork,
+    inspector: RuntimeInspectorPort,
+) -> ReconciliationOnceResult:
+
+    claimed_count = 0
+    succeeded_count = 0
+    failed_count = 0
+    # retried_count = 0
+
+    sessions = session_query_repo.get_reconciliation_candidates()
+    for session in sessions:
+        session_id = session.session_id
+        try:
+            ts = datetime.now(timezone.utc)
+
+            claimed_count += 1
+
+            state = session.state
+            runtime_id = session.runtime_id
+            # runtime_substate = session.runtime_substate
+
+            inspection_request = RuntimeInspectorRequest(
+                session_id=session_id, runtime_id=runtime_id
+            )
+            inspection_result = inspector.inspect(inspection_request)
+            if state in {"PROVISIONING", "ACTIVE"} and not inspection_result.exists:
+                trigger = (
+                    Trigger.PROVISIONING_FAILED
+                    if state == "PROVISIONING"
+                    else Trigger.RUNTIME_FAILED
+                )
+                transition_session(
+                    session_id=session_id,
+                    trigger=trigger,
+                    actor="reconciliation_worker",
+                    metadata={
+                        "reconcile_reason": "MISSING_RUNTIME",
+                        "reason_code": "MISSING_RUNTIME",
+                        "state_before": state,
+                        "requested_runtime_id": runtime_id,
+                        "inspector_matched_runtime_ids": list(
+                            inspection_result.matched_runtime_ids
+                        ),
+                        "inspector_phase": inspection_result.phase,
+                        "inspector_reason": inspection_result.reason,
+                    },
+                    idempotency_key=f"reconcile:{session_id}:missing-runtime:{state}",
+                    uow=uow,
+                )
+                succeeded_count += 1
+                continue
+
+            if (
+                state in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}
+                and inspection_result.exists
+            ):
+                with uow.transaction():
+                    uow.outbox.enqueue_for_cleanup(
+                        session_id=session_id,
+                        runtime_id=runtime_id,
+                        terminal_state=state,
+                        reason_code="ORPHAN_RUNTIME_DETECTED",
+                        requested_at=ts,
+                    )
+                succeeded_count += 1
+                continue
+
+            if inspection_result.duplicate_count > 0:
+                # duplicate runtimes, emit critical log + enqueue cleanup job for n-1 duplicates
+                logger.critical(
+                    "duplicate runtimes detected session_id=%s matched=%s",
+                    session_id,
+                    inspection_result.matched_runtime_ids,
+                )
+
+                with uow.transaction():
+                    # TODO(E1-T5 follow-up): when session.runtime_id is None, this branch
+                    # will enqueue cleanup for all matched runtimes. Add a deterministic
+                    # keeper-selection policy once runtime identity guarantees are tighter.
+                    for duplicate in inspection_result.matched_runtime_ids:
+                        if duplicate == runtime_id:
+                            continue
+                        uow.outbox.enqueue_for_cleanup(
+                            session_id=session_id,
+                            runtime_id=duplicate,
+                            terminal_state=state,
+                            reason_code="DUPLICATE_RUNTIME_DETECTED",
+                            requested_at=ts,
+                        )
+                succeeded_count += 1
+                continue
+
+            if (
+                state == "ACTIVE"
+                and isinstance(inspection_result.phase, str)
+                and inspection_result.phase.lower() == "failed"
+            ):
+                # runtime crashed, transition session state to failed
+                transition_session(
+                    session_id=session_id,
+                    trigger=Trigger.RUNTIME_FAILED,
+                    actor="reconciliation_worker",
+                    metadata={
+                        "reconcile_reason": "RUNTIME_PHASE_FAILED",
+                        "reason_code": "RUNTIME_PHASE_FAILED",
+                        "state_before": state,
+                        "requested_runtime_id": runtime_id,
+                        "inspector_matched_runtime_ids": list(
+                            inspection_result.matched_runtime_ids
+                        ),
+                        "inspector_phase": inspection_result.phase,
+                        "inspector_reason": inspection_result.reason,
+                    },
+                    idempotency_key=f"reconcile:{session_id}:failed-runtime:{state}",
+                    uow=uow,
+                )
+                succeeded_count += 1
+                continue
+
+            succeeded_count += 1
+
+        except Exception:
+            failed_count += 1
+            logger.exception("reconciliation failed for session_id=%s", session_id)
+            continue
+
+    return ReconciliationOnceResult(
+        claimed_count=claimed_count,
+        succeeded_count=succeeded_count,
+        failed_count=failed_count,
+        retried_count=0,
+    )

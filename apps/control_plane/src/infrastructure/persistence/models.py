@@ -52,6 +52,7 @@ class SessionModel(Base):
     last_transition_reason: Mapped[str | None] = mapped_column(
         String(32), nullable=True
     )
+    # Add updated_at later on (can use it during reconciliation)
 
 
 class SessionTransitionEventModel(Base):
