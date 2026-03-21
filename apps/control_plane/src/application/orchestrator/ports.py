@@ -11,6 +11,9 @@ from .types import (
     PendingCleanupEvent,
     RuntimeTeardownRequest,
     RuntimeTeardownResult,
+    RuntimeInspectorRequest,
+    RuntimeInspectorResult,
+    ReconciliationCandidate,
 )
 
 
@@ -98,3 +101,13 @@ class ProcessCleanupOnceUnitOfWork(Protocol):
 
 class RuntimeTeardownPort(Protocol):
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
+
+
+class RuntimeInspectorPort(Protocol):
+    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult: ...
+
+
+class ReconciliationSessionQueryPort(Protocol):
+    def get_reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> list[ReconciliationCandidate]: ...

@@ -3,9 +3,6 @@ from uuid import UUID
 from typing import Literal, Mapping, Any
 
 
-Status = Literal["accepted", "ready", "failed"]
-
-
 @dataclass(frozen=True)
 class RuntimeProvisionRequest:
     session_id: UUID
@@ -17,7 +14,7 @@ class RuntimeProvisionRequest:
 
 @dataclass(frozen=True)
 class ProvisionResult:
-    status: Status
+    status: Literal["accepted", "ready", "failed"]
     runtime_id: str | None = None
     reason_code: str | None = None
     details: dict[str, object] | None = None
@@ -48,10 +45,11 @@ class PendingCleanupEvent:
 
 
 @dataclass(frozen=True)
-class RuntimeTeardownResult:
-    status: Literal["deleted", "already_gone", "failed"]
-    reason_code: str | None = None
-    details: dict[str, object] | None = None
+class ProcessCleanupOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int
 
 
 @dataclass(frozen=True)
@@ -62,7 +60,42 @@ class RuntimeTeardownRequest:
 
 
 @dataclass(frozen=True)
-class ProcessCleanupOnceResult:
+class RuntimeTeardownResult:
+    status: Literal["deleted", "already_gone", "failed"]
+    reason_code: str | None = None
+    details: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class RuntimeInspectorRequest:
+    session_id: UUID
+    runtime_id: str | None = None
+
+
+@dataclass(frozen=True)
+class RuntimeInspectorResult:
+    session_id: UUID
+    requested_runtime_id: str | None
+    matched_runtime_ids: tuple[str, ...]
+    exists: bool
+    duplicate_count: int
+    phase: str | None = None
+    ready: bool | None = None
+    reason: str | None = None
+    details: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class ReconciliationCandidate:
+    state: str
+    session_id: UUID
+    runtime_id: str | None
+    runtime_substate: str | None
+    # updated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ReconciliationOnceResult:
     claimed_count: int
     succeeded_count: int
     failed_count: int
