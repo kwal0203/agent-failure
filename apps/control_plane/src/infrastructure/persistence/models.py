@@ -53,6 +53,7 @@ class SessionModel(Base):
         String(32), nullable=True
     )
     # Add updated_at later on (can use it during reconciliation)
+    # Add last_activity_at later on (cas use it during expiry)
 
 
 class SessionTransitionEventModel(Base):

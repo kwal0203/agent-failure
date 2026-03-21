@@ -24,8 +24,10 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
 )
 from apps.control_plane.src.application.orchestrator.ports import (
     ReconciliationSessionQueryPort,
+    ExpirySessionPort,
 )
 from apps.control_plane.src.application.orchestrator.types import (
+    ExpiryCandidate,
     ReconciliationCandidate,
 )
 
@@ -216,6 +218,39 @@ class SQLAlchemyReconciliationSessionRepository(ReconciliationSessionQueryPort):
                     session_id=row.id,
                     runtime_id=row.runtime_id,
                     runtime_substate=row.runtime_substate,
+                )
+            )
+
+        return candidates
+
+
+class SQLAlchemyExpirySessionRepository(ExpirySessionPort):
+    CANDIDATE_STATES: tuple[str, ...] = ("PROVISIONING", "ACTIVE", "IDLE")
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_expiry_candidates(self, *, limit: int = 100) -> list[ExpiryCandidate]:
+        candidate_rows = (
+            self._db.execute(
+                select(SessionModel)
+                .where(SessionModel.state.in_(self.CANDIDATE_STATES))
+                .order_by(SessionModel.created_at.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
+
+        candidates: list[ExpiryCandidate] = []
+        for row in candidate_rows:
+            candidates.append(
+                ExpiryCandidate(
+                    state=row.state,
+                    session_id=row.id,
+                    created_at=row.created_at,
+                    started_at=row.started_at,
+                    ended_at=row.ended_at,
                 )
             )
 

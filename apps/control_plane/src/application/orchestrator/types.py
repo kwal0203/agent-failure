@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 from typing import Literal, Mapping, Any
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,24 @@ class ReconciliationCandidate:
 
 @dataclass(frozen=True)
 class ReconciliationOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int
+
+
+@dataclass(frozen=True)
+class ExpiryCandidate:
+    state: str
+    session_id: UUID
+    created_at: datetime
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    # last_activity_at: datetime
+
+
+@dataclass(frozen=True)
+class ExpiryOnceResult:
     claimed_count: int
     succeeded_count: int
     failed_count: int

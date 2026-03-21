@@ -26,6 +26,7 @@ from .ports import (
     RuntimeInspectorPort,
     RuntimeTeardownPort,
     ReconciliationSessionQueryPort,
+    ExpirySessionPort,
 )
 from .types import (
     RuntimeProvisionRequest,
@@ -34,6 +35,7 @@ from .types import (
     RuntimeTeardownRequest,
     RuntimeInspectorRequest,
     ReconciliationOnceResult,
+    ExpiryOnceResult,
 )
 
 from uuid import UUID
@@ -48,6 +50,10 @@ logger = logging.getLogger(__name__)
 MAX_CLEANUP_ATTEMPTS = 3
 CLEANUP_BACKOFF_SECONDS = 15
 
+PROVISIONING_TIMEOUT_SECONDS = 900
+MAX_SESSION_LIFETIME_SECONDS = 86_400
+IDLE_TIMEOUT_SECONDS = 3_600
+
 
 def _invalid_outbox_payload(
     uow: ProcessPendingOnceUnitOfWork,
@@ -58,6 +64,14 @@ def _invalid_outbox_payload(
         outbox_event_id=outbox_event_id,
         error_message=error_message,
         failed_at=datetime.now(timezone.utc),
+    )
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    return (
+        dt.replace(tzinfo=timezone.utc)
+        if dt.tzinfo is None
+        else dt.astimezone(timezone.utc)
     )
 
 
@@ -449,6 +463,86 @@ def process_reconciliation_once(
             continue
 
     return ReconciliationOnceResult(
+        claimed_count=claimed_count,
+        succeeded_count=succeeded_count,
+        failed_count=failed_count,
+        retried_count=0,
+    )
+
+
+def process_expiry_once(
+    session_query_repo: ExpirySessionPort, uow: UnitOfWork
+) -> ExpiryOnceResult:
+
+    claimed_count = 0
+    succeeded_count = 0
+    failed_count = 0
+    # retried_count = 0
+
+    sessions = session_query_repo.get_expiry_candidates()
+    ts = datetime.now(timezone.utc)
+    for session in sessions:
+        claimed_count += 1
+
+        session_id = session.session_id
+        state = session.state
+
+        created_at = _ensure_utc(session.created_at)
+        started_at = (
+            _ensure_utc(session.started_at) if session.started_at else created_at
+        )
+
+        try:
+            if (
+                session.state == "PROVISIONING"
+                and (ts - created_at).total_seconds() >= PROVISIONING_TIMEOUT_SECONDS
+            ):
+                transition_session(
+                    session_id=session_id,
+                    trigger=Trigger.PROVISIONING_MAX_TIME,
+                    actor="expiry_worker",
+                    metadata={
+                        "expiry_reason": "PROVISIONING_TIMEOUT",
+                        "reason_code": "PROVISIONING_TIMEOUT",
+                        "state_before": state,
+                    },
+                    idempotency_key=f"expiry:{session_id}:expired-provisioning:{state}",
+                    uow=uow,
+                )
+                succeeded_count += 1
+                continue
+
+            if (
+                session.state in {"ACTIVE", "IDLE"}
+                and (ts - started_at).total_seconds() >= MAX_SESSION_LIFETIME_SECONDS
+            ):
+                transition_session(
+                    session_id=session_id,
+                    trigger=Trigger.SESSION_MAX_TIME,
+                    actor="expiry_worker",
+                    metadata={
+                        "expiry_reason": "SESSION_MAX_TIME_TIMEOUT",
+                        "reason_code": "SESSION_MAX_TIME_TIMEOUT",
+                        "state_before": state,
+                    },
+                    idempotency_key=f"expiry:{session_id}:expired-session:{state}",
+                    uow=uow,
+                )
+                succeeded_count += 1
+                continue
+
+            succeeded_count += 1
+
+            # TODO(P0-E1 follow-up): idle-time expiry is intentionally deferred.
+            # Accurate IDLE timeout needs a persisted `last_activity_at` source of truth,
+            # which requires schema + write-path changes and is out of scope for T6.
+
+        except Exception:
+            failed_count += 1
+            logger.exception("expiry failed for session_id=%s", session_id)
+            continue
+
+    return ExpiryOnceResult(
         claimed_count=claimed_count,
         succeeded_count=succeeded_count,
         failed_count=failed_count,

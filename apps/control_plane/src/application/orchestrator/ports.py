@@ -14,6 +14,7 @@ from .types import (
     RuntimeInspectorRequest,
     RuntimeInspectorResult,
     ReconciliationCandidate,
+    ExpiryCandidate,
 )
 
 
@@ -111,3 +112,7 @@ class ReconciliationSessionQueryPort(Protocol):
     def get_reconciliation_candidates(
         self, *, limit: int = 100
     ) -> list[ReconciliationCandidate]: ...
+
+
+class ExpirySessionPort(Protocol):
+    def get_expiry_candidates(self, *, limit: int = 100) -> list[ExpiryCandidate]: ...
