@@ -316,3 +316,7 @@ def process_cleanup_pending_once(
         failed_count=failed_count,
         retried_count=retried_count,
     )
+
+
+def process_reconciliation_once():
+    return None

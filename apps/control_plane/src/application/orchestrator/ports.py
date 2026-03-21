@@ -11,6 +11,8 @@ from .types import (
     PendingCleanupEvent,
     RuntimeTeardownRequest,
     RuntimeTeardownResult,
+    RuntimeInspectorRequest,
+    RuntimeInspectorResult,
 )
 
 
@@ -98,3 +100,7 @@ class ProcessCleanupOnceUnitOfWork(Protocol):
 
 class RuntimeTeardownPort(Protocol):
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
+
+
+class RuntimeInspectorPort(Protocol):
+    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult: ...
