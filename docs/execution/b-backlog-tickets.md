@@ -182,6 +182,35 @@ Add background expiry logic for provisioning timeout, idle timeout, and maximum 
 
 ---
 
+## Ticket: P1-E1-T7 — Implement durable idle-timeout tracking (`last_activity_at`)
+
+**Epic:** Session Lifecycle and Control Plane Foundation
+**Priority:** P1
+**Estimate:** M
+**Milestone Target:** Post-MVP
+**Owner:** TBD
+**Specs:** Session Lifecycle and State Machine Spec
+
+**Description**
+Implement durable `last_activity_at` tracking and idle-timeout enforcement for `ACTIVE`/`IDLE` sessions.
+This is intentionally deferred from MVP; MVP expiry covers provisioning timeout and max-lifetime only.
+
+**Acceptance Criteria**
+
+- `sessions.last_activity_at` is added and persisted as UTC timestamp
+- qualifying learner activity updates `last_activity_at` on write paths
+- expiry worker enforces idle timeout using `last_activity_at` according to policy
+- idle timeout transition path uses lifecycle transition service (no direct state edits)
+- tests cover activity update and idle-timeout transition behavior
+- docs record idle-time policy and event semantics
+
+**Blockers / Dependencies**
+
+- P0-E1-T2
+- P0-E1-T6
+
+---
+
 # Epic 3: Live Session Streaming
 
 ## Ticket: P0-E3-T1 — Implement WebSocket session manager
