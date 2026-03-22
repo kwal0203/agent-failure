@@ -327,6 +327,18 @@ export default function SessionPage() {
             {index < transcriptEntries.length - 1 && <hr />}
           </div>
         ))}
+        {isAwaitingResponse && !activeEntry && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
+              <strong>AGENT</strong> thinking
+              <span className="thinking-dots" aria-hidden="true">
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
+              </span>
+            </p>
+          </div>
+        )}
         {activeEntry && (
           <div style={{ marginTop: 12 }}>
             <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
@@ -364,6 +376,21 @@ export default function SessionPage() {
         }
         .transcript-markdown p:last-child {
           margin-bottom: 0;
+        }
+        .thinking-dots span {
+          opacity: 0.2;
+          animation: thinkingDot 1.2s infinite;
+        }
+        .thinking-dots span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .thinking-dots span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        @keyframes thinkingDot {
+          0% { opacity: 0.2; }
+          50% { opacity: 1; }
+          100% { opacity: 0.2; }
         }
       `}</style>
 
