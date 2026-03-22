@@ -21,6 +21,8 @@ class K8sProvisionerConfig:
     tmp_volume_name: str = "tmp"
     tmp_mount_path: str = "/tmp"
 
+    image_pull_secret_name: str | None = "ghcr-pull"
+
 
 @dataclass(frozen=True)
 class K8sCleanupConfig:

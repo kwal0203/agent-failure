@@ -46,6 +46,7 @@ def test_build_pod_manifest_applies_security_profile_and_resources() -> None:
     spec = _as_dict(manifest["spec"])
     container = _as_dict(_as_list(spec["containers"])[0])
 
+    assert spec["imagePullSecrets"] == [{"name": "ghcr-pull"}]
     assert spec["automountServiceAccountToken"] is False
     assert spec["securityContext"]["seccompProfile"]["type"] == "RuntimeDefault"
 
