@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: runtime-egress-default-deny
+  namespace: runtime-pool
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: lab-runtime
+  policyTypes:
+    - Egress
+  egress: []
