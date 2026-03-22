@@ -13,6 +13,8 @@
 
 ### Learner UI Vertical Slice
 
+- P1-E2-T1: Build demo app shell (auth deferred) COMPLETE
+- P1-E2-T2: Build lab catalog page COMPLETE
 - E2-T3: Build session page scaffold COMPLETE (intermediate visual learner UI milestone)
 - E2-T4: Implement live prompt composer COMPLETE (intermediate visual learner UI milestone)
 - E2-T5: Render streamed model output COMPLETE (intermediate visual learner UI milestone)

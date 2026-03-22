@@ -13,60 +13,6 @@ Sizing scale used here:
 
 # Epic 2: Learner UI Vertical Slice
 
-## Ticket: P1-E2-T1 — Build demo app shell (auth deferred)
-
-**Epic:** Learner UI Vertical Slice
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 1
-**Owner:** TBD
-**Specs:** API and WebSocket Contract Spec
-
-**Description**
-Create the learner-facing application shell for demo usage with session-aware navigation and no login gate.
-
-**Acceptance Criteria**
-
-- app shell loads without authentication dependency in local/staging demo environments
-- shell includes baseline navigation for labs/sessions/history
-- demo mode landing path routes directly into learner workflow
-- shell state/bootstrap data is available to child pages
-- frontend tests cover core routing and shell rendering paths
-
-**Blockers / Dependencies**
-
-- P0-E3-T1
-- P0-E1-T4
-
----
-
-## Ticket: P1-E2-T2 — Build lab catalog page
-
-**Epic:** Learner UI Vertical Slice
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 1
-**Owner:** TBD
-**Specs:** API and WebSocket Contract Spec
-
-**Description**
-Implement a learner-visible lab catalog that shows launchable labs and basic capability metadata.
-
-**Acceptance Criteria**
-
-- lab catalog page renders list of launchable labs
-- each lab row/card includes name, summary, and key metadata
-- empty/error/loading states are handled explicitly
-- launch action routes learner into session flow where applicable
-- frontend tests cover populated and empty states
-
-**Blockers / Dependencies**
-
-- lab listing API or stubbed provider path
-- P1-E2-T1
-
----
-
 ## Ticket: P1-E2-T7 — Build history view
 
 **Epic:** Learner UI Vertical Slice
@@ -172,59 +118,6 @@ Guarantee monotonically increasing `event_index` per session for replay correctn
 
 ---
 
-## Ticket: P1-E6-T3 — Persist lifecycle and learner events
-
-**Epic:** Trace Pipeline and Replay
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 1
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Persist lifecycle and learner-originated events through a shared durable trace path.
-
-**Acceptance Criteria**
-
-- lifecycle transition events are persisted in canonical envelope
-- learner-originated events are persisted in canonical envelope
-- durable writes include correlation/session context
-- tests cover successful writes and validation failures
-
-**Blockers / Dependencies**
-
-- P1-E6-T1
-- P1-E6-T2
-
----
-
-## Ticket: P1-E6-T4 — Persist runtime and tool events
-
-**Epic:** Trace Pipeline and Replay
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 1
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Persist runtime/tool/model-related events with source attribution and envelope conformance.
-
-**Acceptance Criteria**
-
-- runtime/tool/model event families are persisted durably
-- events include source attribution and correlation context
-- unsupported event families are rejected explicitly
-- tests cover event-family persistence and ordering integration
-
-**Blockers / Dependencies**
-
-- P0-E5-T4
-- P1-E6-T1
-- P1-E6-T2
-
----
-
 ## Ticket: P1-E6-T5 — Implement learner-visible event filtering
 
 **Epic:** Trace Pipeline and Replay
@@ -304,132 +197,6 @@ Add contract tests validating envelope and event-family schema conformance.
 
 # Epic 7: Evaluator and Feedback Pipeline
 
-## Ticket: P1-E7-T1 — Define evaluator worker entrypoint
-
-**Epic:** Evaluator and Feedback Pipeline
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 2
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Implement evaluator worker entrypoint that processes committed trace windows for one session/lab version.
-
-**Acceptance Criteria**
-
-- evaluator worker consumes committed trace events for one session scope
-- evaluator run uses explicit lab/version context
-- evaluator logs include deterministic correlation fields
-- tests cover worker invocation and no-op behavior
-
-**Blockers / Dependencies**
-
-- P1-E6-T3
-- P1-E6-T4
-
----
-
-## Ticket: P1-E7-T2 — Implement evaluator idempotency keys
-
-**Epic:** Evaluator and Feedback Pipeline
-**Priority:** P1
-**Estimate:** S
-**Milestone Target:** P1 Sprint 2
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Prevent duplicate evaluator outputs for repeated runs over same triggering context.
-
-**Acceptance Criteria**
-
-- evaluator output writes are idempotent by operation key
-- repeated evaluation of same input does not duplicate output rows/events
-- tests cover replay/retry idempotency behavior
-
-**Blockers / Dependencies**
-
-- P1-E7-T1
-
----
-
-## Ticket: P1-E7-T3 — Implement initial constraint bundle for V1 labs
-
-**Epic:** Evaluator and Feedback Pipeline
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 2
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Implement the first constraint/signal ruleset for supported V1 labs.
-
-**Acceptance Criteria**
-
-- evaluator includes initial V1 lab constraints/signals
-- constraints map to deterministic inputs and outputs
-- unsupported labs are handled explicitly
-- tests cover at least one pass and one fail path per initial rule family
-
-**Blockers / Dependencies**
-
-- P1-E7-T1
-
----
-
-## Ticket: P1-E7-T4 — Persist evaluation outputs
-
-**Epic:** Evaluator and Feedback Pipeline
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 2
-**Owner:** TBD
-**Specs:** Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Persist typed evaluator outcomes and payloads in durable storage.
-
-**Acceptance Criteria**
-
-- evaluator output store persists result type, signal/constraint ID, triggering refs, level, payload
-- persisted outputs include session and lab-version context
-- tests cover write/read and schema validation behavior
-
-**Blockers / Dependencies**
-
-- P1-E7-T2
-- P1-E7-T3
-
----
-
-## Ticket: P1-E7-T5 — Publish learner-visible feedback events
-
-**Epic:** Evaluator and Feedback Pipeline
-**Priority:** P1
-**Estimate:** M
-**Milestone Target:** P1 Sprint 3
-**Owner:** TBD
-**Specs:** API and WebSocket Contract Spec; Trace Event Schema and Evaluator Contract Spec
-
-**Description**
-Project eligible evaluator outputs into learner-visible feedback stream/history surfaces.
-
-**Acceptance Criteria**
-
-- learner-visible evaluator feedback is emitted as typed events/messages
-- history and live stream projections are consistent
-- internal-only evaluator outputs are not leaked to learners
-- tests cover projection and visibility rules
-
-**Blockers / Dependencies**
-
-- P1-E6-T5
-- P1-E7-T4
-
----
-
 ## Ticket: P1-E7-T6 — Support terminal-outcome handoff
 
 **Epic:** Evaluator and Feedback Pipeline
@@ -481,18 +248,26 @@ Add correctness suite validating evaluator input bounds, lab/version binding, an
 
 ---
 
-# Suggested sequencing for P1 implementation (demo-first, auth deferred)
+# Suggested sequencing for P1 implementation (post thin-slice extraction)
 
-1. P1-E2-T1 Build demo app shell (auth deferred)
-2. P1-E2-T2 Build lab catalog page
-3. P1-E2-T7 Build history view
-4. P1-E6-T1 Implement canonical trace-event envelope
-5. P1-E6-T2 Assign session-scoped event ordering
-6. P1-E6-T3 / P1-E6-T4 Persist trace event families
-7. P1-E6-T5 / P1-E6-T6 Implement learner-visible retrieval + replay
-8. P1-E2-T8 Build trace UI surface
-9. P1-E7-T1..T4 Build evaluator baseline and persistence
-10. P1-E7-T5..T7 Publish feedback + terminal handoff + correctness suite
+1. P1-E2-T7 Build history view
+2. P1-E6-T1 Implement canonical trace-event envelope
+3. P1-E6-T2 Assign session-scoped event ordering
+4. P1-E6-T5 / P1-E6-T6 Implement learner-visible retrieval + replay
+5. P1-E2-T8 Build trace UI surface
+6. P1-E6-T7 Add trace schema validation tests
+7. P1-E7-T6 / P1-E7-T7 Terminal handoff + evaluator correctness suite
+
+# Tickets moved to P2 thin-slice backlog
+
+- P1-E6-T3
+- P1-E6-T4
+- P1-E7-T1
+- P1-E7-T2
+- P1-E7-T3
+- P1-E7-T4
+- P1-E7-T5
+- See `docs/execution/backlog-tickets-P2.md`
 
 # Explicitly deferred from P1 demo scope
 
