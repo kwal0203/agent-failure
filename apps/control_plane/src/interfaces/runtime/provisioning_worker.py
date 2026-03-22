@@ -53,4 +53,4 @@ def run_forever(poll_interval_seconds: float = 1.0) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    run_forever()
+    run_forever(poll_interval_seconds=10.0)
