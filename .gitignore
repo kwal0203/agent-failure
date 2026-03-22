@@ -108,3 +108,4 @@ lerna-debug.log*
 coverage/
 
 .artifacts/
+deploy/k8s/staging/.secrets.local
