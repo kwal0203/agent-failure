@@ -123,6 +123,9 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 }
             ]
 
+        if self._config.image_pull_secret_name:
+            spec["imagePullSecrets"] = [{"name": self._config.image_pull_secret_name}]
+
         return {
             "apiVersion": "v1",
             "kind": "Pod",

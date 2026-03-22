@@ -6,11 +6,19 @@ images:
   - lab_slug: baseline
     lab_version: "0.1.0"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:20ca1d7d022b7d177fa3590e6b79257da6c8823073b7229b4b7c4b89d97ae960"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:20ca1d7d022b7d177fa3590e6b79257da6c8823073b7229b4b7c4b89d97ae960"
+    build_git_sha: "df1d779"
+    built_at_utc: "2026-03-22T05:13:28Z"
+    status: "active"
+  - lab_slug: baseline
+    lab_version: "0.1.0"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
     image_digest: "sha256:d76d3e32b94af1bb097c75d7b295b98543078399fbc3010d7d9f7658fc59f2b0"
     image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:d76d3e32b94af1bb097c75d7b295b98543078399fbc3010d7d9f7658fc59f2b0"
     build_git_sha: "9f69565"
     built_at_utc: "2026-03-17T19:57:17Z"
-    status: "active"
+    status: "revoked"
   - lab_slug: baseline
     lab_version: "0.0.9"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
