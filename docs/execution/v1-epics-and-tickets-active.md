@@ -21,27 +21,6 @@ Each ticket should later receive:
 
 ## Tickets
 
-### E1-T1: Create session lifecycle schema
-
-- Add or update session table fields for durable lifecycle state, lab version binding, idempotency key, timestamps, and runtime identifiers.
-- Link to: Session Lifecycle and State Machine Spec
-
-### E1-T2: Implement lifecycle transition service
-
-- Create a backend service/module that owns allowed session-state transitions.
-- Enforce transition validation against the state machine.
-- Link to: Session Lifecycle and State Machine Spec
-
-### E1-T3: Implement idempotent session creation path
-
-- Build session creation logic that accepts an idempotency key and prevents duplicate launches.
-- Link to: API and WebSocket Contract Spec
-
-### E1-T4: Implement session metadata endpoint
-
-- Add API route to fetch session metadata, state, and interaction eligibility.
-- Link to: API and WebSocket Contract Spec
-
 ### E1-T5: Implement session history endpoint
 
 - Add API route to fetch learner-visible session history and feedback.
@@ -52,73 +31,10 @@ Each ticket should later receive:
 - Add paginated API route for session trace retrieval.
 - Link to: API and WebSocket Contract Spec
 
-### E1-T7: Implement session reconciliation job
-
-- Add background logic to reconcile DB session state with runtime reality.
-- Link to: Session Lifecycle and State Machine Spec
-
-### E1-T8: Implement session expiry job
-
-- Add idle timeout, max-lifetime expiry, and provisioning timeout enforcement.
-- Link to: Session Lifecycle and State Machine Spec
-
 ### E1-T9: Add terminal-state enforcement checks
 
 - Prevent prompts and illegal state changes on COMPLETED, FAILED, EXPIRED, and CANCELLED sessions.
 - Link to: Session Lifecycle and State Machine Spec
-
----
-
-# Epic 2: Learner UI Vertical Slice
-
-**Goal:** Deliver the first end-to-end learner experience for lab selection, live interaction, and session review.
-
-## Tickets
-
-### E2-T1: Build authenticated app shell
-
-- Create the learner-facing shell with auth-aware routing and role bootstrap.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T2: Build lab catalog page
-
-- Show launchable labs with name, summary, and capability metadata.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T3: Build session page scaffold
-
-- Create page structure for live interaction, status, history, and trace sections.
-- Link to: Session Lifecycle and State Machine Spec
-
-### E2-T4: Implement live prompt composer
-
-- Add learner prompt input with disabled states based on session interactivity.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T5: Render streamed model output
-
-- Show incremental output from the live session WebSocket.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T6: Render session status and runtime sub-state
-
-- Display lifecycle and runtime sub-state transitions in the UI.
-- Link to: Session Lifecycle and State Machine Spec
-
-### E2-T7: Build history view
-
-- Render persisted learner-visible message history and feedback.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T8: Build trace viewer
-
-- Render ordered learner-visible trace events with pagination.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E2-T9: Add denial/error state handling
-
-- Show typed quota, policy, and system denials without silent failure.
-- Link to: API and WebSocket Contract Spec
 
 ---
 
@@ -128,19 +44,9 @@ Each ticket should later receive:
 
 ## Tickets
 
-### E3-T1: Implement WebSocket session manager
-
-- Accept, authorize, and manage per-session live connections.
-- Link to: API and WebSocket Contract Spec
-
 ### E3-T2: Implement initial session-status message
 
 - Send session state and interactivity metadata on successful connect.
-- Link to: API and WebSocket Contract Spec
-
-### E3-T3: Implement USER\_PROMPT handling
-
-- Accept learner prompts only when session state and policy allow.
 - Link to: API and WebSocket Contract Spec
 
 ### E3-T4: Implement CLIENT\_ACK handling
@@ -158,11 +64,6 @@ Each ticket should later receive:
 - Reject overlapping learner turns within a session.
 - Link to: Session Lifecycle and State Machine Spec
 
-### E3-T7: Emit typed stream messages
-
-- Support AGENT\_TEXT\_CHUNK, TRACE\_EVENT, TUTOR\_FEEDBACK, POLICY\_DENIAL, QUOTA\_ERROR, SYSTEM\_ERROR, and SESSION\_STATUS.
-- Link to: API and WebSocket Contract Spec
-
 ---
 
 # Epic 4: Sandbox Runtime and Orchestration
@@ -171,40 +72,10 @@ Each ticket should later receive:
 
 ## Tickets
 
-### E4-T1: Provision staging cluster and runtime pool
-
-- Set up infrastructure required for session runtime scheduling.
-- Link to: Sandbox and Runtime Isolation Spec
-
-### E4-T2: Build lab runtime image pipeline
-
-- Build, version, scan, and publish approved runtime images.
-- Link to: Sandbox and Runtime Isolation Spec
-
-### E4-T3: Implement Orchestrator provisioning path
-
-- Create runtime from a lab version and session request.
-- Link to: TDD \+ Sandbox and Runtime Isolation Spec
-
-### E4-T4: Apply baseline runtime security profile
-
-- Enforce non-root runtime, dropped capabilities, resource limits, and forbidden mounts.
-- Link to: Sandbox and Runtime Isolation Spec
-
-### E4-T5: Apply default-deny egress policy
-
-- Restrict runtime network access to approved destinations only.
-- Link to: Sandbox and Runtime Isolation Spec
-
 ### E4-T6: Implement runtime readiness reporting
 
 - Report provisioning success/failure and readiness to the Control Plane.
 - Link to: TDD
-
-### E4-T7: Implement runtime cleanup and teardown
-
-- Clean up runtime and transient resources on terminal session states.
-- Link to: Sandbox and Runtime Isolation Spec
 
 ### E4-T8: Detect orphan or duplicate runtimes
 
@@ -218,16 +89,6 @@ Each ticket should later receive:
 **Goal:** Execute learner turns inside the runtime, call the model gateway, and mediate allowed tool actions.
 
 ## Tickets
-
-### E5-T1: Build Agent Harness session loop
-
-- Accept learner turn input and construct model requests.
-- Link to: TDD
-
-### E5-T2: Integrate model gateway provider
-
-- Add model request/response path with failure classification.
-- Link to: API and WebSocket Contract Spec
 
 ### E5-T3: Implement allowed tool registry
 
@@ -247,92 +108,6 @@ Each ticket should later receive:
 ### E5-T6: Classify provider and runtime failures
 
 - Emit typed provider or runtime failure events for downstream handling.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
----
-
-# Epic 6: Trace Pipeline and Replay
-
-**Goal:** Persist ordered durable trace events and support replay for learners, operators, and evaluators.
-
-## Tickets
-
-### E6-T1: Implement canonical trace-event envelope
-
-- Add shared event model with required fields and versioning.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T2: Assign session-scoped event ordering
-
-- Guarantee monotonically increasing event\_index within a session.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T3: Persist lifecycle and learner events
-
-- Store session and learner-originated events durably.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T4: Persist runtime and tool events
-
-- Store harness and runtime events durably with source attribution.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T5: Implement learner-visible event filtering
-
-- Separate learner-visible and internal/admin-only trace projections.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T6: Implement replay cursor/pagination logic
-
-- Support stable replay and retrieval of trace history.
-- Link to: API and WebSocket Contract Spec
-
-### E6-T7: Add trace schema validation tests
-
-- Ensure emitted events conform to the required envelope and event-family semantics.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
----
-
-# Epic 7: Evaluator and Feedback Pipeline
-
-**Goal:** Turn committed trace events into constraint-based feedback and durable evaluation outcomes.
-
-## Tickets
-
-### E7-T1: Define evaluator worker entrypoint
-
-- Build worker that consumes committed trace events for one session/lab version.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T2: Implement evaluator idempotency keys
-
-- Prevent duplicate outputs for repeated evaluation over the same triggering context.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T3: Implement initial constraint bundle for V1 labs
-
-- Encode a narrow set of success and violation rules for the first supported labs.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T4: Persist evaluation outputs
-
-- Store result\_type, signal/constraint ID, triggering event reference, feedback level, and payload.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T5: Publish learner-visible feedback events
-
-- Send evaluator outputs into session history and live streaming.
-- Link to: API and WebSocket Contract Spec
-
-### E7-T6: Support terminal-outcome handoff
-
-- Allow evaluator-detected terminal outcomes to be consumed by the Control Plane for session completion.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T7: Add evaluator correctness tests
-
-- Verify evaluator uses committed events only and correct lab version binding.
 - Link to: Trace Event Schema and Evaluator Contract Spec
 
 ---
@@ -572,16 +347,3 @@ Each ticket should later receive:
 
 - Epic 11: Observability, Backup, and Release Readiness
 - Epic 12: CI/CD and Developer Workflow
-
----
-
-# Suggested next refinement
-
-The next step is to turn these into backlog-ready tickets by adding for each ticket:
-
-- acceptance criteria
-- estimate
-- owner
-- milestone target
-- blockers
-- linked spec URLs or doc names

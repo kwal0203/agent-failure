@@ -20,7 +20,7 @@ type GetSessionMetadataResponse = {
   session: SessionMetadata;
 };
 
-type TranscriptRole = "agent" | "policy" | "system";
+type TranscriptRole = "user" | "agent" | "policy" | "system";
 
 type TranscriptEntry = {
   role: TranscriptRole;
@@ -221,6 +221,14 @@ export default function SessionPage() {
     e.preventDefault();
     const text = prompt.trim();
     if (!text) return;
+    setTranscriptEntries((entries) => [
+      ...entries,
+      {
+        role: "user",
+        content: text,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     resetActiveStream();
     setIsAwaitingResponse(true);
     sendPrompt(text);
