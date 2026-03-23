@@ -10,7 +10,7 @@ from apps.control_plane.src.application.session_lifecycle.schemas import (
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.errors import DataIntegrityError
 from apps.control_plane.src.infrastructure.persistence.idempotency_store import (
-    PostgresTransitionIdempotencyStore,
+    SQLAlchemyTransitionIdempotencyStore,
 )
 from apps.control_plane.src.infrastructure.persistence.models import (
     IdempotencyRecordModel,
@@ -56,12 +56,12 @@ def _insert_transition_event(
 
 
 def test_get_returns_none_when_key_missing(db_session: Session) -> None:
-    store = PostgresTransitionIdempotencyStore(db=db_session)
+    store = SQLAlchemyTransitionIdempotencyStore(db=db_session)
     assert store.get(operation="transition_session", key=str(uuid4())) is None
 
 
 def test_save_then_get_returns_transition_result(db_session: Session) -> None:
-    store = PostgresTransitionIdempotencyStore(db=db_session)
+    store = SQLAlchemyTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
     event = _insert_transition_event(db_session, session.id)
 
@@ -85,7 +85,7 @@ def test_save_then_get_returns_transition_result(db_session: Session) -> None:
 
 
 def test_save_enforces_unique_operation_key(db_session: Session) -> None:
-    store = PostgresTransitionIdempotencyStore(db=db_session)
+    store = SQLAlchemyTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
     event = _insert_transition_event(db_session, session.id)
     key = str(uuid4())
@@ -108,7 +108,7 @@ def test_save_enforces_unique_operation_key(db_session: Session) -> None:
 def test_get_raises_data_integrity_when_transition_id_missing(
     db_session: Session,
 ) -> None:
-    store = PostgresTransitionIdempotencyStore(db=db_session)
+    store = SQLAlchemyTransitionIdempotencyStore(db=db_session)
     session = _insert_session(db_session)
     key = str(uuid4())
 

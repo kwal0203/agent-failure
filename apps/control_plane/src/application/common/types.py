@@ -12,3 +12,13 @@ class PrincipalContext:
 class LabRuntimeBinding:
     lab_slug: str
     lab_version: str
+
+
+@dataclass(frozen=True)
+class GetLabCatalogRow:
+    lab_id: UUID
+    slug: str
+    name: str
+    summary: str
+    supports_resume: bool
+    supports_uploads: bool

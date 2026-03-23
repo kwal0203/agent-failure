@@ -13,6 +13,12 @@ from .schemas import (
     SessionResponse,
     CreateSessionResponse,
     CreateSessionRequest,
+    GetLabsResponse,
+    LabCatalogItemResponse,
+    LabCapabilitiesResponse,
+)
+from apps.control_plane.src.infrastructure.persistence.lab_repository import (
+    SQLAlchemyLabRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
@@ -29,7 +35,8 @@ from apps.control_plane.src.application.session_create.ports import (
     CreateSessionUnitOfWork,
 )
 
-from apps.control_plane.src.application.session_create.types import PrincipalContext
+from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.session_create.service import create_session
 from apps.control_plane.src.application.session_create.errors import (
     LabNotAvailableError,
@@ -37,11 +44,13 @@ from apps.control_plane.src.application.session_create.errors import (
     RateLimitedError,
     DegradedModeRestrictionError,
     InvalidIdempotencyKeyError,
-    ForbiddenError,
     AdmissionDecisionError,
 )
 from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
 from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
+from apps.control_plane.src.application.lab_catalog.service import (
+    get_labs_for_principal,
+)
 
 from .dependencies import (
     get_admission_policy,
@@ -442,4 +451,60 @@ async def session_stream_ws(
         ws_manager.disconnect(session_id=session_id, websocket=websocket)
         logger.info(
             f"session stream disconnect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+        )
+
+
+@app.get(
+    "/api/v1/labs",
+    response_model=GetLabsResponse,
+    status_code=200,
+    responses={401: {"model": ApiErrorEnvelope}, 403: {"model": ApiErrorEnvelope}},
+)
+def get_labs(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> GetLabsResponse | JSONResponse:
+    lab_repo = SQLAlchemyLabRepository(db=db)
+    application_principal = PrincipalContext(
+        user_id=principal.user_id, role=principal.role
+    )
+
+    try:
+        labs_for_principal = get_labs_for_principal(
+            principal=application_principal, lab_repo=lab_repo
+        ).labs
+
+        result: list[LabCatalogItemResponse] = []
+        for lab in labs_for_principal:
+            result.append(
+                LabCatalogItemResponse(
+                    id=lab.lab_id,
+                    slug=lab.slug,
+                    name=lab.name,
+                    summary=lab.summary,
+                    capabilities=LabCapabilitiesResponse(
+                        supports_resume=lab.capabilities.supports_resume,
+                        supports_uploads=lab.capabilities.supports_uploads,
+                    ),
+                )
+            )
+        return GetLabsResponse(labs=result)
+    except ForbiddenError as exc:
+        return build_api_error_response(
+            code="FORBIDDEN",
+            message=exc.message,
+            retryable=False,
+            status_code=403,
+            details=exc.details,
+        )
+    # except UnauthenticatedError as exc:
+    #     return build_api_error_response(code="UNAUTHENTICATED", message=exc.message, retryable=False, status_code=401, details=exc.details)
+    except Exception:
+        logger.exception(
+            "get labs endpoint failed user_id=%s role=%s",
+            str(principal.user_id),
+            principal.role,
+        )
+        return build_api_error_response(
+            "INTERNAL_ERROR", "unexpected server error", False, 500, None
         )

@@ -11,7 +11,7 @@ from apps.control_plane.src.application.orchestrator.types import (
     RuntimeProvisionRequest,
 )
 from apps.control_plane.src.application.session_create.service import create_session
-from apps.control_plane.src.application.session_create.types import PrincipalContext
+from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (

@@ -1,12 +1,13 @@
 from uuid import UUID
-from .types import PrincipalContext
+from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.common.errors import ForbiddenError
+
 from .ports import AdmissionPolicy, CreateSessionUnitOfWork
 from .errors import (
     LabNotAvailableError,
     QuotaExceededError,
     DegradedModeRestrictionError,
     InvalidIdempotencyKeyError,
-    ForbiddenError,
     RateLimitedError,
     AdmissionDecisionError,
     DuplicateIdempotencyKeyError,

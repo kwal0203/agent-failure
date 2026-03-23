@@ -13,7 +13,7 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
 from contextlib import contextmanager
 
 from .outbox_provision_session import SQLAlchemyOutboxProvisionSession
-from .lab_repository import PostgresLabRepository
+from .lab_repository import SQLAlchemyLabRepository
 
 
 class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
@@ -45,7 +45,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
         self._outbox = SQLAlchemyOutboxProvisionSession(db=db_session)
-        self._lab = PostgresLabRepository(db=db_session)
+        self._lab = SQLAlchemyLabRepository(db=db_session)
         # TODO(E4 follow-up): this lifecycle UoW uses a separate DB session/
         # transaction from outbox claim/mark writes in this UoW. This is
         # acceptable for E4-T3 baseline wiring, but should be tightened to a
