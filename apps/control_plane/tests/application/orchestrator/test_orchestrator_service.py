@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
+import apps.control_plane.src.application.orchestrator.service as orchestrator_service
+
 from apps.control_plane.src.application.orchestrator.service import (
     process_cleanup_pending_once,
     process_expiry_once,
@@ -18,12 +21,16 @@ from apps.control_plane.src.application.orchestrator.types import (
     PendingProvisioningEvent,
     ProvisionResult,
     ReconciliationCandidate,
+    RuntimeInspectorRequest,
     RuntimeInspectorResult,
     RuntimeProvisionRequest,
     RuntimeTeardownRequest,
     RuntimeTeardownResult,
 )
-from apps.control_plane.src.application.session_create.types import LabRuntimeBinding
+from apps.control_plane.src.application.common.types import (
+    GetLabCatalogRow,
+    LabRuntimeBinding,
+)
 from apps.control_plane.src.application.session_lifecycle.ports import (
     UnitOfWork as SessionLifecycleUnitOfWork,
 )
@@ -99,6 +106,9 @@ class _FakeOutbox:
 
 
 class _FakeLabRepository:
+    def get_lab_catalog(self) -> list[GetLabCatalogRow]:
+        return []
+
     def validate_lab(self, lab_id: UUID) -> bool:
         _ = lab_id
         return True
@@ -303,7 +313,7 @@ class _FakeInspector:
     def __init__(self, responses: dict[UUID, RuntimeInspectorResult]) -> None:
         self._responses = responses
 
-    def inspect(self, request):  # simple test double
+    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult:
         return self._responses[request.session_id]
 
 
@@ -330,7 +340,7 @@ def _cleanup_event(
 
 
 def test_process_pending_once_success_marks_processed_and_transitions(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ev = _event(
         payload={
@@ -352,8 +362,7 @@ def test_process_pending_once_success_marks_processed_and_transitions(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_pending_once(
@@ -373,7 +382,7 @@ def test_process_pending_once_success_marks_processed_and_transitions(
 
 
 def test_process_pending_once_failed_provision_marks_terminal_and_transitions_failed(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ev = _event(
         payload={
@@ -395,8 +404,7 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_pending_once(
@@ -416,7 +424,7 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
 
 
 def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transition(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ev = _event(
         payload={
@@ -438,8 +446,7 @@ def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transit
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_pending_once(
@@ -554,7 +561,7 @@ def test_process_cleanup_pending_once_invalid_payload_marks_terminal() -> None:
 
 
 def test_process_reconciliation_once_missing_runtime_transitions(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = uuid4()
     candidate = ReconciliationCandidate(
@@ -587,8 +594,7 @@ def test_process_reconciliation_once_missing_runtime_transitions(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_reconciliation_once(
@@ -681,7 +687,7 @@ def test_process_reconciliation_once_duplicate_runtimes_enqueues_extras_only() -
 
 
 def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = uuid4()
     candidate = ReconciliationCandidate(
@@ -713,8 +719,7 @@ def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_reconciliation_once(
@@ -731,7 +736,7 @@ def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
 
 
 def test_process_expiry_once_provisioning_timeout_transitions_expired(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = uuid4()
     now = datetime.now(timezone.utc)
@@ -754,8 +759,7 @@ def test_process_expiry_once_provisioning_timeout_transitions_expired(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_expiry_once(
@@ -772,7 +776,7 @@ def test_process_expiry_once_provisioning_timeout_transitions_expired(
 
 
 def test_process_expiry_once_max_lifetime_transitions_expired(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = uuid4()
     now = datetime.now(timezone.utc)
@@ -795,8 +799,7 @@ def test_process_expiry_once_max_lifetime_transitions_expired(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_expiry_once(
@@ -812,7 +815,9 @@ def test_process_expiry_once_max_lifetime_transitions_expired(
     assert calls[0]["session_id"] == session_id
 
 
-def test_process_expiry_once_non_expired_no_transition(monkeypatch) -> None:
+def test_process_expiry_once_non_expired_no_transition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     session_id = uuid4()
     now = datetime.now(timezone.utc)
     repo = _FakeExpiryQueryRepo(
@@ -834,8 +839,7 @@ def test_process_expiry_once_non_expired_no_transition(monkeypatch) -> None:
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_expiry_once(
@@ -850,7 +854,7 @@ def test_process_expiry_once_non_expired_no_transition(monkeypatch) -> None:
 
 
 def test_process_expiry_once_transition_failure_continues(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = datetime.now(timezone.utc)
     first_id = uuid4()
@@ -883,8 +887,7 @@ def test_process_expiry_once_transition_failure_continues(
         return object()
 
     monkeypatch.setattr(
-        "apps.control_plane.src.application.orchestrator.service.transition_session",
-        _fake_transition_session,
+        orchestrator_service, "transition_session", _fake_transition_session
     )
 
     result = process_expiry_once(

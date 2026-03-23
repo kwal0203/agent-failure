@@ -47,3 +47,20 @@ class CreateSessionResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     lab_id: UUID
+
+
+class LabCapabilitiesResponse(BaseModel):
+    supports_resume: bool
+    supports_uploads: bool
+
+
+class LabCatalogItemResponse(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+    summary: str
+    capabilities: LabCapabilitiesResponse
+
+
+class GetLabsResponse(BaseModel):
+    labs: list[LabCatalogItemResponse]

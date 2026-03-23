@@ -2,10 +2,12 @@ from typing import Protocol, ContextManager
 from uuid import UUID
 from dataclasses import dataclass
 from datetime import datetime
-from apps.control_plane.src.application.common.ports import IdempotencyStore
+from apps.control_plane.src.application.common.ports import (
+    IdempotencyStore,
+    LabRepository,
+)
 
 from .schemas import CreateSessionResult
-from .types import LabRuntimeBinding
 
 
 @dataclass(frozen=True)
@@ -42,13 +44,6 @@ class OutboxCreateSession(Protocol):
         idempotency_key: str,
         requested_at: datetime | None,
     ) -> None: ...
-
-
-class LabRepository(Protocol):
-    def validate_lab(self, lab_id: UUID) -> bool: ...
-    def get_runtime_binding(
-        self, lab_id: UUID, lab_version_id: UUID
-    ) -> LabRuntimeBinding: ...
 
 
 class CreateSessionUnitOfWork(Protocol):

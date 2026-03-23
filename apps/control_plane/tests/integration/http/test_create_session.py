@@ -15,7 +15,7 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_sessi
     SQLAlchemyCreateSessionUnitOfWork,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
-    PostgresLabRepository,
+    SQLAlchemyLabRepository,
 )
 from apps.control_plane.src.interfaces.http.auth import Principal, get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import get_create_session_uow
@@ -172,11 +172,11 @@ def test_create_session_lab_unavailable_returns_typed_error(
     lab_id = uuid4()
     key = "create-session-key-3"
 
-    def _always_unavailable(self: PostgresLabRepository, lab_id: UUID) -> bool:
+    def _always_unavailable(self: SQLAlchemyLabRepository, lab_id: UUID) -> bool:
         _ = lab_id
         return False
 
-    monkeypatch.setattr(PostgresLabRepository, "validate_lab", _always_unavailable)
+    monkeypatch.setattr(SQLAlchemyLabRepository, "validate_lab", _always_unavailable)
 
     app.dependency_overrides[get_current_principal] = _override_principal(
         user_id=principal_id, role="learner"

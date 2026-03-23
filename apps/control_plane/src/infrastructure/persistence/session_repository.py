@@ -144,7 +144,7 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
         )
 
 
-class PostgresCreateSessionRepository(CreateSessionRepository):
+class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
     def __init__(self, db: Session) -> None:
         self._db = db
 

@@ -18,10 +18,10 @@ from apps.control_plane.src.application.session_create.errors import (
 )
 
 from .db import sessionmaker
-from .session_repository import PostgresCreateSessionRepository
-from .idempotency_store import PostgresCreateSessionIdempotencyStore
+from .session_repository import SQLAlchemyCreateSessionRepository
+from .idempotency_store import SQLAlchemyCreateSessionIdempotencyStore
 from .outbox_create_session import SQLAlchemyOutboxCreateSession
-from .lab_repository import PostgresLabRepository
+from .lab_repository import SQLAlchemyLabRepository
 
 
 def _is_idempo_unique_violoation(exc: IntegrityError) -> bool:
@@ -32,7 +32,7 @@ def _is_idempo_unique_violoation(exc: IntegrityError) -> bool:
 class SQLAlchemyCreateSessionUnitOfWork(CreateSessionUnitOfWork):
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
-        self._sessions: PostgresCreateSessionRepository | None = None
+        self._sessions: SQLAlchemyCreateSessionRepository | None = None
         self._idempotency: IdempotencyStore[CreateSessionResult] | None = None
         self._outbox: OutboxCreateSession | None = None
         self._lab_repo: LabRepository | None = None
@@ -64,10 +64,10 @@ class SQLAlchemyCreateSessionUnitOfWork(CreateSessionUnitOfWork):
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
-        self._sessions = PostgresCreateSessionRepository(db=db_session)
-        self._idempotency = PostgresCreateSessionIdempotencyStore(db=db_session)
+        self._sessions = SQLAlchemyCreateSessionRepository(db=db_session)
+        self._idempotency = SQLAlchemyCreateSessionIdempotencyStore(db=db_session)
         self._outbox = SQLAlchemyOutboxCreateSession(db=db_session)
-        self._lab_repo = PostgresLabRepository(db=db_session)
+        self._lab_repo = SQLAlchemyLabRepository(db=db_session)
 
         try:
             yield

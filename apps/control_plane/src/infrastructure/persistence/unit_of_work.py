@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from contextlib import contextmanager
 from collections.abc import Iterator
 from .session_repository import SQLAlchemySessionRepository
-from .idempotency_store import PostgresTransitionIdempotencyStore
+from .idempotency_store import SQLAlchemyTransitionIdempotencyStore
 from .outbox import SQLAlchemyOutbox
 
 
@@ -45,7 +45,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
         self._sessions = SQLAlchemySessionRepository(db=db_session)
-        self._idempotency = PostgresTransitionIdempotencyStore(db=db_session)
+        self._idempotency = SQLAlchemyTransitionIdempotencyStore(db=db_session)
         self._outbox = SQLAlchemyOutbox(db=db_session)
 
         try:

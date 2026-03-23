@@ -13,7 +13,7 @@ from .models import IdempotencyRecordModel, SessionTransitionEventModel
 from .errors import DataIntegrityError
 
 
-class PostgresTransitionIdempotencyStore(IdempotencyStore[TransitionResult]):
+class SQLAlchemyTransitionIdempotencyStore(IdempotencyStore[TransitionResult]):
     def __init__(self, db: Session) -> None:
         self._db = db
 
@@ -56,7 +56,7 @@ class PostgresTransitionIdempotencyStore(IdempotencyStore[TransitionResult]):
         self._db.add(instance=record)
 
 
-class PostgresCreateSessionIdempotencyStore(IdempotencyStore[CreateSessionResult]):
+class SQLAlchemyCreateSessionIdempotencyStore(IdempotencyStore[CreateSessionResult]):
     def __init__(self, db: Session) -> None:
         self._db = db
 
