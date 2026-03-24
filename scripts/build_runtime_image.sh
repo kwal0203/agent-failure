@@ -10,7 +10,7 @@
 #   IMAGE_REPO=agent-failure-runtime-v1
 
 REGISTRY="${REGISTRY:-ghcr.io}"
-ORG="${ORG:-kane}"
+ORG="${ORG:-kwal0203}"
 IMAGE_REPO="${IMAGE_REPO:-agent-failure-runtime-v1}"
 LAB_SLUG="${LAB_SLUG:-baseline}"
 LAB_VERSION="${LAB_VERSION:-0.1.0}"
