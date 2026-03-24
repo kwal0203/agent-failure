@@ -79,6 +79,9 @@ Switch labs UI to consume `/api/v1/labs` in demo/staging and keep clear fallback
 **Description**
 Provide at least one real lab runtime path (prompt injection) that can be launched and interacted with end-to-end.
 
+**Implementation Notes**
+- Runtime smoke runbook: `docs/execution/p2-ea-t3-runtime-smoke-runbook.md`
+
 **Acceptance Criteria**
 
 - prompt-injection lab entry is launchable from catalog
