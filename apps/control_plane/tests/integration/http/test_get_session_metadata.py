@@ -1,11 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.models import SessionModel
+import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 
@@ -218,3 +220,55 @@ def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     assert session["created_at"] is not None
     assert session["started_at"] is not None
     assert session["ended_at"] is not None
+
+
+@pytest.mark.usefixtures("engine")
+def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_id = uuid4()
+    owner_username = "stall-owner"
+    stale_created_at = datetime.now(timezone.utc) - timedelta(minutes=7)
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.PROVISIONING.value,
+            runtime_substate="PENDING",
+            resume_mode="hot_resume",
+            created_at=stale_created_at,
+            last_transition_actor="seed",
+            last_transition_reason=None,
+        )
+    )
+    db_session.flush()
+
+    def _fake_read_heartbeat(self: object, worker_name: str) -> None:
+        assert worker_name == "provisioning_worker"
+        return None
+
+    monkeypatch.setattr(
+        main_module.SQLAlchemyWorkerHeartbeatRepository,
+        "read_heartbeat",
+        _fake_read_heartbeat,
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    session = response.json()["session"]
+    assert session["state"] == SessionState.PROVISIONING.value
+    assert session["provisioning_stalled"] is True
+    assert session["provisioning_stall_reason_code"] == "SESSION_PROVISIONING_STALLED"

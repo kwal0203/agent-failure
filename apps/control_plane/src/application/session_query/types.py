@@ -12,6 +12,7 @@ class SessionMetadataDTO:
     state: str
     runtime_substate: str | None
     resume_mode: str
+    last_transition_reason: str | None
     interactive: bool
     created_at: datetime
     started_at: datetime | None
@@ -27,6 +28,7 @@ class SessionMetadataRow:
     state: str
     runtime_substate: str | None
     resume_mode: str
+    last_transition_reason: str | None
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None

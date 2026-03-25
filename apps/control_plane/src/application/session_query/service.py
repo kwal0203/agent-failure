@@ -35,6 +35,7 @@ def get_session_metadata(
         state=row.state,
         runtime_substate=row.runtime_substate,
         resume_mode=row.resume_mode,
+        last_transition_reason=row.last_transition_reason,
         interactive=derive_interactive(state=row.state),
         created_at=row.created_at,
         started_at=row.started_at,

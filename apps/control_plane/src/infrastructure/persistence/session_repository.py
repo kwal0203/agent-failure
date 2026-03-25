@@ -130,6 +130,10 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
         if result is None:
             return None
 
+        # TODO(P2-EA-T4): This currently reads denormalized reason from
+        # sessions.last_transition_reason for fast metadata responses.
+        # Long-term, query/project latest reason + metadata from
+        # session_transition_events as the source of truth.
         return SessionMetadataRow(
             id=result.id,
             lab_id=result.lab_id,
@@ -138,6 +142,7 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             state=result.state,
             runtime_substate=result.runtime_substate,
             resume_mode=result.resume_mode,
+            last_transition_reason=result.last_transition_reason,
             created_at=result.created_at,
             started_at=result.started_at,
             ended_at=result.ended_at,
