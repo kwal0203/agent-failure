@@ -364,24 +364,108 @@ async def handle_user_prompt(
                     session_id, "MODEL_REQUEST_STARTED", "Model request started"
                 ),
             )
+
+            turn_start = datetime.now(timezone.utc)
+            first_chunk_emitted = False
             result = await asyncio.to_thread(run_local_one_turn, turn)
-            if result.failure is not None:
+            if result.failure is not None and not first_chunk_emitted:
+                reason_code = "TURN_FAILED_BEFORE_FIRST_CHUNK"
+                user_message = (
+                    "The assistant failed before responding. Please resend your prompt."
+                )
+
+                logger.warning(
+                    "turn failed before first chunk",
+                    extra={
+                        "event": "turn_failed_before_first_chunk",
+                        "session_id": str(session_id),
+                        "reason_code": reason_code,
+                        "retryable": True,
+                        "first_chunk_emitted": False,
+                        "time_to_failure_ms": int(
+                            (datetime.now(timezone.utc) - turn_start).total_seconds()
+                            * 1000
+                        ),
+                    },
+                )
+
                 await ws_manager.send_to(
                     websocket,
-                    build_policy_denial_message(
-                        session_id, result.failure.code.upper(), result.failure.message
+                    build_system_error_message(
+                        session_id=session_id,
+                        error_code=reason_code,
+                        message=user_message,
                     ),
                 )
                 return
 
-            # Success path
+            chunks_emitted = 0
             for chunk in result.chunks:
-                await ws_manager.send_to(
-                    websocket,
-                    build_agent_text_chunk_message(
-                        session_id, chunk.content, chunk.final
-                    ),
-                )
+                try:
+                    await asyncio.wait_for(
+                        ws_manager.send_to(
+                            websocket,
+                            build_agent_text_chunk_message(
+                                session_id, chunk.content, chunk.final
+                            ),
+                        ),
+                        timeout=10.0,
+                    )
+                    first_chunk_emitted = True
+                    chunks_emitted += 1
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "turn stream send timeout",
+                        extra={
+                            "event": "turn_failed_mid_stream",
+                            "session_id": str(session_id),
+                            "reason_code": "TURN_FAILED_MID_STREAM",
+                            "retryable": True,
+                            "first_chunk_emitted": first_chunk_emitted,
+                            "chunks_emitted": chunks_emitted,
+                            "upstream_error_type": "WS_SEND_TIMEOUT",
+                        },
+                    )
+                    await ws_manager.send_to(
+                        websocket,
+                        build_system_error_message(
+                            session_id=session_id,
+                            error_code="TURN_FAILED_MID_STREAM",
+                            message="The response was interrupted. You can retry to continue.",
+                        ),
+                    )
+                    return
+                except WebSocketDisconnect:
+                    logger.info(
+                        "turn stream client disconnected",
+                        extra={
+                            "event": "turn_stream_disconnected",
+                            "session_id": str(session_id),
+                            "chunks_emitted": chunks_emitted,
+                        },
+                    )
+                    return
+                except Exception:
+                    logger.exception(
+                        "turn stream send failed",
+                        extra={
+                            "event": "turn_failed_mid_stream",
+                            "session_id": str(session_id),
+                            "reason_code": "TURN_FAILED_MID_STREAM",
+                            "retryable": True,
+                            "first_chunk_emitted": first_chunk_emitted,
+                            "chunks_emitted": chunks_emitted,
+                        },
+                    )
+                    await ws_manager.send_to(
+                        websocket,
+                        build_system_error_message(
+                            session_id,
+                            "TURN_FAILED_MID_STREAM",
+                            "The response was interrupted. You can retry to continue.",
+                        ),
+                    )
+                    return
         except Exception:
             logger.exception(f"session prompt handling failed session_id={session_id}")
             await ws_manager.send_to(
