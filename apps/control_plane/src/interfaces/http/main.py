@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from sqlalchemy.orm import Session
 from uuid import UUID
-
+from datetime import datetime, timezone
 from .schemas import (
     GetSessionMetadataResponse,
     SessionMetadataResponse,
@@ -24,6 +24,9 @@ from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionMetadataRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
+    SQLAlchemyWorkerHeartbeatRepository,
+)
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
@@ -34,7 +37,6 @@ from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
     CreateSessionUnitOfWork,
 )
-
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.session_create.service import create_session
@@ -51,7 +53,6 @@ from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_t
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
 )
-
 from .dependencies import (
     get_admission_policy,
     get_create_session_uow,
@@ -79,6 +80,9 @@ from .message_builders import (
 import logging
 import asyncio
 
+
+PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
+PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS = 360
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +114,14 @@ async def handle_unauthenticated(
     )
 
 
+def _as_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 @app.get(
     "/api/v1/sessions/{session_id}",
     response_model=GetSessionMetadataResponse,
@@ -125,6 +137,7 @@ def get_metadata(
     db: Session = Depends(get_db_session),
 ) -> GetSessionMetadataResponse | JSONResponse:
     repo = SQLAlchemySessionMetadataRepository(db=db)
+    heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
 
     try:
         session_metadata = get_session_metadata(
@@ -142,6 +155,31 @@ def get_metadata(
                 {"session_id": str(session_id)},
             )
 
+        stalled = False
+        if session_metadata.state == "PROVISIONING":
+            try:
+                hb = heartbeat_repo.read_heartbeat(worker_name="provisioning_worker")
+
+                created_at = _as_utc(session_metadata.created_at)
+                last_tick_at = _as_utc(hb.last_tick_at) if hb else None
+                now = datetime.now(timezone.utc)
+
+                if created_at:
+                    session_age_s = (now - created_at).total_seconds()
+                    hb_age_s = (
+                        (now - last_tick_at).total_seconds() if last_tick_at else None
+                    )
+                    stalled = (
+                        session_age_s >= PROVISIONING_STALL_SESSION_AGE_SECONDS
+                        and (
+                            hb_age_s is None
+                            or hb_age_s >= PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS
+                        )
+                    )
+
+            except Exception:
+                logger.warning("heartbeat read failed in get_metadata", exc_info=True)
+
         http_obj = SessionMetadataResponse(
             id=session_metadata.id,
             lab_id=session_metadata.lab_id,
@@ -149,10 +187,17 @@ def get_metadata(
             state=session_metadata.state,
             runtime_substate=session_metadata.runtime_substate,
             resume_mode=session_metadata.resume_mode,
+            # TODO(P2-EA follow-up): Keep legacy field name for now to avoid
+            # response churn; normalize to failure_reason_code in a cleanup pass.
+            last_transition_reason=session_metadata.last_transition_reason,
             interactive=session_metadata.interactive,
             created_at=session_metadata.created_at,
             started_at=session_metadata.started_at,
             ended_at=session_metadata.ended_at,
+            provisioning_stalled=stalled,
+            provisioning_stall_reason_code="SESSION_PROVISIONING_STALLED"
+            if stalled
+            else None,
         )
         return GetSessionMetadataResponse(session=http_obj)
     except ForbiddenErrorSessionQuery as exc:

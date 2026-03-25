@@ -32,6 +32,7 @@ def _sample_row() -> SessionMetadataRow:
         state="ACTIVE",
         runtime_substate="WAITING_FOR_INPUT",
         resume_mode="hot_resume",
+        last_transition_reason=None,
         created_at=datetime.now(timezone.utc),
         started_at=None,
         ended_at=None,

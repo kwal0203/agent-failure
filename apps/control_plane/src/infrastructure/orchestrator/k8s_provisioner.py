@@ -33,21 +33,33 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 details={"namespace": self._config.namespace},
             )
         except subprocess.CalledProcessError as exc:
+            stderr = (exc.stderr or "").strip()
+            excerpt = " | ".join(stderr.splitlines()[:3])[:512]
             return ProvisionResult(
                 status="failed",
                 reason_code="K8S_APPLY_FAILED",
                 details={
-                    "returncode": exc.returncode,
-                    "stderr": exc.stderr.decode("utf-8", errors="replace")
-                    if isinstance(exc.stderr, (bytes, bytearray))
-                    else str(exc.stderr),
+                    "k8s_namespace": self._config.namespace,
+                    "pod_name": pod_name,
+                    "image_ref": request.image_ref,
+                    "apply_error": stderr.splitlines()[0]
+                    if stderr
+                    else "kubectl apply failed",
+                    "k8s_event_excerpt": excerpt or "kubectl apply failed",
                 },
             )
         except Exception as exc:
+            error_text = str(exc).strip() or exc.__class__.__name__
             return ProvisionResult(
                 status="failed",
                 reason_code="PROVISION_INTERNAL_ERROR",
-                details={"error": str(exc)},
+                details={
+                    "k8s_namespace": self._config.namespace,
+                    "pod_name": pod_name,
+                    "image_ref": request.image_ref,
+                    "apply_error": error_text[:512],
+                    "k8s_event_excerpt": error_text[:512],
+                },
             )
 
     def _kubectl_apply(self, manifest: dict[str, object]) -> None:

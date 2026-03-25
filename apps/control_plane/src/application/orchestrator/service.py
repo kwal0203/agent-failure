@@ -152,9 +152,14 @@ def process_pending_once(
                         )
                         succeeded_count += 1
                     elif provision_result.status == "failed":
+                        provision_details = provision_result.details or {}
+                        reason_code = (
+                            provision_result.reason_code or "PROVISIONING_FAILED"
+                        )
+
                         uow.outbox.mark_terminal_failure(
                             outbox_event_id=event.outbox_event_id,
-                            error_message="Provisioning failed",
+                            error_message=f"Provisioning failed: {reason_code}",
                             failed_at=datetime.now(timezone.utc),
                         )
                         transition_session(
@@ -163,11 +168,35 @@ def process_pending_once(
                             actor="orchestrator_worker",
                             metadata={
                                 "outbox_event_id": str(event.outbox_event_id),
-                                "reason_code": provision_result.reason_code
-                                or "PROVISIONING_FAILED",
+                                "reason_code": reason_code,
+                                "retryable": True,
+                                "k8s_namespace": provision_details.get("k8s_namespace"),
+                                "pod_name": provision_details.get("pod_name"),
+                                "image_ref": runtime_request.image_ref,
+                                "apply_error": provision_details.get("apply_error"),
+                                "k8s_event_excerpt": provision_details.get(
+                                    "k8s_event_excerpt"
+                                ),
                             },
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:failed",
                             uow=uow.lifecycle_uow,
+                        )
+                        logger.warning(
+                            "session provisioning failed",
+                            extra={
+                                "event": "session_provisioning_failed",
+                                "session_id": str(session_id),
+                                "outbox_event_id": str(event.outbox_event_id),
+                                "reason_code": reason_code,
+                                "retryable": True,
+                                "k8s_namespace": provision_details.get("k8s_namespace"),
+                                "pod_name": provision_details.get("pod_name"),
+                                "image_ref": runtime_request.image_ref,
+                                "apply_error": provision_details.get("apply_error"),
+                                "k8s_event_excerpt": provision_details.get(
+                                    "k8s_event_excerpt"
+                                ),
+                            },
                         )
                         failed_count += 1
                 except (

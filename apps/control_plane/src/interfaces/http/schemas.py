@@ -21,10 +21,13 @@ class SessionMetadataResponse(BaseModel):
     state: str
     runtime_substate: str | None
     resume_mode: str
+    last_transition_reason: str | None
     interactive: bool
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    provisioning_stalled: bool = False
+    provisioning_stall_reason_code: str | None
 
 
 class GetSessionMetadataResponse(BaseModel):
