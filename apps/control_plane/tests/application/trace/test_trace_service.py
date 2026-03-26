@@ -105,3 +105,80 @@ def test_append_trace_event_rejects_missing_learner_context() -> None:
 
     with pytest.raises(MissingTraceContextError):
         append_trace_event(trace=trace, repo=repo)
+
+
+def test_append_trace_event_accepts_valid_tool_failed_event() -> None:
+    repo = _FakeTraceRepo(appended=[])
+    trace = TraceEvent(
+        event_id=uuid4(),
+        session_id=uuid4(),
+        family="tool",
+        event_type="TOOL_CALL_FAILED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=0,
+        payload={"tool_name": "http_get", "error_code": "TIMEOUT"},
+        trace_version=1,
+    )
+
+    append_trace_event(trace=trace, repo=repo)
+
+    assert repo.appended == [trace]
+
+
+def test_append_trace_event_rejects_runtime_failed_missing_reason_code() -> None:
+    repo = _FakeTraceRepo(appended=[])
+    trace = TraceEvent(
+        event_id=uuid4(),
+        session_id=uuid4(),
+        family="runtime",
+        event_type="RUNTIME_PROVISION_FAILED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=0,
+        payload={"pod_name": "session-1234"},
+        trace_version=1,
+    )
+
+    with pytest.raises(MissingTraceContextError):
+        append_trace_event(trace=trace, repo=repo)
+
+
+def test_append_trace_event_rejects_tool_failed_missing_required_payload_fields() -> (
+    None
+):
+    repo = _FakeTraceRepo(appended=[])
+    trace = TraceEvent(
+        event_id=uuid4(),
+        session_id=uuid4(),
+        family="tool",
+        event_type="TOOL_CALL_FAILED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=0,
+        payload={"tool_name": "http_get"},
+        trace_version=1,
+    )
+
+    with pytest.raises(MissingTraceContextError):
+        append_trace_event(trace=trace, repo=repo)
+
+
+def test_append_trace_event_rejects_model_failed_missing_required_payload_fields() -> (
+    None
+):
+    repo = _FakeTraceRepo(appended=[])
+    trace = TraceEvent(
+        event_id=uuid4(),
+        session_id=uuid4(),
+        family="model",
+        event_type="MODEL_TURN_FAILED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=0,
+        payload={"provider": "openrouter"},
+        trace_version=1,
+    )
+
+    with pytest.raises(MissingTraceContextError):
+        append_trace_event(trace=trace, repo=repo)

@@ -28,6 +28,10 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
     },
 }
 
+# NOTE(P1-E6-T4): Tool trace event types are defined for schema/validation stability,
+# but emission is intentionally deferred until a concrete tool execution boundary
+# exists in the agent harness/tool adapter path.
+
 REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
     ("tool", "TOOL_CALL_FAILED"): {"tool_name", "error_code"},
