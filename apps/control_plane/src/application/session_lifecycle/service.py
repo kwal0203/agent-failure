@@ -3,7 +3,10 @@ from typing import Mapping
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     Trigger,
     TRANSITIONS,
+    SessionState,
 )
+from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.trace.service import append_trace_event
 from datetime import datetime, timezone
 
 from .ports import UnitOfWork
@@ -81,7 +84,39 @@ def transition_session(
             transition_id=transition_result.transition_id,
         )
 
-        if next_state in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}:
+        event_index = uow.trace.get_next_event_index(session_id=session_id)
+        trace_event = TraceEvent(
+            event_id=transition_result.transition_id,
+            session_id=session_id,
+            family="lifecycle",
+            event_type="SESSION_TRANSITIONED",
+            occurred_at=ts,
+            source="session_lifecycle_service",
+            event_index=event_index,
+            payload={
+                "transition_id": str(transition_result.transition_id),
+                "prev_state": current_state.value,
+                "next_state": next_state.value,
+                "trigger": trigger.value,
+                "actor": actor,
+                "metadata": dict(metadata),
+                "idempotency_key": idempotency_key,
+            },
+            trace_version=1,
+            correlation_id=None,
+            request_id=None,
+            actor_user_id=None,
+            lab_id=None,
+            lab_version_id=None,
+        )
+        append_trace_event(trace=trace_event, repo=uow.trace)
+
+        if next_state in {
+            SessionState.COMPLETED,
+            SessionState.FAILED,
+            SessionState.EXPIRED,
+            SessionState.CANCELLED,
+        }:
             uow.outbox.enqueue_for_cleanup(
                 session_id=session_id,
                 runtime_id=session.runtime_id,

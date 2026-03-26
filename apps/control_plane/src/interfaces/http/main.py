@@ -48,8 +48,13 @@ from apps.control_plane.src.application.session_create.errors import (
     InvalidIdempotencyKeyError,
     AdmissionDecisionError,
 )
-from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
+from apps.control_plane.src.infrastructure.persistence.session_repository import (
+    SQLAlchemyTraceEventRepository,
+)
 from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
+from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
+from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
 )
@@ -79,6 +84,7 @@ from .message_builders import (
 
 import logging
 import asyncio
+from uuid import uuid4
 
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
@@ -345,6 +351,39 @@ async def handle_user_prompt(
                 ),
             )
             return
+
+        # TODO(P1-E6 follow-up): This writes learner trace directly via DB adapter
+        # in the websocket handler. Move to UoW-backed trace write path so turn
+        # handling and trace persistence share a clear transactional boundary.
+        # learner trace
+        trace_repo = SQLAlchemyTraceEventRepository(db=db)
+        event_id = uuid4()
+        event_index = trace_repo.get_next_event_index(session_id=session_id)
+        trace_event = TraceEvent(
+            event_id=event_id,
+            session_id=session_id,
+            family="learner",
+            event_type="USER_PROMPT_SUBMITTED",
+            occurred_at=datetime.now(timezone.utc),
+            source="session_stream_service",
+            event_index=event_index,
+            payload={
+                # TODO(P1-E6/P1-E7 follow-up): Prompt content is persisted in full
+                # for MVP evaluator/replay visibility. Revisit policy to decide
+                # whether this should be redacted/summarized/hashed by default.
+                "content": prompt_content,
+                "role": "user",
+                "channel": "websocket",
+                "message_type": "USER_PROMPT",
+            },
+            trace_version=1,
+            correlation_id=None,
+            request_id=None,
+            actor_user_id=principal.user_id,
+            lab_id=metadata.lab_id,
+            lab_version_id=metadata.lab_version_id,
+        )
+        append_trace_event(trace=trace_event, repo=trace_repo)
 
         try:
             await ws_manager.send_to(

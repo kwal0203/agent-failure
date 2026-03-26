@@ -7,6 +7,7 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     Trigger,
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
+from apps.control_plane.src.application.trace.ports import TraceEventPort
 from typing import Mapping
 from datetime import datetime
 
@@ -72,5 +73,8 @@ class UnitOfWork(Protocol):
 
     @property
     def outbox(self) -> Outbox: ...
+
+    @property
+    def trace(self) -> TraceEventPort: ...
 
     def transaction(self) -> ContextManager[None]: ...

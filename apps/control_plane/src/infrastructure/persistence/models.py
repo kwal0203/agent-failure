@@ -192,3 +192,44 @@ class WorkerHeartbeatModel(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class TraceEventModel(Base):
+    __tablename__ = "trace_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "event_index", name="uq_trace_session_event_index"
+        ),
+        CheckConstraint(
+            "family IN ('lifecycle', 'learner', 'runtime', 'tool', 'model')",
+            name="ck_trace_family",
+        ),
+    )
+
+    event_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    family: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True, server_default=func.now()
+    )
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    trace_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    correlation_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    request_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    actor_user_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    lab_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    lab_version_id: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
