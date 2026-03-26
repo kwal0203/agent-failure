@@ -81,6 +81,7 @@ from .message_builders import (
     build_trace_event_message,
     build_system_error_message,
 )
+from .helpers import build_trace_event, build_model_turn_failed_payload
 
 import logging
 import asyncio
@@ -357,16 +358,14 @@ async def handle_user_prompt(
         # handling and trace persistence share a clear transactional boundary.
         # learner trace
         trace_repo = SQLAlchemyTraceEventRepository(db=db)
-        event_id = uuid4()
-        event_index = trace_repo.get_next_event_index(session_id=session_id)
         trace_event = TraceEvent(
-            event_id=event_id,
+            event_id=uuid4(),
             session_id=session_id,
             family="learner",
             event_type="USER_PROMPT_SUBMITTED",
             occurred_at=datetime.now(timezone.utc),
             source="session_stream_service",
-            event_index=event_index,
+            event_index=trace_repo.get_next_event_index(session_id=session_id),
             payload={
                 # TODO(P1-E6/P1-E7 follow-up): Prompt content is persisted in full
                 # for MVP evaluator/replay visibility. Revisit policy to decide
@@ -403,6 +402,22 @@ async def handle_user_prompt(
                     session_id, "MODEL_REQUEST_STARTED", "Model request started"
                 ),
             )
+            trace_event_model_started = build_trace_event(
+                trace_repo=trace_repo,
+                session_id=session_id,
+                family="model",
+                event_type="MODEL_TURN_STARTED",
+                source="session_stream_service",
+                payload={
+                    "provider": "openrouter",
+                    "message_type": "USER_PROMPT",
+                    "prompt_chars": len(prompt_content),
+                },
+                actor_user_id=principal.user_id,
+                lab_id=metadata.lab_id,
+                lab_version_id=metadata.lab_version_id,
+            )
+            append_trace_event(trace=trace_event_model_started, repo=trace_repo)
 
             turn_start = datetime.now(timezone.utc)
             first_chunk_emitted = False
@@ -436,6 +451,26 @@ async def handle_user_prompt(
                         message=user_message,
                     ),
                 )
+
+                payload = build_model_turn_failed_payload(
+                    error_code="TURN_FAILED_BEFORE_FIRST_CHUNK",
+                    phase="before_first_chunk",
+                    turn_start=turn_start,
+                    chunks_emitted=0,
+                )
+                trace_event_model_failed = build_trace_event(
+                    trace_repo=trace_repo,
+                    session_id=session_id,
+                    family="model",
+                    event_type="MODEL_TURN_FAILED",
+                    source="session_stream_service",
+                    payload=payload,
+                    actor_user_id=principal.user_id,
+                    lab_id=metadata.lab_id,
+                    lab_version_id=metadata.lab_version_id,
+                )
+                append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+
                 return
 
             chunks_emitted = 0
@@ -473,6 +508,26 @@ async def handle_user_prompt(
                             message="The response was interrupted. You can retry to continue.",
                         ),
                     )
+
+                    payload = build_model_turn_failed_payload(
+                        error_code="TURN_FAILED_MID_STREAM",
+                        phase="mid_stream",
+                        turn_start=turn_start,
+                        chunks_emitted=chunks_emitted,
+                    )
+                    trace_event_model_failed = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="model",
+                        event_type="MODEL_TURN_FAILED",
+                        source="session_stream_service",
+                        payload=payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+
                     return
                 except WebSocketDisconnect:
                     logger.info(
@@ -504,7 +559,53 @@ async def handle_user_prompt(
                             "The response was interrupted. You can retry to continue.",
                         ),
                     )
+
+                    trace_event_model_failed = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="model",
+                        event_type="MODEL_TURN_FAILED",
+                        source="session_stream_service",
+                        payload={
+                            "provider": "openrouter",
+                            "error_code": "TURN_FAILED_MID_STREAM",
+                            "retryable": True,
+                            "phase": "mid_stream",
+                            "duration_ms": int(
+                                (
+                                    datetime.now(timezone.utc) - turn_start
+                                ).total_seconds()
+                                * 1000
+                            ),
+                            "chunks_emitted": chunks_emitted,
+                        },
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+
                     return
+
+            trace_event_model_completed = build_trace_event(
+                trace_repo=trace_repo,
+                session_id=session_id,
+                family="model",
+                event_type="MODEL_TURN_COMPLETED",
+                source="session_stream_service",
+                payload={
+                    "status": "succeeded",
+                    "chunks_emitted": chunks_emitted,
+                    "duration_ms": int(
+                        (datetime.now(timezone.utc) - turn_start).total_seconds() * 1000
+                    ),
+                    "first_chunk_emitted": first_chunk_emitted,
+                },
+                actor_user_id=principal.user_id,
+                lab_id=metadata.lab_id,
+                lab_version_id=metadata.lab_version_id,
+            )
+            append_trace_event(trace=trace_event_model_completed, repo=trace_repo)
         except Exception:
             logger.exception(f"session prompt handling failed session_id={session_id}")
             await ws_manager.send_to(
