@@ -7,6 +7,7 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocketDisconnect
 
@@ -17,7 +18,10 @@ from apps.agent_harness.src.application.session_loop.types import (
 )
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.models import SessionModel
+from apps.control_plane.src.infrastructure.persistence.models import (
+    SessionModel,
+    TraceEventModel,
+)
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 
@@ -254,6 +258,18 @@ def test_user_prompt_is_accepted_for_interactive_session(
     )
     assert msg["payload"]["content"] == "response chunk"
     assert msg["payload"]["final"] is True
+
+    trace_event = db_session.execute(
+        select(TraceEventModel).where(
+            TraceEventModel.session_id == session.id,
+            TraceEventModel.family == "learner",
+            TraceEventModel.event_type == "USER_PROMPT_SUBMITTED",
+        )
+    ).scalar_one()
+    assert trace_event.actor_user_id == _owner_user_id(owner_username)
+    payload = trace_event.payload
+    assert payload["message_type"] == "USER_PROMPT"
+    assert payload["content"] == "hello"
 
 
 @pytest.mark.usefixtures("engine")

@@ -30,15 +30,17 @@ from apps.control_plane.src.application.orchestrator.types import (
     ExpiryCandidate,
     ReconciliationCandidate,
 )
+from apps.control_plane.src.application.trace.ports import TraceEventPort
+from apps.control_plane.src.application.trace.types import TraceEvent
 
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update, and_, or_
+from sqlalchemy import select, update, and_, or_, func
 from datetime import datetime, timezone
 from typing import Mapping, cast
 from uuid import UUID, uuid4
 
-from .models import SessionModel, SessionTransitionEventModel
+from .models import SessionModel, SessionTransitionEventModel, TraceEventModel
 from .errors import StateMismatch
 
 
@@ -260,3 +262,41 @@ class SQLAlchemyExpirySessionRepository(ExpirySessionPort):
             )
 
         return candidates
+
+
+class SQLAlchemyTraceEventRepository(TraceEventPort):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def append_trace_event(self, trace: TraceEvent) -> None:
+        event = TraceEventModel(
+            event_id=trace.event_id,
+            session_id=trace.session_id,
+            family=trace.family,
+            event_type=trace.event_type,
+            occurred_at=trace.occurred_at,
+            source=trace.source,
+            event_index=trace.event_index,
+            payload=trace.payload,
+            trace_version=trace.trace_version,
+            correlation_id=trace.correlation_id,
+            request_id=trace.request_id,
+            actor_user_id=trace.actor_user_id,
+            lab_id=trace.lab_id,
+            lab_version_id=trace.lab_version_id,
+        )
+
+        self._db.add(event)
+        self._db.flush()
+
+    def get_next_event_index(self, session_id: UUID) -> int:
+        max_index = self._db.execute(
+            select(func.max(TraceEventModel.event_index)).where(
+                TraceEventModel.session_id == session_id
+            )
+        ).scalar_one_or_none()
+
+        if max_index is None:
+            return 0
+
+        return int(max_index) + 1

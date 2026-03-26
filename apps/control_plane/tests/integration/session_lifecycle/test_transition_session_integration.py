@@ -15,6 +15,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     OutboxEventModel,
     SessionModel,
     SessionTransitionEventModel,
+    TraceEventModel,
 )
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
@@ -90,3 +91,16 @@ def test_transition_session_replay_is_idempotent() -> None:
             )
         ).scalar_one()
         assert idempotency_count == 1
+
+        trace_count = verify_db.execute(
+            select(func.count())
+            .select_from(TraceEventModel)
+            .where(TraceEventModel.session_id == session_id)
+        ).scalar_one()
+        assert trace_count == 1
+
+        trace_event = verify_db.execute(
+            select(TraceEventModel).where(TraceEventModel.session_id == session_id)
+        ).scalar_one()
+        assert trace_event.family == "lifecycle"
+        assert trace_event.event_type == "SESSION_TRANSITIONED"
