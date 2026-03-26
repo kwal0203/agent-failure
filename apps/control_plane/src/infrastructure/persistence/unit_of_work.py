@@ -49,7 +49,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
     @property
     def trace(self) -> TraceEventPort:
         if self._trace is None:
-            raise RuntimeError("No active trace event")
+            raise RuntimeError("No active trace repository")
         return self._trace
 
     @contextmanager

@@ -6,6 +6,7 @@ from apps.control_plane.src.application.orchestrator.ports import (
 )
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
+from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
@@ -14,6 +15,7 @@ from contextlib import contextmanager
 
 from .outbox_provision_session import SQLAlchemyOutboxProvisionSession
 from .lab_repository import SQLAlchemyLabRepository
+from .session_repository import SQLAlchemyTraceEventRepository
 
 
 class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
@@ -22,6 +24,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._outbox: OutboxProvisioningSessionPort | None = None
         self._lab: LabRepository | None = None
         self._lifecycle_uow: UnitOfWork | None = None
+        self._trace: TraceEventPort | None = None
 
     @property
     def outbox(self) -> OutboxProvisioningSessionPort:
@@ -41,6 +44,12 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             raise RuntimeError("No active lifecycle unit of work")
         return self._lifecycle_uow
 
+    @property
+    def trace(self) -> TraceEventPort:
+        if self._trace is None:
+            raise RuntimeError("No active trace repository")
+        return self._trace
+
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
@@ -53,6 +62,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._lifecycle_uow = SQLAlchemyUnitOfWork(
             session_factory=self._session_factory
         )
+        self._trace = SQLAlchemyTraceEventRepository(db=db_session)
 
         try:
             yield
@@ -65,3 +75,4 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             self._outbox = None
             self._lab = None
             self._lifecycle_uow = None
+            self._trace = None

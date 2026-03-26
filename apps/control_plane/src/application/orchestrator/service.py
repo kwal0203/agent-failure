@@ -37,8 +37,10 @@ from .types import (
     ReconciliationOnceResult,
     ExpiryOnceResult,
 )
+from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.trace.service import append_trace_event
 
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
 import logging
@@ -53,6 +55,36 @@ CLEANUP_BACKOFF_SECONDS = 15
 PROVISIONING_TIMEOUT_SECONDS = 900
 MAX_SESSION_LIFETIME_SECONDS = 86_400
 IDLE_TIMEOUT_SECONDS = 3_600
+
+
+def _append_runtime_trace(
+    *,
+    uow: UnitOfWork,
+    session_id: UUID,
+    event_type: str,
+    source: str,
+    payload: dict[str, object],
+    lab_id: UUID | None = None,
+    lab_version_id: UUID | None = None,
+) -> None:
+    with uow.transaction():
+        trace_event = TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="runtime",
+            event_type=event_type,
+            occurred_at=datetime.now(timezone.utc),
+            source=source,
+            event_index=uow.trace.get_next_event_index(session_id=session_id),
+            payload=payload,
+            trace_version=1,
+            correlation_id=None,
+            request_id=None,
+            actor_user_id=None,
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+        )
+        append_trace_event(trace=trace_event, repo=uow.trace)
 
 
 def _invalid_outbox_payload(
@@ -133,7 +165,28 @@ def process_pending_once(
                         },
                     )
 
+                    _append_runtime_trace(
+                        uow=uow.lifecycle_uow,
+                        session_id=session_id,
+                        event_type="RUNTIME_PROVISION_REQUESTED",
+                        source="orchestrator_service",
+                        payload={
+                            "runtime_kind": "k8s_pod",
+                            "namespace": "runtime-pool",
+                            "image_ref": image_ref,
+                            "outbox_event_id": str(outbox_event_id),
+                            "attempt_count": attempt_count,
+                            "requested_by": "control-plane-outbox-worker",
+                            "idempotency_key": runtime_request.metadata[
+                                "idempotency_key"
+                            ],
+                        },
+                        lab_id=lab_id,
+                        lab_version_id=lab_version_id,
+                    )
+
                     provision_result = provisioner.provision(runtime_request)
+                    provision_details = provision_result.details or {}
                     if (
                         provision_result.status == "accepted"
                         or provision_result.status == "ready"
@@ -149,6 +202,25 @@ def process_pending_once(
                             metadata={"outbox_event_id": str(outbox_event_id)},
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
                             uow=uow.lifecycle_uow,
+                        )
+                        _append_runtime_trace(
+                            uow=uow.lifecycle_uow,
+                            session_id=session_id,
+                            event_type="RUNTIME_PROVISION_ACCEPTED",
+                            source="orchestrator_service",
+                            payload={
+                                "runtime_kind": "k8s_pod",
+                                "namespace": "runtime-pool",
+                                "image_ref": image_ref,
+                                "outbox_event_id": str(outbox_event_id),
+                                "attempt_count": attempt_count,
+                                "requested_by": "control-plane-outbox-worker",
+                                "idempotency_key": runtime_request.metadata[
+                                    "idempotency_key"
+                                ],
+                            },
+                            lab_id=lab_id,
+                            lab_version_id=lab_version_id,
                         )
                         succeeded_count += 1
                     elif provision_result.status == "failed":
@@ -181,6 +253,30 @@ def process_pending_once(
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:failed",
                             uow=uow.lifecycle_uow,
                         )
+
+                        _append_runtime_trace(
+                            uow=uow.lifecycle_uow,
+                            session_id=session_id,
+                            event_type="RUNTIME_PROVISION_FAILED",
+                            source="orchestrator_service",
+                            payload={
+                                "runtime_kind": "k8s_pod",
+                                "namespace": "runtime-pool",
+                                "image_ref": image_ref,
+                                "outbox_event_id": str(outbox_event_id),
+                                "attempt_count": attempt_count,
+                                "requested_by": "control-plane-outbox-worker",
+                                "idempotency_key": runtime_request.metadata[
+                                    "idempotency_key"
+                                ],
+                                "reason_code": reason_code,
+                                "apply_error": provision_details.get("apply_error"),
+                                "pod_name": provision_details.get("pod_name"),
+                            },
+                            lab_id=lab_id,
+                            lab_version_id=lab_version_id,
+                        )
+
                         logger.warning(
                             "session provisioning failed",
                             extra={
@@ -390,6 +486,24 @@ def process_reconciliation_once(
                 session_id=session_id, runtime_id=runtime_id
             )
             inspection_result = inspector.inspect(inspection_request)
+
+            _append_runtime_trace(
+                uow=uow,
+                session_id=session_id,
+                event_type="RUNTIME_HEALTH_STATUS",
+                source="control-plane-reconciliation-worker",
+                payload={
+                    "exists": inspection_result.exists,
+                    "phase": inspection_result.phase,
+                    "reason": inspection_result.reason,
+                    "duplicate_count": inspection_result.duplicate_count,
+                    "matched_runtime_ids_count": len(
+                        inspection_result.matched_runtime_ids
+                    ),
+                    "requested_runtime_id": inspection_result.requested_runtime_id,
+                },
+            )
+
             if state in {"PROVISIONING", "ACTIVE"} and not inspection_result.exists:
                 trigger = (
                     Trigger.PROVISIONING_FAILED

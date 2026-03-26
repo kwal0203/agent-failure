@@ -271,6 +271,23 @@ def test_user_prompt_is_accepted_for_interactive_session(
     assert payload["message_type"] == "USER_PROMPT"
     assert payload["content"] == "hello"
 
+    model_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "model",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in model_events] == [
+        "MODEL_TURN_STARTED",
+        "MODEL_TURN_COMPLETED",
+    ]
+
 
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_overlapping_turn_is_denied(
@@ -430,6 +447,25 @@ def test_user_prompt_failure_before_first_chunk_emits_stable_system_error(
         == "The assistant failed before responding. Please resend your prompt."
     )
 
+    model_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "model",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in model_events] == [
+        "MODEL_TURN_STARTED",
+        "MODEL_TURN_FAILED",
+    ]
+    failed_payload = model_events[-1].payload
+    assert failed_payload["error_code"] == "TURN_FAILED_BEFORE_FIRST_CHUNK"
+
 
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
@@ -478,3 +514,22 @@ def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
         msg["payload"]["message"]
         == "The response was interrupted. You can retry to continue."
     )
+
+    model_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "model",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in model_events] == [
+        "MODEL_TURN_STARTED",
+        "MODEL_TURN_FAILED",
+    ]
+    failed_payload = model_events[-1].payload
+    assert failed_payload["error_code"] == "TURN_FAILED_MID_STREAM"

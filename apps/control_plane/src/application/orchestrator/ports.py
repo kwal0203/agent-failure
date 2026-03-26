@@ -3,6 +3,7 @@ from datetime import datetime
 from uuid import UUID
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
 from apps.control_plane.src.application.session_create.ports import LabRepository
+from apps.control_plane.src.application.trace.ports import TraceEventPort
 
 from .types import (
     ProvisionResult,
@@ -86,6 +87,9 @@ class ProcessPendingOnceUnitOfWork(Protocol):
 
     @property
     def lab(self) -> LabRepository: ...
+
+    @property
+    def trace(self) -> TraceEventPort: ...
 
     def transaction(self) -> ContextManager[None]: ...
 

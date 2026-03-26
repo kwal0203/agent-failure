@@ -136,11 +136,40 @@ class _FakeProvisioner:
         return self._result
 
 
+class _FakeTraceRepo:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+        self._next_index = 0
+
+    def append_trace_event(self, trace: Any) -> None:
+        self.events.append(trace)
+
+    def get_next_event_index(self, session_id: UUID) -> int:
+        _ = session_id
+        index = self._next_index
+        self._next_index += 1
+        return index
+
+
+class _FakeLifecycleUoW:
+    def __init__(self) -> None:
+        self._trace = _FakeTraceRepo()
+
+    @property
+    def trace(self) -> _FakeTraceRepo:
+        return self._trace
+
+    @contextmanager
+    def transaction(self):
+        yield
+
+
 class _FakeProcessPendingOnceUoW:
     def __init__(self, outbox: _FakeOutbox) -> None:
         self._outbox = outbox
         self._lab = _FakeLabRepository()
-        self._lifecycle_uow: SessionLifecycleUnitOfWork = object()  # type: ignore[assignment]
+        self._lifecycle_uow: SessionLifecycleUnitOfWork = _FakeLifecycleUoW()  # type: ignore[assignment]
+        self._trace = _FakeTraceRepo()
 
     @property
     def outbox(self) -> _FakeOutbox:
@@ -153,6 +182,10 @@ class _FakeProcessPendingOnceUoW:
     @property
     def lab(self) -> _FakeLabRepository:
         return self._lab
+
+    @property
+    def trace(self) -> _FakeTraceRepo:
+        return self._trace
 
     @contextmanager
     def transaction(self):
@@ -299,10 +332,15 @@ class _FakeReconciliationOutbox:
 class _FakeReconciliationUoW:
     def __init__(self) -> None:
         self._outbox = _FakeReconciliationOutbox()
+        self._trace = _FakeTraceRepo()
 
     @property
     def outbox(self) -> _FakeReconciliationOutbox:
         return self._outbox
+
+    @property
+    def trace(self) -> _FakeTraceRepo:
+        return self._trace
 
     @contextmanager
     def transaction(self):

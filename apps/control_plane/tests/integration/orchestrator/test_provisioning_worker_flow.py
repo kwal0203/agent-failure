@@ -18,6 +18,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     OutboxEventModel,
     SessionModel,
     SessionTransitionEventModel,
+    TraceEventModel,
 )
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
@@ -118,6 +119,23 @@ def test_provisioning_worker_success_consumes_outbox_and_transitions_active() ->
         assert transition.next_state == SessionState.ACTIVE.value
         assert transition.trigger == "PROVISIONING_SUCCEEDED"
 
+        runtime_trace_events = (
+            db.execute(
+                select(TraceEventModel)
+                .where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.family == "runtime",
+                )
+                .order_by(TraceEventModel.event_index.asc())
+            )
+            .scalars()
+            .all()
+        )
+        assert [event.event_type for event in runtime_trace_events] == [
+            "RUNTIME_PROVISION_REQUESTED",
+            "RUNTIME_PROVISION_ACCEPTED",
+        ]
+
 
 @pytest.mark.usefixtures("engine")
 def test_provisioning_worker_failure_consumes_outbox_and_transitions_failed() -> None:
@@ -155,3 +173,22 @@ def test_provisioning_worker_failure_consumes_outbox_and_transitions_failed() ->
         ).scalar_one()
         assert transition.next_state == SessionState.FAILED.value
         assert transition.trigger == "PROVISIONING_FAILED"
+
+        runtime_trace_events = (
+            db.execute(
+                select(TraceEventModel)
+                .where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.family == "runtime",
+                )
+                .order_by(TraceEventModel.event_index.asc())
+            )
+            .scalars()
+            .all()
+        )
+        assert [event.event_type for event in runtime_trace_events] == [
+            "RUNTIME_PROVISION_REQUESTED",
+            "RUNTIME_PROVISION_FAILED",
+        ]
+        failed_event = runtime_trace_events[-1]
+        assert failed_event.payload["reason_code"] == "K8S_APPLY_FAILED"

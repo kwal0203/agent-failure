@@ -11,17 +11,47 @@ from .errors import (
 
 
 ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
-    # NOTE(P1-E6-T3): runtime/tool/model are intentionally empty in T3 and will
-    # reject all event types for those families until P1-E6-T4 extends support.
     "lifecycle": {"SESSION_CREATED", "SESSION_TRANSITIONED"},
     "learner": {"USER_PROMPT_SUBMITTED"},
-    "runtime": set(),
-    "tool": set(),
-    "model": set(),
+    "runtime": {
+        "RUNTIME_PROVISION_REQUESTED",
+        "RUNTIME_PROVISION_ACCEPTED",
+        "RUNTIME_PROVISION_FAILED",
+        "RUNTIME_HEALTH_STATUS",
+    },
+    "tool": {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"},
+    "model": {
+        "MODEL_TURN_STARTED",
+        "MODEL_CHUNK_EMITTED",
+        "MODEL_TURN_COMPLETED",
+        "MODEL_TURN_FAILED",
+    },
+}
+
+# NOTE(P1-E6-T4): Tool trace event types are defined for schema/validation stability,
+# but emission is intentionally deferred until a concrete tool execution boundary
+# exists in the agent harness/tool adapter path.
+
+REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
+    ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
+    ("tool", "TOOL_CALL_FAILED"): {"tool_name", "error_code"},
+    ("model", "MODEL_TURN_FAILED"): {"provider", "error_code"},
+    # ("lifecycle", "SESSION_CREATED"): set(),
+    # ("lifecycle", "SESSION_TRANSITIONED"): set(),
+    # ("learner", "USER_PROMPT_SUBMITTED"): set(),
+    # ("runtime", "RUNTIME_PROVISION_REQUESTED"): set(),
+    # ("runtime", "RUNTIME_PROVISION_ACCEPTED"): set(),
+    # ("runtime", "RUNTIME_HEALTH_STATUS"): set(),
+    # ("tool", "TOOL_CALL_REQUESTED"): set(),
+    # ("tool", "TOOL_CALL_SUCCEEDED"): set(),
+    # ("model", "MODEL_TURN_STARTED"): set(),
+    # ("model", "MODEL_CHUNK_EMITTED"): set(),
+    # ("model", "MODEL_TURN_COMPLETED"): set(),
 }
 
 
 def append_trace_event(trace: TraceEvent, repo: TraceEventPort) -> None:
+
     if trace.family not in ALLOWED_EVENT_TYPES:
         raise UnknownTraceFamilyError(
             family=trace.family,
@@ -45,12 +75,25 @@ def append_trace_event(trace: TraceEvent, repo: TraceEventPort) -> None:
                 "session_id": str(trace.session_id),
                 "source": trace.source,
                 "trace_version": trace.trace_version,
+                "allowed_event_types": sorted(ALLOWED_EVENT_TYPES[trace.family]),
             },
         )
 
+    # NOTE(P1-E6-T4): Context validation is intentionally minimal for now.
+    # We currently enforce only learner actor attribution; T4 should extend this
+    # to per-event requirements (e.g. tool/model failure events requiring error metadata).
     missing_fields: list[str] = []
     if trace.family == "learner" and trace.actor_user_id is None:
         missing_fields.append("actor_user_id")
+
+    required_payload = REQUIRED_PAYLOAD_FIELDS.get(
+        (trace.family, trace.event_type), set()
+    )
+    if required_payload:
+        payload = trace.payload or {}
+        for key in required_payload:
+            if key not in payload or payload[key] is None:
+                missing_fields.append(f"payload.{key}")
 
     if missing_fields:
         raise MissingTraceContextError(
