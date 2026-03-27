@@ -233,3 +233,39 @@ class TraceEventModel(Base):
     lab_version_id: Mapped[PyUUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+
+
+class EvaluatorResultModel(Base):
+    __tablename__ = "evaluation_results"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_evaluation_results_idempo"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(256), nullable=False, index=True
+    )
+    result_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    trigger_event_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    trigger_start_event_index: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    trigger_end_event_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feedback_level: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    feedback_payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    lab_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    lab_version_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    evaluator_version: Mapped[int] = mapped_column(Integer, nullable=False)
