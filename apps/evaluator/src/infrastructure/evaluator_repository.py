@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import CursorResult
+from typing import cast, Any
 
 from apps.evaluator.src.application.ports import EvaluatorPort
 from apps.evaluator.src.application.types import (
@@ -8,7 +11,11 @@ from apps.evaluator.src.application.types import (
     EvaluatorTraceEvent,
     EvaluatorFinding,
 )
-from apps.control_plane.src.infrastructure.persistence.models import TraceEventModel
+from apps.control_plane.src.infrastructure.persistence.models import (
+    TraceEventModel,
+    EvaluatorResultModel,
+)
+from uuid import uuid4, UUID
 
 
 class SQLAlchemyEvaluatorRepository(EvaluatorPort):
@@ -144,3 +151,36 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
             reason_code="MODEL_TURN_FAILED",
             feedback_payload={"event_type": event.event_type, "family": event.family},
         )
+
+    def persist_result_if_new(
+        self,
+        idempo_key: str,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        finding: EvaluatorFinding,
+    ) -> bool:
+        rows = self._db.execute(
+            pg_insert(EvaluatorResultModel)
+            .values(
+                id=uuid4(),
+                idempotency_key=idempo_key,
+                result_type=finding.result_type,
+                code=finding.code,
+                trigger_event_index=finding.trigger_event_index,
+                trigger_start_event_index=finding.trigger_start_event_index,
+                trigger_end_event_index=finding.trigger_end_event_index,
+                feedback_level=finding.feedback_level,
+                reason_code=finding.reason_code,
+                feedback_payload=finding.feedback_payload,
+                session_id=session_id,
+                lab_id=lab_id,
+                lab_version_id=lab_version_id,
+                evaluator_version=evaluator_version,
+            )
+            .on_conflict_do_nothing(index_elements=["idempotency_key"])
+        )
+
+        result = cast(CursorResult[Any], rows)
+        return result.rowcount == 1

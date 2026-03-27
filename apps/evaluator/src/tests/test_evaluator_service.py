@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from uuid import uuid4
+from dataclasses import dataclass, field
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -14,16 +14,59 @@ from apps.evaluator.src.application.types import (
 @dataclass
 class _FakeRepo:
     result: EvaluatorRunResult
+    persisted_calls: list[tuple[str, UUID, UUID, UUID, int, EvaluatorFinding]] = field(
+        default_factory=list
+    )
 
     def evaluate_trace_window(self, input: EvaluatorTaskInput) -> EvaluatorRunResult:
         _ = input
         return self.result
+
+    def persist_result_if_new(
+        self,
+        idempo_key: str,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        finding: EvaluatorFinding,
+    ) -> bool:
+        self.persisted_calls.append(
+            (
+                idempo_key,
+                session_id,
+                lab_id,
+                lab_version_id,
+                evaluator_version,
+                finding,
+            )
+        )
+        return True
 
 
 class _RaisingRepo:
     def evaluate_trace_window(self, input: EvaluatorTaskInput) -> EvaluatorRunResult:
         _ = input
         raise RuntimeError("boom")
+
+    def persist_result_if_new(
+        self,
+        idempo_key: str,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        finding: EvaluatorFinding,
+    ) -> bool:
+        _ = (
+            idempo_key,
+            session_id,
+            lab_id,
+            lab_version_id,
+            evaluator_version,
+            finding,
+        )
+        return True
 
 
 def _make_task() -> EvaluatorTaskInput:
@@ -77,6 +120,7 @@ def test_evaluate_trace_window_once_returns_repo_result() -> None:
     result = evaluate_trace_window_once(task=task, repo=repo)
 
     assert result == expected
+    assert len(repo.persisted_calls) == expected.findings_count
 
 
 def test_evaluate_trace_window_once_logs_and_reraises_repo_exception(
