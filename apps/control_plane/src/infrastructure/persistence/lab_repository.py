@@ -54,6 +54,30 @@ class SQLAlchemyLabRepository(LabRepository):
     def get_runtime_binding(
         self, lab_id: UUID, lab_version_id: UUID | None
     ) -> LabRuntimeBinding:
-        # TODO(E4 follow-up): replace hardcoded mapping with DB-backed lab/lab_version lookup.
-        _ = (lab_id, lab_version_id)
-        return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+        _ = lab_version_id  # until version table exists
+
+        bindings: dict[UUID, LabRuntimeBinding] = {
+            UUID("11111111-1111-1111-1111-111111111111"): LabRuntimeBinding(
+                lab_slug="prompt-injection",
+                lab_version="v1",
+            ),
+            UUID("22222222-2222-2222-2222-222222222222"): LabRuntimeBinding(
+                lab_slug="rag-poisoning",
+                lab_version="v1",
+            ),
+            UUID("33333333-3333-3333-3333-333333333333"): LabRuntimeBinding(
+                lab_slug="tool-misuse",
+                lab_version="v1",
+            ),
+        }
+
+        binding = bindings.get(lab_id)
+        if binding is None:
+            # NOTE(P1-E7-T3): Keep backward-compatible fallback behavior for
+            # unknown lab IDs while control-plane lab metadata is still stubbed
+            # and tests may create ad-hoc UUIDs. Once labs/lab_versions are
+            # persisted and validated in DB, replace this fallback with strict
+            # not-found handling.
+            return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+
+        return binding

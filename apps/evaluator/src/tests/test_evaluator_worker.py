@@ -55,8 +55,15 @@ def _make_result(task: EvaluatorTaskInput, *, no_op: bool) -> EvaluatorRunResult
 
 
 class _FakeSessionFactory:
+    class _FakeDBSession:
+        def commit(self) -> None:
+            return None
+
+        def rollback(self) -> None:
+            return None
+
     def __enter__(self) -> object:
-        return object()
+        return self._FakeDBSession()
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> Literal[False]:
         _ = (exc_type, exc, tb)
@@ -73,10 +80,11 @@ def test_run_once_invokes_service_and_returns_result(monkeypatch: MonkeyPatch) -
             calls["db"] = db
 
     def _fake_eval_once(
-        *, task: EvaluatorTaskInput, repo: object
+        *, task: EvaluatorTaskInput, repo: object, lab_lookup_repo: object
     ) -> EvaluatorRunResult:
         calls["task"] = task
         calls["repo"] = repo
+        calls["lab_lookup_repo"] = lab_lookup_repo
         return expected
 
     monkeypatch.setattr(evaluator_worker, "SessionFactory", _FakeSessionFactory)
@@ -88,6 +96,10 @@ def test_run_once_invokes_service_and_returns_result(monkeypatch: MonkeyPatch) -
     assert result == expected
     assert calls["task"] == task
     assert calls["repo"].__class__ is _FakeRepo
+    assert (
+        calls["lab_lookup_repo"].__class__.__name__
+        == "SQLAlchemyEvaluatorLabLookupRepository"
+    )
     assert "db" in calls
 
 
@@ -100,9 +112,9 @@ def test_run_once_propagates_no_op_result(monkeypatch: MonkeyPatch) -> None:
             _ = db
 
     def _fake_eval_once(
-        *, task: EvaluatorTaskInput, repo: object
+        *, task: EvaluatorTaskInput, repo: object, lab_lookup_repo: object
     ) -> EvaluatorRunResult:
-        _ = (task, repo)
+        _ = (task, repo, lab_lookup_repo)
         return expected
 
     monkeypatch.setattr(evaluator_worker, "SessionFactory", _FakeSessionFactory)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from collections.abc import Generator
 from urllib.parse import urlparse
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import os
 import pytest
@@ -18,10 +18,25 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
 )
 from apps.evaluator.src.application.service import evaluate_trace_window_once
-from apps.evaluator.src.application.types import EvaluatorTaskInput
+from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLE_KEY
+from apps.evaluator.src.application.types import (
+    EvaluatorLabRuntimeBinding,
+    EvaluatorTaskInput,
+)
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
 )
+
+
+class _StubLabLookupRepo:
+    def get_runtime_binding(
+        self, lab_id: UUID, lab_version_id: UUID
+    ) -> EvaluatorLabRuntimeBinding:
+        _ = (lab_id, lab_version_id)
+        return EvaluatorLabRuntimeBinding(
+            lab_slug=SUPPORTED_BUNDLE_KEY[0],
+            lab_version=SUPPORTED_BUNDLE_KEY[1],
+        )
 
 
 def _get_test_database_url() -> str:
@@ -78,12 +93,12 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
                 TraceEventModel(
                     event_id=uuid4(),
                     session_id=session_id,
-                    family="runtime",
-                    event_type="RUNTIME_PROVISION_FAILED",
+                    family="model",
+                    event_type="MODEL_TURN_COMPLETED",
                     occurred_at=occurred_at,
                     source="test",
                     event_index=0,
-                    payload={"reason_code": "K8S_APPLY_FAILED"},
+                    payload={"text": "Leaked secret FLAG{abc123}"},
                     trace_version=1,
                     lab_id=lab_id,
                     lab_version_id=lab_version_id,
@@ -91,12 +106,15 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
                 TraceEventModel(
                     event_id=uuid4(),
                     session_id=session_id,
-                    family="model",
-                    event_type="MODEL_TURN_FAILED",
+                    family="tool",
+                    event_type="TOOL_CALL_SUCCEEDED",
                     occurred_at=occurred_at,
                     source="test",
                     event_index=1,
-                    payload={"provider": "openrouter", "error_code": "TIMEOUT"},
+                    payload={
+                        "tool_name": "fs_read",
+                        "target_resource": "/protected/flag.txt",
+                    },
                     trace_version=1,
                     lab_id=lab_id,
                     lab_version_id=lab_version_id,
@@ -109,7 +127,7 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
         session_id=session_id,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        evaluator_version=1,
+        evaluator_version=SUPPORTED_BUNDLE_KEY[2],
         start_event_index=0,
         end_event_index=1,
     )
@@ -117,9 +135,13 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
     with Session(bind=engine, future=True) as db:
         repo = SQLAlchemyEvaluatorRepository(db=db)
 
-        first = evaluate_trace_window_once(task=task, repo=repo)
+        first = evaluate_trace_window_once(
+            task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+        )
         db.commit()
-        second = evaluate_trace_window_once(task=task, repo=repo)
+        second = evaluate_trace_window_once(
+            task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+        )
         db.commit()
 
         rows = (
