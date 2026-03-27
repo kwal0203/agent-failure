@@ -1,26 +1,31 @@
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 import pytest
 
+from apps.evaluator.src.application import service
+from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLE_KEY
 from apps.evaluator.src.application.service import evaluate_trace_window_once
 from apps.evaluator.src.application.types import (
     EvaluatorFinding,
+    EvaluatorLabRuntimeBinding,
     EvaluatorRunResult,
     EvaluatorTaskInput,
+    EvaluatorTraceEvent,
 )
 
 
 @dataclass
 class _FakeRepo:
-    result: EvaluatorRunResult
+    events: list[EvaluatorTraceEvent]
     persisted_calls: list[tuple[str, UUID, UUID, UUID, int, EvaluatorFinding]] = field(
         default_factory=list
     )
 
-    def evaluate_trace_window(self, input: EvaluatorTaskInput) -> EvaluatorRunResult:
+    def load_events(self, input: EvaluatorTaskInput) -> list[EvaluatorTraceEvent]:
         _ = input
-        return self.result
+        return list(self.events)
 
     def persist_result_if_new(
         self,
@@ -45,7 +50,7 @@ class _FakeRepo:
 
 
 class _RaisingRepo:
-    def evaluate_trace_window(self, input: EvaluatorTaskInput) -> EvaluatorRunResult:
+    def load_events(self, input: EvaluatorTaskInput) -> list[EvaluatorTraceEvent]:
         _ = input
         raise RuntimeError("boom")
 
@@ -69,12 +74,23 @@ class _RaisingRepo:
         return True
 
 
+class _StubLabLookupRepo:
+    def get_runtime_binding(
+        self, lab_id: UUID, lab_version_id: UUID
+    ) -> EvaluatorLabRuntimeBinding:
+        _ = (lab_id, lab_version_id)
+        return EvaluatorLabRuntimeBinding(
+            lab_slug=SUPPORTED_BUNDLE_KEY[0],
+            lab_version=SUPPORTED_BUNDLE_KEY[1],
+        )
+
+
 def _make_task() -> EvaluatorTaskInput:
     return EvaluatorTaskInput(
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
+        evaluator_version=SUPPORTED_BUNDLE_KEY[2],
         start_event_index=0,
         end_event_index=3,
     )
@@ -112,14 +128,51 @@ def _make_result(task: EvaluatorTaskInput, *, no_op: bool) -> EvaluatorRunResult
     )
 
 
-def test_evaluate_trace_window_once_returns_repo_result() -> None:
+def _make_trace_event(
+    task: EvaluatorTaskInput, *, event_index: int
+) -> EvaluatorTraceEvent:
+    return EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="model",
+        event_type="MODEL_TURN_COMPLETED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=event_index,
+        payload={},
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+    )
+
+
+def test_evaluate_trace_window_once_returns_repo_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     task = _make_task()
     expected = _make_result(task, no_op=False)
-    repo = _FakeRepo(result=expected)
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
 
-    result = evaluate_trace_window_once(task=task, repo=repo)
+    class _FakeBundle:
+        def run(
+            self, events: list[EvaluatorTraceEvent]
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = events
+            return expected.findings
 
-    assert result == expected
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    result = evaluate_trace_window_once(
+        task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+    )
+
+    assert result.findings == expected.findings
+    assert result.findings_count == expected.findings_count
     assert len(repo.persisted_calls) == expected.findings_count
 
 
@@ -130,6 +183,8 @@ def test_evaluate_trace_window_once_logs_and_reraises_repo_exception(
     repo = _RaisingRepo()
 
     with pytest.raises(RuntimeError, match="boom"):
-        evaluate_trace_window_once(task=task, repo=repo)
+        evaluate_trace_window_once(
+            task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+        )
 
     assert any("evaluator.run.failed" in rec.message for rec in caplog.records)

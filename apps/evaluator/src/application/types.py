@@ -75,3 +75,19 @@ class EvaluatorOnceResult:
     succeeded_count: int
     failed_count: int
     retried_count: int
+
+
+@dataclass(frozen=True)
+class EvaluatorGetLabCatalogRow:
+    lab_id: UUID
+    slug: str
+    name: str
+    summary: str
+    supports_resume: bool
+    supports_uploads: bool
+
+
+@dataclass(frozen=True)
+class EvaluatorLabRuntimeBinding:
+    lab_slug: str
+    lab_version: str
