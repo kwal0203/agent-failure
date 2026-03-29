@@ -57,6 +57,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 )
 from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
 from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
+from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
+    run_forever,
+)
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.lab_catalog.service import (
@@ -93,6 +96,7 @@ from .helpers import build_trace_event, build_model_turn_failed_payload
 import logging
 import asyncio
 from uuid import uuid4
+import contextlib
 
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
@@ -100,10 +104,21 @@ PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS = 360
 
 logger = logging.getLogger(__name__)
 
+ws_manager: WebSocketSessionManager = WebSocketSessionManager()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
+    app.state.learner_feedback_task = asyncio.create_task(
+        run_forever(session_manager=ws_manager)
+    )
+    try:
+        yield
+    finally:
+        task = app.state.learner_feedback_task
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 app = FastAPI(lifespan=lifespan)
@@ -115,8 +130,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 
 
 @app.exception_handler(UnauthenticatedError)

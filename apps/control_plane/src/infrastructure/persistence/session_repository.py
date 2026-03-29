@@ -317,7 +317,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
 
     def list_results_for_session(
         self, session_id: UUID
-    ) -> list[EvaluatorPersistedResult]:
+    ) -> tuple[EvaluatorPersistedResult, ...]:
         rows = (
             self._db.execute(
                 select(EvaluatorResultModel)
@@ -352,4 +352,4 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                 )
             )
 
-        return result
+        return tuple(result)

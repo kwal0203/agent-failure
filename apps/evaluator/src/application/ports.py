@@ -36,7 +36,8 @@ class EvaluatorLabLookupPort(Protocol):
     ) -> EvaluatorLabRuntimeBinding: ...
 
 
-class EvaluatorOutboxRepository(Protocol):
+# class EvaluatorOutboxRepository(Protocol):
+class EvaluatorOutboxPort(Protocol):
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
     ) -> list[PendingEvaluatorEvent]: ...
@@ -51,4 +52,11 @@ class EvaluatorOutboxRepository(Protocol):
         outbox_event_id: UUID,
         error_message: str,
         failed_at: datetime | None = None,
+    ) -> None: ...
+
+    def enqueue_learner_feedback_publish_request(
+        self,
+        *,
+        session_id: UUID,
+        requested_at: datetime | None = None,
     ) -> None: ...

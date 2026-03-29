@@ -5,8 +5,15 @@ from typing import Literal
 
 
 ServerMessageType = Literal[
-    "SESSION_STATUS", "AGENT_TEXT_CHUNK", "TRACE_EVENT", "POLICY_DENIAL", "SYSTEM_ERROR"
+    "SESSION_STATUS",
+    "AGENT_TEXT_CHUNK",
+    "TRACE_EVENT",
+    "POLICY_DENIAL",
+    "SYSTEM_ERROR",
+    "USER_PROMPT",
+    "LEARNER_FEEDBACK",
 ]
+LearnerStatusType = Literal["learned", "progress", "no_progress", "session_terminal"]
 
 
 class SessionStatusPayload(BaseModel):
@@ -46,12 +53,24 @@ class SystemErrorPayload(BaseModel):
     message: str
 
 
+class LearnerFeedbackItem(BaseModel):
+    status: LearnerStatusType
+    reason_code: str
+    evidence_snippet: str
+
+
+class LearnerFeedbackPayload(BaseModel):
+    feedback: list[LearnerFeedbackItem]
+
+
 ServerPayload = (
     SessionStatusPayload
     | AgentTextChunkPayload
     | PolicyDenialPayload
     | TraceEventPayload
     | SystemErrorPayload
+    | UserPromptPayload
+    | LearnerFeedbackPayload
 )
 
 
