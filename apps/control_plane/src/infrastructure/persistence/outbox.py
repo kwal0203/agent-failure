@@ -63,3 +63,31 @@ class SQLAlchemyOutbox(Outbox):
         )
 
         self._db.add(event)
+
+    def enqueue_for_evaluator(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        start_event_index: int,
+        end_event_index: int,
+        requested_at: datetime | None = None,
+    ) -> None:
+        payload: dict[str, object] = {
+            "lab_id": str(lab_id),
+            "lab_version_id": str(lab_version_id),
+            "evaluator_version": evaluator_version,
+            "start_event_index": start_event_index,
+            "end_event_index": end_event_index,
+            "requested_at": requested_at.isoformat() if requested_at else None,
+        }
+
+        event = OutboxEventModel(
+            event_type="session.evaluate.requested.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
+
+        self._db.add(event)

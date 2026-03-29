@@ -109,7 +109,7 @@ def transition_session(
             lab_id=None,
             lab_version_id=None,
         )
-        append_trace_event(trace=trace_event, repo=uow.trace)
+        append_trace_event(trace=trace_event, repo=uow.trace, outbox_repo=uow.outbox)
 
         if next_state in {
             SessionState.COMPLETED,

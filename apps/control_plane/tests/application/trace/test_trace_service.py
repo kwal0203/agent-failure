@@ -10,7 +10,10 @@ from apps.control_plane.src.application.trace.errors import (
     UnknownTraceEventTypeError,
     UnknownTraceFamilyError,
 )
-from apps.control_plane.src.application.trace.ports import TraceEventPort
+from apps.control_plane.src.application.trace.ports import (
+    TraceEventPort,
+    TraceOutboxPort,
+)
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
 
@@ -24,6 +27,34 @@ class _FakeTraceRepo(TraceEventPort):
 
     def get_next_event_index(self, session_id: UUID) -> int:
         return 0
+
+
+@dataclass
+class _FakeOutboxRepo(TraceOutboxPort):
+    enqueued: list[tuple[UUID, UUID, UUID, int, int, int]]
+
+    def enqueue_for_evaluator(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        start_event_index: int,
+        end_event_index: int,
+        requested_at: datetime | None = None,
+    ) -> None:
+        _ = requested_at
+        self.enqueued.append(
+            (
+                session_id,
+                lab_id,
+                lab_version_id,
+                evaluator_version,
+                start_event_index,
+                end_event_index,
+            )
+        )
 
 
 def _valid_lifecycle_trace() -> TraceEvent:
@@ -42,15 +73,17 @@ def _valid_lifecycle_trace() -> TraceEvent:
 
 def test_append_trace_event_accepts_valid_lifecycle_event() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = _valid_lifecycle_trace()
 
-    append_trace_event(trace=trace, repo=repo)
+    append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
     assert repo.appended == [trace]
 
 
 def test_append_trace_event_rejects_unknown_family() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = _valid_lifecycle_trace()
     # runtime bypass for negative-path validation test
     trace = TraceEvent(
@@ -66,11 +99,12 @@ def test_append_trace_event_rejects_unknown_family() -> None:
     )
 
     with pytest.raises(UnknownTraceFamilyError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
 
 def test_append_trace_event_rejects_unknown_event_type() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = _valid_lifecycle_trace()
     trace = TraceEvent(
         event_id=trace.event_id,
@@ -85,11 +119,12 @@ def test_append_trace_event_rejects_unknown_event_type() -> None:
     )
 
     with pytest.raises(UnknownTraceEventTypeError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
 
 def test_append_trace_event_rejects_missing_learner_context() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = TraceEvent(
         event_id=uuid4(),
         session_id=uuid4(),
@@ -104,11 +139,12 @@ def test_append_trace_event_rejects_missing_learner_context() -> None:
     )
 
     with pytest.raises(MissingTraceContextError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
 
 def test_append_trace_event_accepts_valid_tool_failed_event() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = TraceEvent(
         event_id=uuid4(),
         session_id=uuid4(),
@@ -121,13 +157,14 @@ def test_append_trace_event_accepts_valid_tool_failed_event() -> None:
         trace_version=1,
     )
 
-    append_trace_event(trace=trace, repo=repo)
+    append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
     assert repo.appended == [trace]
 
 
 def test_append_trace_event_rejects_runtime_failed_missing_reason_code() -> None:
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = TraceEvent(
         event_id=uuid4(),
         session_id=uuid4(),
@@ -141,13 +178,14 @@ def test_append_trace_event_rejects_runtime_failed_missing_reason_code() -> None
     )
 
     with pytest.raises(MissingTraceContextError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
 
 def test_append_trace_event_rejects_tool_failed_missing_required_payload_fields() -> (
     None
 ):
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = TraceEvent(
         event_id=uuid4(),
         session_id=uuid4(),
@@ -161,13 +199,14 @@ def test_append_trace_event_rejects_tool_failed_missing_required_payload_fields(
     )
 
     with pytest.raises(MissingTraceContextError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
 
 
 def test_append_trace_event_rejects_model_failed_missing_required_payload_fields() -> (
     None
 ):
     repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
     trace = TraceEvent(
         event_id=uuid4(),
         session_id=uuid4(),
@@ -181,4 +220,4 @@ def test_append_trace_event_rejects_model_failed_missing_required_payload_fields
     )
 
     with pytest.raises(MissingTraceContextError):
-        append_trace_event(trace=trace, repo=repo)
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)

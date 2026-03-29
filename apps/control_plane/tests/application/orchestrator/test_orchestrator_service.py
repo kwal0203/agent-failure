@@ -151,13 +151,41 @@ class _FakeTraceRepo:
         return index
 
 
+class _FakeTraceOutbox:
+    def enqueue_for_evaluator(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        start_event_index: int,
+        end_event_index: int,
+        requested_at: datetime | None = None,
+    ) -> None:
+        _ = (
+            session_id,
+            lab_id,
+            lab_version_id,
+            evaluator_version,
+            start_event_index,
+            end_event_index,
+            requested_at,
+        )
+
+
 class _FakeLifecycleUoW:
     def __init__(self) -> None:
         self._trace = _FakeTraceRepo()
+        self._outbox = _FakeTraceOutbox()
 
     @property
     def trace(self) -> _FakeTraceRepo:
         return self._trace
+
+    @property
+    def outbox(self) -> _FakeTraceOutbox:
+        return self._outbox
 
     @contextmanager
     def transaction(self):

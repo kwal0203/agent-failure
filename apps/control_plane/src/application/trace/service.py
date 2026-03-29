@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from .ports import TraceEventPort
+from .ports import TraceEventPort, TraceOutboxPort
 from .types import TraceEvent, TraceFamily
 from .errors import (
     UnknownTraceFamilyError,
@@ -50,7 +50,9 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
 }
 
 
-def append_trace_event(trace: TraceEvent, repo: TraceEventPort) -> None:
+def append_trace_event(
+    trace: TraceEvent, repo: TraceEventPort, outbox_repo: TraceOutboxPort
+) -> None:
 
     if trace.family not in ALLOWED_EVENT_TYPES:
         raise UnknownTraceFamilyError(
@@ -134,3 +136,18 @@ def append_trace_event(trace: TraceEvent, repo: TraceEventPort) -> None:
         )
 
     repo.append_trace_event(trace=trace)
+
+    if trace.event_type not in {"MODEL_TURN_COMPLETED", "MODEL_TURN_FAILED"}:
+        return
+
+    if trace.lab_id is None or trace.lab_version_id is None:
+        return
+
+    outbox_repo.enqueue_for_evaluator(
+        session_id=trace.session_id,
+        lab_id=trace.lab_id,
+        lab_version_id=trace.lab_version_id,
+        evaluator_version=1,
+        start_event_index=trace.event_index,
+        end_event_index=trace.event_index,
+    )

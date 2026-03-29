@@ -11,8 +11,8 @@ ResultType = Literal[
     "no_effect",
     "terminal_outcome",
 ]
-
 FeedbackLevel = Literal["none", "flag", "hint", "detailed_hint"]
+FeedbackStatusType = Literal["learned", "progress", "no_progress", "session_terminal"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,16 @@ class EvaluatorRunResult:
     findings_count: int
     no_op: bool
     findings: tuple[EvaluatorFinding, ...]
+    inserted_count: int
+    deduped_count: int
+
+
+@dataclass(frozen=True)
+class EvaluatorOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int
 
 
 @dataclass(frozen=True)
@@ -70,14 +80,6 @@ class EvaluatorTraceEvent:
 
 
 @dataclass(frozen=True)
-class EvaluatorOnceResult:
-    claimed_count: int
-    succeeded_count: int
-    failed_count: int
-    retried_count: int
-
-
-@dataclass(frozen=True)
 class EvaluatorGetLabCatalogRow:
     lab_id: UUID
     slug: str
@@ -91,3 +93,36 @@ class EvaluatorGetLabCatalogRow:
 class EvaluatorLabRuntimeBinding:
     lab_slug: str
     lab_version: str
+
+
+@dataclass(frozen=True)
+class LearnerEvaluatorFeedback:
+    status: FeedbackStatusType
+    reason_code: str
+    evidence_snippet: str
+
+
+@dataclass(frozen=True)
+class EvaluatorPersistedResult:
+    id: UUID
+    idempotency_key: str
+    result_type: ResultType
+    code: str
+    trigger_event_index: int | None
+    trigger_start_event_index: int | None
+    trigger_end_event_index: int | None
+    feedback_level: FeedbackLevel
+    reason_code: str
+    feedback_payload: dict[str, object]
+    created_at: datetime
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    evaluator_version: int
+
+
+@dataclass(frozen=True)
+class PendingEvaluatorEvent:
+    outbox_event_id: UUID
+    task: EvaluatorTaskInput
+    attempt_count: int

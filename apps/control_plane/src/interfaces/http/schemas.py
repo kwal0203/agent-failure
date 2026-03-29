@@ -1,6 +1,12 @@
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
+from typing import Literal
+
+
+EvaluatorFeedbackStatusType = Literal[
+    "learned", "progress", "no_progress", "session_terminal"
+]
 
 
 class ApiError(BaseModel):
@@ -67,3 +73,13 @@ class LabCatalogItemResponse(BaseModel):
 
 class GetLabsResponse(BaseModel):
     labs: list[LabCatalogItemResponse]
+
+
+class EvaluatorFeedbackResponse(BaseModel):
+    status: EvaluatorFeedbackStatusType
+    reason_code: str
+    evidence_snippet: str
+
+
+class GetFeedbackResponse(BaseModel):
+    feedback: tuple[EvaluatorFeedbackResponse, ...]

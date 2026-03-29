@@ -84,7 +84,7 @@ def _append_runtime_trace(
             lab_id=lab_id,
             lab_version_id=lab_version_id,
         )
-        append_trace_event(trace=trace_event, repo=uow.trace)
+        append_trace_event(trace=trace_event, repo=uow.trace, outbox_repo=uow.outbox)
 
 
 def _invalid_outbox_payload(

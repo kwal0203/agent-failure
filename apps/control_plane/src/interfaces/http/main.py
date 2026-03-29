@@ -16,6 +16,8 @@ from .schemas import (
     GetLabsResponse,
     LabCatalogItemResponse,
     LabCapabilitiesResponse,
+    EvaluatorFeedbackResponse,
+    GetFeedbackResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -27,6 +29,7 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
     SQLAlchemyWorkerHeartbeatRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
@@ -50,6 +53,7 @@ from apps.control_plane.src.application.session_create.errors import (
 )
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyTraceEventRepository,
+    SQLAlchemyEvaluatorRepository,
 )
 from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
 from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
@@ -57,6 +61,9 @@ from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
+)
+from apps.control_plane.src.application.evaluator_feedback.service import (
+    get_session_evaluator_feedback,
 )
 from .dependencies import (
     get_admission_policy,
@@ -307,6 +314,7 @@ async def handle_user_prompt(
     db: Session,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
+    outbox_repo = SQLAlchemyOutbox(db=db)
 
     if not ws_manager.try_begin_turn(session_id=session_id):
         await ws_manager.send_to(
@@ -382,7 +390,7 @@ async def handle_user_prompt(
             lab_id=metadata.lab_id,
             lab_version_id=metadata.lab_version_id,
         )
-        append_trace_event(trace=trace_event, repo=trace_repo)
+        append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         try:
             await ws_manager.send_to(
@@ -417,7 +425,11 @@ async def handle_user_prompt(
                 lab_id=metadata.lab_id,
                 lab_version_id=metadata.lab_version_id,
             )
-            append_trace_event(trace=trace_event_model_started, repo=trace_repo)
+            append_trace_event(
+                trace=trace_event_model_started,
+                repo=trace_repo,
+                outbox_repo=outbox_repo,
+            )
 
             turn_start = datetime.now(timezone.utc)
             first_chunk_emitted = False
@@ -469,7 +481,11 @@ async def handle_user_prompt(
                     lab_id=metadata.lab_id,
                     lab_version_id=metadata.lab_version_id,
                 )
-                append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+                append_trace_event(
+                    trace=trace_event_model_failed,
+                    repo=trace_repo,
+                    outbox_repo=outbox_repo,
+                )
 
                 return
 
@@ -526,7 +542,11 @@ async def handle_user_prompt(
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
                     )
-                    append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+                    append_trace_event(
+                        trace=trace_event_model_failed,
+                        repo=trace_repo,
+                        outbox_repo=outbox_repo,
+                    )
 
                     return
                 except WebSocketDisconnect:
@@ -583,7 +603,11 @@ async def handle_user_prompt(
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
                     )
-                    append_trace_event(trace=trace_event_model_failed, repo=trace_repo)
+                    append_trace_event(
+                        trace=trace_event_model_failed,
+                        repo=trace_repo,
+                        outbox_repo=outbox_repo,
+                    )
 
                     return
 
@@ -605,7 +629,11 @@ async def handle_user_prompt(
                 lab_id=metadata.lab_id,
                 lab_version_id=metadata.lab_version_id,
             )
-            append_trace_event(trace=trace_event_model_completed, repo=trace_repo)
+            append_trace_event(
+                trace=trace_event_model_completed,
+                repo=trace_repo,
+                outbox_repo=outbox_repo,
+            )
         except Exception:
             logger.exception(f"session prompt handling failed session_id={session_id}")
             await ws_manager.send_to(
@@ -773,6 +801,59 @@ def get_labs(
             "get labs endpoint failed user_id=%s role=%s",
             str(principal.user_id),
             principal.role,
+        )
+        return build_api_error_response(
+            "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.get(
+    "/api/v1/sessions/{session_id}/evaluator-feedback",
+    response_model=GetFeedbackResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def evaluator_feedback(
+    session_id: UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> GetFeedbackResponse | JSONResponse:
+    repo = SQLAlchemyEvaluatorRepository(db=db)
+    application_principal = PrincipalContext(
+        user_id=principal.user_id, role=principal.role
+    )
+
+    try:
+        evaluator_feedback = get_session_evaluator_feedback(
+            principal=application_principal, session_id=session_id, repo=repo
+        )
+        tmp: list[EvaluatorFeedbackResponse] = []
+        for feedback in evaluator_feedback:
+            tmp.append(
+                EvaluatorFeedbackResponse(
+                    status=feedback.status,
+                    reason_code=feedback.reason_code,
+                    evidence_snippet=feedback.evidence_snippet,
+                )
+            )
+
+        return GetFeedbackResponse(feedback=tuple(tmp))
+
+    except ForbiddenError as exc:
+        return build_api_error_response(
+            code="FORBIDDEN",
+            message=exc.message,
+            retryable=False,
+            status_code=403,
+            details=exc.details,
+        )
+
+    except Exception:
+        logger.exception(
+            "get evaluator feedback endpoint failed for session=%s", str(session_id)
         )
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
