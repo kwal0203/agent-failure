@@ -142,6 +142,7 @@ class _FakeOutboxRepo:
         self.pending = pending
         self.processed: list[UUID] = []
         self.failed: list[tuple[UUID, str]] = []
+        self.enqueued_feedback_requests: list[tuple[UUID, datetime | None]] = []
 
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
@@ -164,6 +165,11 @@ class _FakeOutboxRepo:
     ) -> None:
         _ = failed_at
         self.failed.append((outbox_event_id, error_message))
+
+    def enqueue_learner_feedback_publish_request(
+        self, *, session_id: UUID, requested_at: datetime | None = None
+    ) -> None:
+        self.enqueued_feedback_requests.append((session_id, requested_at))
 
 
 def _make_persisted_result(
@@ -245,6 +251,50 @@ def test_process_evaluate_pending_once_returns_stats_success(
     assert len(repo.persisted_calls) == 1
     assert outbox_repo.processed == [outbox_event_id]
     assert outbox_repo.failed == []
+    assert len(outbox_repo.enqueued_feedback_requests) == 1
+    assert outbox_repo.enqueued_feedback_requests[0][0] == task.session_id
+
+
+def test_process_evaluate_pending_once_does_not_enqueue_feedback_publish_when_no_new_findings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_event_id = uuid4()
+    outbox_repo = _FakeOutboxRepo(
+        pending=[
+            PendingEvaluatorEvent(
+                outbox_event_id=outbox_event_id,
+                task=task,
+                attempt_count=1,
+            )
+        ]
+    )
+
+    class _FakeBundle:
+        def run(
+            self, events: list[EvaluatorTraceEvent]
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = events
+            return ()
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    result = process_evaluate_pending_once(
+        repo=repo, lab_lookup_repo=_StubLabLookupRepo(), outbox_repo=outbox_repo
+    )
+
+    assert result == EvaluatorOnceResult(
+        claimed_count=1,
+        succeeded_count=1,
+        failed_count=0,
+        retried_count=0,
+    )
+    assert outbox_repo.processed == [outbox_event_id]
+    assert outbox_repo.failed == []
+    assert outbox_repo.enqueued_feedback_requests == []
 
 
 def test_process_evaluate_pending_once_marks_failure_and_logs_exception(

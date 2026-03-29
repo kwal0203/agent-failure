@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+import asyncio
 from typing import cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -8,9 +9,13 @@ from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
+    process_pending_feedback_publish_once,
 )
 from apps.control_plane.src.application.evaluator_feedback.types import (
     EvaluatorPersistedResult,
+    LearnerEvaluatorFeedback,
+    LearnerFeedbackPublishResult,
+    PendingLearnerFeedbackPublishEvent,
     ResultType,
 )
 
@@ -19,9 +24,75 @@ class _FakeRepo:
     def __init__(self, results: list[EvaluatorPersistedResult]) -> None:
         self._results = results
 
-    def list_results_for_session(self, session_id) -> list[EvaluatorPersistedResult]:
+    def list_results_for_session(
+        self, session_id: UUID
+    ) -> tuple[EvaluatorPersistedResult, ...]:
         _ = session_id
-        return list(self._results)
+        return tuple(self._results)
+
+
+class _FakeEvalRepoBySession:
+    def __init__(self, by_session: dict[UUID, list[EvaluatorPersistedResult]]) -> None:
+        self._by_session = by_session
+
+    def list_results_for_session(
+        self, session_id: UUID
+    ) -> tuple[EvaluatorPersistedResult, ...]:
+        return tuple(self._by_session.get(session_id, []))
+
+
+class _FakeOutboxRepo:
+    def __init__(self, events: list[PendingLearnerFeedbackPublishEvent]) -> None:
+        self._events = events
+        self.processed: list[UUID] = []
+        self.retryable_failed: list[tuple[UUID, str]] = []
+        self.terminal_failed: list[tuple[UUID, str]] = []
+
+    def claim_pending_feedback_publish(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingLearnerFeedbackPublishEvent]:
+        _ = (limit, now)
+        return list(self._events)
+
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None:
+        _ = processed_at
+        self.processed.append(outbox_event_id)
+
+    def mark_retryable_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        backoff_seconds: int = 15,
+        failed_at: datetime | None = None,
+    ) -> None:
+        _ = (backoff_seconds, failed_at)
+        self.retryable_failed.append((outbox_event_id, error_message))
+
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None:
+        _ = failed_at
+        self.terminal_failed.append((outbox_event_id, error_message))
+
+
+class _FakePublisher:
+    def __init__(self, *, raises: Exception | None = None) -> None:
+        self._raises = raises
+        self.calls: list[tuple[UUID, tuple[LearnerEvaluatorFeedback, ...]]] = []
+
+    async def publish_session_feedback(
+        self, session_id: UUID, feedback: tuple[LearnerEvaluatorFeedback, ...]
+    ) -> None:
+        self.calls.append((session_id, feedback))
+        if self._raises is not None:
+            raise self._raises
 
 
 def _make_result(
@@ -149,3 +220,133 @@ def test_get_session_evaluator_feedback_rejects_forbidden_role() -> None:
         get_session_evaluator_feedback(
             principal=principal, session_id=uuid4(), repo=repo
         )
+
+
+def test_process_pending_feedback_publish_once_success_path() -> None:
+    session_id = uuid4()
+    outbox_event_id = uuid4()
+    outbox = _FakeOutboxRepo(
+        events=[
+            PendingLearnerFeedbackPublishEvent(
+                outbox_event_id=outbox_event_id,
+                session_id=session_id,
+                attempt_count=0,
+                requested_at=None,
+            )
+        ]
+    )
+    eval_repo = _FakeEvalRepoBySession(
+        by_session={
+            session_id: [
+                _make_result(
+                    result_type="constraint_violation",
+                    code="pi.secret_exfiltration_success",
+                    feedback_payload={"matched_value": "FLAG{abc}"},
+                )
+            ]
+        }
+    )
+    publisher = _FakePublisher()
+
+    result = asyncio.run(
+        process_pending_feedback_publish_once(
+            outbox_repo=outbox, eval_repo=eval_repo, publisher=publisher
+        )
+    )
+
+    assert result == LearnerFeedbackPublishResult(
+        claimed_count=1, succeeded_count=1, failed_count=0, retried_count=0
+    )
+    assert outbox.processed == [outbox_event_id]
+    assert outbox.retryable_failed == []
+    assert outbox.terminal_failed == []
+    assert len(publisher.calls) == 1
+    assert publisher.calls[0][0] == session_id
+    assert publisher.calls[0][1][0].status == "learned"
+
+
+def test_process_pending_feedback_publish_once_marks_terminal_on_unknown_result_type() -> (
+    None
+):
+    session_id = uuid4()
+    outbox_event_id = uuid4()
+    outbox = _FakeOutboxRepo(
+        events=[
+            PendingLearnerFeedbackPublishEvent(
+                outbox_event_id=outbox_event_id,
+                session_id=session_id,
+                attempt_count=0,
+                requested_at=None,
+            )
+        ]
+    )
+    eval_repo = _FakeEvalRepoBySession(
+        by_session={
+            session_id: [
+                _make_result(
+                    result_type=cast(ResultType, "unknown_type"),
+                    code="pi.attack_attempt_blocked",
+                )
+            ]
+        }
+    )
+    publisher = _FakePublisher()
+
+    result = asyncio.run(
+        process_pending_feedback_publish_once(
+            outbox_repo=outbox, eval_repo=eval_repo, publisher=publisher
+        )
+    )
+
+    assert result == LearnerFeedbackPublishResult(
+        claimed_count=1, succeeded_count=0, failed_count=1, retried_count=0
+    )
+    assert outbox.processed == []
+    assert outbox.retryable_failed == []
+    assert len(outbox.terminal_failed) == 1
+    assert outbox.terminal_failed[0][0] == outbox_event_id
+    assert publisher.calls == []
+
+
+def test_process_pending_feedback_publish_once_marks_retryable_on_publisher_error() -> (
+    None
+):
+    session_id = uuid4()
+    outbox_event_id = uuid4()
+    outbox = _FakeOutboxRepo(
+        events=[
+            PendingLearnerFeedbackPublishEvent(
+                outbox_event_id=outbox_event_id,
+                session_id=session_id,
+                attempt_count=0,
+                requested_at=None,
+            )
+        ]
+    )
+    eval_repo = _FakeEvalRepoBySession(
+        by_session={
+            session_id: [
+                _make_result(
+                    result_type="constraint_violation",
+                    code="pi.secret_exfiltration_success",
+                    feedback_payload={"matched_value": "FLAG{abc}"},
+                )
+            ]
+        }
+    )
+    publisher = _FakePublisher(raises=RuntimeError("publish failed"))
+
+    result = asyncio.run(
+        process_pending_feedback_publish_once(
+            outbox_repo=outbox, eval_repo=eval_repo, publisher=publisher
+        )
+    )
+
+    assert result == LearnerFeedbackPublishResult(
+        claimed_count=1, succeeded_count=0, failed_count=0, retried_count=1
+    )
+    assert outbox.processed == []
+    assert outbox.terminal_failed == []
+    assert len(outbox.retryable_failed) == 1
+    assert outbox.retryable_failed[0][0] == outbox_event_id
+    assert len(publisher.calls) == 1

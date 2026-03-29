@@ -1,4 +1,4 @@
-from apps.evaluator.src.application.ports import EvaluatorOutboxRepository
+from apps.evaluator.src.application.ports import EvaluatorOutboxPort
 from apps.evaluator.src.application.types import (
     PendingEvaluatorEvent,
     EvaluatorTaskInput,
@@ -26,7 +26,7 @@ def _as_int(value: object, field: str) -> int:
     raise ValueError(f"Invalid {field}: {value!r}")
 
 
-class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxRepository):
+class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
     def __init__(self, db: Session) -> None:
         self._db = db
 
@@ -116,3 +116,23 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxRepository):
         row.status = "failed"
         row.processed_at = failed_at or datetime.now(timezone.utc)
         row.last_error = error_message
+
+    def enqueue_learner_feedback_publish_request(
+        self,
+        *,
+        session_id: UUID,
+        requested_at: datetime | None = None,
+    ) -> None:
+        ts = requested_at or datetime.now(timezone.utc)
+        payload: dict[str, object] = {
+            "session_id": str(session_id),
+            "requested_at": ts.isoformat(),
+        }
+
+        event = OutboxEventModel(
+            event_type="session.publish.feedback.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
+
+        self._db.add(event)

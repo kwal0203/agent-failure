@@ -75,6 +75,13 @@ class Outbox(Protocol):
         requested_at: datetime | None = None,
     ) -> None: ...
 
+    def enqueue_learner_feedback_publish_request(
+        self,
+        *,
+        session_id: UUID,
+        requested_at: datetime | None = None,
+    ) -> None: ...
+
 
 class UnitOfWork(Protocol):
     @property

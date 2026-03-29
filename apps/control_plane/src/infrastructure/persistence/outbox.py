@@ -91,3 +91,22 @@ class SQLAlchemyOutbox(Outbox):
         )
 
         self._db.add(event)
+
+    def enqueue_learner_feedback_publish_request(
+        self,
+        *,
+        session_id: UUID,
+        requested_at: datetime | None = None,
+    ) -> None:
+        payload: dict[str, object] = {
+            "session_id": str(session_id),
+            "published_at": requested_at.isoformat() if requested_at else None,
+        }
+
+        event = OutboxEventModel(
+            event_type="session.publish.feedback.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
+
+        self._db.add(event)

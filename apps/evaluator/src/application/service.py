@@ -1,4 +1,4 @@
-from .ports import EvaluatorPort, EvaluatorLabLookupPort, EvaluatorOutboxRepository
+from .ports import EvaluatorPort, EvaluatorLabLookupPort, EvaluatorOutboxPort
 from .types import (
     EvaluatorTaskInput,
     EvaluatorFinding,
@@ -12,6 +12,8 @@ from .types import (
 from apps.evaluator.src.application.rules.registry import resolve_bundle
 
 from uuid import UUID
+from datetime import datetime, timezone
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -124,7 +126,7 @@ def evaluate_trace_window_once(
 def process_evaluate_pending_once(
     repo: EvaluatorPort,
     lab_lookup_repo: EvaluatorLabLookupPort,
-    outbox_repo: EvaluatorOutboxRepository,
+    outbox_repo: EvaluatorOutboxPort,
 ) -> EvaluatorOnceResult:
 
     claimed_count = 0
@@ -136,13 +138,18 @@ def process_evaluate_pending_once(
     for pending_task in pending_tasks:
         claimed_count += 1
         task = pending_task.task
+        ts = datetime.now(timezone.utc)
         try:
-            _ = evaluate_trace_window_once(
+            result = evaluate_trace_window_once(
                 task=task,
                 repo=repo,
                 lab_lookup_repo=lab_lookup_repo,
             )
 
+            if result.inserted_count > 0:
+                outbox_repo.enqueue_learner_feedback_publish_request(
+                    session_id=task.session_id, requested_at=ts
+                )
             outbox_repo.mark_processed(outbox_event_id=pending_task.outbox_event_id)
             succeeded_count += 1
         except Exception as exc:
