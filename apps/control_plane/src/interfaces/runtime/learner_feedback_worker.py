@@ -41,7 +41,7 @@ async def run_once(*, session_manager: WebSocketSessionManager) -> None:
 
 
 async def run_forever(
-    *, session_manager: WebSocketSessionManager, polling_interval_seconds: float = 1.0
+    *, session_manager: WebSocketSessionManager, polling_interval_seconds: float = 10.0
 ) -> None:
     while True:
         await run_once(session_manager=session_manager)

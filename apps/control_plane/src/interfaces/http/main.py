@@ -500,8 +500,10 @@ async def handle_user_prompt(
                     outbox_repo=outbox_repo,
                 )
 
+                db.commit()
                 return
 
+            full_response_text_parts: list[str] = []
             chunks_emitted = 0
             for chunk in result.chunks:
                 try:
@@ -516,6 +518,7 @@ async def handle_user_prompt(
                     )
                     first_chunk_emitted = True
                     chunks_emitted += 1
+                    full_response_text_parts.append(chunk.content)
                 except asyncio.TimeoutError:
                     logger.warning(
                         "turn stream send timeout",
@@ -561,6 +564,7 @@ async def handle_user_prompt(
                         outbox_repo=outbox_repo,
                     )
 
+                    db.commit()
                     return
                 except WebSocketDisconnect:
                     logger.info(
@@ -571,6 +575,7 @@ async def handle_user_prompt(
                             "chunks_emitted": chunks_emitted,
                         },
                     )
+                    db.commit()
                     return
                 except Exception:
                     logger.exception(
@@ -622,6 +627,7 @@ async def handle_user_prompt(
                         outbox_repo=outbox_repo,
                     )
 
+                    db.commit()
                     return
 
             trace_event_model_completed = build_trace_event(
@@ -637,6 +643,7 @@ async def handle_user_prompt(
                         (datetime.now(timezone.utc) - turn_start).total_seconds() * 1000
                     ),
                     "first_chunk_emitted": first_chunk_emitted,
+                    "content": "".join(full_response_text_parts),
                 },
                 actor_user_id=principal.user_id,
                 lab_id=metadata.lab_id,
@@ -647,7 +654,9 @@ async def handle_user_prompt(
                 repo=trace_repo,
                 outbox_repo=outbox_repo,
             )
+            db.commit()
         except Exception:
+            db.rollback()
             logger.exception(f"session prompt handling failed session_id={session_id}")
             await ws_manager.send_to(
                 websocket,
