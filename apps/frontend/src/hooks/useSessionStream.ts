@@ -43,11 +43,25 @@ type SystemErrorMessage = {
   };
 };
 
+type LearnerFeedbackMessage = {
+  type: "LEARNER_FEEDBACK";
+  session_id: string;
+  timestamp: string;
+  payload: {
+    feedback: Array<{
+      status: "learned" | "progress" | "no_progress" | "session_terminal";
+      reason_code: string;
+      evidence_snippet: string;
+    }>;
+  };
+};
+
 export type ServerMessage =
   | SessionStatusMessage
   | AgentTextChunkMessage
   | PolicyDenialMessage
-  | SystemErrorMessage;
+  | SystemErrorMessage
+  | LearnerFeedbackMessage;
 
 export function useSessionStream(sessionId?: string) {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");

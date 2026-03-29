@@ -28,6 +28,22 @@ type TranscriptEntry = {
   timestamp: string;
 };
 
+type LearnerFeedbackStatus =
+  | "learned"
+  | "progress"
+  | "no_progress"
+  | "session_terminal";
+
+type LearnerFeedbackItem = {
+  status: LearnerFeedbackStatus;
+  reason_code: string;
+  evidence_snippet: string;
+};
+
+type GetFeedbackResponse = {
+  feedback: LearnerFeedbackItem[];
+};
+
 const API_BASE = "http://localhost:8000";
 const AUTH_HEADER = "Bearer local:kane:learner";
 
@@ -45,11 +61,14 @@ export default function SessionPage() {
   const lastRevealAtMsRef = useRef(0);
   const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
   const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
   const [activeEntry, setActiveEntry] = useState("");
   const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
+  const [learnerFeedback, setLearnerFeedback] = useState<LearnerFeedbackItem[]>([]);
 
   const resetActiveStream = () => {
     displayedEntryRef.current = "";
@@ -154,6 +173,42 @@ export default function SessionPage() {
   }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionId) return;
+
+    const run = async () => {
+      setFeedbackLoading(true);
+      setFeedbackError(null);
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/sessions/${sessionId}/evaluator-feedback`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: AUTH_HEADER,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        if (!res.ok) {
+          setFeedbackError(`HTTP ${res.status}`);
+          return;
+        }
+
+        const data = (await res.json()) as GetFeedbackResponse;
+        setLearnerFeedback(data.feedback);
+      } catch (e) {
+        setFeedbackError(e instanceof Error ? e.message : "request failed");
+      } finally {
+        setFeedbackLoading(false);
+      }
+    };
+
+    void run();
+  }, [sessionId]);
+
+  useEffect(() => {
     if (processedMessageCount.current > messages.length) {
       processedMessageCount.current = 0;
     }
@@ -211,6 +266,11 @@ export default function SessionPage() {
           },
         ]);
         setIsAwaitingResponse(false);
+        continue;
+      }
+
+      if (message.type === "LEARNER_FEEDBACK") {
+        setLearnerFeedback(message.payload.feedback);
       }
     }
 
@@ -296,6 +356,37 @@ export default function SessionPage() {
             <p>Runtime substate: {metadata.runtime_substate ?? "-"}</p>
             <p>Interactive: {String(metadata.interactive)}</p>
           </>
+        )}
+      </section>
+
+      <section
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 16,
+          textAlign: "left",
+        }}
+      >
+        <h2>Learner feedback</h2>
+        {feedbackLoading && <p>Loading learner feedback...</p>}
+        {feedbackError && <p style={{ color: "red" }}>Error: {feedbackError}</p>}
+        {!feedbackLoading && !feedbackError && learnerFeedback.length === 0 && (
+          <p>No learner feedback yet.</p>
+        )}
+        {!feedbackLoading && !feedbackError && learnerFeedback.length > 0 && (
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {learnerFeedback.map((item, index) => (
+              <li key={`${item.reason_code}-${index}`} style={{ marginBottom: 8 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>{item.status}</strong> · {item.reason_code}
+                </p>
+                <p style={{ margin: "4px 0 0 0", opacity: 0.9 }}>
+                  {item.evidence_snippet}
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

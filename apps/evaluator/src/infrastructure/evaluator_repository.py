@@ -1,8 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.engine import CursorResult
-from typing import cast, Any
+from typing import cast
 
 from apps.evaluator.src.application.ports import EvaluatorPort
 from apps.evaluator.src.application.types import (
@@ -71,7 +70,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
-        rows = self._db.execute(
+        stmt = (
             pg_insert(EvaluatorResultModel)
             .values(
                 id=uuid4(),
@@ -90,10 +89,11 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                 evaluator_version=evaluator_version,
             )
             .on_conflict_do_nothing(index_elements=["idempotency_key"])
+            .returning(EvaluatorResultModel.id)
         )
 
-        result = cast(CursorResult[Any], rows)
-        return result.rowcount == 1
+        inserted_id = self._db.execute(stmt).scalar_one_or_none()
+        return inserted_id is not None
 
     def list_results_for_session(
         self, session_id: UUID

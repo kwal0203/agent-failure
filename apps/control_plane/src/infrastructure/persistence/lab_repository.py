@@ -56,10 +56,13 @@ class SQLAlchemyLabRepository(LabRepository):
     ) -> LabRuntimeBinding:
         _ = lab_version_id  # until version table exists
 
+        # TODO: Hack to map the container I have in GHCR get used during manual testing
         bindings: dict[UUID, LabRuntimeBinding] = {
             UUID("11111111-1111-1111-1111-111111111111"): LabRuntimeBinding(
-                lab_slug="prompt-injection",
-                lab_version="v1",
+                # lab_slug="prompt-injection",
+                # lab_version="v1",
+                lab_slug="baseline",
+                lab_version="0.1.0",
             ),
             UUID("22222222-2222-2222-2222-222222222222"): LabRuntimeBinding(
                 lab_slug="rag-poisoning",
