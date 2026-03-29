@@ -4,81 +4,63 @@ from apps.evaluator.src.infrastructure.evaluator_repository import (
 from apps.evaluator.src.infrastructure.lab_lookup_repository import (
     SQLAlchemyEvaluatorLabLookupRepository,
 )
-from apps.evaluator.src.application.service import evaluate_trace_window_once
-from apps.evaluator.src.application.types import EvaluatorTaskInput, EvaluatorRunResult
+from apps.evaluator.src.application.service import process_evaluate_pending_once
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
-from collections.abc import Sequence
+from apps.evaluator.src.infrastructure.outbox_evaluator_repository import (
+    SQLAlchemyOutboxEvaluatorRepository,
+)
 
+
+import time
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def run_once(task: EvaluatorTaskInput) -> EvaluatorRunResult:
-    logger.info(
-        "evaluator.worker.run_once.start session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s start_event_index=%s end_event_index=%s",
-        task.session_id,
-        task.lab_id,
-        task.lab_version_id,
-        task.evaluator_version,
-        task.start_event_index,
-        task.end_event_index,
-    )
-
+def run_once() -> None:
     with SessionFactory() as db:
+        evaluator_repo = SQLAlchemyEvaluatorRepository(db=db)
+        lab_lookup_repo = SQLAlchemyEvaluatorLabLookupRepository(db=db)
+        outbox_repo = SQLAlchemyOutboxEvaluatorRepository(db=db)
+        # NOTE: Need a heartbeat repo for the evaluator worker maybe?
+        # heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository() # TODO: Heartbeat worker not using same db session as the others
         try:
-            evaluator_repo = SQLAlchemyEvaluatorRepository(db=db)
-            lab_lookup_repo = SQLAlchemyEvaluatorLabLookupRepository(db=db)
-            result = evaluate_trace_window_once(
-                task=task, repo=evaluator_repo, lab_lookup_repo=lab_lookup_repo
+            result = process_evaluate_pending_once(
+                repo=evaluator_repo,
+                lab_lookup_repo=lab_lookup_repo,
+                outbox_repo=outbox_repo,
             )
             db.commit()
+            # heartbeat_repo.record_success(
+            #     worker_name="evaluator_worker", at=datetime.now(timezone.utc)
+            # )
             logger.info(
-                "evaluator.worker.run_once.done session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s start_event_index=%s end_event_index=%s evaluated_event_count=%s findings_count=%s no_op=%s",
-                task.session_id,
-                task.lab_id,
-                task.lab_version_id,
-                task.evaluator_version,
-                task.start_event_index,
-                task.end_event_index,
-                result.evaluated_event_count,
-                result.findings_count,
-                result.no_op,
+                "evaluator worker tick claimed=%s succeeded=%s failed=%s retried=%s",
+                result.claimed_count,
+                result.succeeded_count,
+                result.failed_count,
+                result.retried_count,
             )
-            return result
         except Exception:
             db.rollback()
-            logger.exception(
-                "evaluator.worker.run_once.failed session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s start_event_index=%s end_event_index=%s",
-                task.session_id,
-                task.lab_id,
-                task.lab_version_id,
-                task.evaluator_version,
-                task.start_event_index,
-                task.end_event_index,
-            )
+            # heartbeat_repo.record_error(
+            #     worker_name="provisioning_worker",
+            #     at=datetime.now(timezone.utc),
+            #     error_message=str(exc),
+            # )
+            logger.exception("evaluator worker tick failed")
             raise
 
 
-# def run_forever(task: EvaluatorTaskInput, poll_interval_seconds: float = 10.0) -> None:
-#     while True:
-#         run_once(task=task)
-#         time.sleep(poll_interval_seconds)
-
-
-def run_batch(tasks: Sequence[EvaluatorTaskInput]) -> list[EvaluatorRunResult]:
-    """Run a caller-provided batch of evaluation tasks.
-
-    TODO(P1-E7-T3): Replace this temporary task-driven path with queue/outbox
-    claim-and-process semantics so run_once() can execute one claimed worker tick.
-    """
-    results: list[EvaluatorRunResult] = []
-    for task in tasks:
-        results.append(run_once(task=task))
-
-    return results
+def run_forever(poll_interval_seconds: float = 1.0) -> None:
+    while True:
+        try:
+            run_once()
+        except Exception:
+            pass
+        time.sleep(poll_interval_seconds)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("evaluator worker module loaded; queue mode not wired yet")
+    run_forever(poll_interval_seconds=10.0)

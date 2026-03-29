@@ -6,9 +6,12 @@ from typing import cast, Any
 
 from apps.evaluator.src.application.ports import EvaluatorPort
 from apps.evaluator.src.application.types import (
+    EvaluatorPersistedResult,
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
     EvaluatorFinding,
+    ResultType,
+    FeedbackLevel,
 )
 from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
@@ -91,3 +94,42 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
 
         result = cast(CursorResult[Any], rows)
         return result.rowcount == 1
+
+    def list_results_for_session(
+        self, session_id: UUID
+    ) -> list[EvaluatorPersistedResult]:
+        rows = (
+            self._db.execute(
+                select(EvaluatorResultModel)
+                .where(EvaluatorResultModel.session_id == session_id)
+                .order_by(
+                    EvaluatorResultModel.created_at, EvaluatorResultModel.id.asc()
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        result: list[EvaluatorPersistedResult] = []
+        for row in rows:
+            result.append(
+                EvaluatorPersistedResult(
+                    id=row.id,
+                    idempotency_key=row.idempotency_key,
+                    result_type=cast(ResultType, row.result_type),
+                    code=row.code,
+                    trigger_event_index=row.trigger_event_index,
+                    trigger_start_event_index=row.trigger_start_event_index,
+                    trigger_end_event_index=row.trigger_end_event_index,
+                    feedback_level=cast(FeedbackLevel, row.feedback_level),
+                    reason_code=row.reason_code,
+                    feedback_payload=row.feedback_payload,
+                    created_at=row.created_at,
+                    session_id=row.session_id,
+                    lab_id=row.lab_id,
+                    lab_version_id=row.lab_version_id,
+                    evaluator_version=row.evaluator_version,
+                )
+            )
+
+        return result

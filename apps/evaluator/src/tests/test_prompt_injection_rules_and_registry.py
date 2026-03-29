@@ -15,6 +15,7 @@ from apps.evaluator.src.application.service import evaluate_trace_window_once
 from apps.evaluator.src.application.types import (
     EvaluatorFinding,
     EvaluatorLabRuntimeBinding,
+    EvaluatorPersistedResult,
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
 )
@@ -46,6 +47,12 @@ class _FakeRepo:
             finding,
         )
         return True
+
+    def list_results_for_session(
+        self, session_id: UUID
+    ) -> list[EvaluatorPersistedResult]:
+        _ = session_id
+        return []
 
 
 class _StubLabLookupRepo:

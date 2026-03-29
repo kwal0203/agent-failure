@@ -1,128 +1,123 @@
-from uuid import uuid4
+from pytest import MonkeyPatch
 from typing import Literal
 
-from pytest import MonkeyPatch
-
-from apps.evaluator.src.application.types import (
-    EvaluatorFinding,
-    EvaluatorRunResult,
-    EvaluatorTaskInput,
-)
+from apps.evaluator.src.application.types import EvaluatorOnceResult
 from apps.evaluator.src.interfaces.runtime import evaluator_worker
-
-
-def _make_task() -> EvaluatorTaskInput:
-    return EvaluatorTaskInput(
-        session_id=uuid4(),
-        lab_id=uuid4(),
-        lab_version_id=uuid4(),
-        evaluator_version=1,
-        start_event_index=0,
-        end_event_index=2,
-    )
-
-
-def _make_result(task: EvaluatorTaskInput, *, no_op: bool) -> EvaluatorRunResult:
-    findings: tuple[EvaluatorFinding, ...] = ()
-    findings_count = 0
-    if not no_op:
-        findings = (
-            EvaluatorFinding(
-                result_type="constraint_violation",
-                code="runtime.provision_failed",
-                trigger_event_index=1,
-                trigger_start_event_index=None,
-                trigger_end_event_index=None,
-                feedback_level="flag",
-                reason_code="RUNTIME_PROVISION_FAILED",
-                feedback_payload={"event_type": "RUNTIME_PROVISION_FAILED"},
-            ),
-        )
-        findings_count = 1
-
-    return EvaluatorRunResult(
-        session_id=task.session_id,
-        lab_id=task.lab_id,
-        lab_version_id=task.lab_version_id,
-        evaluator_version=task.evaluator_version,
-        start_event_index=task.start_event_index,
-        end_event_index=task.end_event_index,
-        evaluated_event_count=3,
-        findings_count=findings_count,
-        no_op=no_op,
-        findings=findings,
-    )
 
 
 class _FakeSessionFactory:
     class _FakeDBSession:
+        def __init__(self) -> None:
+            self.committed = False
+            self.rolled_back = False
+
         def commit(self) -> None:
-            return None
+            self.committed = True
 
         def rollback(self) -> None:
-            return None
+            self.rolled_back = True
+
+    last_db: "_FakeSessionFactory._FakeDBSession | None" = None
 
     def __enter__(self) -> object:
-        return self._FakeDBSession()
+        db = self._FakeDBSession()
+        _FakeSessionFactory.last_db = db
+        return db
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> Literal[False]:
         _ = (exc_type, exc, tb)
         return False
 
 
-def test_run_once_invokes_service_and_returns_result(monkeypatch: MonkeyPatch) -> None:
-    task = _make_task()
-    expected = _make_result(task, no_op=False)
+def test_run_once_invokes_service_and_commits(monkeypatch: MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
     class _FakeRepo:
         def __init__(self, db: object) -> None:
-            calls["db"] = db
+            calls["repo_db"] = db
 
-    def _fake_eval_once(
-        *, task: EvaluatorTaskInput, repo: object, lab_lookup_repo: object
-    ) -> EvaluatorRunResult:
-        calls["task"] = task
+    class _FakeLookupRepo:
+        def __init__(self, db: object) -> None:
+            calls["lookup_db"] = db
+
+    class _FakeOutboxRepo:
+        def __init__(self, db: object) -> None:
+            calls["outbox_db"] = db
+
+    def _fake_process_once(
+        *, repo: object, lab_lookup_repo: object, outbox_repo: object
+    ) -> EvaluatorOnceResult:
         calls["repo"] = repo
         calls["lab_lookup_repo"] = lab_lookup_repo
-        return expected
+        calls["outbox_repo"] = outbox_repo
+        return EvaluatorOnceResult(
+            claimed_count=1,
+            succeeded_count=1,
+            failed_count=0,
+            retried_count=0,
+        )
 
     monkeypatch.setattr(evaluator_worker, "SessionFactory", _FakeSessionFactory)
     monkeypatch.setattr(evaluator_worker, "SQLAlchemyEvaluatorRepository", _FakeRepo)
-    monkeypatch.setattr(evaluator_worker, "evaluate_trace_window_once", _fake_eval_once)
-
-    result = evaluator_worker.run_once(task=task)
-
-    assert result == expected
-    assert calls["task"] == task
-    assert calls["repo"].__class__ is _FakeRepo
-    assert (
-        calls["lab_lookup_repo"].__class__.__name__
-        == "SQLAlchemyEvaluatorLabLookupRepository"
+    monkeypatch.setattr(
+        evaluator_worker, "SQLAlchemyEvaluatorLabLookupRepository", _FakeLookupRepo
     )
-    assert "db" in calls
+    monkeypatch.setattr(
+        evaluator_worker, "SQLAlchemyOutboxEvaluatorRepository", _FakeOutboxRepo
+    )
+    monkeypatch.setattr(
+        evaluator_worker, "process_evaluate_pending_once", _fake_process_once
+    )
+
+    evaluator_worker.run_once()
+
+    assert calls["repo"].__class__ is _FakeRepo
+    assert calls["lab_lookup_repo"].__class__ is _FakeLookupRepo
+    assert calls["outbox_repo"].__class__ is _FakeOutboxRepo
+    assert _FakeSessionFactory.last_db is not None
+    assert _FakeSessionFactory.last_db.committed is True
+    assert _FakeSessionFactory.last_db.rolled_back is False
 
 
-def test_run_once_propagates_no_op_result(monkeypatch: MonkeyPatch) -> None:
-    task = _make_task()
-    expected = _make_result(task, no_op=True)
-
+def test_run_once_rolls_back_and_reraises_on_service_error(
+    monkeypatch: MonkeyPatch,
+) -> None:
     class _FakeRepo:
         def __init__(self, db: object) -> None:
             _ = db
 
-    def _fake_eval_once(
-        *, task: EvaluatorTaskInput, repo: object, lab_lookup_repo: object
-    ) -> EvaluatorRunResult:
-        _ = (task, repo, lab_lookup_repo)
-        return expected
+    class _FakeLookupRepo:
+        def __init__(self, db: object) -> None:
+            _ = db
+
+    class _FakeOutboxRepo:
+        def __init__(self, db: object) -> None:
+            _ = db
+
+    def _fake_process_once(
+        *, repo: object, lab_lookup_repo: object, outbox_repo: object
+    ) -> EvaluatorOnceResult:
+        _ = (repo, lab_lookup_repo, outbox_repo)
+        raise RuntimeError("boom")
 
     monkeypatch.setattr(evaluator_worker, "SessionFactory", _FakeSessionFactory)
     monkeypatch.setattr(evaluator_worker, "SQLAlchemyEvaluatorRepository", _FakeRepo)
-    monkeypatch.setattr(evaluator_worker, "evaluate_trace_window_once", _fake_eval_once)
+    monkeypatch.setattr(
+        evaluator_worker, "SQLAlchemyEvaluatorLabLookupRepository", _FakeLookupRepo
+    )
+    monkeypatch.setattr(
+        evaluator_worker, "SQLAlchemyOutboxEvaluatorRepository", _FakeOutboxRepo
+    )
+    monkeypatch.setattr(
+        evaluator_worker, "process_evaluate_pending_once", _fake_process_once
+    )
 
-    result = evaluator_worker.run_once(task=task)
+    try:
+        evaluator_worker.run_once()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert str(exc) == "boom"
 
-    assert result.no_op is True
-    assert result.findings_count == 0
-    assert result.findings == ()
+    assert _FakeSessionFactory.last_db is not None
+    assert _FakeSessionFactory.last_db.committed is False
+    assert _FakeSessionFactory.last_db.rolled_back is True

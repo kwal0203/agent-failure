@@ -32,6 +32,15 @@ from apps.control_plane.src.application.orchestrator.types import (
 )
 from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.infrastructure.persistence.models import (
+    EvaluatorResultModel,
+)
+from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
+from apps.control_plane.src.application.evaluator_feedback.types import (
+    EvaluatorPersistedResult,
+    ResultType,
+    FeedbackLevel,
+)
 
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
@@ -300,3 +309,47 @@ class SQLAlchemyTraceEventRepository(TraceEventPort):
             return 0
 
         return int(max_index) + 1
+
+
+class SQLAlchemyEvaluatorRepository(EvaluatorPort):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def list_results_for_session(
+        self, session_id: UUID
+    ) -> list[EvaluatorPersistedResult]:
+        rows = (
+            self._db.execute(
+                select(EvaluatorResultModel)
+                .where(EvaluatorResultModel.session_id == session_id)
+                .order_by(
+                    EvaluatorResultModel.created_at, EvaluatorResultModel.id.asc()
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        result: list[EvaluatorPersistedResult] = []
+        for row in rows:
+            result.append(
+                EvaluatorPersistedResult(
+                    id=row.id,
+                    idempotency_key=row.idempotency_key,
+                    result_type=cast(ResultType, row.result_type),
+                    code=row.code,
+                    trigger_event_index=row.trigger_event_index,
+                    trigger_start_event_index=row.trigger_start_event_index,
+                    trigger_end_event_index=row.trigger_end_event_index,
+                    feedback_level=cast(FeedbackLevel, row.feedback_level),
+                    reason_code=row.reason_code,
+                    feedback_payload=row.feedback_payload,
+                    created_at=row.created_at,
+                    session_id=row.session_id,
+                    lab_id=row.lab_id,
+                    lab_version_id=row.lab_version_id,
+                    evaluator_version=row.evaluator_version,
+                )
+            )
+
+        return result

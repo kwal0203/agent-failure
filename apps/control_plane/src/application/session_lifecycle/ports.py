@@ -63,6 +63,18 @@ class Outbox(Protocol):
         requested_at: datetime | None,
     ) -> None: ...
 
+    def enqueue_for_evaluator(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        evaluator_version: int,
+        start_event_index: int,
+        end_event_index: int,
+        requested_at: datetime | None = None,
+    ) -> None: ...
+
 
 class UnitOfWork(Protocol):
     @property
