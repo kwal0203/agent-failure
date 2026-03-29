@@ -16,16 +16,6 @@ This file tracks tickets deferred/skipped during the P0 backlog implementation s
 
 ## Tickets
 
-### E2-T1: Build authenticated app shell
-
-- Create the learner-facing shell with auth-aware routing and role bootstrap.
-- Link to: API and WebSocket Contract Spec
-
-### E2-T2: Build lab catalog page
-
-- Show launchable labs with name, summary, and capability metadata.
-- Link to: API and WebSocket Contract Spec
-
 ### E2-T7: Build history view
 
 - Render persisted learner-visible message history and feedback.
@@ -44,24 +34,9 @@ This file tracks tickets deferred/skipped during the P0 backlog implementation s
 
 ## Tickets
 
-### E6-T1: Implement canonical trace-event envelope
-
-- Add shared event model with required fields and versioning.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
 ### E6-T2: Assign session-scoped event ordering
 
 - Guarantee monotonically increasing event\_index within a session.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T3: Persist lifecycle and learner events
-
-- Store session and learner-originated events durably.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E6-T4: Persist runtime and tool events
-
-- Store harness and runtime events durably with source attribution.
 - Link to: Trace Event Schema and Evaluator Contract Spec
 
 ### E6-T5: Implement learner-visible event filtering
@@ -86,31 +61,6 @@ This file tracks tickets deferred/skipped during the P0 backlog implementation s
 **Goal:** Turn committed trace events into constraint-based feedback and durable evaluation outcomes.
 
 ## Tickets
-
-### E7-T1: Define evaluator worker entrypoint
-
-- Build worker that consumes committed trace events for one session/lab version.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T2: Implement evaluator idempotency keys
-
-- Prevent duplicate outputs for repeated evaluation over the same triggering context.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T3: Implement initial constraint bundle for V1 labs
-
-- Encode a narrow set of success and violation rules for the first supported labs.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T4: Persist evaluation outputs
-
-- Store result\_type, signal/constraint ID, triggering event reference, feedback level, and payload.
-- Link to: Trace Event Schema and Evaluator Contract Spec
-
-### E7-T5: Publish learner-visible feedback events
-
-- Send evaluator outputs into session history and live streaming.
-- Link to: API and WebSocket Contract Spec
 
 ### E7-T6: Support terminal-outcome handoff
 

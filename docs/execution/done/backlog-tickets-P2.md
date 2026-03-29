@@ -1,5 +1,11 @@
 # P2 Backlog-Ready Tickets (Thin-Slice Demo)
 
+## Status
+
+All tickets in this document were completed and moved to
+`docs/execution/v1-epics-completed.md` on 2026-03-29.
+This file is retained as historical backlog planning context.
+
 This document defines a focused thin-slice backlog for a real learner-facing demo.
 It gathers the critical tickets from P1 and adds missing implementation tickets required
 for end-to-end demo viability.

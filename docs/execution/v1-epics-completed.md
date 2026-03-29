@@ -38,3 +38,28 @@
 
 - P0-E5-T1: Build Agent Harness session loop COMPLETE (baseline)
 - P0-E5-T2: Integrate model gateway provider COMPLETE (baseline)
+
+### P2 Demo API and Runtime Slice
+
+- P2-EA-T1: Implement `GET /api/v1/labs` catalog endpoint COMPLETE
+- P2-EA-T2: Wire frontend lab catalog to backend endpoint COMPLETE
+- P2-EA-T3: Deliver runnable prompt-injection runtime slice COMPLETE
+- P2-EA-T4: Session launch/stream health hardening for demo reliability COMPLETE
+
+### Trace Persistence for Evaluator Inputs
+
+- P1-E6-T1: Implement canonical trace-event envelope COMPLETE (MVP baseline; post-MVP hardening deferred)
+- P1-E6-T3: Persist lifecycle and learner events COMPLETE
+- P1-E6-T4: Persist runtime and tool events COMPLETE
+
+### Evaluator Baseline and Feedback
+
+- P1-E7-T1: Define evaluator worker entrypoint COMPLETE
+- P1-E7-T2: Implement evaluator idempotency keys COMPLETE
+- P1-E7-T3: Implement initial constraint bundle for V1 labs COMPLETE
+- P1-E7-T4: Persist evaluation outputs COMPLETE
+- P1-E7-T5: Publish learner-visible feedback events COMPLETE
+
+### Minimal Learner Feedback Surface
+
+- P2-ED-T1: Add minimal feedback panel to session UI COMPLETE
