@@ -8,6 +8,10 @@ from .types import TraceEvent
 class TraceEventPort(Protocol):
     def append_trace_event(self, trace: TraceEvent) -> None: ...
 
+    def list_trace_events_for_session(
+        self, session_id: UUID
+    ) -> tuple[TraceEvent, ...]: ...
+
     def get_next_event_index(self, session_id: UUID) -> int: ...
 
 

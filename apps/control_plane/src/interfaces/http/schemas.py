@@ -1,12 +1,13 @@
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Any
 
 
 EvaluatorFeedbackStatusType = Literal[
     "learned", "progress", "no_progress", "session_terminal"
 ]
+TraceFamilyType = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
 
 class ApiError(BaseModel):
@@ -83,3 +84,18 @@ class EvaluatorFeedbackResponse(BaseModel):
 
 class GetFeedbackResponse(BaseModel):
     feedback: tuple[EvaluatorFeedbackResponse, ...]
+
+
+class SessionTraceEvent(BaseModel):
+    id: UUID
+    event_index: int
+    family: TraceFamilyType
+    event_type: str
+    source: str
+    occurred_at: datetime
+    payload: dict[str, Any]
+
+
+class GetSessionTraceResponse(BaseModel):
+    events: tuple[SessionTraceEvent, ...]
+    next_cursor: str | None = None

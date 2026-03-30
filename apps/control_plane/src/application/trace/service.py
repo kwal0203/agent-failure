@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import Iterable
 
 from .ports import TraceEventPort, TraceOutboxPort
 from .types import TraceEvent, TraceFamily
@@ -47,6 +48,13 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     # ("model", "MODEL_TURN_STARTED"): set(),
     # ("model", "MODEL_CHUNK_EMITTED"): set(),
     # ("model", "MODEL_TURN_COMPLETED"): set(),
+}
+
+
+LEARNER_VISIBLE_ALLOWLIST: set[tuple[TraceFamily, str]] = {
+    ("learner", "USER_PROMPT_SUBMITTED"),
+    ("model", "MODEL_TURN_COMPLETED"),
+    ("model", "MODEL_TURN_FAILED"),
 }
 
 
@@ -151,3 +159,18 @@ def append_trace_event(
         start_event_index=trace.event_index,
         end_event_index=trace.event_index,
     )
+
+
+# def is_learner_visible(event: TraceEvent) -> bool:
+#     return (event.family, event.event_type) in LEARNER_VISIBLE_ALLOWLIST
+
+
+def project_learner_visible_events(
+    events: Iterable[TraceEvent],
+) -> tuple[TraceEvent, ...]:
+    projected: list[TraceEvent] = []
+    for event in events:
+        if (event.family, event.event_type) in LEARNER_VISIBLE_ALLOWLIST:
+            projected.append(event)
+
+    return tuple(projected)

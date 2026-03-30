@@ -18,6 +18,8 @@ from .schemas import (
     LabCapabilitiesResponse,
     EvaluatorFeedbackResponse,
     GetFeedbackResponse,
+    SessionTraceEvent,
+    GetSessionTraceResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -67,6 +69,9 @@ from apps.control_plane.src.application.lab_catalog.service import (
 )
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
+)
+from apps.control_plane.src.application.trace.service import (
+    project_learner_visible_events,
 )
 from .dependencies import (
     get_admission_policy,
@@ -879,4 +884,81 @@ def evaluator_feedback(
         )
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.get(
+    "/api/v1/sessions/{session_id}/trace",
+    response_model=GetSessionTraceResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def get_session_trace(
+    session_id: UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> GetSessionTraceResponse | JSONResponse:
+    repo = SQLAlchemyTraceEventRepository(db=db)
+    metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
+    application_principal = PrincipalContext(
+        user_id=principal.user_id, role=principal.role
+    )
+
+    try:
+        session_metadata = get_session_metadata(
+            session_id=session_id,
+            principal_user_id=application_principal.user_id,
+            principal_user_role=application_principal.role,
+            repo=metadata_repo,
+        )
+        if session_metadata is None:
+            return build_api_error_response(
+                code="SESSION_NOT_FOUND",
+                message="Session not found",
+                retryable=False,
+                status_code=404,
+                details={"session_id": str(session_id)},
+            )
+
+        events = repo.list_trace_events_for_session(session_id=session_id)
+        learner_events = project_learner_visible_events(events=events)
+
+        response: list[SessionTraceEvent] = []
+        for event in learner_events:
+            response.append(
+                SessionTraceEvent(
+                    id=event.event_id,
+                    event_index=event.event_index,
+                    family=event.family,
+                    event_type=event.event_type,
+                    source=event.source,
+                    occurred_at=event.occurred_at,
+                    payload=event.payload,
+                )
+            )
+
+        return GetSessionTraceResponse(events=tuple(response))
+
+    except ForbiddenErrorSessionQuery as exc:
+        return build_api_error_response(
+            code="FORBIDDEN",
+            message=exc.message,
+            retryable=False,
+            status_code=403,
+            details=exc.details,
+        )
+    except Exception:
+        logger.exception(
+            "get session trace endpoint failed for session=%s", str(session_id)
+        )
+        return build_api_error_response(
+            code="INTERNAL_ERROR",
+            message="unexpected server error",
+            retryable=False,
+            status_code=500,
+            details=None,
         )

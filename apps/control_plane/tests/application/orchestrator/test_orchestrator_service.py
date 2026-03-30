@@ -34,6 +34,7 @@ from apps.control_plane.src.application.common.types import (
 from apps.control_plane.src.application.session_lifecycle.ports import (
     UnitOfWork as SessionLifecycleUnitOfWork,
 )
+from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
 
 
@@ -138,11 +139,15 @@ class _FakeProvisioner:
 
 class _FakeTraceRepo:
     def __init__(self) -> None:
-        self.events: list[Any] = []
+        self.events: list[TraceEvent] = []
         self._next_index = 0
 
-    def append_trace_event(self, trace: Any) -> None:
+    def append_trace_event(self, trace: TraceEvent) -> None:
         self.events.append(trace)
+
+    def list_trace_events_for_session(self, session_id: UUID) -> tuple[TraceEvent, ...]:
+        _ = session_id
+        return tuple(self.events)
 
     def get_next_event_index(self, session_id: UUID) -> int:
         _ = session_id
