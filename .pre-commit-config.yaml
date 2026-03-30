@@ -31,7 +31,7 @@ repos:
     hooks:
       - id: local-biome-check
         name: biome check
-        entry: bash -lc 'cd apps/frontend && npx biome check --write --files-ignore-unknown=true .'
+        entry: bash -lc 'cd apps/frontend && npm run biome:check'
         language: system
         pass_filenames: false
         files: ^apps/frontend/

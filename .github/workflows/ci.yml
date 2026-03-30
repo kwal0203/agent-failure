@@ -58,7 +58,7 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Run biome
-        run: npx biome check --files-ignore-unknown=true .
+        run: npm run biome:check
         working-directory: apps/frontend
 
       - name: Run webcheck
