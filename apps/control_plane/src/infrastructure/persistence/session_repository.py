@@ -31,7 +31,7 @@ from apps.control_plane.src.application.orchestrator.types import (
     ReconciliationCandidate,
 )
 from apps.control_plane.src.application.trace.ports import TraceEventPort
-from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
 from apps.control_plane.src.infrastructure.persistence.models import (
     EvaluatorResultModel,
 )
@@ -297,6 +297,42 @@ class SQLAlchemyTraceEventRepository(TraceEventPort):
 
         self._db.add(event)
         self._db.flush()
+
+    def list_trace_events_for_session(self, session_id: UUID) -> tuple[TraceEvent, ...]:
+        rows = (
+            self._db.execute(
+                select(TraceEventModel)
+                .where(TraceEventModel.session_id == session_id)
+                .order_by(
+                    TraceEventModel.event_index.asc(), TraceEventModel.event_id.asc()
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        result: list[TraceEvent] = []
+        for row in rows:
+            result.append(
+                TraceEvent(
+                    event_id=row.event_id,
+                    session_id=row.session_id,
+                    family=cast(TraceFamily, row.family),
+                    event_type=row.event_type,
+                    occurred_at=row.occurred_at,
+                    source=row.source,
+                    event_index=row.event_index,
+                    payload=row.payload,
+                    trace_version=row.trace_version,
+                    correlation_id=row.correlation_id,
+                    request_id=row.request_id,
+                    actor_user_id=row.actor_user_id,
+                    lab_id=row.lab_id,
+                    lab_version_id=row.lab_version_id,
+                )
+            )
+
+        return tuple(result)
 
     def get_next_event_index(self, session_id: UUID) -> int:
         max_index = self._db.execute(

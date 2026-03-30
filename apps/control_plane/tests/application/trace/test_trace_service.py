@@ -14,7 +14,10 @@ from apps.control_plane.src.application.trace.ports import (
     TraceEventPort,
     TraceOutboxPort,
 )
-from apps.control_plane.src.application.trace.service import append_trace_event
+from apps.control_plane.src.application.trace.service import (
+    append_trace_event,
+    project_learner_visible_events,
+)
 from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
 
 
@@ -24,6 +27,10 @@ class _FakeTraceRepo(TraceEventPort):
 
     def append_trace_event(self, trace: TraceEvent) -> None:
         self.appended.append(trace)
+
+    def list_trace_events_for_session(self, session_id: UUID) -> tuple[TraceEvent, ...]:
+        _ = session_id
+        return tuple(self.appended)
 
     def get_next_event_index(self, session_id: UUID) -> int:
         return 0
@@ -221,3 +228,78 @@ def test_append_trace_event_rejects_model_failed_missing_required_payload_fields
 
     with pytest.raises(MissingTraceContextError):
         append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
+
+
+def test_project_learner_visible_events_filters_allowlist_only() -> None:
+    session_id = uuid4()
+    events = (
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="lifecycle",
+            event_type="SESSION_CREATED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=0,
+            payload={},
+        ),
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="learner",
+            event_type="USER_PROMPT_SUBMITTED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=1,
+            payload={"content": "hello"},
+            actor_user_id=uuid4(),
+        ),
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="runtime",
+            event_type="RUNTIME_PROVISION_ACCEPTED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=2,
+            payload={"runtime_id": "abc"},
+        ),
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="model",
+            event_type="MODEL_TURN_COMPLETED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=3,
+            payload={"content": "done"},
+        ),
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="tool",
+            event_type="TOOL_CALL_FAILED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=4,
+            payload={"tool_name": "cat", "error_code": "DENIED"},
+        ),
+        TraceEvent(
+            event_id=uuid4(),
+            session_id=session_id,
+            family="model",
+            event_type="MODEL_TURN_FAILED",
+            occurred_at=datetime.now(timezone.utc),
+            source="test",
+            event_index=5,
+            payload={"provider": "openrouter", "error_code": "TIMEOUT"},
+        ),
+    )
+
+    projected = project_learner_visible_events(events=events)
+
+    assert [(e.family, e.event_type) for e in projected] == [
+        ("learner", "USER_PROMPT_SUBMITTED"),
+        ("model", "MODEL_TURN_COMPLETED"),
+        ("model", "MODEL_TURN_FAILED"),
+    ]
