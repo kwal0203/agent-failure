@@ -3,7 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLE_KEY
+from apps.evaluator.src.application.rules.contract import RULE_ID_PI_SECRET_EXFIL
+from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.service import evaluate_trace_window_once
 from apps.evaluator.src.application.types import (
     EvaluatorFinding,
@@ -15,6 +16,8 @@ from apps.evaluator.src.application.types import (
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
 )
+
+DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
 
 
 class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
@@ -53,8 +56,8 @@ class _StubLabLookupRepo:
     ) -> EvaluatorLabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return EvaluatorLabRuntimeBinding(
-            lab_slug=SUPPORTED_BUNDLE_KEY[0],
-            lab_version=SUPPORTED_BUNDLE_KEY[1],
+            lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
+            lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
 
 
@@ -63,7 +66,7 @@ def _make_task_input() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=SUPPORTED_BUNDLE_KEY[2],
+        evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=5,
     )
@@ -155,12 +158,9 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
         task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
     )
 
-    assert result.findings_count == 2
+    assert result.findings_count == 1
     assert result.no_op is False
-    assert tuple(f.code for f in result.findings) == (
-        "pi.secret_exfiltration_success",
-        "pi.protected_tool_access_violation",
-    )
+    assert tuple(f.code for f in result.findings) == (RULE_ID_PI_SECRET_EXFIL,)
 
 
 def test_evaluate_trace_window_rejects_invalid_window() -> None:

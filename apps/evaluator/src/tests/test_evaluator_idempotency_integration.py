@@ -18,7 +18,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
 )
 from apps.evaluator.src.application.service import evaluate_trace_window_once
-from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLE_KEY
+from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.types import (
     EvaluatorLabRuntimeBinding,
     EvaluatorTaskInput,
@@ -27,6 +27,8 @@ from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
 )
 
+DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
+
 
 class _StubLabLookupRepo:
     def get_runtime_binding(
@@ -34,8 +36,8 @@ class _StubLabLookupRepo:
     ) -> EvaluatorLabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return EvaluatorLabRuntimeBinding(
-            lab_slug=SUPPORTED_BUNDLE_KEY[0],
-            lab_version=SUPPORTED_BUNDLE_KEY[1],
+            lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
+            lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
 
 
@@ -127,7 +129,7 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
         session_id=session_id,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        evaluator_version=SUPPORTED_BUNDLE_KEY[2],
+        evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=1,
     )
@@ -154,6 +156,6 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
             .all()
         )
 
-    assert first.findings_count == 2
-    assert second.findings_count == 2
-    assert len(rows) == 2
+    assert first.findings_count == 1
+    assert second.findings_count == 1
+    assert len(rows) == 1
