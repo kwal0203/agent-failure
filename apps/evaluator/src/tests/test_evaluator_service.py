@@ -6,7 +6,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from apps.evaluator.src.application import service
-from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLE_KEY
+from apps.evaluator.src.application.rules.contract import RULE_ID_PI_SECRET_EXFIL
+from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.service import (
     process_evaluate_pending_once,
     get_learner_feedback,
@@ -21,6 +22,8 @@ from apps.evaluator.src.application.types import (
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
 )
+
+DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
 
 
 @dataclass
@@ -100,8 +103,8 @@ class _StubLabLookupRepo:
     ) -> EvaluatorLabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return EvaluatorLabRuntimeBinding(
-            lab_slug=SUPPORTED_BUNDLE_KEY[0],
-            lab_version=SUPPORTED_BUNDLE_KEY[1],
+            lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
+            lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
 
 
@@ -110,7 +113,7 @@ def _make_task() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=SUPPORTED_BUNDLE_KEY[2],
+        evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=3,
     )
@@ -368,7 +371,7 @@ def test_get_learner_feedback_projects_evidence_snippet_by_code() -> None:
             _make_persisted_result(
                 task,
                 result_type="constraint_violation",
-                code="pi.secret_exfiltration_success",
+                code=RULE_ID_PI_SECRET_EXFIL,
                 feedback_payload={"matched_value": "FLAG{test-secret}"},
             ),
             _make_persisted_result(
