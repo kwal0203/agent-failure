@@ -28,9 +28,14 @@ async def run_once(*, session_manager: WebSocketSessionManager) -> None:
         outbox_repo = SQLAlchemyOutboxLearnerFeedbackPublisher(db=db)
         eval_repo = SQLAlchemyEvaluatorRepository(db=db)
         publisher_repo = WebSocketLearnerFeedbackPublisher(gateway=session_manager)
-        result = await process_pending_feedback_publish_once(
-            outbox_repo=outbox_repo, eval_repo=eval_repo, publisher=publisher_repo
-        )
+        try:
+            result = await process_pending_feedback_publish_once(
+                outbox_repo=outbox_repo, eval_repo=eval_repo, publisher=publisher_repo
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         logger.info(
             "learner feedback worker tick claimed=%s succeeded=%s failed=%s retried=%s",
             result.claimed_count,

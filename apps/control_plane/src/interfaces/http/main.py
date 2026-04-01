@@ -57,11 +57,11 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyTraceEventRepository,
     SQLAlchemyEvaluatorRepository,
 )
-from apps.agent_harness.src.interfaces.runtime.local_loop import run_local_one_turn
-from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
 )
+from apps.control_plane.src.application.runtime.types import RunTurnInput
+from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.lab_catalog.service import (
@@ -73,10 +73,12 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
 from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
 )
+from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
 from .dependencies import (
     get_admission_policy,
     get_create_session_uow,
     get_session_metadata_repository,
+    get_runtime_client,
 )
 from .auth import (
     Principal,
@@ -330,6 +332,7 @@ async def handle_user_prompt(
     principal: Principal,
     prompt_content: str,
     db: Session,
+    runtime_client: RuntimeClientPort,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
     outbox_repo = SQLAlchemyOutbox(db=db)
@@ -415,13 +418,6 @@ async def handle_user_prompt(
                 websocket,
                 build_trace_event_message(session_id, "TURN_STARTED", "Turn started"),
             )
-            turn = HarnessTurnInput(
-                session_id=metadata.id,
-                lab_id=metadata.lab_id,
-                lab_version_id=metadata.lab_version_id,
-                prompt=prompt_content,
-            )
-
             await ws_manager.send_to(
                 websocket,
                 build_trace_event_message(
@@ -449,106 +445,205 @@ async def handle_user_prompt(
                 outbox_repo=outbox_repo,
             )
 
+            turn_id = uuid4()
+            turn = RunTurnInput(
+                session_id=metadata.id,
+                lab_id=metadata.lab_id,
+                lab_version_id=metadata.lab_version_id,
+                turn_id=turn_id,
+                prompt=prompt_content,
+                idempotency_key=f"turn:{metadata.id}:{turn_id}",
+            )
+
             turn_start = datetime.now(timezone.utc)
             first_chunk_emitted = False
-            result = await asyncio.to_thread(run_local_one_turn, turn)
-            if result.failure is not None and not first_chunk_emitted:
-                reason_code = "TURN_FAILED_BEFORE_FIRST_CHUNK"
-                user_message = (
-                    "The assistant failed before responding. Please resend your prompt."
-                )
-
-                logger.warning(
-                    "turn failed before first chunk",
-                    extra={
-                        "event": "turn_failed_before_first_chunk",
-                        "session_id": str(session_id),
-                        "reason_code": reason_code,
-                        "retryable": True,
-                        "first_chunk_emitted": False,
-                        "time_to_failure_ms": int(
-                            (datetime.now(timezone.utc) - turn_start).total_seconds()
-                            * 1000
-                        ),
-                    },
-                )
-
-                await ws_manager.send_to(
-                    websocket,
-                    build_system_error_message(
-                        session_id=session_id,
-                        error_code=reason_code,
-                        message=user_message,
-                    ),
-                )
-
-                payload = build_model_turn_failed_payload(
-                    error_code="TURN_FAILED_BEFORE_FIRST_CHUNK",
-                    phase="before_first_chunk",
-                    turn_start=turn_start,
-                    chunks_emitted=0,
-                )
-                trace_event_model_failed = build_trace_event(
-                    trace_repo=trace_repo,
-                    session_id=session_id,
-                    family="model",
-                    event_type="MODEL_TURN_FAILED",
-                    source="session_stream_service",
-                    payload=payload,
-                    actor_user_id=principal.user_id,
-                    lab_id=metadata.lab_id,
-                    lab_version_id=metadata.lab_version_id,
-                )
-                append_trace_event(
-                    trace=trace_event_model_failed,
-                    repo=trace_repo,
-                    outbox_repo=outbox_repo,
-                )
-
-                db.commit()
-                return
-
-            full_response_text_parts: list[str] = []
             chunks_emitted = 0
-            for chunk in result.chunks:
-                try:
-                    await asyncio.wait_for(
-                        ws_manager.send_to(
-                            websocket,
-                            build_agent_text_chunk_message(
-                                session_id, chunk.content, chunk.final
+            full_response_text_parts: list[str] = []
+            completed = False
+            async for event in runtime_client.run_turn_stream(input=turn):
+                if event.type == "turn_started":
+                    continue
+
+                if event.type == "text_chunk":
+                    try:
+                        await asyncio.wait_for(
+                            ws_manager.send_to(
+                                websocket,
+                                build_agent_text_chunk_message(
+                                    session_id=session_id,
+                                    chunk=event.content,
+                                    final=event.final,
+                                ),
                             ),
-                        ),
-                        timeout=10.0,
-                    )
+                            timeout=10.0,
+                        )
+
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "turn stream send timeout",
+                            extra={
+                                "event": "turn_failed_mid_stream",
+                                "session_id": str(session_id),
+                                "reason_code": "TURN_FAILED_MID_STREAM",
+                                "retryable": True,
+                                "first_chunk_emitted": first_chunk_emitted,
+                                "chunks_emitted": chunks_emitted,
+                                "upstream_error_type": "WS_SEND_TIMEOUT",
+                            },
+                        )
+                        await ws_manager.send_to(
+                            websocket,
+                            build_system_error_message(
+                                session_id=session_id,
+                                error_code="TURN_FAILED_MID_STREAM",
+                                message="The response was interrupted. You can retry to continue.",
+                            ),
+                        )
+
+                        payload = build_model_turn_failed_payload(
+                            error_code="TURN_FAILED_MID_STREAM",
+                            phase="mid_stream",
+                            turn_start=turn_start,
+                            chunks_emitted=chunks_emitted,
+                        )
+                        trace_event_model_failed = build_trace_event(
+                            trace_repo=trace_repo,
+                            session_id=session_id,
+                            family="model",
+                            event_type="MODEL_TURN_FAILED",
+                            source="session_stream_service",
+                            payload=payload,
+                            actor_user_id=principal.user_id,
+                            lab_id=metadata.lab_id,
+                            lab_version_id=metadata.lab_version_id,
+                        )
+                        append_trace_event(
+                            trace=trace_event_model_failed,
+                            repo=trace_repo,
+                            outbox_repo=outbox_repo,
+                        )
+
+                        db.commit()
+                        return
+
+                    except WebSocketDisconnect:
+                        logger.info(
+                            "turn stream client disconnected",
+                            extra={
+                                "event": "turn_stream_disconnected",
+                                "session_id": str(session_id),
+                                "chunks_emitted": chunks_emitted,
+                            },
+                        )
+                        db.commit()
+                        return
+
+                    except Exception:
+                        logger.exception(
+                            "turn stream send failed",
+                            extra={
+                                "event": "turn_failed_mid_stream",
+                                "session_id": str(session_id),
+                                "reason_code": "TURN_FAILED_MID_STREAM",
+                                "retryable": True,
+                                "first_chunk_emitted": first_chunk_emitted,
+                                "chunks_emitted": chunks_emitted,
+                            },
+                        )
+                        await ws_manager.send_to(
+                            websocket,
+                            build_system_error_message(
+                                session_id,
+                                "TURN_FAILED_MID_STREAM",
+                                "The response was interrupted. You can retry to continue.",
+                            ),
+                        )
+
+                        trace_event_model_failed = build_trace_event(
+                            trace_repo=trace_repo,
+                            session_id=session_id,
+                            family="model",
+                            event_type="MODEL_TURN_FAILED",
+                            source="session_stream_service",
+                            payload={
+                                "provider": "openrouter",
+                                "error_code": "TURN_FAILED_MID_STREAM",
+                                "retryable": True,
+                                "phase": "mid_stream",
+                                "duration_ms": int(
+                                    (
+                                        datetime.now(timezone.utc) - turn_start
+                                    ).total_seconds()
+                                    * 1000
+                                ),
+                                "chunks_emitted": chunks_emitted,
+                            },
+                            actor_user_id=principal.user_id,
+                            lab_id=metadata.lab_id,
+                            lab_version_id=metadata.lab_version_id,
+                        )
+                        append_trace_event(
+                            trace=trace_event_model_failed,
+                            repo=trace_repo,
+                            outbox_repo=outbox_repo,
+                        )
+
+                        db.commit()
+                        return
+
                     first_chunk_emitted = True
                     chunks_emitted += 1
-                    full_response_text_parts.append(chunk.content)
-                except asyncio.TimeoutError:
+                    full_response_text_parts.append(event.content)
+                    continue
+
+                if event.type == "turn_failed":
+                    reason_code = (
+                        "TURN_FAILED_MID_STREAM"
+                        if first_chunk_emitted
+                        else "TURN_FAILED_BEFORE_FIRST_CHUNK"
+                    )
+                    phase = (
+                        "mid_stream" if first_chunk_emitted else "before_first_chunk"
+                    )
+                    log_message = (
+                        "turn failed mid stream"
+                        if first_chunk_emitted
+                        else "turn failed before first chunk"
+                    )
                     logger.warning(
-                        "turn stream send timeout",
+                        log_message,
                         extra={
-                            "event": "turn_failed_mid_stream",
+                            "event": reason_code.lower(),
                             "session_id": str(session_id),
-                            "reason_code": "TURN_FAILED_MID_STREAM",
-                            "retryable": True,
+                            "reason_code": reason_code,
+                            "retryable": getattr(event, "retryable", True),
                             "first_chunk_emitted": first_chunk_emitted,
-                            "chunks_emitted": chunks_emitted,
-                            "upstream_error_type": "WS_SEND_TIMEOUT",
+                            "time_to_failure_ms": int(
+                                (
+                                    datetime.now(timezone.utc) - turn_start
+                                ).total_seconds()
+                                * 1000
+                            ),
                         },
+                    )
+
+                    default_message = (
+                        "The response was interrupted. You can retry to continue."
+                        if first_chunk_emitted
+                        else "The assistant failed before responding. Please resend your prompt."
                     )
                     await ws_manager.send_to(
                         websocket,
                         build_system_error_message(
                             session_id=session_id,
-                            error_code="TURN_FAILED_MID_STREAM",
-                            message="The response was interrupted. You can retry to continue.",
+                            error_code=reason_code,
+                            message=getattr(event, "message", default_message),
                         ),
                     )
 
                     payload = build_model_turn_failed_payload(
-                        error_code="TURN_FAILED_MID_STREAM",
-                        phase="mid_stream",
+                        error_code=reason_code,
+                        phase=phase,
                         turn_start=turn_start,
                         chunks_emitted=chunks_emitted,
                     )
@@ -571,69 +666,17 @@ async def handle_user_prompt(
 
                     db.commit()
                     return
-                except WebSocketDisconnect:
-                    logger.info(
-                        "turn stream client disconnected",
-                        extra={
-                            "event": "turn_stream_disconnected",
-                            "session_id": str(session_id),
-                            "chunks_emitted": chunks_emitted,
-                        },
-                    )
-                    db.commit()
-                    return
-                except Exception:
-                    logger.exception(
-                        "turn stream send failed",
-                        extra={
-                            "event": "turn_failed_mid_stream",
-                            "session_id": str(session_id),
-                            "reason_code": "TURN_FAILED_MID_STREAM",
-                            "retryable": True,
-                            "first_chunk_emitted": first_chunk_emitted,
-                            "chunks_emitted": chunks_emitted,
-                        },
-                    )
-                    await ws_manager.send_to(
-                        websocket,
-                        build_system_error_message(
-                            session_id,
-                            "TURN_FAILED_MID_STREAM",
-                            "The response was interrupted. You can retry to continue.",
-                        ),
-                    )
 
-                    trace_event_model_failed = build_trace_event(
-                        trace_repo=trace_repo,
-                        session_id=session_id,
-                        family="model",
-                        event_type="MODEL_TURN_FAILED",
-                        source="session_stream_service",
-                        payload={
-                            "provider": "openrouter",
-                            "error_code": "TURN_FAILED_MID_STREAM",
-                            "retryable": True,
-                            "phase": "mid_stream",
-                            "duration_ms": int(
-                                (
-                                    datetime.now(timezone.utc) - turn_start
-                                ).total_seconds()
-                                * 1000
-                            ),
-                            "chunks_emitted": chunks_emitted,
-                        },
-                        actor_user_id=principal.user_id,
-                        lab_id=metadata.lab_id,
-                        lab_version_id=metadata.lab_version_id,
-                    )
-                    append_trace_event(
-                        trace=trace_event_model_failed,
-                        repo=trace_repo,
-                        outbox_repo=outbox_repo,
-                    )
+                if event.type == "turn_completed":
+                    completed = True
+                    break
 
-                    db.commit()
-                    return
+            if not completed:
+                raise RuntimeClientError(
+                    code="RUNTIME_STREAM_INCOMPLETE",
+                    message="Runtime stream ended without terminal event",
+                    retryable=True,
+                )
 
             trace_event_model_completed = build_trace_event(
                 trace_repo=trace_repo,
@@ -660,6 +703,28 @@ async def handle_user_prompt(
                 outbox_repo=outbox_repo,
             )
             db.commit()
+
+        except RuntimeClientError as exc:
+            db.rollback()
+            logger.warning(
+                "runtime stream failed",
+                extra={
+                    "event": "runtime_stream_failed",
+                    "session_id": str(session_id),
+                    "error_code": exc.code,
+                    "retryable": exc.retryable,
+                },
+            )
+            await ws_manager.send_to(
+                websocket,
+                build_system_error_message(
+                    session_id=session_id,
+                    error_code=exc.code,
+                    message=exc.message,
+                ),
+            )
+            return
+
         except Exception:
             db.rollback()
             logger.exception(f"session prompt handling failed session_id={session_id}")
@@ -670,6 +735,7 @@ async def handle_user_prompt(
                 ),
             )
             return
+
     finally:
         ws_manager.end_turn(session_id=session_id)
 
@@ -682,6 +748,7 @@ async def session_stream_ws(
         get_session_metadata_repository
     ),
     db: Session = Depends(get_db_session),
+    runtime_client: RuntimeClientPort = Depends(get_runtime_client),
 ):
     # - Authz rules:
     #   - missing/invalid auth => deny.
@@ -766,6 +833,7 @@ async def session_stream_ws(
                 principal=principal,
                 prompt_content=prompt_msg.payload.content,
                 db=db,
+                runtime_client=runtime_client,
             )
 
     except WebSocketDisconnect:
