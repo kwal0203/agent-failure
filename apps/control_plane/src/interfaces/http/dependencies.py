@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
@@ -37,6 +37,9 @@ from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
 
 
+import os
+
+
 class AdmissionPolicyStub:
     pass
 
@@ -71,5 +74,30 @@ def get_session_metadata_repository(
     return SQLAlchemySessionMetadataRepository(db=db)
 
 
-def get_runtime_client(config: RuntimeClientConfig) -> RuntimeClientPort:
+def get_runtime_client_config() -> RuntimeClientConfig:
+    base_url = os.getenv("RUNTIME_BASE_URL", "").strip()
+    timeout_raw = os.getenv("RUNTIME_TIMEOUT_SECONDS", "").strip()
+    auth_token = os.getenv("RUNTIME_AUTH_TOKEN", "").strip()
+
+    if not base_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="runtime client base url not set",
+        )
+
+    try:
+        timeout_seconds = float(timeout_raw)
+    except ValueError:
+        timeout_seconds = 10.0
+
+    return RuntimeClientConfig(
+        base_url=base_url,
+        timeout_seconds=timeout_seconds,
+        auth_token=auth_token or None,
+    )
+
+
+def get_runtime_client(
+    config: RuntimeClientConfig = Depends(get_runtime_client_config),
+) -> RuntimeClientPort:
     return RuntimeHttpClient(config=config)

@@ -72,6 +72,10 @@ class TurnFailedEvent(BaseModel):
     retryable: bool
 
 
+RuntimeStreamEventType = (
+    TurnStartedEvent | TextChunkEvent | TurnCompletedEvent | TurnFailedEvent
+)
+
 RuntimeStreamEvent = Annotated[
     TurnStartedEvent | TextChunkEvent | TurnCompletedEvent | TurnFailedEvent,
     Field(discriminator="type"),
