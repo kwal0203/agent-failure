@@ -88,6 +88,7 @@ def _wait_for_runtime(url: str, timeout_s: float = 8.0) -> None:
     raise RuntimeError("runtime server did not become ready")
 
 
+@pytest.mark.integration
 @pytest.mark.usefixtures("engine")
 def test_session_stream_websocket_uses_runtime_http_client_e2e(
     db_session: Session,
