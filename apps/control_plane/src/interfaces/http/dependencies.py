@@ -11,6 +11,7 @@ from apps.control_plane.src.application.session_create.schemas import (
     CreateSessionResult,
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
+from apps.control_plane.src.application.runtime.types import RuntimeClientConfig
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -32,6 +33,8 @@ from apps.control_plane.src.infrastructure.persistence.idempotency_store import 
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
 )
+from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
+from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
 
 
 class AdmissionPolicyStub:
@@ -66,3 +69,7 @@ def get_session_metadata_repository(
     db: Session = Depends(get_db_session),
 ) -> SessionMetadataRepository:
     return SQLAlchemySessionMetadataRepository(db=db)
+
+
+def get_runtime_client(config: RuntimeClientConfig) -> RuntimeClientPort:
+    return RuntimeHttpClient(config=config)

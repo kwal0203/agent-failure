@@ -1,7 +1,7 @@
 import asyncio
 import threading
-import time
 from datetime import datetime, timezone
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -11,17 +11,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocketDisconnect
 
-from apps.agent_harness.src.application.session_loop.types import (
-    HarnessChunk,
-    HarnessFailure,
-    HarnessTurnResult,
+from apps.contracts.src.schemas import (
+    RuntimeStreamEvent,
+    TextChunkEvent,
+    TurnCompletedEvent,
+    TurnFailedEvent,
+    TurnStartedEvent,
 )
+from apps.control_plane.src.application.runtime.types import RunTurnInput
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
     TraceEventModel,
 )
+from apps.control_plane.src.interfaces.http.dependencies import get_runtime_client
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 
@@ -32,6 +36,28 @@ def _override_db_session(db_session: Session):
             yield db_session
         finally:
             pass
+
+    return _dependency_override
+
+
+class _FakeRuntimeClient:
+    def __init__(
+        self,
+        stream_factory: Callable[[RunTurnInput], AsyncIterator[RuntimeStreamEvent]],
+    ) -> None:
+        self._stream_factory = stream_factory
+
+    async def run_turn(self, input: RunTurnInput) -> Any:
+        _ = input
+        raise NotImplementedError
+
+    def run_turn_stream(self, input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        return self._stream_factory(input)
+
+
+def _override_runtime_client(fake_client: _FakeRuntimeClient):
+    def _dependency_override() -> _FakeRuntimeClient:
+        return fake_client
 
     return _dependency_override
 
@@ -102,6 +128,14 @@ def _assert_required_server_message_fields(
     assert "payload" in msg
 
 
+def _default_runtime_client() -> _FakeRuntimeClient:
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        if False:
+            yield TurnStartedEvent(type="turn_started")
+
+    return _FakeRuntimeClient(stream_factory=_stream)
+
+
 @pytest.mark.usefixtures("engine")
 def test_stream_owner_can_connect_and_get_initial_session_status(
     db_session: Session,
@@ -110,6 +144,9 @@ def test_stream_owner_can_connect_and_get_initial_session_status(
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -134,6 +171,9 @@ def test_stream_non_owner_is_denied(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with pytest.raises(WebSocketDisconnect):
@@ -152,6 +192,9 @@ def test_stream_admin_non_owner_is_allowed(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -171,6 +214,9 @@ def test_stream_missing_auth_is_denied(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username="stream-owner")
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with pytest.raises(WebSocketDisconnect):
@@ -193,6 +239,9 @@ def test_stream_logs_connect_and_disconnect_with_session_context(
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -214,21 +263,21 @@ def test_stream_logs_connect_and_disconnect_with_session_context(
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_is_accepted_for_interactive_session(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
 
-    def _fake_run_local_one_turn(_turn: object) -> HarnessTurnResult:
-        return HarnessTurnResult(
-            chunks=[
-                HarnessChunk(content="response chunk", final=True),
-            ]
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TextChunkEvent(
+            type="text_chunk", content="response chunk", chunk_index=0, final=True
         )
-
-    monkeypatch.setattr(main_module, "run_local_one_turn", _fake_run_local_one_turn)
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -292,22 +341,26 @@ def test_user_prompt_is_accepted_for_interactive_session(
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_overlapping_turn_is_denied(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
     started = threading.Event()
 
-    def _slow_run_local_one_turn(_turn: object) -> HarnessTurnResult:
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
         started.set()
-        time.sleep(0.25)
-        return HarnessTurnResult(
-            chunks=[HarnessChunk(content="done", final=True)],
+        yield TurnStartedEvent(type="turn_started")
+        await asyncio.sleep(0.25)
+        yield TextChunkEvent(
+            type="text_chunk", content="done", chunk_index=0, final=True
+        )
+        yield TurnCompletedEvent(
+            type="turn_completed", duration_ms=10, chunks_emitted=1
         )
 
-    monkeypatch.setattr(main_module, "run_local_one_turn", _slow_run_local_one_turn)
-
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -350,6 +403,9 @@ def test_user_prompt_non_interactive_session_is_denied(
     )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _default_runtime_client()
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -371,17 +427,17 @@ def test_user_prompt_non_interactive_session_is_denied(
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_internal_failure_emits_system_error(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
 
-    def _crash_run_local_one_turn(_turn: object) -> HarnessTurnResult:
+    def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(main_module, "run_local_one_turn", _crash_run_local_one_turn)
-
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -406,24 +462,23 @@ def test_user_prompt_internal_failure_emits_system_error(
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_failure_before_first_chunk_emits_stable_system_error(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
 
-    def _failed_before_first_chunk(_turn: object) -> HarnessTurnResult:
-        return HarnessTurnResult(
-            chunks=[],
-            failure=HarnessFailure(
-                code="provider_failure",
-                message="provider failed before first chunk",
-                details=None,
-            ),
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TurnFailedEvent(
+            type="turn_failed",
+            error_code="provider_failure",
+            message="provider failed before first chunk",
+            retryable=True,
         )
 
-    monkeypatch.setattr(main_module, "run_local_one_turn", _failed_before_first_chunk)
-
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
@@ -442,10 +497,7 @@ def test_user_prompt_failure_before_first_chunk_emits_stable_system_error(
         msg, expected_type="SYSTEM_ERROR", session_id=session.id
     )
     assert msg["payload"]["error_code"] == "TURN_FAILED_BEFORE_FIRST_CHUNK"
-    assert (
-        msg["payload"]["message"]
-        == "The assistant failed before responding. Please resend your prompt."
-    )
+    assert msg["payload"]["message"] == "provider failed before first chunk"
 
     model_events = (
         db_session.execute(
@@ -475,10 +527,10 @@ def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
 
-    def _successful_turn(_turn: object) -> HarnessTurnResult:
-        return HarnessTurnResult(
-            chunks=[HarnessChunk(content="first", final=False)],
-            failure=None,
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TextChunkEvent(
+            type="text_chunk", content="first", chunk_index=0, final=False
         )
 
     original_send_to = main_module.ws_manager.send_to
@@ -488,10 +540,12 @@ def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
             raise asyncio.TimeoutError()
         await original_send_to(websocket, message)
 
-    monkeypatch.setattr(main_module, "run_local_one_turn", _successful_turn)
     monkeypatch.setattr(main_module.ws_manager, "send_to", _timeout_on_agent_chunk)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
     try:
         client = TestClient(app)
         with client.websocket_connect(
