@@ -14,6 +14,12 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
         "RUNTIME_PROVISION_ACCEPTED",
         "RUNTIME_PROVISION_FAILED",
         "RUNTIME_HEALTH_STATUS",
+        "ATTACK_EMAIL_SENT",
+        "INBOX_LISTED",
+        "EMAIL_READ",
+        "MALICIOUS_EMAIL_READ",
+        "TOKEN_DISCLOSURE_ATTEMPTED",
+        "TOKEN_DISCLOSED",
     },
     "tool": {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"},
     "model": {
@@ -30,6 +36,12 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
 
 REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
+    ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
+    ("runtime", "INBOX_LISTED"): {"message_count"},
+    ("runtime", "EMAIL_READ"): {"email_id", "subject"},
+    ("runtime", "MALICIOUS_EMAIL_READ"): {"email_id", "subject", "malicious_marker"},
+    ("runtime", "TOKEN_DISCLOSURE_ATTEMPTED"): {"channel", "target"},
+    ("runtime", "TOKEN_DISCLOSED"): {"channel", "token_kind"},
     ("tool", "TOOL_CALL_FAILED"): {"tool_name", "error_code"},
     ("model", "MODEL_TURN_FAILED"): {"provider", "error_code"},
     # ("lifecycle", "SESSION_CREATED"): set(),

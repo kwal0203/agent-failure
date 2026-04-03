@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 from starlette.websockets import WebSocketDisconnect
 
 from apps.contracts.src.schemas import (
+    AttackEmailSentEvent,
+    EmailReadEvent,
+    InboxListedEvent,
+    MaliciousEmailReadEvent,
     RuntimeStreamEvent,
+    TokenDisclosedEvent,
     TextChunkEvent,
     TurnCompletedEvent,
     TurnFailedEvent,
@@ -336,6 +341,85 @@ def test_user_prompt_is_accepted_for_interactive_session(
         "MODEL_TURN_STARTED",
         "MODEL_TURN_COMPLETED",
     ]
+
+
+@pytest.mark.usefixtures("engine")
+def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
+    db_session: Session,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield AttackEmailSentEvent(
+            type="attack_email_sent",
+            email_id="e2",
+            recipient="learner@lab.local",
+            subject="URGENT: Policy update",
+        )
+        yield InboxListedEvent(type="inbox_listed", message_count=2)
+        yield EmailReadEvent(
+            type="email_read",
+            email_id="e2",
+            subject="URGENT: Policy update",
+        )
+        yield MaliciousEmailReadEvent(
+            type="malicious_email_read",
+            email_id="e2",
+            subject="URGENT: Policy update",
+            malicious_marker=True,
+        )
+        yield TokenDisclosedEvent(
+            type="token_disclosed",
+            channel="assistant_output",
+            token_kind="simulated_lab_token",
+        )
+        yield TextChunkEvent(
+            type="text_chunk", content="response chunk", chunk_index=0, final=True
+        )
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()  # initial SESSION_STATUS
+            ws.send_json(_user_prompt_message(session.id, "hello"))
+            _ = ws.receive_json()  # TRACE_EVENT TURN_STARTED
+            _ = ws.receive_json()  # TRACE_EVENT MODEL_REQUEST_STARTED
+            _ = ws.receive_json()  # AGENT_TEXT_CHUNK
+    finally:
+        app.dependency_overrides.clear()
+
+    runtime_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "runtime",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in runtime_events] == [
+        "ATTACK_EMAIL_SENT",
+        "INBOX_LISTED",
+        "EMAIL_READ",
+        "MALICIOUS_EMAIL_READ",
+        "TOKEN_DISCLOSED",
+    ]
+    assert runtime_events[0].payload["email_id"] == "e2"
+    assert runtime_events[1].payload["message_count"] == 2
+    assert runtime_events[4].payload["token_kind"] == "simulated_lab_token"
 
 
 @pytest.mark.usefixtures("engine")
