@@ -5,11 +5,17 @@ from .types import (
     HarnessTurnInput,
     ChatMessage,
     HarnessFailure,
+    InboxItem,
+    ToolDecision,
 )
 
 
 class ModelClientPort(Protocol):
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]: ...
+
+    def complete(self, payload: ModelRequest) -> str: ...
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision: ...
 
 
 class LabContextBuilderPort(Protocol):
@@ -19,3 +25,9 @@ class LabContextBuilderPort(Protocol):
 class EventSinkPort(Protocol):
     def on_chunk(self, chunk: HarnessChunk) -> None: ...
     def on_failure(self, failure: HarnessFailure) -> None: ...
+
+
+class InboxToolPort(Protocol):
+    def list_inbox(self) -> list[InboxItem]: ...
+
+    def read_email(self, email_id: str) -> InboxItem | None: ...

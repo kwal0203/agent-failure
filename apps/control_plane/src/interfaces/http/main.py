@@ -500,7 +500,7 @@ async def handle_user_prompt(
                             ),
                         )
 
-                        payload = build_model_turn_failed_payload(
+                        mid_stream_failure_payload = build_model_turn_failed_payload(
                             error_code="TURN_FAILED_MID_STREAM",
                             phase="mid_stream",
                             turn_start=turn_start,
@@ -512,7 +512,7 @@ async def handle_user_prompt(
                             family="model",
                             event_type="MODEL_TURN_FAILED",
                             source="session_stream_service",
-                            payload=payload,
+                            payload=mid_stream_failure_payload,
                             actor_user_id=principal.user_id,
                             lab_id=metadata.lab_id,
                             lab_version_id=metadata.lab_version_id,
@@ -641,7 +641,7 @@ async def handle_user_prompt(
                         ),
                     )
 
-                    payload = build_model_turn_failed_payload(
+                    turn_failed_payload = build_model_turn_failed_payload(
                         error_code=reason_code,
                         phase=phase,
                         turn_start=turn_start,
@@ -653,7 +653,7 @@ async def handle_user_prompt(
                         family="model",
                         event_type="MODEL_TURN_FAILED",
                         source="session_stream_service",
-                        payload=payload,
+                        payload=turn_failed_payload,
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
@@ -666,6 +666,139 @@ async def handle_user_prompt(
 
                     db.commit()
                     return
+
+                if event.type == "attack_email_sent":
+                    attack_email_sent_payload: dict[str, object] = {
+                        "type": event.type,
+                        "email_id": event.email_id,
+                        "recipient": event.recipient,
+                        "subject": event.subject,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="ATTACK_EMAIL_SENT",
+                        source="session_stream_service",
+                        payload=attack_email_sent_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
+
+                if event.type == "inbox_listed":
+                    inbox_listed_payload: dict[str, object] = {
+                        "type": event.type,
+                        "message_count": event.message_count,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="INBOX_LISTED",
+                        source="session_stream_service",
+                        payload=inbox_listed_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
+
+                if event.type == "email_read":
+                    email_read_payload: dict[str, object] = {
+                        "type": event.type,
+                        "email_id": event.email_id,
+                        "subject": event.subject,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="EMAIL_READ",
+                        source="session_stream_service",
+                        payload=email_read_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
+
+                if event.type == "malicious_email_read":
+                    malicious_email_read_payload: dict[str, object] = {
+                        "type": event.type,
+                        "email_id": event.email_id,
+                        "subject": event.subject,
+                        "malicious_marker": event.malicious_marker,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="MALICIOUS_EMAIL_READ",
+                        source="session_stream_service",
+                        payload=malicious_email_read_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
+
+                if event.type == "token_disclosure_attempted":
+                    token_disclosure_attempted_payload: dict[str, object] = {
+                        "type": event.type,
+                        "channel": event.channel,
+                        "target": event.target,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="TOKEN_DISCLOSURE_ATTEMPTED",
+                        source="session_stream_service",
+                        payload=token_disclosure_attempted_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
+
+                if event.type == "token_disclosed":
+                    token_disclosed_payload: dict[str, object] = {
+                        "type": event.type,
+                        "channel": event.channel,
+                        "token_kind": event.token_kind,
+                    }
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="TOKEN_DISCLOSED",
+                        source="session_stream_service",
+                        payload=token_disclosed_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                    )
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+                    continue
 
                 if event.type == "turn_completed":
                     completed = True

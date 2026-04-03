@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from apps.contracts.src.schemas import RuntimeStreamEvent
+
 
 @dataclass(frozen=True)
 class RuntimeTurnInput:
@@ -10,3 +12,16 @@ class RuntimeTurnInput:
     turn_id: UUID
     prompt: str
     idempotency_key: str | None = None
+
+
+@dataclass(frozen=True)
+class TextItem:
+    content: str
+
+
+@dataclass(frozen=True)
+class EventItem:
+    event: RuntimeStreamEvent
+
+
+RuntimeExecutorItem = TextItem | EventItem

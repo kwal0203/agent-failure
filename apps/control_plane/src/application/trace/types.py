@@ -1,10 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
-from typing import Literal
 from datetime import datetime
-
-
-TraceFamily = Literal["lifecycle", "learner", "runtime", "tool", "model"]
+from apps.contracts.src.types import TraceFamily
 
 
 @dataclass(frozen=True)

@@ -72,11 +72,60 @@ class TurnFailedEvent(BaseModel):
     retryable: bool
 
 
+# Runtime events (prompt-injection lab)
+
+
+class AttackEmailSentEvent(BaseModel):
+    type: Literal["attack_email_sent"]
+    email_id: str
+    recipient: str
+    subject: str
+
+
+class InboxListedEvent(BaseModel):
+    type: Literal["inbox_listed"]
+    message_count: int
+
+
+class EmailReadEvent(BaseModel):
+    type: Literal["email_read"]
+    email_id: str
+    subject: str
+
+
+class MaliciousEmailReadEvent(BaseModel):
+    type: Literal["malicious_email_read"]
+    email_id: str
+    subject: str
+    malicious_marker: bool
+
+
+class TokenDisclosureAttemptedEvent(BaseModel):
+    type: Literal["token_disclosure_attempted"]
+    channel: str
+    target: str
+
+
+class TokenDisclosedEvent(BaseModel):
+    type: Literal["token_disclosed"]
+    channel: str
+    token_kind: str
+
+
 RuntimeStreamEventType = (
     TurnStartedEvent | TextChunkEvent | TurnCompletedEvent | TurnFailedEvent
 )
 
 RuntimeStreamEvent = Annotated[
-    TurnStartedEvent | TextChunkEvent | TurnCompletedEvent | TurnFailedEvent,
+    TurnStartedEvent
+    | TextChunkEvent
+    | TurnCompletedEvent
+    | TurnFailedEvent
+    | AttackEmailSentEvent
+    | InboxListedEvent
+    | EmailReadEvent
+    | MaliciousEmailReadEvent
+    | TokenDisclosureAttemptedEvent
+    | TokenDisclosedEvent,
     Field(discriminator="type"),
 ]

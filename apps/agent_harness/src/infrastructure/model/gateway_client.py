@@ -1,16 +1,15 @@
 from typing import Iterable
-from pydantic import ValidationError
+from pydantic import ValidationError, TypeAdapter
 
 from apps.agent_harness.src.application.session_loop.ports import ModelClientPort
 from apps.agent_harness.src.application.session_loop.types import (
     HarnessChunk,
     ModelRequest,
+    ToolDecision,
 )
-
 from apps.agent_harness.src.application.session_loop.errors import (
     SessionLoopProviderFailureError,
 )
-
 from .errors import (
     ProviderAuthError,
     ProviderResponseError,
@@ -18,7 +17,13 @@ from .errors import (
     ProviderUnavailableError,
 )
 from .types import GatewayConfig
-from .schemas import ModelClientRequest, ModelClientChatMessage, StreamChunk
+from .schemas import (
+    ModelClientRequest,
+    ModelClientChatMessage,
+    StreamChunk,
+    LLMToolCall,
+    LLMResponse,
+)
 
 import httpx
 import json
@@ -115,3 +120,77 @@ class GatewayModelClient(ModelClientPort):
             raise SessionLoopProviderFailureError(
                 message="Model provider request failed", details={"error": str(exc)}
             ) from exc
+
+    def complete(self, payload: ModelRequest) -> str:
+        # TODO(mvp): Replace this stream-aggregation fallback with a true
+        # non-streaming provider request to avoid duplicated work per turn.
+        collected: list[str] = []
+        for chunk in self.stream(payload=payload):
+            if chunk.content:
+                collected.append(chunk.content)
+        return "".join(collected)
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
+        request_body = ModelClientRequest(
+            model=self._config.model,
+            messages=[
+                ModelClientChatMessage(role=m.role, content=m.content)
+                for m in payload.messages
+            ],
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self._config.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with httpx.Client(timeout=self._config.timeout_seconds) as client:
+                resp = client.post(
+                    self._config.endpoint,
+                    headers=headers,
+                    json={
+                        **request_body.model_dump(mode="json"),
+                        "stream": False,
+                        "temperature": 0,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+
+            if resp.status_code in (401, 403):
+                raise ProviderAuthError(details={"status_code": str(resp.status_code)})
+            if resp.status_code >= 400:
+                raise ProviderResponseError(
+                    details={"status_code": str(resp.status_code)}
+                )
+
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
+            parsed = adapter.validate_json(content)
+
+            if isinstance(parsed, LLMToolCall):
+                return ToolDecision(
+                    kind="tool_call",
+                    tool_name=parsed.tool_name,
+                    args=parsed.args,
+                    text=None,
+                )
+
+            return ToolDecision(
+                kind="text",
+                tool_name=None,
+                args={},
+                text=parsed.text if parsed.text and parsed.text.strip() else None,
+            )
+
+        except httpx.TimeoutException as exc:
+            raise SessionLoopProviderFailureError(
+                message="Provider request timed out", details={"error": str(exc)}
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise SessionLoopProviderFailureError(
+                message="Provider unavailable", details={"error": str(exc)}
+            ) from exc
+        except (KeyError, json.JSONDecodeError, TypeError, ValidationError):
+            return ToolDecision(kind="text", tool_name=None, args={}, text=None)

@@ -8,6 +8,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     HarnessFailure,
     HarnessTurnInput,
     ModelRequest,
+    ToolDecision,
 )
 
 from apps.agent_harness.src.application.session_loop.errors import (
@@ -25,6 +26,14 @@ class SpyModelClient:
         for chunk in self._chunks:
             yield chunk
 
+    def complete(self, payload: ModelRequest) -> str:
+        self.last_payload = payload
+        return "".join(chunk.content for chunk in self._chunks)
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
+        self.last_payload = payload
+        return ToolDecision(kind="text", tool_name=None, args={}, text=None)
+
 
 class FailingModelClient:
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]:
@@ -32,6 +41,16 @@ class FailingModelClient:
         raise SessionLoopProviderFailureError(
             message="model stream failed", details={"provider": "openrouter"}
         )
+
+    def complete(self, payload: ModelRequest) -> str:
+        _ = payload
+        raise SessionLoopProviderFailureError(
+            message="model complete failed", details={"provider": "openrouter"}
+        )
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
+        _ = payload
+        return ToolDecision(kind="text", tool_name=None, args={}, text=None)
 
 
 class SpyContextBuilder:

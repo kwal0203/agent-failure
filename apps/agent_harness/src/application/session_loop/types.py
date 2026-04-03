@@ -43,3 +43,20 @@ class HarnessFailure:
 class HarnessTurnResult:
     chunks: list[HarnessChunk]
     failure: HarnessFailure | None = None
+
+
+@dataclass(frozen=True)
+class InboxItem:
+    email_id: str
+    subject: str
+    sender: str
+    preview: str
+    malicious: bool
+
+
+@dataclass(frozen=True)
+class ToolDecision:
+    kind: Literal["tool_call", "text"]
+    tool_name: Literal["list_inbox", "read_email"] | None
+    args: dict[str, str]
+    text: str | None
