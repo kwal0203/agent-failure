@@ -5,6 +5,7 @@ from apps.agent_harness.src.application.session_loop.ports import ModelClientPor
 from apps.agent_harness.src.application.session_loop.types import (
     HarnessChunk,
     ModelRequest,
+    ToolDecision,
 )
 
 from apps.agent_harness.src.application.session_loop.errors import (
@@ -115,3 +116,16 @@ class GatewayModelClient(ModelClientPort):
             raise SessionLoopProviderFailureError(
                 message="Model provider request failed", details={"error": str(exc)}
             ) from exc
+
+    def complete(self, payload: ModelRequest) -> str:
+        collected: list[str] = []
+        for chunk in self.stream(payload=payload):
+            if chunk.content:
+                collected.append(chunk.content)
+        return "".join(collected)
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
+        # MVP fallback: keep gateway path on normal text generation until
+        # native structured tool-routing response parsing is added.
+        _ = payload
+        return ToolDecision(kind="text", tool_name=None, args={}, text=None)

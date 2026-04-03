@@ -27,11 +27,3 @@ class TraceOutboxPort(Protocol):
         end_event_index: int,
         requested_at: datetime | None = None,
     ) -> None: ...
-
-
-# def append_trace_event(
-#     trace: TraceEvent,
-#     repo: TraceEventPort,
-#     outbox_repo: TraceOutboxPort,
-# ) -> None:
-#     ...

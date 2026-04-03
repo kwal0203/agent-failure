@@ -1,61 +1,19 @@
 from datetime import timedelta
 from typing import Iterable
+from apps.contracts.src.runtime_trace import (
+    ALLOWED_EVENT_TYPES,
+    REQUIRED_PAYLOAD_FIELDS,
+)
 
 from .ports import TraceEventPort, TraceOutboxPort
-from .types import TraceEvent, TraceFamily
+from .types import TraceEvent
 from .errors import (
     UnknownTraceFamilyError,
     UnknownTraceEventTypeError,
     MissingTraceContextError,
     TraceValidationError,
 )
-
-
-ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
-    "lifecycle": {"SESSION_CREATED", "SESSION_TRANSITIONED"},
-    "learner": {"USER_PROMPT_SUBMITTED"},
-    "runtime": {
-        "RUNTIME_PROVISION_REQUESTED",
-        "RUNTIME_PROVISION_ACCEPTED",
-        "RUNTIME_PROVISION_FAILED",
-        "RUNTIME_HEALTH_STATUS",
-    },
-    "tool": {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"},
-    "model": {
-        "MODEL_TURN_STARTED",
-        "MODEL_CHUNK_EMITTED",
-        "MODEL_TURN_COMPLETED",
-        "MODEL_TURN_FAILED",
-    },
-}
-
-# NOTE(P1-E6-T4): Tool trace event types are defined for schema/validation stability,
-# but emission is intentionally deferred until a concrete tool execution boundary
-# exists in the agent harness/tool adapter path.
-
-REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
-    ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
-    ("tool", "TOOL_CALL_FAILED"): {"tool_name", "error_code"},
-    ("model", "MODEL_TURN_FAILED"): {"provider", "error_code"},
-    # ("lifecycle", "SESSION_CREATED"): set(),
-    # ("lifecycle", "SESSION_TRANSITIONED"): set(),
-    # ("learner", "USER_PROMPT_SUBMITTED"): set(),
-    # ("runtime", "RUNTIME_PROVISION_REQUESTED"): set(),
-    # ("runtime", "RUNTIME_PROVISION_ACCEPTED"): set(),
-    # ("runtime", "RUNTIME_HEALTH_STATUS"): set(),
-    # ("tool", "TOOL_CALL_REQUESTED"): set(),
-    # ("tool", "TOOL_CALL_SUCCEEDED"): set(),
-    # ("model", "MODEL_TURN_STARTED"): set(),
-    # ("model", "MODEL_CHUNK_EMITTED"): set(),
-    # ("model", "MODEL_TURN_COMPLETED"): set(),
-}
-
-
-LEARNER_VISIBLE_ALLOWLIST: set[tuple[TraceFamily, str]] = {
-    ("learner", "USER_PROMPT_SUBMITTED"),
-    ("model", "MODEL_TURN_COMPLETED"),
-    ("model", "MODEL_TURN_FAILED"),
-}
+from .visibility import LEARNER_VISIBLE_ALLOWLIST
 
 
 def append_trace_event(
@@ -159,10 +117,6 @@ def append_trace_event(
         start_event_index=trace.event_index,
         end_event_index=trace.event_index,
     )
-
-
-# def is_learner_visible(event: TraceEvent) -> bool:
-#     return (event.family, event.event_type) in LEARNER_VISIBLE_ALLOWLIST
 
 
 def project_learner_visible_events(

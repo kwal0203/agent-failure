@@ -4,6 +4,7 @@ from apps.agent_harness.src.application.session_loop.ports import ModelClientPor
 from apps.agent_harness.src.application.session_loop.types import (
     HarnessChunk,
     ModelRequest,
+    ToolDecision,
 )
 
 
@@ -15,3 +16,14 @@ class LocalV1ModelClient(ModelClientPort):
         )
         yield HarnessChunk(content="I can help with that. ", final=False)
         yield HarnessChunk(content=f"You asked: {user_prompt}", final=True)
+
+    def complete(self, payload: ModelRequest) -> str:
+        user_prompt = next(
+            (m.content for m in payload.messages if m.role == "user"),
+            "",
+        )
+        return f"I can help with that. You asked: {user_prompt}"
+
+    def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
+        _ = payload
+        return ToolDecision(kind="text", tool_name=None, args={}, text=None)
