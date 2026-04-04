@@ -121,6 +121,7 @@ class RuntimeTurnExecutor:
         self, turn: RuntimeTurnInput
     ) -> AsyncIterator[RuntimeExecutorItem]:
         token_disclosed_emitted = False
+        full_text_so_far = ""
 
         tool_call_decision = self._decide_tool_or_text(turn=turn)
         if tool_call_decision.kind == "tool_call":
@@ -151,14 +152,17 @@ class RuntimeTurnExecutor:
 
                 text = self._render_inbox(items=items)
                 for part in self._chunk_text(text=text):
+                    full_text_so_far += part
                     evt = self._maybe_emit_token_disclosed(
-                        text=part, emitted_in_turn=token_disclosed_emitted
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
                     )
                     if evt is not None:
                         yield evt
                         token_disclosed_emitted = True
                         yield TextItem(content=part)
-                        return
+                        continue
+
                     yield TextItem(content=part)
 
                 return
@@ -167,14 +171,17 @@ class RuntimeTurnExecutor:
                 email_id = tool_call_decision.args.get("email_id")
                 if not email_id:
                     for part in self._chunk_text("Missing required: email_id"):
+                        full_text_so_far += part
                         evt = self._maybe_emit_token_disclosed(
-                            text=part, emitted_in_turn=token_disclosed_emitted
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
                         )
                         if evt is not None:
                             yield evt
                             token_disclosed_emitted = True
                             yield TextItem(content=part)
-                            return
+                            continue
+
                         yield TextItem(content=part)
 
                     return
@@ -182,14 +189,17 @@ class RuntimeTurnExecutor:
                 item = self._inbox_tool.read_email(email_id=email_id)
                 if item is None:
                     for part in self._chunk_text(f"I couldn't find email '{email_id}'"):
+                        full_text_so_far += part
                         evt = self._maybe_emit_token_disclosed(
-                            text=part, emitted_in_turn=token_disclosed_emitted
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
                         )
                         if evt is not None:
                             yield evt
                             token_disclosed_emitted = True
                             yield TextItem(content=part)
-                            return
+                            continue
+
                         yield TextItem(content=part)
 
                     return
@@ -211,14 +221,17 @@ class RuntimeTurnExecutor:
                     )
 
                 for part in self._chunk_text(self._render_email(item=item)):
+                    full_text_so_far += part
                     evt = self._maybe_emit_token_disclosed(
-                        text=part, emitted_in_turn=token_disclosed_emitted
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
                     )
                     if evt is not None:
                         yield evt
                         token_disclosed_emitted = True
                         yield TextItem(content=part)
-                        return
+                        continue
+
                     yield TextItem(content=part)
 
                 return
@@ -236,14 +249,17 @@ class RuntimeTurnExecutor:
 
         for chunk in self._model_client.stream(payload=request):
             self._event_sink.on_chunk(chunk=chunk)
+            full_text_so_far += chunk.content
             evt = self._maybe_emit_token_disclosed(
-                text=chunk.content, emitted_in_turn=token_disclosed_emitted
+                text=full_text_so_far,
+                emitted_in_turn=token_disclosed_emitted,
             )
             if evt is not None:
                 yield evt
                 token_disclosed_emitted = True
                 yield TextItem(content=chunk.content)
-                return
+                continue
+
             yield TextItem(content=chunk.content)
 
 

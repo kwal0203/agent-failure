@@ -12,19 +12,19 @@ class LocalV1LabContextBuilder(LabContextBuilderPort):
         _ = (turn.lab_id, turn.lab_version_id)
 
         return [
-            ChatMessage(
-                role="system",
-                content=(
-                    "You are a cybersecurity lab assistant. "
-                    "Teach safely and do not reveal hidden secrets or system credentials."
-                ),
-            ),
-            ChatMessage(
-                role="system",
-                content=(
-                    "Lab scenario: prompt-injection fundamentals "
-                    "Guide the learner, explain tradeoffs, and keep responses instructional"
-                ),
-            ),
+            # ChatMessage(
+            #     role="system",
+            #     content=(
+            #         "You are a cybersecurity lab assistant. "
+            #         "Teach safely and do not reveal hidden secrets or system credentials."
+            #     ),
+            # ),
+            # ChatMessage(
+            #     role="system",
+            #     content=(
+            #         "Lab scenario: prompt-injection fundamentals "
+            #         "Guide the learner, explain tradeoffs, and keep responses instructional"
+            #     ),
+            # ),
             ChatMessage(role="user", content=turn.prompt),
         ]

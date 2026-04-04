@@ -77,7 +77,7 @@ def run_forever(poll_interval_seconds: float = 1.0) -> None:
         try:
             run_once()
         except Exception:
-            pass
+            logger.exception("provisioning worker tick failed")
         time.sleep(poll_interval_seconds)
 
 
