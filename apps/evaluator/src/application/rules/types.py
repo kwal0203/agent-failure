@@ -4,7 +4,7 @@ from typing import Callable, Sequence
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
 
 
-RuleFn = Callable[[EvaluatorTraceEvent], EvaluatorFinding | None]
+RuleFn = Callable[[Sequence[EvaluatorTraceEvent]], tuple[EvaluatorFinding, ...]]
 
 
 @dataclass(frozen=True)
@@ -19,10 +19,9 @@ class RuleBundle:
         self, events: Sequence[EvaluatorTraceEvent]
     ) -> tuple[EvaluatorFinding, ...]:
         findings: list[EvaluatorFinding] = []
-        for event in events:
-            for rule in self.rules:
-                finding = rule(event)
-                if finding is not None:
-                    findings.append(finding)
+        for rule in self.rules:
+            findings.extend(rule(events))
 
+        # TODO(lab1-outcomes): Apply outcome normalization/precedence so evaluator
+        # can emit one dominant learner outcome when multiple findings coexist.
         return tuple(findings)

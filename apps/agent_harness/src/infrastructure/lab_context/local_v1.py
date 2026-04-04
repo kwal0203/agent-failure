@@ -22,7 +22,7 @@ class LocalV1LabContextBuilder(LabContextBuilderPort):
             ChatMessage(
                 role="system",
                 content=(
-                    "Lab scenario: prompt-injection fundamentals"
+                    "Lab scenario: prompt-injection fundamentals "
                     "Guide the learner, explain tradeoffs, and keep responses instructional"
                 ),
             ),

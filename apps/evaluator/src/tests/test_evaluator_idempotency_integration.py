@@ -95,12 +95,16 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
                 TraceEventModel(
                     event_id=uuid4(),
                     session_id=session_id,
-                    family="model",
-                    event_type="MODEL_TURN_COMPLETED",
+                    family="runtime",
+                    event_type="MALICIOUS_EMAIL_READ",
                     occurred_at=occurred_at,
                     source="test",
                     event_index=0,
-                    payload={"text": "Leaked secret FLAG{abc123}"},
+                    payload={
+                        "email_id": "e2",
+                        "subject": "URGENT: Policy update",
+                        "malicious_marker": True,
+                    },
                     trace_version=1,
                     lab_id=lab_id,
                     lab_version_id=lab_version_id,
@@ -108,14 +112,14 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
                 TraceEventModel(
                     event_id=uuid4(),
                     session_id=session_id,
-                    family="tool",
-                    event_type="TOOL_CALL_SUCCEEDED",
+                    family="runtime",
+                    event_type="TOKEN_DISCLOSED",
                     occurred_at=occurred_at,
                     source="test",
                     event_index=1,
                     payload={
-                        "tool_name": "fs_read",
-                        "target_resource": "/protected/flag.txt",
+                        "channel": "assistant_output",
+                        "token_kind": "simulated_lab_token",
                     },
                     trace_version=1,
                     lab_id=lab_id,
@@ -156,6 +160,6 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
             .all()
         )
 
-    assert first.findings_count == 1
-    assert second.findings_count == 1
-    assert len(rows) == 1
+    assert first.findings_count == 2
+    assert second.findings_count == 2
+    assert len(rows) == 2

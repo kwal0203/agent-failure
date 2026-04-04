@@ -11,7 +11,7 @@ ResultType = Literal[
     "no_effect",
     "terminal_outcome",
 ]
-FeedbackLevel = Literal["none", "flag", "hint", "detailed_hint"]
+FeedbackLevel = Literal["none", "flag", "hint", "detailed_hint", "info"]
 FeedbackStatusType = Literal["learned", "progress", "no_progress", "session_terminal"]
 
 
