@@ -65,6 +65,7 @@ def evaluate_trace_window_once(
     lab_binding = lab_lookup_repo.get_runtime_binding(
         lab_id=task.lab_id, lab_version_id=task.lab_version_id
     )
+
     constraint_bundle = resolve_bundle(binding=lab_binding, task=task)
 
     findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(events=events)
@@ -136,9 +137,10 @@ def process_evaluate_pending_once(
 
     pending_tasks = outbox_repo.claim_pending_evaluate()
     for pending_task in pending_tasks:
-        claimed_count += 1
-        task = pending_task.task
         ts = datetime.now(timezone.utc)
+        claimed_count += 1
+
+        task = pending_task.task
         try:
             result = evaluate_trace_window_once(
                 task=task,

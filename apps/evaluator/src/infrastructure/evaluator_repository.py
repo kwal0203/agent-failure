@@ -27,9 +27,18 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
         event_rows = (
             self._db.execute(
                 select(TraceEventModel)
+                # .where(
+                #     TraceEventModel.session_id == input.session_id,
+                #     TraceEventModel.event_index >= input.start_event_index,
+                #     TraceEventModel.event_index <= input.end_event_index,
+                # )
                 .where(
                     TraceEventModel.session_id == input.session_id,
-                    TraceEventModel.event_index >= input.start_event_index,
+                    # TODO(eval-window): MVP widens to session-start history so
+                    # sequence rules can match across turns. Replace with
+                    # checkpointed/rolling-window loading to avoid re-reading
+                    # full session trace on every evaluation task.
+                    TraceEventModel.event_index >= 0,
                     TraceEventModel.event_index <= input.end_event_index,
                 )
                 .order_by(TraceEventModel.event_index.asc())
