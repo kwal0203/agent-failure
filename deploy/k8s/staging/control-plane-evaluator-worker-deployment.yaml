@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-evaluator-worker
+  namespace: runtime-pool
+  labels:
+    app.kubernetes.io/name: control-plane-evaluator-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-plane-evaluator-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-plane-evaluator-worker
+    spec:
+      containers:
+        - name: evaluator-worker
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:0a5c0adf8400b149fa5cab1d0d48809cdaccca22c7c37d144e42aca4888d20cb
+          imagePullPolicy: IfNotPresent
+          command:
+            - uv
+            - run
+            - python
+            - -m
+            - apps.evaluator.src.interfaces.runtime.evaluator_worker
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      imagePullSecrets:
+        - name: ghcr-pull

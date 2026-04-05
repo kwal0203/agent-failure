@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: control-plane
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:834c6a25153e707189b8cbdf28658e2cad067fcfc2664b8a4dc014c6e5d99001
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:0a5c0adf8400b149fa5cab1d0d48809cdaccca22c7c37d144e42aca4888d20cb
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -28,7 +28,7 @@ spec:
             - name: RUNTIME_AUTH_TOKEN
               value: "dev-secret"
             - name: RUNTIME_TIMEOUT_SECONDS
-              value: "10"
+              value: "60"
           resources:
             requests:
               cpu: "250m"

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-provisioning-worker
+  namespace: runtime-pool
+  labels:
+    app.kubernetes.io/name: control-plane-provisioning-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-plane-provisioning-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-plane-provisioning-worker
+    spec:
+      serviceAccountName: control-plane-worker
+      containers:
+        - name: provisioning-worker
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:0a5c0adf8400b149fa5cab1d0d48809cdaccca22c7c37d144e42aca4888d20cb
+          imagePullPolicy: IfNotPresent
+          command:
+            - uv
+            - run
+            - python
+            - -m
+            - apps.control_plane.src.interfaces.runtime.provisioning_worker
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+            - name: RUNTIME_SHARED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: RUNTIME_SHARED_TOKEN
+            - name: MODEL_CLIENT_MODE
+              value: "gateway"
+            - name: PROVIDER_ENDPOINT
+              value: "https://openrouter.ai/api/v1/chat/completions"
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: OPENROUTER_API_KEY
+            - name: MODEL_NAME
+              value: "deepseek/deepseek-v3.2"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      imagePullSecrets:
+        - name: ghcr-pull
