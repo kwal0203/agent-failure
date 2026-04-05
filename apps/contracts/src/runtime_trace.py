@@ -12,6 +12,7 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
     "runtime": {
         "RUNTIME_PROVISION_REQUESTED",
         "RUNTIME_PROVISION_ACCEPTED",
+        "RUNTIME_PROVISION_PENDING",
         "RUNTIME_PROVISION_FAILED",
         "RUNTIME_HEALTH_STATUS",
         "ATTACK_EMAIL_SENT",
@@ -36,6 +37,14 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
 
 REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
+    ("runtime", "RUNTIME_PROVISION_PENDING"): {
+        "reason_code",
+        "phase",
+        "ready",
+        "exists",
+        "outbox_event_id",
+        "attempt_count",
+    },
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
     ("runtime", "INBOX_LISTED"): {"message_count"},
     ("runtime", "EMAIL_READ"): {"email_id", "subject"},

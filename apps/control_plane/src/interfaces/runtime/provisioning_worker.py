@@ -14,6 +14,9 @@ from apps.control_plane.src.infrastructure.runtime.image_resolver import (
 from apps.control_plane.src.infrastructure.orchestrator.k8s_provisioner import (
     K8sRuntimeProvisioner,
 )
+from apps.control_plane.src.infrastructure.orchestrator.k8s_runtime_inspector import (
+    K8sRuntimeInspector,
+)
 from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
     SQLAlchemyWorkerHeartbeatRepository,
 )
@@ -26,6 +29,7 @@ def _build_dependencies() -> tuple[
     RuntimeImageResolver,
     K8sRuntimeProvisioner,
     SQLAlchemyWorkerHeartbeatRepository,
+    K8sRuntimeInspector,
 ]:
     uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
     resolver = RuntimeImageResolver(
@@ -38,21 +42,29 @@ def _build_dependencies() -> tuple[
     # modeled as an application port and composed into the worker UoW so tick
     # bookkeeping and orchestration outcomes share one transactional boundary.
     heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
-    return uow, resolver, provisioner, heartbeat_repo
+    runtime_inspector = K8sRuntimeInspector()
+    return uow, resolver, provisioner, heartbeat_repo, runtime_inspector
 
 
 def run_once() -> None:
-    uow, resolver, provisioner, heartbeat_repo = _build_dependencies()
+    uow, resolver, provisioner, heartbeat_repo, runtime_inspector = (
+        _build_dependencies()
+    )
     ts = datetime.now(timezone.utc)
     heartbeat_repo.record_tick(worker_name="provisioning_worker", at=ts)
 
     try:
         result = process_pending_once(
-            uow=uow, image_resolver=resolver, provisioner=provisioner
+            uow=uow,
+            image_resolver=resolver,
+            provisioner=provisioner,
+            runtime_inspector=runtime_inspector,
         )
+
         heartbeat_repo.record_success(
             worker_name="provisioning_worker", at=datetime.now(timezone.utc)
         )
+
         logger.info(
             "provisioning worker tick claimed=%s succeeded=%s failed=%s retried=%s",
             result.claimed_count,
@@ -60,12 +72,14 @@ def run_once() -> None:
             result.failed_count,
             result.retried_count,
         )
+
     except Exception as exc:
         heartbeat_repo.record_error(
             worker_name="provisioning_worker",
             at=datetime.now(timezone.utc),
             error_message=str(exc),
         )
+
         logger.exception("provisioning worker tick failed")
         raise
 

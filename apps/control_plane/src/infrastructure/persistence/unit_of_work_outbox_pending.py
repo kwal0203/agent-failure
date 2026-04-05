@@ -4,6 +4,7 @@ from apps.control_plane.src.application.orchestrator.ports import (
     ProcessPendingOnceUnitOfWork,
     OutboxProvisioningSessionPort,
     SessionRuntimeBindingPort,
+    RuntimeInspectorPort,
 )
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
@@ -30,6 +31,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._lifecycle_uow: UnitOfWork | None = None
         self._trace: TraceEventPort | None = None
         self._runtime_binding: SessionRuntimeBindingPort | None = None
+        self._runtime_inspector: RuntimeInspectorPort | None = None
 
     @property
     def outbox(self) -> OutboxProvisioningSessionPort:
@@ -89,3 +91,4 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             self._lifecycle_uow = None
             self._trace = None
             self._runtime_binding = None
+            self._runtime_inspector = None

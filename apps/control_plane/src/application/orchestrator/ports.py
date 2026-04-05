@@ -88,6 +88,10 @@ class OutboxCleanupSessionPort(Protocol):
     ) -> None: ...
 
 
+class RuntimeInspectorPort(Protocol):
+    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult: ...
+
+
 class ProcessPendingOnceUnitOfWork(Protocol):
     @property
     def outbox(self) -> OutboxProvisioningSessionPort: ...
@@ -119,10 +123,6 @@ class ProcessCleanupOnceUnitOfWork(Protocol):
 
 class RuntimeTeardownPort(Protocol):
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
-
-
-class RuntimeInspectorPort(Protocol):
-    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult: ...
 
 
 class ReconciliationSessionQueryPort(Protocol):

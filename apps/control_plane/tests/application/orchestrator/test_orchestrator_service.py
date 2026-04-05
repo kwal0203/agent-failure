@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -64,6 +64,7 @@ class _FakeOutbox:
         self._events = events
         self.processed_calls: list[_OutboxProcessedCall] = []
         self.terminal_calls: list[_OutboxTerminalCall] = []
+        self.retryable_calls: list[_OutboxRetryableCall] = []
 
     def claim_pending_provisioning(
         self, *, limit: int = 20, now: datetime | None = None
@@ -88,7 +89,14 @@ class _FakeOutbox:
         backoff_seconds: int = 15,
         failed_at: datetime | None = None,
     ) -> None:
-        _ = (outbox_event_id, error_message, backoff_seconds, failed_at)
+        self.retryable_calls.append(
+            _OutboxRetryableCall(
+                outbox_event_id=outbox_event_id,
+                error_message=error_message,
+                backoff_seconds=backoff_seconds,
+                failed_at=failed_at,
+            )
+        )
 
     def mark_terminal_failure(
         self,
@@ -398,7 +406,20 @@ class _FakeInspector:
         self._responses = responses
 
     def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult:
-        return self._responses[request.session_id]
+        result = self._responses.get(request.session_id)
+        if result is None:
+            return RuntimeInspectorResult(
+                session_id=request.session_id,
+                requested_runtime_id=request.runtime_id,
+                matched_runtime_ids=tuple(),
+                exists=True,
+                duplicate_count=0,
+                phase="Running",
+                ready=True,
+                reason=None,
+                details=None,
+            )
+        return result
 
 
 def _event(*, payload: dict[str, Any]) -> PendingProvisioningEvent:
@@ -441,6 +462,7 @@ def test_process_pending_once_success_marks_processed_and_transitions(
             details={"base_url": "http://runtime.test.local:8000"},
         )
     )
+    inspector = _FakeInspector(responses={})
     resolver = _FakeResolver()
 
     transition_calls: list[dict[str, Any]] = []
@@ -457,6 +479,7 @@ def test_process_pending_once_success_marks_processed_and_transitions(
         uow=uow,
         image_resolver=resolver,
         provisioner=provisioner,
+        runtime_inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -483,6 +506,7 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
     provisioner = _FakeProvisioner(
         result=ProvisionResult(status="failed", reason_code="K8S_APPLY_FAILED")
     )
+    inspector = _FakeInspector(responses={})
     resolver = _FakeResolver()
 
     transition_calls: list[dict[str, Any]] = []
@@ -499,6 +523,7 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
         uow=uow,
         image_resolver=resolver,
         provisioner=provisioner,
+        runtime_inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -529,6 +554,7 @@ def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transit
             details={"base_url": "http://runtime.test.local:8000"},
         )
     )
+    inspector = _FakeInspector(responses={})
     resolver = _FakeResolver()
 
     transition_calls: list[dict[str, Any]] = []
@@ -545,6 +571,7 @@ def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transit
         uow=uow,
         image_resolver=resolver,
         provisioner=provisioner,
+        runtime_inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -554,6 +581,74 @@ def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transit
     assert len(outbox.terminal_calls) == 1
     assert len(provisioner.requests) == 0
     assert len(transition_calls) == 0
+
+
+def test_process_pending_once_not_ready_marks_retryable_and_emits_pending_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ev = _event(
+        payload={
+            "lab_id": str(uuid4()),
+            "lab_version_id": str(uuid4()),
+        }
+    )
+    outbox = _FakeOutbox(events=[ev])
+    uow = _FakeProcessPendingOnceUoW(outbox=outbox)
+    provisioner = _FakeProvisioner(
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id="r-1",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
+    )
+    inspector = _FakeInspector(
+        responses={
+            ev.session_id: RuntimeInspectorResult(
+                session_id=ev.session_id,
+                requested_runtime_id="r-1",
+                matched_runtime_ids=tuple(),
+                exists=True,
+                duplicate_count=0,
+                phase="Pending",
+                ready=False,
+                reason=None,
+                details=None,
+            )
+        }
+    )
+    resolver = _FakeResolver()
+
+    transition_calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        transition_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        orchestrator_service, "transition_session", _fake_transition_session
+    )
+
+    result = process_pending_once(
+        uow=uow,
+        image_resolver=resolver,
+        provisioner=provisioner,
+        runtime_inspector=inspector,
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 0
+    assert result.failed_count == 0
+    assert result.retried_count == 1
+    assert len(outbox.processed_calls) == 0
+    assert len(outbox.terminal_calls) == 0
+    assert len(outbox.retryable_calls) == 1
+    assert len(transition_calls) == 0
+    lifecycle_trace = cast(_FakeTraceRepo, uow.lifecycle_uow.trace)
+    assert len(lifecycle_trace.events) == 2
+    assert [event.event_type for event in lifecycle_trace.events] == [
+        "RUNTIME_PROVISION_REQUESTED",
+        "RUNTIME_PROVISION_PENDING",
+    ]
 
 
 def test_process_cleanup_pending_once_deleted_marks_processed() -> None:
