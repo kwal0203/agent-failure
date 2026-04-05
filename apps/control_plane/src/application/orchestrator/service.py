@@ -14,6 +14,7 @@ from apps.control_plane.src.infrastructure.runtime.errors import (
     InvalidImageLockError,
     DefaultSelectionError,
 )
+from apps.control_plane.src.application.orchestrator.types import RuntimeInspectorResult
 from apps.control_plane.src.infrastructure.persistence.errors import (
     DataIntegrityError,
     StateMismatch,
@@ -44,6 +45,7 @@ from apps.control_plane.src.application.trace.service import append_trace_event
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -197,19 +199,42 @@ def process_pending_once(
                         provision_result.status == "accepted"
                         or provision_result.status == "ready"
                     ):
+                        deadline = time.monotonic() + 30.0
+                        is_ready = False
                         inspector_request = RuntimeInspectorRequest(
                             session_id=session_id,
                             runtime_id=provision_result.runtime_id,
                         )
-                        inspector_result = runtime_inspector.inspect(
-                            request=inspector_request
-                        )
 
-                        if (
-                            inspector_result.exists
-                            and inspector_result.phase == "Running"
-                            and inspector_result.ready is True
-                        ):
+                        last_inspect: RuntimeInspectorResult | None = None
+                        while time.monotonic() < deadline:
+                            try:
+                                inspect = runtime_inspector.inspect(
+                                    request=inspector_request
+                                )
+                                last_inspect = inspect
+                                if (
+                                    inspect.exists
+                                    and inspect.phase == "Running"
+                                    and inspect.ready is True
+                                ):
+                                    is_ready = True
+                                    break
+                            except Exception as exc:
+                                logger.warning(
+                                    "runtime readiness inspect failed",
+                                    extra={
+                                        "event": "runtime_readiness_inspect_failed",
+                                        "session_id": str(session_id),
+                                        "runtime_id": provision_result.runtime_id,
+                                        "attempt_count": attempt_count,
+                                        "error": str(exc),
+                                    },
+                                )
+
+                            time.sleep(1.0)
+
+                        if is_ready:
                             uow.outbox.mark_processed(
                                 outbox_event_id=event.outbox_event_id,
                                 processed_at=datetime.now(timezone.utc),
@@ -264,10 +289,21 @@ def process_pending_once(
                             succeeded_count += 1
 
                         else:
+                            phase = (
+                                last_inspect.phase if last_inspect is not None else None
+                            )
+                            ready = (
+                                last_inspect.ready if last_inspect is not None else None
+                            )
+                            exists = (
+                                last_inspect.exists
+                                if last_inspect is not None
+                                else None
+                            )
                             reason_code = "RUNTIME_NOT_READY"
                             error_message = (
-                                f"{reason_code}: phase={inspector_result.phase} ready={inspector_result.ready} "
-                                f"exists={inspector_result.exists}"
+                                f"{reason_code}: phase={phase} ready={ready} "
+                                f"exists={exists}"
                             )
 
                             uow.outbox.mark_retryable_failure(
@@ -297,9 +333,9 @@ def process_pending_once(
                                 source="orchestrator_service",
                                 payload={
                                     "reason_code": reason_code,
-                                    "phase": inspector_result.phase,
-                                    "ready": inspector_result.ready,
-                                    "exists": inspector_result.exists,
+                                    "phase": phase,
+                                    "ready": ready,
+                                    "exists": exists,
                                     "outbox_event_id": str(outbox_event_id),
                                     "attempt_count": attempt_count,
                                 },

@@ -9,6 +9,7 @@ from .types import K8sProvisionerConfig
 
 import subprocess
 import json
+import os
 
 
 class K8sRuntimeProvisioner(RuntimeProvisionerPort):
@@ -17,6 +18,8 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
 
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
         pod_name = f"session-{str(request.session_id)[:8]}"
+        # TODO(runtime-provisioning): Keep service/pod naming aligned with k8s DNS
+        # label length constraints (63 chars) if naming format evolves.
 
         manifest = self._build_pod_manifest(
             pod_name=pod_name,
@@ -102,6 +105,36 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             "readOnlyRootFilesystem": self._config.read_only_root_filesystem,
         }
 
+        runtime_env: list[dict[str, object]] = [
+            {
+                "name": "RUNTIME_SHARED_TOKEN",
+                "value": os.getenv("RUNTIME_SHARED_TOKEN", ""),
+            },
+            {
+                "name": "MODEL_CLIENT_MODE",
+                "value": os.getenv("MODEL_CLIENT_MODE", "gateway"),
+            },
+            {
+                "name": "PROVIDER_ENDPOINT",
+                "value": os.getenv(
+                    "PROVIDER_ENDPOINT", "https://openrouter.ai/api/v1/chat/completions"
+                ),
+            },
+            {
+                "name": "MODEL_NAME",
+                "value": os.getenv("MODEL_NAME", "deepseek/deepseek-v3.2"),
+            },
+            {
+                "name": "OPENROUTER_API_KEY",
+                "value": os.getenv("OPENROUTER_API_KEY", ""),
+            },
+        ]
+        # TODO(runtime-provisioning): Validate required env values before apply
+        # (e.g. RUNTIME_SHARED_TOKEN, and OPENROUTER_API_KEY when gateway mode
+        # is enabled) to avoid provisioning pods that are guaranteed to fail.
+        # TODO(runtime-provisioning): For non-local/staging-hardening, replace
+        # sensitive raw env injection with valueFrom.secretKeyRef.
+
         if self._config.drop_all_capabilities:
             container_security_context["capabilities"] = {"drop": ["ALL"]}
 
@@ -117,6 +150,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                     "image": image_ref,
                     "imagePullPolicy": "IfNotPresent",
                     "securityContext": container_security_context,
+                    "env": runtime_env,
                     "resources": {
                         "requests": {
                             "cpu": self._config.cpu_request,

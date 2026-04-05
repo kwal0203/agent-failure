@@ -627,6 +627,10 @@ def test_process_pending_once_not_ready_marks_retryable_and_emits_pending_trace(
     monkeypatch.setattr(
         orchestrator_service, "transition_session", _fake_transition_session
     )
+    # Keep readiness loop deterministic and fast in test.
+    ticks = iter([0.0, 0.0, 31.0])
+    monkeypatch.setattr(orchestrator_service.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(orchestrator_service.time, "sleep", lambda _seconds: None)
 
     result = process_pending_once(
         uow=uow,
