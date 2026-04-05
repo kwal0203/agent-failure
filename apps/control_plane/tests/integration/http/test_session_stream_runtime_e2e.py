@@ -18,10 +18,13 @@ from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     Base,
     SessionModel,
+    SessionRuntimeBindingModel,
     TraceEventModel,
 )
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
-from apps.control_plane.src.interfaces.http.dependencies import get_runtime_client
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_runtime_client_factory,
+)
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -56,6 +59,17 @@ def _seed_active_session(db_session: Session, owner_username: str) -> SessionMod
         last_transition_reason=None,
     )
     db_session.add(session)
+    db_session.flush()
+    db_session.add(
+        SessionRuntimeBindingModel(
+            session_id=session.id,
+            runtime_kind="k8s_pod",
+            base_url="http://placeholder",
+            auth_token_ref=None,
+            status="ready",
+            last_error=None,
+        )
+    )
     db_session.flush()
     return session
 
@@ -128,13 +142,24 @@ def test_session_stream_websocket_uses_runtime_http_client_e2e(
         session = _seed_active_session(db_session, owner_username=owner_username)
 
         app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-        app.dependency_overrides[get_runtime_client] = lambda: RuntimeHttpClient(
-            RuntimeClientConfig(
-                base_url=runtime_base_url,
-                timeout_seconds=5.0,
-                auth_token=runtime_token,
-            )
-        )
+        app.dependency_overrides[get_runtime_client_factory] = lambda: type(
+            "_Factory",
+            (),
+            {
+                "create": lambda _self, *, base_url: RuntimeHttpClient(
+                    RuntimeClientConfig(
+                        base_url=base_url,
+                        timeout_seconds=5.0,
+                        auth_token=runtime_token,
+                    )
+                )
+            },
+        )()
+
+        binding = db_session.get(SessionRuntimeBindingModel, session.id)
+        assert binding is not None
+        binding.base_url = runtime_base_url
+        db_session.flush()
 
         client = TestClient(app)
         with client.websocket_connect(

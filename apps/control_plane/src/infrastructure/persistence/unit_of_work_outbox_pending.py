@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from apps.control_plane.src.application.orchestrator.ports import (
     ProcessPendingOnceUnitOfWork,
     OutboxProvisioningSessionPort,
+    SessionRuntimeBindingPort,
 )
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
@@ -15,7 +16,10 @@ from contextlib import contextmanager
 
 from .outbox_provision_session import SQLAlchemyOutboxProvisionSession
 from .lab_repository import SQLAlchemyLabRepository
-from .session_repository import SQLAlchemyTraceEventRepository
+from .session_repository import (
+    SQLAlchemySessionRuntimeBindingRepository,
+    SQLAlchemyTraceEventRepository,
+)
 
 
 class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
@@ -25,6 +29,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._lab: LabRepository | None = None
         self._lifecycle_uow: UnitOfWork | None = None
         self._trace: TraceEventPort | None = None
+        self._runtime_binding: SessionRuntimeBindingPort | None = None
 
     @property
     def outbox(self) -> OutboxProvisioningSessionPort:
@@ -50,6 +55,12 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             raise RuntimeError("No active trace repository")
         return self._trace
 
+    @property
+    def runtime_binding(self) -> SessionRuntimeBindingPort:
+        if self._runtime_binding is None:
+            raise RuntimeError("No active runtime binding")
+        return self._runtime_binding
+
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
@@ -63,6 +74,7 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             session_factory=self._session_factory
         )
         self._trace = SQLAlchemyTraceEventRepository(db=db_session)
+        self._runtime_binding = SQLAlchemySessionRuntimeBindingRepository(db=db_session)
 
         try:
             yield
@@ -76,3 +88,4 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             self._lab = None
             self._lifecycle_uow = None
             self._trace = None
+            self._runtime_binding = None

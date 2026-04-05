@@ -56,6 +56,7 @@ from apps.control_plane.src.application.session_create.errors import (
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyEvaluatorRepository,
+    SQLAlchemySessionRuntimeBindingRepository,
 )
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
@@ -73,12 +74,12 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
 from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
 )
-from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
+from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
 from .dependencies import (
     get_admission_policy,
     get_create_session_uow,
     get_session_metadata_repository,
-    get_runtime_client,
+    get_runtime_client_factory,
 )
 from .auth import (
     Principal,
@@ -332,10 +333,11 @@ async def handle_user_prompt(
     principal: Principal,
     prompt_content: str,
     db: Session,
-    runtime_client: RuntimeClientPort,
+    runtime_client_factory: RuntimeClientFactoryPort,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
     outbox_repo = SQLAlchemyOutbox(db=db)
+    runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
 
     if not ws_manager.try_begin_turn(session_id=session_id):
         await ws_manager.send_to(
@@ -346,13 +348,13 @@ async def handle_user_prompt(
         )
         return
 
-    metadata = get_session_metadata(
-        session_id=session_id,
-        principal_user_id=principal.user_id,
-        principal_user_role=principal.role,
-        repo=repo,
-    )
     try:
+        metadata = get_session_metadata(
+            session_id=session_id,
+            principal_user_id=principal.user_id,
+            principal_user_role=principal.role,
+            repo=repo,
+        )
         if metadata is None:
             await ws_manager.send_to(
                 websocket,
@@ -381,6 +383,36 @@ async def handle_user_prompt(
                 ),
             )
             return
+
+        runtime_binding = runtime_binding_repo.get_by_session_id(session_id=session_id)
+        if runtime_binding is None or runtime_binding.status != "ready":
+            current_status = (
+                runtime_binding.status if runtime_binding is not None else "missing"
+            )
+            logger.warning(
+                "runtime binding not ready",
+                extra={
+                    "event": "runtime_binding_not_ready",
+                    "session_id": str(session_id),
+                    "status": current_status,
+                    "base_url": runtime_binding.base_url
+                    if runtime_binding is not None
+                    else None,
+                },
+            )
+            await ws_manager.send_to(
+                websocket,
+                build_policy_denial_message(
+                    session_id=session_id,
+                    reason_code="RUNTIME_BINDING_NOT_READY",
+                    message=f"Runtime is not ready: (status={current_status})",
+                ),
+            )
+            return
+
+        runtime_client = runtime_client_factory.create(
+            base_url=runtime_binding.base_url
+        )
 
         # TODO(P1-E6 follow-up): This writes learner trace directly via DB adapter
         # in the websocket handler. Move to UoW-backed trace write path so turn
@@ -881,7 +913,9 @@ async def session_stream_ws(
         get_session_metadata_repository
     ),
     db: Session = Depends(get_db_session),
-    runtime_client: RuntimeClientPort = Depends(get_runtime_client),
+    runtime_client_factory: RuntimeClientFactoryPort = Depends(
+        get_runtime_client_factory
+    ),
 ):
     # - Authz rules:
     #   - missing/invalid auth => deny.
@@ -966,7 +1000,7 @@ async def session_stream_ws(
                 principal=principal,
                 prompt_content=prompt_msg.payload.content,
                 db=db,
-                runtime_client=runtime_client,
+                runtime_client_factory=runtime_client_factory,
             )
 
     except WebSocketDisconnect:

@@ -25,12 +25,20 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             request=request,
         )
 
+        service_manifest = self._build_service_manifest(
+            service_name=pod_name, request=request
+        )
+
         try:
             self._kubectl_apply(manifest)
+            self._kubectl_apply(service_manifest)
             return ProvisionResult(
                 status="accepted",
                 runtime_id=pod_name,
-                details={"namespace": self._config.namespace},
+                details={
+                    "namespace": self._config.namespace,
+                    "base_url": f"http://{pod_name}.{self._config.namespace}.svc.cluster.local:8000",
+                },
             )
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip()
@@ -147,4 +155,25 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 "labels": labels,
             },
             "spec": spec,
+        }
+
+    def _build_service_manifest(
+        self, *, service_name: str, request: RuntimeProvisionRequest
+    ) -> dict[str, object]:
+        return {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": service_name,
+                "namespace": self._config.namespace,
+                "labels": {
+                    "app.kubernetes.io/name": "lab-runtime",
+                    "agent-failure/session-id": str(request.session_id),
+                },
+            },
+            "spec": {
+                "selector": {"agent-failure/session-id": str(request.session_id)},
+                "ports": [{"name": "http", "port": 8000, "targetPort": 8000}],
+                "type": "ClusterIP",
+            },
         }

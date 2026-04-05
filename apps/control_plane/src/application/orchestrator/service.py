@@ -36,6 +36,7 @@ from .types import (
     RuntimeInspectorRequest,
     ReconciliationOnceResult,
     ExpiryOnceResult,
+    UpsertSessionRuntimeBindingInput,
 )
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
@@ -146,11 +147,12 @@ def process_pending_once(
                     continue
 
                 try:
-                    binding = uow.lab.get_runtime_binding(
+                    lab_binding = uow.lab.get_runtime_binding(
                         lab_id=lab_id, lab_version_id=lab_version_id
                     )
                     image_ref = image_resolver.resolve(
-                        lab_slug=binding.lab_slug, lab_version=binding.lab_version
+                        lab_slug=lab_binding.lab_slug,
+                        lab_version=lab_binding.lab_version,
                     )
                     runtime_request = RuntimeProvisionRequest(
                         session_id=session_id,
@@ -195,6 +197,7 @@ def process_pending_once(
                             outbox_event_id=event.outbox_event_id,
                             processed_at=datetime.now(timezone.utc),
                         )
+
                         transition_session(
                             session_id=session_id,
                             trigger=Trigger.PROVISIONING_SUCCEEDED,
@@ -203,6 +206,27 @@ def process_pending_once(
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
                             uow=uow.lifecycle_uow,
                         )
+
+                        base_url_obj = provision_details.get("base_url")
+                        base_url = (
+                            base_url_obj if isinstance(base_url_obj, str) else None
+                        )
+                        if not base_url or not base_url.strip():
+                            raise RuntimeError(
+                                "Provisioning succeeded but base_url missing in details"
+                            )
+                        runtime_binding_input = UpsertSessionRuntimeBindingInput(
+                            session_id=session_id,
+                            runtime_kind="k8s_pod",
+                            base_url=base_url,
+                            auth_token_ref=None,
+                            status="ready",
+                            last_error=None,
+                        )
+                        uow.runtime_binding.upsert_runtime_binding(
+                            input=runtime_binding_input
+                        )
+
                         _append_runtime_trace(
                             uow=uow.lifecycle_uow,
                             session_id=session_id,
@@ -223,6 +247,7 @@ def process_pending_once(
                             lab_version_id=lab_version_id,
                         )
                         succeeded_count += 1
+
                     elif provision_result.status == "failed":
                         provision_details = provision_result.details or {}
                         reason_code = (
@@ -234,6 +259,7 @@ def process_pending_once(
                             error_message=f"Provisioning failed: {reason_code}",
                             failed_at=datetime.now(timezone.utc),
                         )
+
                         transition_session(
                             session_id=session_id,
                             trigger=Trigger.PROVISIONING_FAILED,
@@ -252,6 +278,24 @@ def process_pending_once(
                             },
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:failed",
                             uow=uow.lifecycle_uow,
+                        )
+
+                        apply_error_obj = provision_details.get("apply_error")
+                        apply_error = (
+                            apply_error_obj
+                            if isinstance(apply_error_obj, str)
+                            else None
+                        )
+                        runtime_binding_input = UpsertSessionRuntimeBindingInput(
+                            session_id=session_id,
+                            runtime_kind="k8s_pod",
+                            base_url="",  # TODO: temporary hack because base_url is not nullable
+                            auth_token_ref=None,
+                            status="failed",
+                            last_error=apply_error or reason_code,
+                        )
+                        uow.runtime_binding.upsert_runtime_binding(
+                            input=runtime_binding_input
                         )
 
                         _append_runtime_trace(

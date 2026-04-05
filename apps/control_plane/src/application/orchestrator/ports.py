@@ -16,6 +16,7 @@ from .types import (
     RuntimeInspectorResult,
     ReconciliationCandidate,
     ExpiryCandidate,
+    UpsertSessionRuntimeBindingInput,
 )
 
 
@@ -25,6 +26,12 @@ class RuntimeProvisionerPort(Protocol):
 
 class RuntimeImageResolverPort(Protocol):
     def resolve(self, lab_slug: str, lab_version: str) -> str: ...
+
+
+class SessionRuntimeBindingPort(Protocol):
+    def upsert_runtime_binding(
+        self, *, input: UpsertSessionRuntimeBindingInput
+    ) -> None: ...
 
 
 class OutboxProvisioningSessionPort(Protocol):
@@ -93,6 +100,9 @@ class ProcessPendingOnceUnitOfWork(Protocol):
 
     @property
     def trace(self) -> TraceEventPort: ...
+
+    @property
+    def runtime_binding(self) -> SessionRuntimeBindingPort: ...
 
     def transaction(self) -> ContextManager[None]: ...
 

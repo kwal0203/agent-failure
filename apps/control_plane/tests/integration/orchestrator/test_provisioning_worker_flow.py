@@ -38,7 +38,11 @@ class _ResolverOK:
 class _ProvisionerAccepted:
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
         _ = request
-        return ProvisionResult(status="accepted", runtime_id="runtime-1")
+        return ProvisionResult(
+            status="accepted",
+            runtime_id="runtime-1",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
 
 
 class _ProvisionerFailed:

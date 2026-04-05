@@ -4,6 +4,10 @@ from typing import Literal, Mapping, Any
 from datetime import datetime
 
 
+RuntimeBindingStatus = Literal["provisioning", "ready", "failed", "terminated"]
+RuntimeKind = Literal["k8s_pod"]
+
+
 @dataclass(frozen=True)
 class RuntimeProvisionRequest:
     session_id: UUID
@@ -119,3 +123,23 @@ class ExpiryOnceResult:
     succeeded_count: int
     failed_count: int
     retried_count: int
+
+
+@dataclass(frozen=True)
+class UpsertSessionRuntimeBindingInput:
+    session_id: UUID
+    runtime_kind: RuntimeKind
+    base_url: str
+    auth_token_ref: str | None = None
+    status: RuntimeBindingStatus = "provisioning"
+    last_error: str | None = None
+
+
+@dataclass(frozen=True)
+class SessionRuntimeBinding:
+    session_id: UUID
+    runtime_kind: RuntimeKind
+    base_url: str
+    auth_token_ref: str | None
+    status: RuntimeBindingStatus | None = None
+    last_error: str | None = None

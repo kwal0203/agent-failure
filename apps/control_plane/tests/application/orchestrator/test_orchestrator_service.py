@@ -203,6 +203,7 @@ class _FakeProcessPendingOnceUoW:
         self._lab = _FakeLabRepository()
         self._lifecycle_uow: SessionLifecycleUnitOfWork = _FakeLifecycleUoW()  # type: ignore[assignment]
         self._trace = _FakeTraceRepo()
+        self._runtime_binding = _FakeRuntimeBindingRepo()
 
     @property
     def outbox(self) -> _FakeOutbox:
@@ -220,9 +221,21 @@ class _FakeProcessPendingOnceUoW:
     def trace(self) -> _FakeTraceRepo:
         return self._trace
 
+    @property
+    def runtime_binding(self) -> "_FakeRuntimeBindingRepo":
+        return self._runtime_binding
+
     @contextmanager
     def transaction(self):
         yield
+
+
+class _FakeRuntimeBindingRepo:
+    def __init__(self) -> None:
+        self.upsert_calls: list[Any] = []
+
+    def upsert_runtime_binding(self, *, input: Any) -> None:
+        self.upsert_calls.append(input)
 
 
 class _FakeCleanupOutbox:
@@ -422,7 +435,11 @@ def test_process_pending_once_success_marks_processed_and_transitions(
     outbox = _FakeOutbox(events=[ev])
     uow = _FakeProcessPendingOnceUoW(outbox=outbox)
     provisioner = _FakeProvisioner(
-        result=ProvisionResult(status="accepted", runtime_id="r-1")
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id="r-1",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
     )
     resolver = _FakeResolver()
 
@@ -506,7 +523,11 @@ def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transit
     outbox = _FakeOutbox(events=[ev])
     uow = _FakeProcessPendingOnceUoW(outbox=outbox)
     provisioner = _FakeProvisioner(
-        result=ProvisionResult(status="accepted", runtime_id="r-1")
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id="r-1",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
     )
     resolver = _FakeResolver()
 
