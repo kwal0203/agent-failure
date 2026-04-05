@@ -14,6 +14,7 @@ from apps.control_plane.src.infrastructure.runtime.errors import (
     InvalidImageLockError,
     DefaultSelectionError,
 )
+from apps.control_plane.src.application.orchestrator.types import RuntimeInspectorResult
 from apps.control_plane.src.infrastructure.persistence.errors import (
     DataIntegrityError,
     StateMismatch,
@@ -36,6 +37,7 @@ from .types import (
     RuntimeInspectorRequest,
     ReconciliationOnceResult,
     ExpiryOnceResult,
+    UpsertSessionRuntimeBindingInput,
 )
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
@@ -43,6 +45,7 @@ from apps.control_plane.src.application.trace.service import append_trace_event
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,6 +114,7 @@ def process_pending_once(
     uow: ProcessPendingOnceUnitOfWork,
     image_resolver: RuntimeImageResolverPort,
     provisioner: RuntimeProvisionerPort,
+    runtime_inspector: RuntimeInspectorPort,
 ) -> ProcessPendingOnceResult:
 
     claimed_count = 0
@@ -146,11 +150,12 @@ def process_pending_once(
                     continue
 
                 try:
-                    binding = uow.lab.get_runtime_binding(
+                    lab_binding = uow.lab.get_runtime_binding(
                         lab_id=lab_id, lab_version_id=lab_version_id
                     )
                     image_ref = image_resolver.resolve(
-                        lab_slug=binding.lab_slug, lab_version=binding.lab_version
+                        lab_slug=lab_binding.lab_slug,
+                        lab_version=lab_binding.lab_version,
                     )
                     runtime_request = RuntimeProvisionRequest(
                         session_id=session_id,
@@ -187,42 +192,158 @@ def process_pending_once(
 
                     provision_result = provisioner.provision(runtime_request)
                     provision_details = provision_result.details or {}
+                    base_url_obj = provision_details.get("base_url")
+                    base_url = base_url_obj if isinstance(base_url_obj, str) else None
+
                     if (
                         provision_result.status == "accepted"
                         or provision_result.status == "ready"
                     ):
-                        uow.outbox.mark_processed(
-                            outbox_event_id=event.outbox_event_id,
-                            processed_at=datetime.now(timezone.utc),
-                        )
-                        transition_session(
+                        deadline = time.monotonic() + 30.0
+                        is_ready = False
+                        inspector_request = RuntimeInspectorRequest(
                             session_id=session_id,
-                            trigger=Trigger.PROVISIONING_SUCCEEDED,
-                            actor="orchestrator_worker",
-                            metadata={"outbox_event_id": str(outbox_event_id)},
-                            idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
-                            uow=uow.lifecycle_uow,
+                            runtime_id=provision_result.runtime_id,
                         )
-                        _append_runtime_trace(
-                            uow=uow.lifecycle_uow,
-                            session_id=session_id,
-                            event_type="RUNTIME_PROVISION_ACCEPTED",
-                            source="orchestrator_service",
-                            payload={
-                                "runtime_kind": "k8s_pod",
-                                "namespace": "runtime-pool",
-                                "image_ref": image_ref,
-                                "outbox_event_id": str(outbox_event_id),
-                                "attempt_count": attempt_count,
-                                "requested_by": "control-plane-outbox-worker",
-                                "idempotency_key": runtime_request.metadata[
-                                    "idempotency_key"
-                                ],
-                            },
-                            lab_id=lab_id,
-                            lab_version_id=lab_version_id,
-                        )
-                        succeeded_count += 1
+
+                        last_inspect: RuntimeInspectorResult | None = None
+                        while time.monotonic() < deadline:
+                            try:
+                                inspect = runtime_inspector.inspect(
+                                    request=inspector_request
+                                )
+                                last_inspect = inspect
+                                if (
+                                    inspect.exists
+                                    and inspect.phase == "Running"
+                                    and inspect.ready is True
+                                ):
+                                    is_ready = True
+                                    break
+                            except Exception as exc:
+                                logger.warning(
+                                    "runtime readiness inspect failed",
+                                    extra={
+                                        "event": "runtime_readiness_inspect_failed",
+                                        "session_id": str(session_id),
+                                        "runtime_id": provision_result.runtime_id,
+                                        "attempt_count": attempt_count,
+                                        "error": str(exc),
+                                    },
+                                )
+
+                            time.sleep(1.0)
+
+                        if is_ready:
+                            uow.outbox.mark_processed(
+                                outbox_event_id=event.outbox_event_id,
+                                processed_at=datetime.now(timezone.utc),
+                            )
+
+                            transition_session(
+                                session_id=session_id,
+                                trigger=Trigger.PROVISIONING_SUCCEEDED,
+                                actor="orchestrator_worker",
+                                metadata={"outbox_event_id": str(outbox_event_id)},
+                                idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
+                                uow=uow.lifecycle_uow,
+                            )
+
+                            if not base_url or not base_url.strip():
+                                raise RuntimeError(
+                                    "Provisioning succeeded but base_url missing in details"
+                                )
+
+                            runtime_binding_input = UpsertSessionRuntimeBindingInput(
+                                session_id=session_id,
+                                runtime_kind="k8s_pod",
+                                base_url=base_url,
+                                auth_token_ref=None,
+                                status="ready",
+                                last_error=None,
+                            )
+
+                            uow.runtime_binding.upsert_runtime_binding(
+                                input=runtime_binding_input
+                            )
+
+                            _append_runtime_trace(
+                                uow=uow.lifecycle_uow,
+                                session_id=session_id,
+                                event_type="RUNTIME_PROVISION_ACCEPTED",
+                                source="orchestrator_service",
+                                payload={
+                                    "runtime_kind": "k8s_pod",
+                                    "namespace": "runtime-pool",
+                                    "image_ref": image_ref,
+                                    "outbox_event_id": str(outbox_event_id),
+                                    "attempt_count": attempt_count,
+                                    "requested_by": "control-plane-outbox-worker",
+                                    "idempotency_key": runtime_request.metadata[
+                                        "idempotency_key"
+                                    ],
+                                },
+                                lab_id=lab_id,
+                                lab_version_id=lab_version_id,
+                            )
+                            succeeded_count += 1
+
+                        else:
+                            phase = (
+                                last_inspect.phase if last_inspect is not None else None
+                            )
+                            ready = (
+                                last_inspect.ready if last_inspect is not None else None
+                            )
+                            exists = (
+                                last_inspect.exists
+                                if last_inspect is not None
+                                else None
+                            )
+                            reason_code = "RUNTIME_NOT_READY"
+                            error_message = (
+                                f"{reason_code}: phase={phase} ready={ready} "
+                                f"exists={exists}"
+                            )
+
+                            uow.outbox.mark_retryable_failure(
+                                outbox_event_id=outbox_event_id,
+                                error_message=error_message,
+                                backoff_seconds=15,
+                                failed_at=datetime.now(timezone.utc),
+                            )
+
+                            runtime_binding_input = UpsertSessionRuntimeBindingInput(
+                                session_id=session_id,
+                                runtime_kind="k8s_pod",
+                                base_url=base_url if isinstance(base_url, str) else "",
+                                auth_token_ref=None,
+                                status="provisioning",
+                                last_error=error_message,
+                            )
+
+                            uow.runtime_binding.upsert_runtime_binding(
+                                input=runtime_binding_input
+                            )
+
+                            _append_runtime_trace(
+                                uow=uow.lifecycle_uow,
+                                session_id=session_id,
+                                event_type="RUNTIME_PROVISION_PENDING",
+                                source="orchestrator_service",
+                                payload={
+                                    "reason_code": reason_code,
+                                    "phase": phase,
+                                    "ready": ready,
+                                    "exists": exists,
+                                    "outbox_event_id": str(outbox_event_id),
+                                    "attempt_count": attempt_count,
+                                },
+                                lab_id=lab_id,
+                                lab_version_id=lab_version_id,
+                            )
+                            retried_count += 1
+
                     elif provision_result.status == "failed":
                         provision_details = provision_result.details or {}
                         reason_code = (
@@ -234,6 +355,7 @@ def process_pending_once(
                             error_message=f"Provisioning failed: {reason_code}",
                             failed_at=datetime.now(timezone.utc),
                         )
+
                         transition_session(
                             session_id=session_id,
                             trigger=Trigger.PROVISIONING_FAILED,
@@ -252,6 +374,24 @@ def process_pending_once(
                             },
                             idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:failed",
                             uow=uow.lifecycle_uow,
+                        )
+
+                        apply_error_obj = provision_details.get("apply_error")
+                        apply_error = (
+                            apply_error_obj
+                            if isinstance(apply_error_obj, str)
+                            else None
+                        )
+                        runtime_binding_input = UpsertSessionRuntimeBindingInput(
+                            session_id=session_id,
+                            runtime_kind="k8s_pod",
+                            base_url="",  # TODO: temporary hack because base_url is not nullable
+                            auth_token_ref=None,
+                            status="failed",
+                            last_error=apply_error or reason_code,
+                        )
+                        uow.runtime_binding.upsert_runtime_binding(
+                            input=runtime_binding_input
                         )
 
                         _append_runtime_trace(

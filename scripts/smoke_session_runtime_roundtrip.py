@@ -68,6 +68,9 @@ def _run_provisioning_tick() -> None:
     from apps.control_plane.src.infrastructure.orchestrator.k8s_provisioner import (
         K8sRuntimeProvisioner,
     )
+    from apps.control_plane.src.infrastructure.orchestrator.k8s_runtime_inspector import (
+        K8sRuntimeInspector,
+    )
     from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
     from apps.control_plane.src.infrastructure.persistence.unit_of_work_outbox_pending import (
         SQLAlchemyProcessPendingOnceUnitOfWork,
@@ -82,8 +85,12 @@ def _run_provisioning_tick() -> None:
         selection_file=Path("deploy/k8s/staging/runtime-image-selection.yaml"),
     )
     provisioner = K8sRuntimeProvisioner()
+    runtime_inspector = K8sRuntimeInspector()
     result = process_pending_once(
-        uow=uow, image_resolver=resolver, provisioner=provisioner
+        uow=uow,
+        image_resolver=resolver,
+        provisioner=provisioner,
+        runtime_inspector=runtime_inspector,
     )
     print(
         "provisioning_tick",

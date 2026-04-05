@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane
+  namespace: runtime-pool
+  labels:
+    app.kubernetes.io/name: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-plane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-plane
+    spec:
+      containers:
+        - name: control-plane
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:834c6a25153e707189b8cbdf28658e2cad067fcfc2664b8a4dc014c6e5d99001
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+            - name: RUNTIME_AUTH_TOKEN
+              value: "dev-secret"
+            - name: RUNTIME_TIMEOUT_SECONDS
+              value: "10"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: ghcr-pull

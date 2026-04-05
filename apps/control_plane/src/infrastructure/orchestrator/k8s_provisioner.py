@@ -9,6 +9,7 @@ from .types import K8sProvisionerConfig
 
 import subprocess
 import json
+import os
 
 
 class K8sRuntimeProvisioner(RuntimeProvisionerPort):
@@ -17,6 +18,8 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
 
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
         pod_name = f"session-{str(request.session_id)[:8]}"
+        # TODO(runtime-provisioning): Keep service/pod naming aligned with k8s DNS
+        # label length constraints (63 chars) if naming format evolves.
 
         manifest = self._build_pod_manifest(
             pod_name=pod_name,
@@ -25,12 +28,20 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             request=request,
         )
 
+        service_manifest = self._build_service_manifest(
+            service_name=pod_name, request=request
+        )
+
         try:
             self._kubectl_apply(manifest)
+            self._kubectl_apply(service_manifest)
             return ProvisionResult(
                 status="accepted",
                 runtime_id=pod_name,
-                details={"namespace": self._config.namespace},
+                details={
+                    "namespace": self._config.namespace,
+                    "base_url": f"http://{pod_name}.{self._config.namespace}.svc.cluster.local:8000",
+                },
             )
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip()
@@ -94,6 +105,36 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             "readOnlyRootFilesystem": self._config.read_only_root_filesystem,
         }
 
+        runtime_env: list[dict[str, object]] = [
+            {
+                "name": "RUNTIME_SHARED_TOKEN",
+                "value": os.getenv("RUNTIME_SHARED_TOKEN", ""),
+            },
+            {
+                "name": "MODEL_CLIENT_MODE",
+                "value": os.getenv("MODEL_CLIENT_MODE", "gateway"),
+            },
+            {
+                "name": "PROVIDER_ENDPOINT",
+                "value": os.getenv(
+                    "PROVIDER_ENDPOINT", "https://openrouter.ai/api/v1/chat/completions"
+                ),
+            },
+            {
+                "name": "MODEL_NAME",
+                "value": os.getenv("MODEL_NAME", "deepseek/deepseek-v3.2"),
+            },
+            {
+                "name": "OPENROUTER_API_KEY",
+                "value": os.getenv("OPENROUTER_API_KEY", ""),
+            },
+        ]
+        # TODO(runtime-provisioning): Validate required env values before apply
+        # (e.g. RUNTIME_SHARED_TOKEN, and OPENROUTER_API_KEY when gateway mode
+        # is enabled) to avoid provisioning pods that are guaranteed to fail.
+        # TODO(runtime-provisioning): For non-local/staging-hardening, replace
+        # sensitive raw env injection with valueFrom.secretKeyRef.
+
         if self._config.drop_all_capabilities:
             container_security_context["capabilities"] = {"drop": ["ALL"]}
 
@@ -109,6 +150,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                     "image": image_ref,
                     "imagePullPolicy": "IfNotPresent",
                     "securityContext": container_security_context,
+                    "env": runtime_env,
                     "resources": {
                         "requests": {
                             "cpu": self._config.cpu_request,
@@ -147,4 +189,25 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 "labels": labels,
             },
             "spec": spec,
+        }
+
+    def _build_service_manifest(
+        self, *, service_name: str, request: RuntimeProvisionRequest
+    ) -> dict[str, object]:
+        return {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": service_name,
+                "namespace": self._config.namespace,
+                "labels": {
+                    "app.kubernetes.io/name": "lab-runtime",
+                    "agent-failure/session-id": str(request.session_id),
+                },
+            },
+            "spec": {
+                "selector": {"agent-failure/session-id": str(request.session_id)},
+                "ports": [{"name": "http", "port": 8000, "targetPort": 8000}],
+                "type": "ClusterIP",
+            },
         }

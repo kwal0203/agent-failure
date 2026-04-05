@@ -28,9 +28,12 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import Sessio
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
+    SessionRuntimeBindingModel,
     TraceEventModel,
 )
-from apps.control_plane.src.interfaces.http.dependencies import get_runtime_client
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_runtime_client_factory,
+)
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 
@@ -60,9 +63,21 @@ class _FakeRuntimeClient:
         return self._stream_factory(input)
 
 
+class _FakeRuntimeClientFactory:
+    def __init__(self, fake_client: _FakeRuntimeClient) -> None:
+        self._fake_client = fake_client
+        self.created_base_urls: list[str] = []
+
+    def create(self, *, base_url: str) -> _FakeRuntimeClient:
+        self.created_base_urls.append(base_url)
+        return self._fake_client
+
+
 def _override_runtime_client(fake_client: _FakeRuntimeClient):
-    def _dependency_override() -> _FakeRuntimeClient:
-        return fake_client
+    factory = _FakeRuntimeClientFactory(fake_client=fake_client)
+
+    def _dependency_override() -> _FakeRuntimeClientFactory:
+        return factory
 
     return _dependency_override
 
@@ -89,6 +104,17 @@ def _seed_active_session(db_session: Session, owner_username: str) -> SessionMod
     )
     db_session.add(session)
     db_session.flush()
+    db_session.add(
+        SessionRuntimeBindingModel(
+            session_id=session.id,
+            runtime_kind="k8s_pod",
+            base_url="http://runtime.test.local:8000",
+            auth_token_ref=None,
+            status="ready",
+            last_error=None,
+        )
+    )
+    db_session.flush()
     return session
 
 
@@ -111,6 +137,17 @@ def _seed_session(
         last_transition_reason=None,
     )
     db_session.add(session)
+    db_session.flush()
+    db_session.add(
+        SessionRuntimeBindingModel(
+            session_id=session.id,
+            runtime_kind="k8s_pod",
+            base_url="http://runtime.test.local:8000",
+            auth_token_ref=None,
+            status="ready",
+            last_error=None,
+        )
+    )
     db_session.flush()
     return session
 
@@ -149,7 +186,7 @@ def test_stream_owner_can_connect_and_get_initial_session_status(
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -176,7 +213,7 @@ def test_stream_non_owner_is_denied(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -197,7 +234,7 @@ def test_stream_admin_non_owner_is_allowed(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -219,7 +256,7 @@ def test_stream_missing_auth_is_denied(db_session: Session) -> None:
     session = _seed_active_session(db_session, owner_username="stream-owner")
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -244,7 +281,7 @@ def test_stream_logs_connect_and_disconnect_with_session_context(
     session = _seed_active_session(db_session, owner_username=owner_username)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -280,7 +317,7 @@ def test_user_prompt_is_accepted_for_interactive_session(
         yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:
@@ -344,6 +381,56 @@ def test_user_prompt_is_accepted_for_interactive_session(
 
 
 @pytest.mark.usefixtures("engine")
+def test_user_prompt_uses_session_runtime_binding_base_url_not_global_config(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+    binding_base_url = "http://binding.runtime.local:8000"
+
+    binding = db_session.get(SessionRuntimeBindingModel, session.id)
+    assert binding is not None
+    binding.base_url = binding_base_url
+    db_session.flush()
+
+    monkeypatch.setenv("RUNTIME_BASE_URL", "http://global.runtime.invalid:9999")
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TextChunkEvent(
+            type="text_chunk", content="response chunk", chunk_index=0, final=True
+        )
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
+
+    fake_factory = _FakeRuntimeClientFactory(
+        fake_client=_FakeRuntimeClient(stream_factory=_stream)
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client_factory] = lambda: fake_factory
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()  # initial SESSION_STATUS
+            ws.send_json(_user_prompt_message(session.id, "hello"))
+            _ = ws.receive_json()  # TRACE_EVENT TURN_STARTED
+            _ = ws.receive_json()  # TRACE_EVENT MODEL_REQUEST_STARTED
+            msg = ws.receive_json()
+    finally:
+        app.dependency_overrides.clear()
+
+    _assert_required_server_message_fields(
+        msg, expected_type="AGENT_TEXT_CHUNK", session_id=session.id
+    )
+    assert msg["payload"]["content"] == "response chunk"
+    assert fake_factory.created_base_urls == [binding_base_url]
+
+
+@pytest.mark.usefixtures("engine")
 def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
     db_session: Session,
 ) -> None:
@@ -381,7 +468,7 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
         yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:
@@ -442,7 +529,7 @@ def test_user_prompt_overlapping_turn_is_denied(
         )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:
@@ -487,7 +574,7 @@ def test_user_prompt_non_interactive_session_is_denied(
     )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _default_runtime_client()
     )
     try:
@@ -519,7 +606,7 @@ def test_user_prompt_internal_failure_emits_system_error(
         raise RuntimeError("boom")
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:
@@ -560,7 +647,7 @@ def test_user_prompt_failure_before_first_chunk_emits_stable_system_error(
         )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:
@@ -627,7 +714,7 @@ def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
     monkeypatch.setattr(main_module.ws_manager, "send_to", _timeout_on_agent_chunk)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_runtime_client] = _override_runtime_client(
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
     )
     try:

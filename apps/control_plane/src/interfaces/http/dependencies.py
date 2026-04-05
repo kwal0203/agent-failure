@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
-from fastapi import Depends, HTTPException, status
+
+# from fastapi import Depends, HTTPException, status
+from fastapi import Depends
+from dataclasses import replace
 
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
@@ -33,7 +36,8 @@ from apps.control_plane.src.infrastructure.persistence.idempotency_store import 
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
 )
-from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
+
+# from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
 
 
@@ -75,15 +79,8 @@ def get_session_metadata_repository(
 
 
 def get_runtime_client_config() -> RuntimeClientConfig:
-    base_url = os.getenv("RUNTIME_BASE_URL", "").strip()
     timeout_raw = os.getenv("RUNTIME_TIMEOUT_SECONDS", "").strip()
     auth_token = os.getenv("RUNTIME_AUTH_TOKEN", "").strip()
-
-    if not base_url:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="runtime client base url not set",
-        )
 
     try:
         timeout_seconds = float(timeout_raw)
@@ -91,13 +88,33 @@ def get_runtime_client_config() -> RuntimeClientConfig:
         timeout_seconds = 10.0
 
     return RuntimeClientConfig(
-        base_url=base_url,
+        base_url="http://placeholder",
         timeout_seconds=timeout_seconds,
         auth_token=auth_token or None,
     )
 
 
-def get_runtime_client(
-    config: RuntimeClientConfig = Depends(get_runtime_client_config),
-) -> RuntimeClientPort:
-    return RuntimeHttpClient(config=config)
+class RuntimeClientFactory:
+    def __init__(self, config: RuntimeClientConfig) -> None:
+        self._config = config
+
+    def create(self, *, base_url: str) -> RuntimeHttpClient:
+        cfg = replace(self._config, base_url=base_url)
+        return RuntimeHttpClient(config=cfg)
+
+
+def get_runtime_client_factory() -> RuntimeClientFactory:
+    config = get_runtime_client_config()
+    base_cfg = RuntimeClientConfig(
+        base_url=config.base_url,
+        timeout_seconds=config.timeout_seconds,
+        auth_token=config.auth_token,
+    )
+
+    return RuntimeClientFactory(config=base_cfg)
+
+
+# def get_runtime_client(
+#     config: RuntimeClientConfig = Depends(get_runtime_client_config),
+# ) -> RuntimeClientPort:
+#     return RuntimeHttpClient(config=config)

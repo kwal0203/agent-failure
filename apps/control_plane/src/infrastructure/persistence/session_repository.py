@@ -25,15 +25,21 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
 from apps.control_plane.src.application.orchestrator.ports import (
     ReconciliationSessionQueryPort,
     ExpirySessionPort,
+    SessionRuntimeBindingPort,
 )
 from apps.control_plane.src.application.orchestrator.types import (
     ExpiryCandidate,
     ReconciliationCandidate,
+    UpsertSessionRuntimeBindingInput,
+    SessionRuntimeBinding,
+    RuntimeKind,
+    RuntimeBindingStatus,
 )
 from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
 from apps.control_plane.src.infrastructure.persistence.models import (
     EvaluatorResultModel,
+    SessionRuntimeBindingModel,
 )
 from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
 from apps.control_plane.src.application.evaluator_feedback.types import (
@@ -389,3 +395,66 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
             )
 
         return tuple(result)
+
+
+class SQLAlchemySessionRuntimeBindingRepository(SessionRuntimeBindingPort):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def upsert_runtime_binding(
+        self, *, input: UpsertSessionRuntimeBindingInput
+    ) -> None:
+        stmt = (
+            select(SessionRuntimeBindingModel)
+            .where(SessionRuntimeBindingModel.session_id == input.session_id)
+            .with_for_update()
+        )
+
+        row = self._db.execute(stmt).scalar_one_or_none()
+        if row is None:
+            row = SessionRuntimeBindingModel(
+                session_id=input.session_id,
+                runtime_kind=input.runtime_kind,
+                base_url=input.base_url,
+                auth_token_ref=input.auth_token_ref,
+                status=input.status,
+                last_error=input.last_error,
+            )
+            self._db.add(row)
+        else:
+            row.runtime_kind = input.runtime_kind
+            row.base_url = input.base_url
+            row.auth_token_ref = input.auth_token_ref
+            row.status = input.status
+
+            if input.status == "ready" and input.last_error is None:
+                row.last_error = None
+            else:
+                row.last_error = input.last_error
+
+        self._db.flush()
+
+    def get_by_session_id(self, *, session_id: UUID) -> SessionRuntimeBinding | None:
+        stmt = select(SessionRuntimeBindingModel).where(
+            SessionRuntimeBindingModel.session_id == session_id
+        )
+
+        # TODO: Can multiple runtimes exists for a session?
+        row = self._db.execute(stmt).scalar_one_or_none()
+        if row is None:
+            return None
+
+        # TODO: These allowed types and statuses should be put in a contract somewhere.
+        if row.runtime_kind not in {"k8s_pod"}:
+            raise ValueError(f"Unknown runtime kind: {row.runtime_kind}")
+        if row.status not in {"provisioning", "ready", "failed", "terminated"}:
+            raise ValueError(f"Unknown status: {row.status}")
+
+        return SessionRuntimeBinding(
+            session_id=row.session_id,
+            runtime_kind=cast(RuntimeKind, row.status),
+            base_url=row.base_url,
+            auth_token_ref=row.auth_token_ref,
+            status=cast(RuntimeBindingStatus, row.status),
+            last_error=row.last_error,
+        )

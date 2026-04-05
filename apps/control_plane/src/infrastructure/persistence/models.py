@@ -269,3 +269,31 @@ class EvaluatorResultModel(Base):
         UUID(as_uuid=True), nullable=False, index=True
     )
     evaluator_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class SessionRuntimeBindingModel(Base):
+    __tablename__ = "session_runtime_bindings"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('provisioning', 'ready', 'failed', 'terminated')",
+            name="ck_session_runtime_binding_status",
+        ),
+    )
+
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), primary_key=True
+    )
+    runtime_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    auth_token_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

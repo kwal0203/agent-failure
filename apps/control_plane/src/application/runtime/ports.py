@@ -11,3 +11,7 @@ class RuntimeClientPort(Protocol):
     def run_turn_stream(
         self, input: RunTurnInput
     ) -> AsyncIterator[RuntimeStreamEvent]: ...
+
+
+class RuntimeClientFactoryPort(Protocol):
+    def create(self, *, base_url: str) -> RuntimeClientPort: ...

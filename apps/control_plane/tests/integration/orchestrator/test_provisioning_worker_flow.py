@@ -8,6 +8,8 @@ from sqlalchemy import select
 from apps.control_plane.src.application.orchestrator.service import process_pending_once
 from apps.control_plane.src.application.orchestrator.types import (
     ProvisionResult,
+    RuntimeInspectorRequest,
+    RuntimeInspectorResult,
     RuntimeProvisionRequest,
 )
 from apps.control_plane.src.application.session_create.service import create_session
@@ -38,7 +40,11 @@ class _ResolverOK:
 class _ProvisionerAccepted:
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
         _ = request
-        return ProvisionResult(status="accepted", runtime_id="runtime-1")
+        return ProvisionResult(
+            status="accepted",
+            runtime_id="runtime-1",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
 
 
 class _ProvisionerFailed:
@@ -48,6 +54,21 @@ class _ProvisionerFailed:
             status="failed",
             reason_code="K8S_APPLY_FAILED",
             details={"stderr": "simulated"},
+        )
+
+
+class _InspectorReady:
+    def inspect(self, request: RuntimeInspectorRequest) -> RuntimeInspectorResult:
+        return RuntimeInspectorResult(
+            session_id=request.session_id,
+            requested_runtime_id=request.runtime_id,
+            matched_runtime_ids=(request.runtime_id or "runtime-1",),
+            exists=True,
+            duplicate_count=0,
+            phase="Running",
+            ready=True,
+            reason=None,
+            details=None,
         )
 
 
@@ -91,6 +112,7 @@ def test_provisioning_worker_success_consumes_outbox_and_transitions_active() ->
         uow=worker_uow,
         image_resolver=_ResolverOK(),
         provisioner=_ProvisionerAccepted(),
+        runtime_inspector=_InspectorReady(),
     )
 
     assert result.claimed_count == 1
@@ -146,6 +168,7 @@ def test_provisioning_worker_failure_consumes_outbox_and_transitions_failed() ->
         uow=worker_uow,
         image_resolver=_ResolverOK(),
         provisioner=_ProvisionerFailed(),
+        runtime_inspector=_InspectorReady(),
     )
 
     assert result.claimed_count == 1
