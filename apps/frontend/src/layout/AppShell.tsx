@@ -12,7 +12,7 @@ const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
 const bootstrap: ShellBootstrap = {
 	mode: "demo",
 	learnerLabel: "Demo Learner",
-	apiBaseUrl: "http://localhost:8000",
+	apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
 };
 
 export default function AppShell() {

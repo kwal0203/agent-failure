@@ -45,6 +45,7 @@ Then update `deploy/k8s/staging/control-plane-deployment.yaml` to the new contro
 ## 4) Deploy Control-Plane Service + Deployment
 
 ```bash
+kubectl apply -f deploy/k8s/staging/control-plane-worker-rbac.yaml
 kubectl apply -f deploy/k8s/staging/control-plane-service.yaml
 kubectl apply -f deploy/k8s/staging/control-plane-deployment.yaml
 kubectl -n runtime-pool rollout status deploy/control-plane

@@ -64,6 +64,8 @@ export type ServerMessage =
 	| LearnerFeedbackMessage;
 
 export function useSessionStream(sessionId?: string) {
+	const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+	const wsBase = apiBase.replace(/^http/i, "ws");
 	const [connectionState, setConnectionState] =
 		useState<ConnectionState>("idle");
 	const [messages, setMessages] = useState<ServerMessage[]>([]);
@@ -79,7 +81,7 @@ export function useSessionStream(sessionId?: string) {
 
 		const token = encodeURIComponent("local:kane:learner");
 		const ws = new WebSocket(
-			`ws://localhost:8000/api/v1/sessions/${sessionId}/stream?access_token=${token}`,
+			`${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}`,
 		);
 
 		wsRef.current = ws;
@@ -121,7 +123,7 @@ export function useSessionStream(sessionId?: string) {
 				ws.close();
 			}
 		};
-	}, [sessionId]);
+	}, [sessionId, wsBase]);
 
 	const sendPrompt = useCallback(
 		(content: string) => {
