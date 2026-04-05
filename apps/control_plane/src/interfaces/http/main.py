@@ -322,6 +322,7 @@ def create_session_endpoint(
             "ADMISSION_DENIED", exc.message, False, 400, exc.details
         )
     except Exception:
+        logger.exception("create session endpoint failed")
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
         )
@@ -1197,3 +1198,8 @@ def get_session_trace(
             status_code=500,
             details=None,
         )
+
+
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+    return {"status": "ok"}

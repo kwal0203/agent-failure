@@ -94,6 +94,7 @@ export function useSessionStream(sessionId?: string) {
 		};
 
 		ws.onmessage = (event) => {
+			if (wsRef.current !== ws) return;
 			try {
 				const parsed = JSON.parse(event.data) as ServerMessage;
 				setMessages((prev) => [...prev, parsed]);
@@ -102,8 +103,14 @@ export function useSessionStream(sessionId?: string) {
 			}
 		};
 
-		ws.onerror = () => setConnectionState("error");
-		ws.onclose = () => setConnectionState("closed");
+		ws.onerror = () => {
+			if (wsRef.current !== ws) return;
+			setConnectionState("error");
+		};
+		ws.onclose = () => {
+			if (wsRef.current !== ws) return;
+			setConnectionState("closed");
+		};
 
 		return () => {
 			if (wsRef.current === ws) {

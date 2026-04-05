@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 from datetime import datetime, timezone
@@ -21,7 +22,41 @@ from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_reposito
     SQLAlchemyWorkerHeartbeatRepository,
 )
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
+REPO_ROOT = Path(__file__).resolve().parents[5]
+DOTENV_PATH = REPO_ROOT / ".env"
+
+
+def _load_worker_env() -> None:
+    # Load repo-root .env regardless of current working directory.
+    load_dotenv(dotenv_path=DOTENV_PATH, override=False)
+
+    # Keep backward compatibility with existing local setups that only define
+    # RUNTIME_AUTH_TOKEN while k8s runtime pods need RUNTIME_SHARED_TOKEN.
+    if not os.getenv("RUNTIME_SHARED_TOKEN") and os.getenv("RUNTIME_AUTH_TOKEN"):
+        os.environ["RUNTIME_SHARED_TOKEN"] = os.environ["RUNTIME_AUTH_TOKEN"] or ""
+        logger.info(
+            "provisioning worker env: using RUNTIME_AUTH_TOKEN as RUNTIME_SHARED_TOKEN fallback"
+        )
+
+    _validate_required_env()
+
+
+def _validate_required_env() -> None:
+    model_mode = (os.getenv("MODEL_CLIENT_MODE") or "").strip() or "gateway"
+
+    required = ["RUNTIME_SHARED_TOKEN", "MODEL_CLIENT_MODE", "MODEL_NAME"]
+    if model_mode == "gateway":
+        required.extend(["PROVIDER_ENDPOINT", "OPENROUTER_API_KEY"])
+
+    missing = [name for name in required if not (os.getenv(name) or "").strip()]
+    if missing:
+        joined = ", ".join(sorted(missing))
+        raise RuntimeError(
+            f"Missing required env for provisioning worker runtime pods: {joined}"
+        )
 
 
 def _build_dependencies() -> tuple[
@@ -97,4 +132,5 @@ def run_forever(poll_interval_seconds: float = 1.0) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    _load_worker_env()
     run_forever(poll_interval_seconds=10.0)
