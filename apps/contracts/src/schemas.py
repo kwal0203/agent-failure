@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from typing import Literal, Annotated
 
@@ -129,3 +129,30 @@ RuntimeStreamEvent = Annotated[
     | TokenDisclosedEvent,
     Field(discriminator="type"),
 ]
+
+
+class EmailArtifact(BaseModel):
+    email_from: str = Field(min_length=1)
+    email_subject: str = Field(min_length=1)
+    email_body: str = Field(min_length=1)
+    email_id: str | None = None
+    malicious: bool | None = None
+    source: Literal["learner"] = "learner"
+
+    @field_validator("email_from", "email_subject", "email_body", "email_id", mode="before")
+    @classmethod
+    def _strip_strings(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class ApiError(BaseModel):
+    code: str
+    message: str
+    retryable: bool
+    details: dict[str, object] | None
+
+
+class ApiErrorEnvelope(BaseModel):
+    error: ApiError

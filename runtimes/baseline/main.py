@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
-from apps.contracts.src.schemas import RunTurnStreamRequest
+from apps.contracts.src.schemas import RunTurnStreamRequest, EmailArtifact
 
 from .auth import require_internal_auth
 from .schemas import HealthStatus
@@ -49,6 +49,11 @@ async def stream_turn(
             yield event.model_dump_json() + "\n"
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+
+@app.post("/runtime/v1/inbox/email")
+def inject_inbox_email(request: EmailArtifact) -> None:
+    # Runtime endpoint calls inbox tool receive_email(...)
 
 
 @app.get("/healthz", status_code=200)

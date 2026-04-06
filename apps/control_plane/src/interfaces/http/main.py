@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from .schemas import (
     GetSessionMetadataResponse,
     SessionMetadataResponse,
-    ApiErrorEnvelope,
     SessionResponse,
     CreateSessionResponse,
     CreateSessionRequest,
@@ -20,6 +19,7 @@ from .schemas import (
     GetFeedbackResponse,
     SessionTraceEvent,
     GetSessionTraceResponse,
+    InjectSessionEmailResponse
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -61,8 +61,6 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
 )
-from apps.control_plane.src.application.runtime.types import RunTurnInput
-from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.lab_catalog.service import (
@@ -75,6 +73,9 @@ from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
 )
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
+from apps.control_plane.src.application.runtime.types import RunTurnInput, InjectEmailInput
+from apps.control_plane.src.application.runtime.errors import RuntimeClientError
+from apps.contracts.src.schemas import EmailArtifact, ApiErrorEnvelope
 from .dependencies import (
     get_admission_policy,
     get_create_session_uow,
@@ -82,7 +83,6 @@ from .dependencies import (
     get_runtime_client_factory,
 )
 from .auth import (
-    Principal,
     UnauthenticatedError,
     get_current_principal,
     get_current_principal_ws,
@@ -168,7 +168,7 @@ def _as_utc(dt: datetime | None) -> datetime | None:
 )
 def get_metadata(
     session_id: UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: PrincipalContext = Depends(get_current_principal),
     db: Session = Depends(get_db_session),
 ) -> GetSessionMetadataResponse | JSONResponse:
     repo = SQLAlchemySessionMetadataRepository(db=db)
@@ -177,8 +177,7 @@ def get_metadata(
     try:
         session_metadata = get_session_metadata(
             session_id=session_id,
-            principal_user_id=principal.user_id,
-            principal_user_role=principal.role,
+            principal=principal,
             repo=repo,
         )
         if session_metadata is None:
@@ -257,7 +256,7 @@ def get_metadata(
 )
 def create_session_endpoint(
     request: CreateSessionRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: PrincipalContext = Depends(get_current_principal),
     admission_policy: AdmissionPolicy = Depends(get_admission_policy),
     uow: CreateSessionUnitOfWork = Depends(get_create_session_uow),
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
@@ -331,7 +330,7 @@ def create_session_endpoint(
 async def handle_user_prompt(
     websocket: WebSocket,
     session_id: UUID,
-    principal: Principal,
+    principal: PrincipalContext,
     prompt_content: str,
     db: Session,
     runtime_client_factory: RuntimeClientFactoryPort,
@@ -352,8 +351,7 @@ async def handle_user_prompt(
     try:
         metadata = get_session_metadata(
             session_id=session_id,
-            principal_user_id=principal.user_id,
-            principal_user_role=principal.role,
+            principal=principal,
             repo=repo,
         )
         if metadata is None:
@@ -933,8 +931,7 @@ async def session_stream_ws(
     try:
         metadata = get_session_metadata(
             session_id=session_id,
-            principal_user_id=principal.user_id,
-            principal_user_role=principal.role,
+            principal=principal,
             repo=repo,
         )
     except ForbiddenErrorSessionQuery:
@@ -1021,17 +1018,14 @@ async def session_stream_ws(
     responses={401: {"model": ApiErrorEnvelope}, 403: {"model": ApiErrorEnvelope}},
 )
 def get_labs(
-    principal: Principal = Depends(get_current_principal),
+    principal: PrincipalContext = Depends(get_current_principal),
     db: Session = Depends(get_db_session),
 ) -> GetLabsResponse | JSONResponse:
     lab_repo = SQLAlchemyLabRepository(db=db)
-    application_principal = PrincipalContext(
-        user_id=principal.user_id, role=principal.role
-    )
 
     try:
         labs_for_principal = get_labs_for_principal(
-            principal=application_principal, lab_repo=lab_repo
+            principal=principal, lab_repo=lab_repo
         ).labs
 
         result: list[LabCatalogItemResponse] = []
@@ -1049,6 +1043,7 @@ def get_labs(
                 )
             )
         return GetLabsResponse(labs=result)
+
     except ForbiddenError as exc:
         return build_api_error_response(
             code="FORBIDDEN",
@@ -1081,17 +1076,14 @@ def get_labs(
 )
 def evaluator_feedback(
     session_id: UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: PrincipalContext = Depends(get_current_principal),
     db: Session = Depends(get_db_session),
 ) -> GetFeedbackResponse | JSONResponse:
     repo = SQLAlchemyEvaluatorRepository(db=db)
-    application_principal = PrincipalContext(
-        user_id=principal.user_id, role=principal.role
-    )
 
     try:
         evaluator_feedback = get_session_evaluator_feedback(
-            principal=application_principal, session_id=session_id, repo=repo
+            principal=principal, session_id=session_id, repo=repo
         )
         tmp: list[EvaluatorFeedbackResponse] = []
         for feedback in evaluator_feedback:
@@ -1135,20 +1127,17 @@ def evaluator_feedback(
 )
 def get_session_trace(
     session_id: UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: PrincipalContext = Depends(get_current_principal),
     db: Session = Depends(get_db_session),
 ) -> GetSessionTraceResponse | JSONResponse:
+
     repo = SQLAlchemyTraceEventRepository(db=db)
     metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
-    application_principal = PrincipalContext(
-        user_id=principal.user_id, role=principal.role
-    )
 
     try:
         session_metadata = get_session_metadata(
             session_id=session_id,
-            principal_user_id=application_principal.user_id,
-            principal_user_role=application_principal.role,
+            principal=principal,
             repo=metadata_repo,
         )
         if session_metadata is None:
@@ -1197,6 +1186,116 @@ def get_session_trace(
             retryable=False,
             status_code=500,
             details=None,
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/inbox/email",
+    status_code=202,
+    response_model=InjectSessionEmailResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        409: {"model": ApiErrorEnvelope},
+        502: {"model": ApiErrorEnvelope}
+    }
+)
+async def inject_session_email(
+    request: EmailArtifact,
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    runtime_client_factory: RuntimeClientFactoryPort = Depends(get_runtime_client_factory),
+    db: Session = Depends(get_db_session)
+) -> InjectSessionEmailResponse | JSONResponse:
+    try:
+        repo = SQLAlchemySessionMetadataRepository(db=db)
+        runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
+
+        session_metadata = get_session_metadata(
+            session_id=session_id,
+            principal=principal,
+            repo=repo
+        )
+
+        if session_metadata is None:
+            return build_api_error_response(
+                "SESSION_NOT_FOUND",
+                "Session not found",
+                False,
+                404,
+                {"session_id": str(session_id)},
+            )
+
+        if not session_metadata.interactive:
+            return build_api_error_response(
+                code="SESSION_NOT_INTERACTIVE",
+                message="Session is not interactive",
+                retryable=True,
+                status_code=409,
+                details={
+                    "session_id": str(session_id)
+                }
+            )
+
+        runtime_binding = runtime_binding_repo.get_by_session_id(session_id=session_id)
+        if runtime_binding is None or runtime_binding.status != "ready":
+            current_status = (
+                runtime_binding.status if runtime_binding is not None else "missing"
+            )
+
+            logger.warning(
+                "runtime binding not ready",
+                extra={
+                    "event": "runtime_binding_not_ready",
+                    "session_id": str(session_id),
+                    "status": current_status,
+                    "base_url": runtime_binding.base_url
+                    if runtime_binding is not None
+                    else None,
+                },
+            )
+            return build_api_error_response(
+                code="RUNTIME_NOT_READY",
+                message=f"Runtime not ready (status={current_status})",
+                retryable=True,
+                status_code=409,
+                details={
+                    "session_id": str(session_id),
+                    "runtime_status": current_status
+                }
+            )
+
+        client = runtime_client_factory.create(
+            base_url=runtime_binding.base_url
+        )
+
+        email_input = InjectEmailInput(
+            session_id=session_id,
+            email_from=request.email_from,
+            email_subject=request.email_subject,
+            email_body=request.email_body,
+            email_id=request.email_id,
+            malicious=request.malicious,
+            source=request.source
+        )
+
+        await client.inject_email(input=email_input)
+
+        return InjectSessionEmailResponse(session_id=session_id)
+
+    except ForbiddenErrorSessionQuery as exc:
+        return build_api_error_response(
+            "FORBIDDEN", exc.message, False, 403, exc.details
+        )
+
+    except RuntimeClientError as exc:
+        return build_api_error_response(
+            code=exc.code,
+            message=exc.message,
+            retryable=exc.retryable,
+            status_code=502,
+            details={"session_id": str(session_id)}
         )
 
 

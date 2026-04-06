@@ -29,3 +29,14 @@ class RunTurnOutput:
     duration_ms: int
     model_provider: str | None = None
     model_name: str | None = None
+
+
+@dataclass(frozen=True)
+class InjectEmailInput:
+    session_id: UUID
+    email_from: str
+    email_subject: str
+    email_body: str
+    email_id: str | None = None
+    malicious: bool | None = None
+    source: Literal["learner"] = "learner"
