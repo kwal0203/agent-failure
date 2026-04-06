@@ -7,6 +7,7 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import Sessio
 from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
 )
+from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_query.types import (
     SessionMetadataRow,
 )
@@ -45,8 +46,7 @@ def test_get_session_metadata_owner_is_allowed() -> None:
 
     result = get_session_metadata(
         session_id=row.id,
-        principal_user_id=row.owner_user_id,
-        principal_user_role="learner",
+        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
         repo=repo,
     )
 
@@ -60,8 +60,7 @@ def test_get_session_metadata_admin_non_owner_is_allowed() -> None:
 
     result = get_session_metadata(
         session_id=row.id,
-        principal_user_id=uuid4(),
-        principal_user_role="admin",
+        principal=PrincipalContext(user_id=uuid4(), role="admin"),
         repo=repo,
     )
 
@@ -78,8 +77,7 @@ def test_get_session_metadata_non_owner_non_admin_is_forbidden() -> None:
     with pytest.raises(ForbiddenErrorSessionQuery):
         get_session_metadata(
             session_id=row.id,
-            principal_user_id=requester_user_id,
-            principal_user_role="learner",
+            principal=PrincipalContext(user_id=requester_user_id, role="learner"),
             repo=repo,
         )
 
@@ -91,8 +89,7 @@ def test_get_session_metadata_derives_interactive_true_for_active() -> None:
 
     result = get_session_metadata(
         session_id=row.id,
-        principal_user_id=row.owner_user_id,
-        principal_user_role="learner",
+        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
         repo=repo,
     )
 
@@ -107,8 +104,7 @@ def test_get_session_metadata_derives_interactive_false_for_terminal() -> None:
 
     result = get_session_metadata(
         session_id=row.id,
-        principal_user_id=row.owner_user_id,
-        principal_user_role="learner",
+        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
         repo=repo,
     )
 

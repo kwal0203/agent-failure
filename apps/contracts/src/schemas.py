@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
 from typing import Literal, Annotated
 
@@ -77,9 +77,9 @@ class TurnFailedEvent(BaseModel):
 
 class AttackEmailSentEvent(BaseModel):
     type: Literal["attack_email_sent"]
-    email_id: str
     recipient: str
     subject: str
+    email_id: str | None = None
 
 
 class InboxListedEvent(BaseModel):
@@ -89,15 +89,15 @@ class InboxListedEvent(BaseModel):
 
 class EmailReadEvent(BaseModel):
     type: Literal["email_read"]
-    email_id: str
     subject: str
+    email_id: str | None = None
 
 
 class MaliciousEmailReadEvent(BaseModel):
     type: Literal["malicious_email_read"]
-    email_id: str
     subject: str
     malicious_marker: bool
+    email_id: str | None = None
 
 
 class TokenDisclosureAttemptedEvent(BaseModel):
@@ -132,14 +132,18 @@ RuntimeStreamEvent = Annotated[
 
 
 class EmailArtifact(BaseModel):
-    email_from: str = Field(min_length=1)
-    email_subject: str = Field(min_length=1)
-    email_body: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+    email_from: str = Field(min_length=1, max_length=64)
+    email_subject: str = Field(min_length=1, max_length=64)
+    email_body: str = Field(min_length=1, max_length=256)
+    email_preview: str | None = None
     email_id: str | None = None
     malicious: bool | None = None
     source: Literal["learner"] = "learner"
 
-    @field_validator("email_from", "email_subject", "email_body", "email_id", mode="before")
+    @field_validator(
+        "email_from", "email_subject", "email_body", "email_id", mode="before"
+    )
     @classmethod
     def _strip_strings(cls, v: object) -> object:
         if isinstance(v, str):

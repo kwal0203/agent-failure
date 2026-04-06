@@ -11,7 +11,8 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     EvaluatorResultModel,
     SessionModel,
 )
-from apps.control_plane.src.interfaces.http.auth import Principal, get_current_principal
+from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.interfaces.http.auth import get_current_principal
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 
@@ -26,9 +27,9 @@ def _override_db_session(db_session: Session):
     return _dependency_override
 
 
-def _override_principal(user_id: UUID, role: str) -> Callable[[], Principal]:
-    def _dependency_override() -> Principal:
-        return Principal(user_id=user_id, role=role)
+def _override_principal(user_id: UUID, role: str) -> Callable[[], PrincipalContext]:
+    def _dependency_override() -> PrincipalContext:
+        return PrincipalContext(user_id=user_id, role=role)
 
     return _dependency_override
 

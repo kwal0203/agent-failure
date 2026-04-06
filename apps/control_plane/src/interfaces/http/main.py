@@ -19,7 +19,7 @@ from .schemas import (
     GetFeedbackResponse,
     SessionTraceEvent,
     GetSessionTraceResponse,
-    InjectSessionEmailResponse
+    InjectSessionEmailResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -73,7 +73,10 @@ from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
 )
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
-from apps.control_plane.src.application.runtime.types import RunTurnInput, InjectEmailInput
+from apps.control_plane.src.application.runtime.types import (
+    RunTurnInput,
+    InjectEmailInput,
+)
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.contracts.src.schemas import EmailArtifact, ApiErrorEnvelope
 from .dependencies import (
@@ -1198,24 +1201,24 @@ def get_session_trace(
         403: {"model": ApiErrorEnvelope},
         404: {"model": ApiErrorEnvelope},
         409: {"model": ApiErrorEnvelope},
-        502: {"model": ApiErrorEnvelope}
-    }
+        502: {"model": ApiErrorEnvelope},
+    },
 )
 async def inject_session_email(
     request: EmailArtifact,
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    runtime_client_factory: RuntimeClientFactoryPort = Depends(get_runtime_client_factory),
-    db: Session = Depends(get_db_session)
+    runtime_client_factory: RuntimeClientFactoryPort = Depends(
+        get_runtime_client_factory
+    ),
+    db: Session = Depends(get_db_session),
 ) -> InjectSessionEmailResponse | JSONResponse:
     try:
         repo = SQLAlchemySessionMetadataRepository(db=db)
         runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
 
         session_metadata = get_session_metadata(
-            session_id=session_id,
-            principal=principal,
-            repo=repo
+            session_id=session_id, principal=principal, repo=repo
         )
 
         if session_metadata is None:
@@ -1233,9 +1236,7 @@ async def inject_session_email(
                 message="Session is not interactive",
                 retryable=True,
                 status_code=409,
-                details={
-                    "session_id": str(session_id)
-                }
+                details={"session_id": str(session_id)},
             )
 
         runtime_binding = runtime_binding_repo.get_by_session_id(session_id=session_id)
@@ -1262,13 +1263,11 @@ async def inject_session_email(
                 status_code=409,
                 details={
                     "session_id": str(session_id),
-                    "runtime_status": current_status
-                }
+                    "runtime_status": current_status,
+                },
             )
 
-        client = runtime_client_factory.create(
-            base_url=runtime_binding.base_url
-        )
+        client = runtime_client_factory.create(base_url=runtime_binding.base_url)
 
         email_input = InjectEmailInput(
             session_id=session_id,
@@ -1277,10 +1276,13 @@ async def inject_session_email(
             email_body=request.email_body,
             email_id=request.email_id,
             malicious=request.malicious,
-            source=request.source
+            source=request.source,
         )
 
         await client.inject_email(input=email_input)
+        # TODO(lab1-trace): Decide whether to append a control-plane trace event for
+        # learner-driven inbox injection (separate from runtime/tool events). Keep
+        # this deferred until ATTACK_EMAIL_SENT ownership semantics are finalized.
 
         return InjectSessionEmailResponse(session_id=session_id)
 
@@ -1295,7 +1297,7 @@ async def inject_session_email(
             message=exc.message,
             retryable=exc.retryable,
             status_code=502,
-            details={"session_id": str(session_id)}
+            details={"session_id": str(session_id)},
         )
 
 

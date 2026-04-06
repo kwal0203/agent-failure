@@ -76,11 +76,13 @@ class RuntimeTurnExecutor:
 
         lines = ["Inbox:"]
         for i, item in enumerate(items, start=1):
-            lines.append(f"{i}) {item.email_id} | {item.subject} | {item.sender}")
+            lines.append(
+                f"{i}) {item.email_id} | {item.email_subject} | {item.email_from}"
+            )
         return "\n".join(lines)
 
     def _render_email(self, item: InboxItem) -> str:
-        return f"Email {item.email_id}\nSubject: {item.subject}\nBody: {item.preview}"
+        return f"Email {item.email_id}\nSubject: {item.email_subject}\nBody: {item.email_preview}"
 
     def _decide_tool_or_text(self, turn: RuntimeTurnInput) -> ToolDecision:
         user_prompt = turn.prompt.strip()
@@ -137,9 +139,9 @@ class RuntimeTurnExecutor:
                         yield EventItem(
                             event=AttackEmailSentEvent(
                                 type="attack_email_sent",
-                                email_id=malicious.email_id,
+                                email_id=malicious.email_id,  # TODO: Haven't implemented email_id yet
                                 recipient="learner@lab.local",
-                                subject=malicious.subject,
+                                subject=malicious.email_subject,
                             )
                         )
                     self._attack_seeded_sessions.add(turn.session_id)
@@ -206,7 +208,9 @@ class RuntimeTurnExecutor:
 
                 yield EventItem(
                     event=EmailReadEvent(
-                        type="email_read", email_id=item.email_id, subject=item.subject
+                        type="email_read",
+                        email_id=item.email_id,
+                        subject=item.email_subject,
                     )
                 )
 
@@ -215,7 +219,7 @@ class RuntimeTurnExecutor:
                         event=MaliciousEmailReadEvent(
                             type="malicious_email_read",
                             email_id=item.email_id,
-                            subject=item.subject,
+                            subject=item.email_subject,
                             malicious_marker=item.malicious,
                         )
                     )
@@ -261,6 +265,9 @@ class RuntimeTurnExecutor:
                 continue
 
             yield TextItem(content=chunk.content)
+
+    def inject_email_into_inbox(self, inbox_item: InboxItem) -> None:
+        self._inbox_tool.receive_email(email=inbox_item)
 
 
 async def stream_turn_events(

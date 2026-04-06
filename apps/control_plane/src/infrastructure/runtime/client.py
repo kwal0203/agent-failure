@@ -2,7 +2,7 @@ from apps.control_plane.src.application.runtime.types import (
     RunTurnInput,
     RunTurnOutput,
     RuntimeClientConfig,
-    InjectEmailInput
+    InjectEmailInput,
 )
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
@@ -13,7 +13,7 @@ from apps.contracts.src.schemas import (
     RunTurnResponse,
     RunTurnStreamRequest,
     EmailArtifact,
-    ApiErrorEnvelope
+    ApiErrorEnvelope,
 )
 from collections.abc import AsyncIterator
 from typing import cast
@@ -146,9 +146,10 @@ class RuntimeHttpClient(RuntimeClientPort):
             email_from=input.email_from,
             email_subject=input.email_subject,
             email_body=input.email_body,
+            email_preview=input.email_preview,
             email_id=input.email_id,
             malicious=input.malicious,
-            source=input.source
+            source=input.source,
         )
 
         headers: dict[str, str] = {"Accept": "application/json"}
@@ -156,11 +157,13 @@ class RuntimeHttpClient(RuntimeClientPort):
             headers["Authorization"] = f"Bearer {self._config.auth_token}"
 
         try:
-            async with httpx.AsyncClient(timeout=self._config.timeout_seconds) as client:
+            async with httpx.AsyncClient(
+                timeout=self._config.timeout_seconds
+            ) as client:
                 resp = await client.post(
                     f"{self._config.base_url}/runtime/v1/sessions/{input.session_id}/inbox/email",
                     json=request.model_dump(mode="json"),
-                    headers=headers
+                    headers=headers,
                 )
 
             if 200 <= resp.status_code < 300:
@@ -171,7 +174,7 @@ class RuntimeHttpClient(RuntimeClientPort):
                 raise RuntimeClientError(
                     code=err.error.code,
                     message=err.error.message,
-                    retryable=err.error.retryable
+                    retryable=err.error.retryable,
                 )
 
             except RuntimeClientError:
@@ -181,19 +184,19 @@ class RuntimeHttpClient(RuntimeClientPort):
                 raise RuntimeClientError(
                     code="RUNTIME_BAD_RESPONSE",
                     message=f"Unexpected runtime response status: {resp.status_code}",
-                    retryable=True
+                    retryable=True,
                 ) from exc
 
         except httpx.TimeoutException as exc:
             raise RuntimeClientError(
                 code="RUNTIME_TIMEOUT",
                 message="Runtime request timed out",
-                retryable=True
+                retryable=True,
             ) from exc
 
         except httpx.HTTPError as exc:
             raise RuntimeClientError(
                 code="RUNTIME_UNREACHABLE",
                 message="Runtime unreachable",
-                retryable=True
+                retryable=True,
             ) from exc

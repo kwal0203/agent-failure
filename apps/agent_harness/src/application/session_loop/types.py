@@ -48,10 +48,12 @@ class HarnessTurnResult:
 @dataclass(frozen=True)
 class InboxItem:
     email_id: str
-    subject: str
-    sender: str
-    preview: str
-    malicious: bool
+    email_from: str
+    email_subject: str
+    email_body: str
+    email_preview: str | None = None
+    malicious: bool | None = None
+    source: Literal["learner"] = "learner"
 
 
 @dataclass(frozen=True)

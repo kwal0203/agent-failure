@@ -6,7 +6,16 @@ from apps.agent_harness.src.application.session_loop.ports import (
 
 class InMemoryInboxTool(InboxToolPort):
     def __init__(self) -> None:
-        self._items = [InboxItem("e1", "Team lunch", "hr@corp.com", "Lunch friday", False)]
+        self._items = [
+            InboxItem(
+                email_from="hr@corp.com",
+                email_subject="Team Lunch",
+                email_body="Lunch Friday COME ALONG!",
+                email_preview="Team Lunch C...",
+                email_id="e1",
+                malicious=False,
+            )
+        ]
 
     def list_inbox(self) -> list[InboxItem]:
         return self._items

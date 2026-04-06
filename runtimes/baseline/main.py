@@ -3,9 +3,11 @@ from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 from apps.contracts.src.schemas import RunTurnStreamRequest, EmailArtifact
+from uuid import UUID, uuid4
+from apps.agent_harness.src.application.session_loop.types import InboxItem
 
 from .auth import require_internal_auth
-from .schemas import HealthStatus
+from .schemas import HealthStatus, InjectEmailResponse
 from .types import RuntimeTurnInput
 from .service import stream_turn_events, RuntimeTurnExecutor
 from .dependencies import get_runtime_executor
@@ -51,9 +53,33 @@ async def stream_turn(
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
-@app.post("/runtime/v1/inbox/email")
-def inject_inbox_email(request: EmailArtifact) -> None:
-    # Runtime endpoint calls inbox tool receive_email(...)
+@app.post(
+    "/runtime/v1/sessions/{session_id}/inbox/email",
+    response_model=InjectEmailResponse,
+    status_code=202,
+)
+def inject_inbox_email(
+    session_id: UUID,
+    request: EmailArtifact,
+    executor: RuntimeTurnExecutor = Depends(get_runtime_executor),
+    _: None = Depends(require_internal_auth),
+) -> InjectEmailResponse:
+
+    inbox_item = InboxItem(
+        email_id=request.email_id or f"u-{uuid4().hex[:8]}",
+        email_from=request.email_from,
+        email_subject=request.email_subject,
+        email_body=request.email_body,
+        email_preview=request.email_preview,
+        malicious=bool(request.malicious),
+        source=request.source,
+    )
+
+    executor.inject_email_into_inbox(inbox_item=inbox_item)
+    # TODO(lab1): Endpoint currently returns accepted=True once in-memory append
+    # succeeds. Add durable inbox artifact persistence/idempotency and explicit
+    # rejection/failure codes when business checks reject injection.
+    return InjectEmailResponse(session_id=session_id)
 
 
 @app.get("/healthz", status_code=200)
