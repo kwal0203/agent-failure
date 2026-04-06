@@ -1,6 +1,5 @@
 from fastapi.responses import JSONResponse
-
-from .schemas import ApiError, ApiErrorEnvelope
+from apps.contracts.src.schemas import ApiError, ApiErrorEnvelope
 
 
 def build_api_error_response(

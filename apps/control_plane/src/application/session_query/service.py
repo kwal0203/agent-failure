@@ -1,6 +1,7 @@
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
 )
+from apps.control_plane.src.application.common.types import PrincipalContext
 from uuid import UUID
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 
@@ -14,18 +15,17 @@ def derive_interactive(state: str) -> bool:
 
 def get_session_metadata(
     session_id: UUID,
-    principal_user_id: UUID,
-    principal_user_role: str,
+    principal: PrincipalContext,
     repo: SessionMetadataRepository,
 ) -> SessionMetadataDTO | None:
 
     row = repo.get_session_metadata(session_id=session_id)
     if row is None:
         return None
-    is_owner = row.owner_user_id == principal_user_id
-    is_admin = principal_user_role == "admin"
+    is_owner = row.owner_user_id == principal.user_id
+    is_admin = principal.role == "admin"
     if not (is_owner or is_admin):
-        raise ForbiddenErrorSessionQuery(role=principal_user_role)
+        raise ForbiddenErrorSessionQuery(role=principal.role)
 
     return SessionMetadataDTO(
         id=row.id,

@@ -10,17 +10,6 @@ EvaluatorFeedbackStatusType = Literal[
 TraceFamilyType = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
 
-class ApiError(BaseModel):
-    code: str
-    message: str
-    retryable: bool
-    details: dict[str, object] | None
-
-
-class ApiErrorEnvelope(BaseModel):
-    error: ApiError
-
-
 class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
@@ -99,3 +88,9 @@ class SessionTraceEvent(BaseModel):
 class GetSessionTraceResponse(BaseModel):
     events: tuple[SessionTraceEvent, ...]
     next_cursor: str | None = None
+
+
+class InjectSessionEmailResponse(BaseModel):
+    session_id: UUID
+    email_id: str | None = None
+    accepted: bool = True
