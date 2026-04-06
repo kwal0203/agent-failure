@@ -144,12 +144,14 @@ export default function SessionPage() {
 		}
 	}, [drainRevealFrame]);
 
-	useEffect(() => {
-		if (!sessionId) return;
+	const refreshSessionMetadata = useCallback(
+		async (opts?: { background?: boolean }) => {
+			if (!sessionId) return;
 
-		const run = async () => {
-			setLoading(true);
-			setMetadataError(null);
+			if (!opts?.background) {
+				setLoading(true);
+				setMetadataError(null);
+			}
 
 			try {
 				const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
@@ -170,12 +172,30 @@ export default function SessionPage() {
 			} catch (e) {
 				setMetadataError(e instanceof Error ? e.message : "request failed");
 			} finally {
-				setLoading(false);
+				if (!opts?.background) {
+					setLoading(false);
+				}
 			}
-		};
+		},
+		[sessionId],
+	);
 
-		void run();
-	}, [sessionId]);
+	useEffect(() => {
+		void refreshSessionMetadata();
+	}, [refreshSessionMetadata]);
+
+	useEffect(() => {
+		if (!sessionId) return;
+		if (metadata?.state !== "PROVISIONING") return;
+
+		const intervalId = window.setInterval(() => {
+			void refreshSessionMetadata({ background: true });
+		}, 2000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [sessionId, metadata?.state, refreshSessionMetadata]);
 
 	useEffect(() => {
 		if (!sessionId) return;
