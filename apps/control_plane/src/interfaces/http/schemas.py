@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from uuid import UUID
 from datetime import datetime
 from typing import Literal, Any
@@ -14,6 +14,7 @@ class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
     lab_version_id: UUID | None
+    lab_difficulty: str = "medium"
     state: str
     runtime_substate: str | None
     resume_mode: str
@@ -35,6 +36,7 @@ class SessionResponse(BaseModel):
     lab_id: UUID
     # TODO: Make lab_version_id non-null once lab version binding is implemented in create flow.
     lab_version_id: UUID | None
+    lab_difficulty: str
     state: str
     resume_mode: str
     created_at: datetime
@@ -46,6 +48,15 @@ class CreateSessionResponse(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     lab_id: UUID
+    lab_difficulty: str = "medium"
+
+    @field_validator("lab_difficulty")
+    @classmethod
+    def validate_lab_difficulty(cls, v: str) -> str:
+        value = v.strip().lower()
+        if value not in {"easy", "medium"}:
+            raise ValueError("lab_difficulty must be one of: easy, medium")
+        return value
 
 
 class LabCapabilitiesResponse(BaseModel):

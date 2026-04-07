@@ -17,6 +17,7 @@ class SessionMetadataDTO:
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    lab_difficulty: str = "medium"
 
 
 @dataclass
@@ -32,3 +33,4 @@ class SessionMetadataRow:
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    lab_difficulty: str = "medium"

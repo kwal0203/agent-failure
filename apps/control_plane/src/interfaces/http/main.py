@@ -221,6 +221,7 @@ def get_metadata(
             id=session_metadata.id,
             lab_id=session_metadata.lab_id,
             lab_version_id=session_metadata.lab_version_id,
+            lab_difficulty=session_metadata.lab_difficulty,
             state=session_metadata.state,
             runtime_substate=session_metadata.runtime_substate,
             resume_mode=session_metadata.resume_mode,
@@ -237,6 +238,7 @@ def get_metadata(
             else None,
         )
         return GetSessionMetadataResponse(session=http_obj)
+
     except ForbiddenErrorSessionQuery as exc:
         return build_api_error_response(
             "FORBIDDEN", exc.message, False, 403, exc.details
@@ -282,6 +284,7 @@ def create_session_endpoint(
             principal=application_principal,
             admission_policy=admission_policy,
             lab_id=request.lab_id,
+            lab_difficulty=request.lab_difficulty,
             idempotency_key=key,
             uow=uow,
         )
@@ -289,6 +292,7 @@ def create_session_endpoint(
             id=result.session_id,
             lab_id=result.lab_id,
             lab_version_id=result.lab_version_id,
+            lab_difficulty=result.lab_difficulty,
             state=result.state,
             resume_mode=result.resume_mode,
             created_at=result.created_at,

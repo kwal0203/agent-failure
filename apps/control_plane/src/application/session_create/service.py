@@ -29,12 +29,28 @@ def _to_int(value: object, default: int = 0) -> int:
     return default
 
 
+def _return_existing_session(
+    uow: CreateSessionUnitOfWork,
+    principal: PrincipalContext,
+    lab_id: UUID,
+    idempotency_key: str,
+) -> CreateSessionResult | None:
+    existing = uow.idempotency.get(operation="create_session", key=idempotency_key)
+    if existing is not None:
+        if lab_id != existing.lab_id or existing.requester_user_id != principal.user_id:
+            raise InvalidIdempotencyKeyError(idem_key=str(idempotency_key))
+        return existing
+
+    return None
+
+
 def create_session(
     principal: PrincipalContext,
     admission_policy: AdmissionPolicy,
     lab_id: UUID,
     idempotency_key: str,
     uow: CreateSessionUnitOfWork,
+    lab_difficulty: str = "medium",
 ) -> CreateSessionResult:
     try:
         with uow.transaction():
@@ -77,21 +93,22 @@ def create_session(
 
                 raise AdmissionDecisionError(code=decision.code, details=details)
 
-            # - validate idempotency
-            existing = uow.idempotency.get(
-                operation="create_session", key=idempotency_key
+            # Check if session already exists
+            existing = _return_existing_session(
+                uow=uow,
+                principal=principal,
+                lab_id=lab_id,
+                idempotency_key=idempotency_key,
             )
-            if existing is not None:
-                if (
-                    lab_id != existing.lab_id
-                    or existing.requester_user_id != principal.user_id
-                ):
-                    raise InvalidIdempotencyKeyError(idem_key=str(idempotency_key))
+            if existing:
                 return existing
 
-            # - creates a durable session row if the idempotency key has not been used
+            # Add new session now that session has been confirmed to be 'not existing'
             session = uow.sessions.create_provision_session(
-                lab_id=lab_id, actor_id=principal.user_id, actor_role=principal.role
+                lab_id=lab_id,
+                lab_difficulty=lab_difficulty,
+                actor_id=principal.user_id,
+                actor_role=principal.role,
             )
             uow.idempotency.save(
                 operation="create_session", key=idempotency_key, result=session
@@ -119,18 +136,21 @@ def create_session(
             )
 
             return session
+
     except DuplicateIdempotencyKeyError:
         with uow.transaction():
-            # reload by key
-            existing = uow.idempotency.get(
-                operation="create_session", key=idempotency_key
+            # Concurrent create-session requests can both observe "no record" and race
+            # to insert the same idempotency key. The loser gets a unique-constraint
+            # failure (mapped to DuplicateIdempotencyKeyError), so we must reload and
+            # re-validate request identity (lab + requester) before returning the
+            # existing result.
+            existing = _return_existing_session(
+                uow=uow,
+                principal=principal,
+                lab_id=lab_id,
+                idempotency_key=idempotency_key,
             )
-            if existing is not None:
-                if (
-                    lab_id != existing.lab_id
-                    or existing.requester_user_id != principal.user_id
-                ):
-                    raise InvalidIdempotencyKeyError(idem_key=str(idempotency_key))
+            if existing:
                 return existing
 
             raise RuntimeError("Idempotency conflict but no existing record found.")

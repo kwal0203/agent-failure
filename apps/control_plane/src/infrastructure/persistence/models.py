@@ -20,6 +20,11 @@ class Base(DeclarativeBase):
 
 class SessionModel(Base):
     __tablename__ = "sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "lab_difficulty in ('easy', 'medium')", name="ck_sessions_lab_difficulty"
+        ),
+    )
 
     id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4
@@ -54,6 +59,9 @@ class SessionModel(Base):
     )
     # Add updated_at later on (can use it during reconciliation)
     # Add last_activity_at later on (cas use it during expiry)
+    lab_difficulty: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="medium"
+    )
 
 
 class SessionTransitionEventModel(Base):

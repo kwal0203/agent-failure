@@ -12,3 +12,4 @@ class CreateSessionResult(BaseModel):
     resume_mode: str
     created_at: datetime
     requester_user_id: UUID
+    lab_difficulty: str = "medium"

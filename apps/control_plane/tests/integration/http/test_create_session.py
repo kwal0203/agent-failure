@@ -57,6 +57,7 @@ def test_create_session_returns_202() -> None:
     assert response.status_code == 202
     body = response.json()
     assert body["session"]["lab_id"] == str(lab_id)
+    assert body["session"]["lab_difficulty"] == "medium"
     assert body["session"]["state"] == "PROVISIONING"
     assert body["session"]["resume_mode"] == "hot_resume"
     assert body["session"]["created_at"] is not None
@@ -87,6 +88,54 @@ def test_create_session_returns_202() -> None:
             )
         ).scalar_one()
         assert outbox_count == 1
+
+
+@pytest.mark.usefixtures("engine")
+def test_create_session_accepts_explicit_lab_difficulty_easy() -> None:
+    principal_id = uuid4()
+    lab_id = uuid4()
+    key = "create-session-key-easy"
+
+    app.dependency_overrides[get_current_principal] = _override_principal(
+        user_id=principal_id, role="learner"
+    )
+    app.dependency_overrides[get_create_session_uow] = _override_create_session_uow
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/sessions",
+            headers={"Idempotency-Key": key},
+            json={"lab_id": str(lab_id), "lab_difficulty": "easy"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["session"]["lab_difficulty"] == "easy"
+
+
+@pytest.mark.usefixtures("engine")
+def test_create_session_rejects_invalid_lab_difficulty() -> None:
+    principal_id = uuid4()
+    lab_id = uuid4()
+    key = "create-session-key-invalid-difficulty"
+
+    app.dependency_overrides[get_current_principal] = _override_principal(
+        user_id=principal_id, role="learner"
+    )
+    app.dependency_overrides[get_create_session_uow] = _override_create_session_uow
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/sessions",
+            headers={"Idempotency-Key": key},
+            json={"lab_id": str(lab_id), "lab_difficulty": "hard"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
 
 
 @pytest.mark.usefixtures("engine")

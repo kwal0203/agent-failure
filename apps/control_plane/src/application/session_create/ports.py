@@ -1,6 +1,5 @@
 from typing import Protocol, ContextManager
 from uuid import UUID
-from dataclasses import dataclass
 from datetime import datetime
 from apps.control_plane.src.application.common.ports import (
     IdempotencyStore,
@@ -8,15 +7,7 @@ from apps.control_plane.src.application.common.ports import (
 )
 
 from .schemas import CreateSessionResult
-
-
-@dataclass(frozen=True)
-class AdmissionDecision:
-    allowed: bool
-    code: str | None
-    message: str | None
-    retryable: bool
-    details: dict[str, object] | None
+from .types import AdmissionDecision
 
 
 class AdmissionPolicy(Protocol):
@@ -27,7 +18,7 @@ class AdmissionPolicy(Protocol):
 
 class CreateSessionRepository(Protocol):
     def create_provision_session(
-        self, lab_id: UUID, actor_id: UUID, actor_role: str
+        self, lab_id: UUID, lab_difficulty: str, actor_id: UUID, actor_role: str
     ) -> CreateSessionResult: ...
 
 
