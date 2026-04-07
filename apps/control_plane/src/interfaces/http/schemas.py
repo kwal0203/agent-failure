@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 from typing import Literal, Any
@@ -49,14 +49,6 @@ class CreateSessionResponse(BaseModel):
 class CreateSessionRequest(BaseModel):
     lab_id: UUID
     lab_difficulty: str = "medium"
-
-    @field_validator("lab_difficulty")
-    @classmethod
-    def validate_lab_difficulty(cls, v: str) -> str:
-        value = v.strip().lower()
-        if value not in {"easy", "medium"}:
-            raise ValueError("lab_difficulty must be one of: easy, medium")
-        return value
 
 
 class LabCapabilitiesResponse(BaseModel):

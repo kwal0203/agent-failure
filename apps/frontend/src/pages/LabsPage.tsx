@@ -6,6 +6,8 @@ const LAB_CATALOG_SOURCE = (
 	import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
 ).toLowerCase();
 
+export type LabDifficulty = "easy" | "medium";
+
 export type LabCatalogItem = {
 	id: string;
 	slug: string;
@@ -155,6 +157,7 @@ function extractSessionId(payload: unknown): string | undefined {
 export async function createSessionForLab(
 	apiBaseUrl: string,
 	labId: string,
+	labDifficulty: LabDifficulty = "medium",
 ): Promise<string> {
 	const response = await fetch(`${apiBaseUrl}/api/v1/sessions`, {
 		method: "POST",
@@ -165,6 +168,7 @@ export async function createSessionForLab(
 		},
 		body: JSON.stringify({
 			lab_id: labId,
+			lab_difficulty: labDifficulty,
 		}),
 	});
 
@@ -187,7 +191,11 @@ type LabCatalogProps = {
 	apiBaseUrl: string;
 	learnerLabel: string;
 	loadLabs?: (apiBaseUrl: string) => Promise<LabCatalogItem[]>;
-	createSession?: (apiBaseUrl: string, labId: string) => Promise<string>;
+	createSession?: (
+		apiBaseUrl: string,
+		labId: string,
+		labDifficulty: LabDifficulty,
+	) => Promise<string>;
 	onOpenSession: (sessionId: string) => void;
 };
 
@@ -203,6 +211,8 @@ export function LabCatalog({
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [creatingLabId, setCreatingLabId] = useState<string | null>(null);
 	const [createError, setCreateError] = useState<string | null>(null);
+	const [selectedDifficulty, setSelectedDifficulty] =
+		useState<LabDifficulty>("medium");
 
 	const refreshLabs = useCallback(async () => {
 		setIsLoading(true);
@@ -228,7 +238,11 @@ export function LabCatalog({
 		setCreatingLabId(labId);
 		setCreateError(null);
 		try {
-			const sessionId = await createSession(apiBaseUrl, labId);
+			const sessionId = await createSession(
+				apiBaseUrl,
+				labId,
+				selectedDifficulty,
+			);
 			onOpenSession(sessionId);
 		} catch (error) {
 			setCreateError(
@@ -245,6 +259,28 @@ export function LabCatalog({
 			<p style={{ margin: "0 0 14px" }}>
 				Demo shell is active for <strong>{learnerLabel}</strong>.
 			</p>
+			<label
+				htmlFor="lab-difficulty"
+				style={{
+					display: "inline-flex",
+					alignItems: "center",
+					gap: 8,
+					margin: "0 0 14px",
+				}}
+			>
+				Difficulty
+				<select
+					id="lab-difficulty"
+					value={selectedDifficulty}
+					onChange={(event) =>
+						setSelectedDifficulty(event.target.value as LabDifficulty)
+					}
+					disabled={creatingLabId !== null}
+				>
+					<option value="medium">Medium</option>
+					<option value="easy">Easy</option>
+				</select>
+			</label>
 
 			{isLoading && (
 				<p style={{ margin: "0 0 12px" }}>Loading lab catalog...</p>

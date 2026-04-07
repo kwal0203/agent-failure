@@ -20,23 +20,23 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
 
 ### `LAB1-TIER-WIRE-1` Add durable active tier to session model and APIs
 - Scope:
-  - Add `active_tier` column to `sessions` (`easy|medium`), default `medium`.
-  - Expose `active_tier` in create-session result and session metadata response.
+  - Add `lab_difficulty` column to `sessions` (`easy|medium`), default `medium`.
+  - Expose `lab_difficulty` in create-session result and session metadata response.
 - Files:
-  - `alembic/versions/*_add_active_tier_to_sessions.py` (new migration)
+  - `alembic/versions/*_add_lab_difficulty_to_sessions.py` (new migration)
   - `apps/control_plane/src/infrastructure/persistence/models.py`
   - `apps/control_plane/src/application/session_create/schemas.py`
   - `apps/control_plane/src/application/session_query/types.py`
   - `apps/control_plane/src/interfaces/http/schemas.py`
   - `apps/control_plane/src/infrastructure/persistence/session_repository.py`
 - Acceptance criteria:
-  - New sessions persist `active_tier=medium` when unspecified.
-  - `POST /api/v1/sessions` response includes `session.active_tier`.
-  - `GET /api/v1/sessions/{id}` response includes `session.active_tier`.
+  - New sessions persist `lab_difficulty=medium` when unspecified.
+  - `POST /api/v1/sessions` response includes `session.lab_difficulty`.
+  - `GET /api/v1/sessions/{id}` response includes `session.lab_difficulty`.
 
 ### `LAB1-TIER-WIRE-2` Accept and validate active tier during session creation
 - Scope:
-  - Add optional `active_tier` to create-session request.
+  - Add optional `lab_difficulty` to create-session request.
   - Validate allowlist (`easy`, `medium`) and reject invalid values.
   - Persist chosen tier into session row.
 - Files:
@@ -47,29 +47,29 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
   - `apps/control_plane/src/infrastructure/persistence/session_repository.py`
   - `apps/frontend/src/pages/LabsPage.tsx`
 - Acceptance criteria:
-  - `active_tier` omitted => medium.
-  - `active_tier=easy|medium` accepted and persisted.
+  - `lab_difficulty` omitted => medium.
+  - `lab_difficulty=easy|medium` accepted and persisted.
   - invalid tier returns 400 with deterministic error code.
 
 ### `LAB1-TIER-WIRE-3` Propagate active tier through provisioning and runtime env
 - Scope:
-  - Include `active_tier` in create-session outbox payload.
-  - Carry `active_tier` in `RuntimeProvisionRequest.metadata`.
-  - Set runtime pod env var `LAB_ACTIVE_TIER=<tier>`.
+  - Include `lab_difficulty` in create-session outbox payload.
+  - Carry `lab_difficulty` in `RuntimeProvisionRequest.metadata`.
+  - Set runtime pod env var `LAB_lab_difficulty=<tier>`.
 - Files:
   - `apps/control_plane/src/infrastructure/persistence/outbox_create_session.py`
   - `apps/control_plane/src/application/orchestrator/service.py`
   - `apps/control_plane/src/application/orchestrator/types.py`
   - `apps/control_plane/src/infrastructure/orchestrator/k8s_provisioner.py`
 - Acceptance criteria:
-  - Claimed provisioning event has `active_tier`.
-  - Runtime pod manifest includes `LAB_ACTIVE_TIER`.
+  - Claimed provisioning event has `lab_difficulty`.
+  - Runtime pod manifest includes `LAB_lab_difficulty`.
   - Missing tier in older payloads safely defaults to medium.
 
 ### `LAB1-TIER-WIRE-4` Load runtime prompt/policy from active tier
 - Scope:
   - Add tier config (easy/medium) for prompt policy in runtime/harness.
-  - Context builder chooses prompt pack from `LAB_ACTIVE_TIER`.
+  - Context builder chooses prompt pack from `LAB_lab_difficulty`.
   - Keep attacker console and victim chat flow unchanged.
 - Files:
   - `apps/agent_harness/src/infrastructure/lab_context/local_v1.py`
@@ -83,7 +83,7 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
 
 ### `LAB1-TIER-WIRE-5` Propagate active tier into evaluator routing payload
 - Scope:
-  - Include `active_tier` in evaluator enqueue payload.
+  - Include `lab_difficulty` in evaluator enqueue payload.
   - Thread through evaluator task parsing and bundle/rule routing surface.
   - Keep current evaluator behavior stable if tier absent.
 - Files:
@@ -102,7 +102,7 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
 - Scope:
   - Centralize tier parsing/normalization with safe default (`medium`).
   - Avoid hard failures on older rows/events missing tier.
-  - Add structured logging fields for `active_tier` on create/provision/evaluate flows.
+  - Add structured logging fields for `lab_difficulty` on create/provision/evaluate flows.
 - Files:
   - `apps/control_plane/src/application/session_create/service.py`
   - `apps/control_plane/src/application/orchestrator/service.py`

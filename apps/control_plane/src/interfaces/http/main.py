@@ -52,6 +52,7 @@ from apps.control_plane.src.application.session_create.errors import (
     DegradedModeRestrictionError,
     InvalidIdempotencyKeyError,
     AdmissionDecisionError,
+    InvalidLabDifficulty,
 )
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyTraceEventRepository,
@@ -326,6 +327,10 @@ def create_session_endpoint(
     except AdmissionDecisionError as exc:
         return build_api_error_response(
             "ADMISSION_DENIED", exc.message, False, 400, exc.details
+        )
+    except InvalidLabDifficulty as exc:
+        return build_api_error_response(
+            "INVALID_LAB_DIFFICULTY", exc.message, False, 400, exc.details
         )
     except Exception:
         logger.exception("create session endpoint failed")

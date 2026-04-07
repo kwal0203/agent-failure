@@ -11,8 +11,12 @@ from .errors import (
     RateLimitedError,
     AdmissionDecisionError,
     DuplicateIdempotencyKeyError,
+    InvalidLabDifficulty,
 )
 from .schemas import CreateSessionResult
+
+
+ALLOWED_LAB_DIFFICULTIES = {"easy", "medium"}
 
 
 def _to_int(value: object, default: int = 0) -> int:
@@ -52,6 +56,16 @@ def create_session(
     uow: CreateSessionUnitOfWork,
     lab_difficulty: str = "medium",
 ) -> CreateSessionResult:
+    normalized_difficulty = lab_difficulty.strip().lower()
+    if normalized_difficulty not in ALLOWED_LAB_DIFFICULTIES:
+        raise InvalidLabDifficulty(
+            code="INVALID_LAB_DIFFICULTY",
+            details={
+                "lab_difficulty": lab_difficulty,
+                "allowed": sorted(ALLOWED_LAB_DIFFICULTIES),
+            },
+        )
+
     try:
         with uow.transaction():
             # - authenticated learner or admin acting as a learner
@@ -106,7 +120,7 @@ def create_session(
             # Add new session now that session has been confirmed to be 'not existing'
             session = uow.sessions.create_provision_session(
                 lab_id=lab_id,
-                lab_difficulty=lab_difficulty,
+                lab_difficulty=normalized_difficulty,
                 actor_id=principal.user_id,
                 actor_role=principal.role,
             )
@@ -129,6 +143,7 @@ def create_session(
                 lab_version_id=lab_version_id,
                 lab_slug=binding.lab_slug,
                 lab_version=binding.lab_version,
+                lab_difficulty=normalized_difficulty,
                 resume_mode=session.resume_mode,
                 requester_user_id=principal.user_id,
                 idempotency_key=idempotency_key,

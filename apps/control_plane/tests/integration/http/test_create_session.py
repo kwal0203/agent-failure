@@ -135,7 +135,10 @@ def test_create_session_rejects_invalid_lab_difficulty() -> None:
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 422
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "INVALID_LAB_DIFFICULTY"
+    assert body["error"]["retryable"] is False
 
 
 @pytest.mark.usefixtures("engine")
