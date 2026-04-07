@@ -39,11 +39,14 @@ from .types import (
     ExpiryOnceResult,
     UpsertSessionRuntimeBindingInput,
 )
+from .schemas import ProvisioningPayload
+
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
+from pydantic import ValidationError
 
 import time
 import logging
@@ -130,22 +133,15 @@ def process_pending_once(
 
                 outbox_event_id = event.outbox_event_id
                 session_id = event.session_id
-                lab_id_raw = event.payload.get("lab_id")
-                lab_version_id_raw = event.payload.get("lab_version_id")
                 attempt_count = event.attempt_count
 
-                if not (
-                    isinstance(lab_id_raw, str) and isinstance(lab_version_id_raw, str)
-                ):
-                    _invalid_outbox_payload(uow, outbox_event_id)
-                    failed_count += 1
-                    continue
-
                 try:
-                    lab_id = UUID(lab_id_raw)
-                    lab_version_id = UUID(lab_version_id_raw)
-                except ValueError:
-                    _invalid_outbox_payload(uow, outbox_event_id)
+                    payload = ProvisioningPayload.model_validate(event.payload)
+                    lab_id = payload.lab_id
+                    lab_version_id = payload.lab_version_id
+                    lab_difficulty = payload.lab_difficulty
+                except ValidationError:
+                    _invalid_outbox_payload(uow=uow, outbox_event_id=outbox_event_id)
                     failed_count += 1
                     continue
 
@@ -161,6 +157,7 @@ def process_pending_once(
                         session_id=session_id,
                         lab_id=lab_id,
                         lab_version_id=lab_version_id,
+                        lab_difficulty=lab_difficulty,
                         image_ref=image_ref,
                         metadata={
                             "outbox_event_id": str(outbox_event_id),

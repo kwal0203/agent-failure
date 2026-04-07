@@ -89,6 +89,14 @@ def test_create_session_returns_202() -> None:
         ).scalar_one()
         assert outbox_count == 1
 
+        outbox_event = verify_db.execute(
+            select(OutboxEventModel).where(
+                OutboxEventModel.event_type == "session.provisioning.v1",
+                OutboxEventModel.aggregate_id == UUID(session_id),
+            )
+        ).scalar_one()
+        assert outbox_event.payload["lab_difficulty"] == "medium"
+
 
 @pytest.mark.usefixtures("engine")
 def test_create_session_accepts_explicit_lab_difficulty_easy() -> None:
@@ -113,6 +121,16 @@ def test_create_session_accepts_explicit_lab_difficulty_easy() -> None:
     assert response.status_code == 202
     body = response.json()
     assert body["session"]["lab_difficulty"] == "easy"
+
+    session_id = body["session"]["id"]
+    with SessionFactory() as verify_db:
+        outbox_event = verify_db.execute(
+            select(OutboxEventModel).where(
+                OutboxEventModel.event_type == "session.provisioning.v1",
+                OutboxEventModel.aggregate_id == UUID(session_id),
+            )
+        ).scalar_one()
+        assert outbox_event.payload["lab_difficulty"] == "easy"
 
 
 @pytest.mark.usefixtures("engine")

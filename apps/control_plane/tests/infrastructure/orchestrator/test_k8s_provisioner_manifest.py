@@ -27,6 +27,7 @@ def _request() -> RuntimeProvisionRequest:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
+        lab_difficulty="medium",
         image_ref="ghcr.io/test/runtime@sha256:abc123",
         metadata={},
     )
@@ -65,6 +66,7 @@ def test_build_pod_manifest_applies_security_profile_and_resources() -> None:
         "memory": "1Gi",
         "ephemeral-storage": "1Gi",
     }
+    assert {"name": "LAB_DIFFICULTY", "value": "medium"} in container["env"]
 
     for volume in _as_list(spec.get("volumes", [])):
         assert "hostPath" not in volume
