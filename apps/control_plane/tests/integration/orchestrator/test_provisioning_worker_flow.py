@@ -38,8 +38,10 @@ class _ResolverOK:
 
 
 class _ProvisionerAccepted:
+    last_request: RuntimeProvisionRequest | None = None
+
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
-        _ = request
+        self.last_request = request
         return ProvisionResult(
             status="accepted",
             runtime_id="runtime-1",
@@ -108,16 +110,19 @@ def test_provisioning_worker_success_consumes_outbox_and_transitions_active() ->
         assert pending[0].status == "pending"
 
     worker_uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
+    provisioner = _ProvisionerAccepted()
     result = process_pending_once(
         uow=worker_uow,
         image_resolver=_ResolverOK(),
-        provisioner=_ProvisionerAccepted(),
+        provisioner=provisioner,
         runtime_inspector=_InspectorReady(),
     )
 
     assert result.claimed_count == 1
     assert result.succeeded_count == 1
     assert result.failed_count == 0
+    assert provisioner.last_request is not None
+    assert provisioner.last_request.lab_difficulty == "medium"
 
     with SessionFactory() as db:
         session_row = db.execute(
@@ -215,3 +220,35 @@ def test_provisioning_worker_failure_consumes_outbox_and_transitions_failed() ->
         ]
         failed_event = runtime_trace_events[-1]
         assert failed_event.payload["reason_code"] == "K8S_APPLY_FAILED"
+
+
+@pytest.mark.usefixtures("engine")
+def test_provisioning_worker_defaults_lab_difficulty_when_missing_in_payload() -> None:
+    session_id = _launch_session()
+
+    with SessionFactory() as db:
+        prov_outbox = db.execute(
+            select(OutboxEventModel).where(
+                OutboxEventModel.aggregate_id == session_id,
+                OutboxEventModel.event_type == "session.provisioning.v1",
+            )
+        ).scalar_one()
+        payload = dict(prov_outbox.payload)
+        payload.pop("lab_difficulty", None)
+        prov_outbox.payload = payload
+        db.commit()
+
+    worker_uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
+    provisioner = _ProvisionerAccepted()
+    result = process_pending_once(
+        uow=worker_uow,
+        image_resolver=_ResolverOK(),
+        provisioner=provisioner,
+        runtime_inspector=_InspectorReady(),
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert provisioner.last_request is not None
+    assert provisioner.last_request.lab_difficulty == "medium"

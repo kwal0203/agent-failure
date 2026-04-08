@@ -31,6 +31,7 @@ def get_session_metadata(
         id=row.id,
         lab_id=row.lab_id,
         lab_version_id=row.lab_version_id,
+        lab_difficulty=row.lab_difficulty,
         owner_user_id=row.owner_user_id,
         state=row.state,
         runtime_substate=row.runtime_substate,

@@ -36,7 +36,7 @@ class _FakeTraceRepo(TraceEventPort):
 
 @dataclass
 class _FakeOutboxRepo(TraceOutboxPort):
-    enqueued: list[tuple[UUID, UUID, UUID, int, int, int]]
+    enqueued: list[tuple[UUID, UUID, UUID, str, int, int, int]]
 
     def enqueue_for_evaluator(
         self,
@@ -44,6 +44,7 @@ class _FakeOutboxRepo(TraceOutboxPort):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
@@ -55,6 +56,7 @@ class _FakeOutboxRepo(TraceOutboxPort):
                 session_id,
                 lab_id,
                 lab_version_id,
+                lab_difficulty,
                 evaluator_version,
                 start_event_index,
                 end_event_index,

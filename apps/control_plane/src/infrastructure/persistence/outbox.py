@@ -70,6 +70,7 @@ class SQLAlchemyOutbox(Outbox):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
@@ -78,6 +79,7 @@ class SQLAlchemyOutbox(Outbox):
         payload: dict[str, object] = {
             "lab_id": str(lab_id),
             "lab_version_id": str(lab_version_id),
+            "lab_difficulty": lab_difficulty,
             "evaluator_version": evaluator_version,
             "start_event_index": start_event_index,
             "end_event_index": end_event_index,

@@ -29,8 +29,8 @@ DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
 @dataclass
 class _FakeRepo:
     events: list[EvaluatorTraceEvent]
-    persisted_calls: list[tuple[str, UUID, UUID, UUID, int, EvaluatorFinding]] = field(
-        default_factory=list
+    persisted_calls: list[tuple[str, UUID, UUID, UUID, str, int, EvaluatorFinding]] = (
+        field(default_factory=list)
     )
     persisted_results: list[EvaluatorPersistedResult] = field(default_factory=list)
 
@@ -44,6 +44,7 @@ class _FakeRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -53,6 +54,7 @@ class _FakeRepo:
                 session_id,
                 lab_id,
                 lab_version_id,
+                lab_difficulty,
                 evaluator_version,
                 finding,
             )
@@ -77,6 +79,7 @@ class _RaisingRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -85,6 +88,7 @@ class _RaisingRepo:
             session_id,
             lab_id,
             lab_version_id,
+            lab_difficulty,
             evaluator_version,
             finding,
         )
@@ -113,6 +117,7 @@ def _make_task() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
+        lab_difficulty="medium",
         evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=3,
@@ -329,7 +334,7 @@ def test_process_evaluate_pending_once_marks_failure_and_logs_exception(
     assert outbox_repo.processed == []
     assert len(outbox_repo.failed) == 1
     assert outbox_repo.failed[0][0] == outbox_event_id
-    assert any("evaluator.run.failed" in rec.message for rec in caplog.records)
+    assert any("evaluator run failed" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.parametrize(

@@ -43,6 +43,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                     "base_url": f"http://{pod_name}.{self._config.namespace}.svc.cluster.local:8000",
                 },
             )
+
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip()
             excerpt = " | ".join(stderr.splitlines()[:3])[:512]
@@ -59,6 +60,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                     "k8s_event_excerpt": excerpt or "kubectl apply failed",
                 },
             )
+
         except Exception as exc:
             error_text = str(exc).strip() or exc.__class__.__name__
             return ProvisionResult(
@@ -128,6 +130,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 "name": "OPENROUTER_API_KEY",
                 "value": os.getenv("OPENROUTER_API_KEY", ""),
             },
+            {"name": "LAB_DIFFICULTY", "value": request.lab_difficulty},
         ]
         # TODO(runtime-provisioning): Validate required env values before apply
         # (e.g. RUNTIME_SHARED_TOKEN, and OPENROUTER_API_KEY when gateway mode

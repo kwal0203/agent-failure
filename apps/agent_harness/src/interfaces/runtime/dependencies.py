@@ -3,8 +3,8 @@ from apps.agent_harness.src.application.session_loop.ports import (
     LabContextBuilderPort,
     EventSinkPort,
 )
-from apps.agent_harness.src.infrastructure.lab_context.local_v1 import (
-    LocalV1LabContextBuilder,
+from apps.agent_harness.src.infrastructure.lab_context.service import (
+    LabContextBuilder,
 )
 from apps.agent_harness.src.infrastructure.model.fake_streaming_client import (
     LocalV1ModelClient,
@@ -26,7 +26,7 @@ def get_model_client() -> ModelClientPort:
 
 
 def get_context_builder() -> LabContextBuilderPort:
-    return LocalV1LabContextBuilder()
+    return LabContextBuilder()
 
 
 def get_event_sink() -> EventSinkPort:

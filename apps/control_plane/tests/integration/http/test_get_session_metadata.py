@@ -69,6 +69,7 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["id"] == str(session_id)
     assert session["lab_id"] == str(lab_id)
     assert session["lab_version_id"] == str(lab_version_id)
+    assert session["lab_difficulty"] == "medium"
     assert session["state"] == SessionState.ACTIVE.value
     assert session["runtime_substate"] == "WAITING_FOR_INPUT"
     assert session["resume_mode"] == "hot_resume"
@@ -167,6 +168,43 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
+
+
+def test_get_session_metadata_returns_lab_difficulty_when_set(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "difficulty-owner"
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            lab_difficulty="easy",
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.ACTIVE.value,
+            runtime_substate="WAITING_FOR_INPUT",
+            resume_mode="hot_resume",
+            last_transition_actor="seed",
+            last_transition_reason=None,
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    session = response.json()["session"]
+    assert session["lab_difficulty"] == "easy"
 
 
 def test_get_session_metadata_returns_terminal_session_with_interactive_false(

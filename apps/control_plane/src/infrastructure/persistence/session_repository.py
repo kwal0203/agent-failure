@@ -155,6 +155,7 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             id=result.id,
             lab_id=result.lab_id,
             lab_version_id=result.lab_version_id,
+            lab_difficulty=result.lab_difficulty,
             owner_user_id=result.owner_user_id,
             state=result.state,
             runtime_substate=result.runtime_substate,
@@ -171,7 +172,7 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
         self._db = db
 
     def create_provision_session(
-        self, lab_id: UUID, actor_id: UUID, actor_role: str
+        self, lab_id: UUID, lab_difficulty: str, actor_id: UUID, actor_role: str
     ) -> CreateSessionResult:
         session = SessionModel(
             lab_id=lab_id,
@@ -182,6 +183,7 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             state=SessionState.PROVISIONING.value,
             last_transition_actor=actor_role,
             last_transition_reason=None,
+            lab_difficulty=lab_difficulty,
         )
         self._db.add(session)
         self._db.flush()
@@ -195,6 +197,7 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             resume_mode=session.resume_mode,
             created_at=session.created_at,
             requester_user_id=actor_id,
+            lab_difficulty=lab_difficulty,
         )
 
 

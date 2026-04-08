@@ -20,6 +20,11 @@ class Base(DeclarativeBase):
 
 class SessionModel(Base):
     __tablename__ = "sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "lab_difficulty in ('easy', 'medium')", name="ck_sessions_lab_difficulty"
+        ),
+    )
 
     id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid4
@@ -54,6 +59,9 @@ class SessionModel(Base):
     )
     # Add updated_at later on (can use it during reconciliation)
     # Add last_activity_at later on (cas use it during expiry)
+    lab_difficulty: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="medium"
+    )
 
 
 class SessionTransitionEventModel(Base):
@@ -239,6 +247,10 @@ class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_evaluation_results_idempo"),
+        CheckConstraint(
+            "lab_difficulty IN ('easy', 'medium')",
+            name="ck_evaluation_results_lab_difficulty",
+        ),
     )
 
     id: Mapped[PyUUID] = mapped_column(
@@ -267,6 +279,9 @@ class EvaluatorResultModel(Base):
     lab_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     lab_version_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, index=True
+    )
+    lab_difficulty: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="medium"
     )
     evaluator_version: Mapped[int] = mapped_column(Integer, nullable=False)
 

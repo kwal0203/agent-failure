@@ -20,6 +20,7 @@ class EvaluatorTaskInput:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
+    lab_difficulty: str
     evaluator_version: int
     start_event_index: int
     end_event_index: int

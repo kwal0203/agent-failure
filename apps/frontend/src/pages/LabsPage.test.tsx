@@ -44,6 +44,7 @@ describe("LabCatalog", () => {
 		expect(createSession).toHaveBeenCalledWith(
 			"http://localhost:8000",
 			"11111111-1111-1111-1111-111111111111",
+			"medium",
 		);
 		await waitFor(() => {
 			expect(onOpenSession).toHaveBeenCalledWith(

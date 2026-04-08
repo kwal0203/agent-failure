@@ -19,6 +19,7 @@ class EvaluatorPort(Protocol):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool: ...
