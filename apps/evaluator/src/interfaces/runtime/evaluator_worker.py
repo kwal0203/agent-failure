@@ -35,11 +35,14 @@ def run_once() -> None:
             #     worker_name="evaluator_worker", at=datetime.now(timezone.utc)
             # )
             logger.info(
-                "evaluator worker tick claimed=%s succeeded=%s failed=%s retried=%s",
-                result.claimed_count,
-                result.succeeded_count,
-                result.failed_count,
-                result.retried_count,
+                "evaluator worker tick completed",
+                extra={
+                    "event": "evaluator_worker_tick_completed",
+                    "claimed_count": result.claimed_count,
+                    "succeeded_count": result.succeeded_count,
+                    "failed_count": result.failed_count,
+                    "retried_count": result.retried_count,
+                },
             )
         except Exception:
             db.rollback()
@@ -48,7 +51,10 @@ def run_once() -> None:
             #     at=datetime.now(timezone.utc),
             #     error_message=str(exc),
             # )
-            logger.exception("evaluator worker tick failed")
+            logger.exception(
+                "evaluator worker tick failed",
+                extra={"event": "evaluator_worker_tick_failed"},
+            )
             raise
 
 

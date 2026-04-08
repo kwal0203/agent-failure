@@ -334,7 +334,7 @@ def test_process_evaluate_pending_once_marks_failure_and_logs_exception(
     assert outbox_repo.processed == []
     assert len(outbox_repo.failed) == 1
     assert outbox_repo.failed[0][0] == outbox_event_id
-    assert any("evaluator.run.failed" in rec.message for rec in caplog.records)
+    assert any("evaluator run failed" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.parametrize(

@@ -13,3 +13,9 @@ class CreateSessionResult(BaseModel):
     created_at: datetime
     requester_user_id: UUID
     lab_difficulty: str = "medium"
+
+
+class DecisionDetails(BaseModel):
+    current: int
+    quota: int
+    limit: int

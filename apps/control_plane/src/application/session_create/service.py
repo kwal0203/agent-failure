@@ -13,24 +13,15 @@ from .errors import (
     DuplicateIdempotencyKeyError,
     InvalidLabDifficulty,
 )
-from .schemas import CreateSessionResult
+from .schemas import CreateSessionResult, DecisionDetails
+
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ALLOWED_LAB_DIFFICULTIES = {"easy", "medium"}
-
-
-def _to_int(value: object, default: int = 0) -> int:
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return default
-
-    return default
 
 
 def _return_existing_session(
@@ -81,31 +72,32 @@ def create_session(
                 user_id=principal.user_id, lab_id=lab_id
             )
             if not decision.allowed:
-                details = decision.details or {}
-
+                details = DecisionDetails.model_validate(decision.details)
                 if decision.code == "QUOTA_EXCEEDED":
-                    current = _to_int(details.get("current"))
-                    quota = _to_int(details.get("quota"))
+                    current = details.current
+                    quota = details.quota
                     raise QuotaExceededError(
                         current=current,
                         quota=quota,
                         message=decision.message or "You have exceeded your quota.",
-                        details=details,
+                        details=details.model_dump(mode="json"),
                     )
                 elif decision.code == "DEGRADED_MODE_RESTRICTION":
                     raise DegradedModeRestrictionError(
                         message=decision.message or "You are in degraded mode.",
-                        details=details,
+                        details=details.model_dump(mode="json"),
                     )
                 elif decision.code == "RATE_LIMITED":
-                    limit = _to_int(details.get("limit"))
+                    limit = details.limit
                     raise RateLimitedError(
                         limit=limit,
                         message=decision.message or "You have been rate limited.",
-                        details=details,
+                        details=details.model_dump(mode="json"),
                     )
 
-                raise AdmissionDecisionError(code=decision.code, details=details)
+                raise AdmissionDecisionError(
+                    code=decision.code, details=details.model_dump(mode="json")
+                )
 
             # Check if session already exists
             existing = _return_existing_session(
@@ -148,6 +140,19 @@ def create_session(
                 requester_user_id=principal.user_id,
                 idempotency_key=idempotency_key,
                 requested_at=session.created_at,
+            )
+
+            logger.info(
+                "session creation request enqueued",
+                extra={
+                    "event": "session_create_enqueued",
+                    "session_id": str(session.session_id),
+                    "lab_id": str(lab_id),
+                    "lab_slug": binding.lab_slug,
+                    "lab_version": binding.lab_version,
+                    "lab_difficulty": normalized_difficulty,
+                    "requester_user_id": str(principal.user_id),
+                },
             )
 
             return session

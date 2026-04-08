@@ -87,26 +87,35 @@ def evaluate_trace_window_once(
             deduped_count += 1
 
     logger.info(
-        "evaluator.results.persisted session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s findings_count=%s inserted_count=%s deduped_count=%s",
-        task.session_id,
-        task.lab_id,
-        task.lab_version_id,
-        task.evaluator_version,
-        len(findings),
-        inserted_count,
-        deduped_count,
+        "evaluator results persisted",
+        extra={
+            "event": "evaluator_results_persisted",
+            "session_id": str(task.session_id),
+            "lab_id": str(task.lab_id),
+            "lab_version_id": str(task.lab_version_id),
+            "lab_difficulty": task.lab_difficulty,
+            "evaluator_version": task.evaluator_version,
+            "findings_count": len(findings),
+            "inserted_count": inserted_count,
+            "deduped_count": deduped_count,
+        },
     )
+
     logger.info(
-        "evaluator.run.completed session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s start_event_index=%s end_event_index=%s evaluated_event_count=%s findings_count=%s no_op=%s",
-        task.session_id,
-        task.lab_id,
-        task.lab_version_id,
-        task.evaluator_version,
-        task.start_event_index,
-        task.end_event_index,
-        len(events),
-        len(findings),
-        len(findings) == 0,
+        "evaluator run completed",
+        extra={
+            "event": "evaluator_run_completed",
+            "session_id": str(task.session_id),
+            "lab_id": str(task.lab_id),
+            "lab_version_id": str(task.lab_version_id),
+            "lab_difficulty": task.lab_difficulty,
+            "evaluator_version": task.evaluator_version,
+            "start_event_index": task.start_event_index,
+            "end_event_index": task.end_event_index,
+            "evaluated_event_count": len(events),
+            "findings_count": len(findings),
+            "no_op": len(findings) == 0,
+        },
     )
 
     return EvaluatorRunResult(
@@ -164,13 +173,17 @@ def process_evaluate_pending_once(
             failed_count += 1
 
             logger.exception(
-                "evaluator.run.failed session_id=%s lab_id=%s lab_version_id=%s evaluator_version=%s start_event_index=%s end_event_index=%s",
-                task.session_id,
-                task.lab_id,
-                task.lab_version_id,
-                task.evaluator_version,
-                task.start_event_index,
-                task.end_event_index,
+                "evaluator run failed",
+                extra={
+                    "event": "evaluator_run_failed",
+                    "session_id": str(task.session_id),
+                    "lab_id": str(task.lab_id),
+                    "lab_version_id": str(task.lab_version_id),
+                    "lab_difficulty": task.lab_difficulty,
+                    "evaluator_version": task.evaluator_version,
+                    "start_event_index": task.start_event_index,
+                    "end_event_index": task.end_event_index,
+                },
             )
 
     return EvaluatorOnceResult(

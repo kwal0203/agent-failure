@@ -217,12 +217,14 @@ def process_pending_once(
                                 ):
                                     is_ready = True
                                     break
+
                             except Exception as exc:
                                 logger.warning(
                                     "runtime readiness inspect failed",
                                     extra={
                                         "event": "runtime_readiness_inspect_failed",
                                         "session_id": str(session_id),
+                                        "lab_difficulty": lab_difficulty,
                                         "runtime_id": provision_result.runtime_id,
                                         "attempt_count": attempt_count,
                                         "error": str(exc),
@@ -421,6 +423,7 @@ def process_pending_once(
                                 "session_id": str(session_id),
                                 "outbox_event_id": str(event.outbox_event_id),
                                 "reason_code": reason_code,
+                                "lab_difficulty": lab_difficulty,
                                 "retryable": True,
                                 "k8s_namespace": provision_details.get("k8s_namespace"),
                                 "pod_name": provision_details.get("pod_name"),
@@ -432,6 +435,7 @@ def process_pending_once(
                             },
                         )
                         failed_count += 1
+
                 except (
                     ImageNotFoundError,
                     ImageRevokedError,
@@ -451,6 +455,17 @@ def process_pending_once(
 
     except Exception:
         logger.exception("process_pending_once batch failed")
+
+    logger.info(
+        "orchestrator provisioning batch completed",
+        extra={
+            "event": "orchestrator_provisioning_batch_completed",
+            "claimed_count": claimed_count,
+            "succeeded_count": succeeded_count,
+            "failed_count": failed_count,
+            "retried_count": retried_count,
+        },
+    )
 
     return ProcessPendingOnceResult(
         claimed_count=claimed_count,

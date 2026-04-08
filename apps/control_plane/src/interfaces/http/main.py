@@ -161,6 +161,25 @@ def _as_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _exception_log_helper(
+    content: str,
+    event: str,
+    reason: str,
+    request: CreateSessionRequest,
+    principal: PrincipalContext,
+) -> None:
+    logger.warning(
+        str(content),
+        extra={
+            "event": str(event),
+            "reason": str(reason),
+            "lab_id": str(request.lab_id),
+            "lab_difficulty": str(request.lab_difficulty),
+            "user_id": str(principal.user_id),
+        },
+    )
+
+
 @app.get(
     "/api/v1/sessions/{session_id}",
     response_model=GetSessionMetadataResponse,
@@ -299,41 +318,114 @@ def create_session_endpoint(
             created_at=result.created_at,
         )
 
+        logger.info(
+            "create session succeeded",
+            extra={
+                "event": "create_session_succeeded",
+                "session_id": str(result.session_id),
+                "lab_id": str(result.lab_id),
+                "lab_version_id": str(result.lab_version_id)
+                if result.lab_version_id is not None
+                else None,
+                "lab_difficulty": result.lab_difficulty,
+                "user_id": str(application_principal.user_id),
+            },
+        )
+
         return CreateSessionResponse(session=session)
     except LabNotAvailableError as exc:
+        _exception_log_helper(
+            "lab_not_available",
+            "create_session_denied",
+            "LAB_NOT_AVAILABLE",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "LAB_NOT_AVAILABLE", exc.message, False, 404, exc.details
         )
     except QuotaExceededError as exc:
+        _exception_log_helper(
+            "quota_exceeded",
+            "create_session_denied",
+            "QUOTA_EXCEEDED",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "QUOTA_EXCEEDED", exc.message, False, 429, exc.details
         )
     except RateLimitedError as exc:
+        _exception_log_helper(
+            "rate_limited", "create_session_denied", "RATE_LIMITED", request, principal
+        )
         return build_api_error_response(
             "RATE_LIMITED", exc.message, False, 429, exc.details
         )
     except DegradedModeRestrictionError as exc:
+        _exception_log_helper(
+            "degraded_mode_restriction",
+            "create_session_denied",
+            "DEGRADED_MODE_RESTRICTION",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "DEGRADED_MODE_RESTRICTION", exc.message, False, 503, exc.details
         )
     except InvalidIdempotencyKeyError as exc:
+        _exception_log_helper(
+            "invalid_idempotency_key",
+            "create_session_denied",
+            "INVALID_IDEMPOTENCY_KEY",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "INVALID_IDEMPOTENCY_KEY", exc.message, False, 400, exc.details
         )
     except ForbiddenError as exc:
+        _exception_log_helper(
+            "forbidden", "create_session_denied", "FORBIDDEN", request, principal
+        )
         return build_api_error_response(
             "FORBIDDEN", exc.message, False, 403, exc.details
         )
     except AdmissionDecisionError as exc:
+        _exception_log_helper(
+            "admission_denied",
+            "create_session_denied",
+            "ADMISSION_DENIED",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "ADMISSION_DENIED", exc.message, False, 400, exc.details
         )
     except InvalidLabDifficulty as exc:
+        _exception_log_helper(
+            "invalid_lab_difficulty",
+            "create_session_denied",
+            "INVALID_LAB_DIFFICULTY",
+            request,
+            principal,
+        )
         return build_api_error_response(
             "INVALID_LAB_DIFFICULTY", exc.message, False, 400, exc.details
         )
     except Exception:
-        logger.exception("create session endpoint failed")
+        safe_idempo = f"{key[:8]}..." if key else None
+        logger.exception(
+            "create session endpoint failed",
+            extra={
+                "event": "create_session_failed",
+                "lab_id": str(request.lab_id),
+                "lab_difficulty": request.lab_difficulty,
+                "user_id": str(application_principal.user_id),
+                "idempotency_key_prefix": safe_idempo,
+            },
+        )
+
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
         )
@@ -409,6 +501,7 @@ async def handle_user_prompt(
                     "base_url": runtime_binding.base_url
                     if runtime_binding is not None
                     else None,
+                    "lab_difficulty": metadata.lab_difficulty,
                 },
             )
             await ws_manager.send_to(
@@ -532,6 +625,7 @@ async def handle_user_prompt(
                                 "first_chunk_emitted": first_chunk_emitted,
                                 "chunks_emitted": chunks_emitted,
                                 "upstream_error_type": "WS_SEND_TIMEOUT",
+                                "lab_difficulty": metadata.lab_difficulty,
                             },
                         )
                         await ws_manager.send_to(
@@ -576,6 +670,7 @@ async def handle_user_prompt(
                                 "event": "turn_stream_disconnected",
                                 "session_id": str(session_id),
                                 "chunks_emitted": chunks_emitted,
+                                "lab_difficulty": metadata.lab_difficulty,
                             },
                         )
                         db.commit()
@@ -591,6 +686,7 @@ async def handle_user_prompt(
                                 "retryable": True,
                                 "first_chunk_emitted": first_chunk_emitted,
                                 "chunks_emitted": chunks_emitted,
+                                "lab_difficulty": metadata.lab_difficulty,
                             },
                         )
                         await ws_manager.send_to(
@@ -667,6 +763,7 @@ async def handle_user_prompt(
                                 ).total_seconds()
                                 * 1000
                             ),
+                            "lab_difficulty": metadata.lab_difficulty,
                         },
                     )
 
@@ -889,6 +986,7 @@ async def handle_user_prompt(
                     "session_id": str(session_id),
                     "error_code": exc.code,
                     "retryable": exc.retryable,
+                    "lab_difficulty": metadata.lab_difficulty,
                 },
             )
             await ws_manager.send_to(
@@ -1263,6 +1361,7 @@ async def inject_session_email(
                     "base_url": runtime_binding.base_url
                     if runtime_binding is not None
                     else None,
+                    "lab_difficulty": session_metadata.lab_difficulty,
                 },
             )
             return build_api_error_response(
