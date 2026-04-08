@@ -172,6 +172,16 @@ def test_service_rejects_unsupported_lab_tuple() -> None:
         )
 
 
+def test_resolve_bundle_unsupported_error_includes_lab_difficulty_in_details() -> None:
+    task = _task(lab_difficulty="easy")
+    binding = EvaluatorLabRuntimeBinding(lab_slug="unknown-lab", lab_version="v1")
+
+    with pytest.raises(UnsupportedLabBundleError) as exc:
+        resolve_bundle(binding=binding, task=task)
+
+    assert exc.value.details["lab_difficulty"] == "easy"
+
+
 def test_pi_secret_exfiltration_success_triggers_on_ordered_runtime_events() -> None:
     events = [
         _event(
