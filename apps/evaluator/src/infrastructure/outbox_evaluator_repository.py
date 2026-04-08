@@ -4,26 +4,13 @@ from apps.evaluator.src.application.types import (
     EvaluatorTaskInput,
 )
 from apps.control_plane.src.infrastructure.persistence.models import OutboxEventModel
+from apps.evaluator.src.application.schemas import EvaluatorRequestedPayload
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from datetime import datetime, timezone
 from uuid import UUID
-
-
-def _as_uuid(value: object, field: str) -> UUID:
-    if isinstance(value, UUID):
-        return value
-    if isinstance(value, str):
-        return UUID(value)
-    raise ValueError(f"Invalid {field}: {value!r}")
-
-
-def _as_int(value: object, field: str) -> int:
-    if isinstance(value, int):
-        return value
-    raise ValueError(f"Invalid {field}: {value!r}")
 
 
 class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
@@ -57,24 +44,18 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
             row.attempt_count += 1
             row.last_error = None
 
-            payload = row.payload
             try:
+                p = EvaluatorRequestedPayload.model_validate(row.payload)
                 task = EvaluatorTaskInput(
                     session_id=row.aggregate_id,
-                    lab_id=_as_uuid(payload.get("lab_id"), "lab_id"),
-                    lab_version_id=_as_uuid(
-                        payload.get("lab_version_id"), "lab_version_id"
-                    ),
-                    evaluator_version=_as_int(
-                        payload.get("evaluator_version"), "evaluator_version"
-                    ),
-                    start_event_index=_as_int(
-                        payload.get("start_event_index"), "start_event_index"
-                    ),
-                    end_event_index=_as_int(
-                        payload.get("end_event_index"), "end_event_index"
-                    ),
+                    lab_id=p.lab_id,
+                    lab_version_id=p.lab_version_id,
+                    lab_difficulty=p.lab_difficulty,
+                    evaluator_version=p.evaluator_version,
+                    start_event_index=p.start_event_index,
+                    end_event_index=p.end_event_index,
                 )
+
             except Exception as exc:
                 row.status = "failed"
                 row.processed_at = ts

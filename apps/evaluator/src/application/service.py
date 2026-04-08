@@ -76,6 +76,7 @@ def evaluate_trace_window_once(
             session_id=task.session_id,
             lab_id=task.lab_id,
             lab_version_id=task.lab_version_id,
+            lab_difficulty=task.lab_difficulty,
             evaluator_version=task.evaluator_version,
             finding=finding,
         )
@@ -154,10 +155,12 @@ def process_evaluate_pending_once(
                 )
             outbox_repo.mark_processed(outbox_event_id=pending_task.outbox_event_id)
             succeeded_count += 1
+
         except Exception as exc:
             outbox_repo.mark_terminal_failure(
                 outbox_event_id=pending_task.outbox_event_id, error_message=str(exc)
             )
+
             failed_count += 1
 
             logger.exception(

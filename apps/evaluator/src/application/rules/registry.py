@@ -36,6 +36,7 @@ def resolve_bundle(
             "lab_slug": binding.lab_slug,
             "lab_version": binding.lab_version,
             "lab_id": str(task.lab_id),
+            "lab_difficulty": task.lab_difficulty,
             "evaluator_version": task.evaluator_version,
             "supported_bundle_keys": sorted(SUPPORTED_BUNDLES.keys()),
         },

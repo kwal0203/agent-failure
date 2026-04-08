@@ -76,6 +76,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -95,6 +96,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                 session_id=session_id,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
+                lab_difficulty=lab_difficulty,
                 evaluator_version=evaluator_version,
             )
             .on_conflict_do_nothing(index_elements=["idempotency_key"])

@@ -38,6 +38,7 @@ class _FakeRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
+        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -46,6 +47,7 @@ class _FakeRepo:
             session_id,
             lab_id,
             lab_version_id,
+            lab_difficulty,
             evaluator_version,
             finding,
         )
@@ -73,12 +75,14 @@ def _task(
     *,
     lab_id: UUID | None = None,
     lab_version_id: UUID | None = None,
+    lab_difficulty: str = "medium",
     evaluator_version: int = DEFAULT_SUPPORTED_TUPLE[2],
 ) -> EvaluatorTaskInput:
     return EvaluatorTaskInput(
         session_id=uuid4(),
         lab_id=lab_id or uuid4(),
         lab_version_id=lab_version_id or uuid4(),
+        lab_difficulty=lab_difficulty,
         evaluator_version=evaluator_version,
         start_event_index=0,
         end_event_index=0,
