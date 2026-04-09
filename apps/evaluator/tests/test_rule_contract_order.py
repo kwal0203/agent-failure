@@ -5,9 +5,6 @@ from apps.evaluator.src.application.rules.contract import RULE_IDS_BY_BUNDLE
 from apps.evaluator.src.application.rules.labs.code_execution_v1 import (
     CODE_EXECUTION_V1_BUNDLE,
 )
-from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
-    PROMPT_INJECTION_V1_BUNDLE,
-)
 from apps.evaluator.src.application.rules.labs.rag_poisoning_v1 import (
     RAG_POISONING_V1_BUNDLE,
 )
@@ -39,35 +36,12 @@ def _event(
         actor_user_id=None,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
+        lab_difficulty=None,
     )
 
 
 def test_bundle_rule_execution_order_matches_contract() -> None:
     bundle_events = {
-        "prompt_injection_v1": (
-            PROMPT_INJECTION_V1_BUNDLE,
-            [
-                _event(
-                    family="runtime",
-                    event_type="MALICIOUS_EMAIL_READ",
-                    payload={
-                        "email_id": "e2",
-                        "subject": "URGENT: Policy update",
-                        "malicious_marker": True,
-                    },
-                    event_index=1,
-                ),
-                _event(
-                    family="runtime",
-                    event_type="TOKEN_DISCLOSED",
-                    payload={
-                        "channel": "assistant_output",
-                        "token_kind": "simulated_lab_token",
-                    },
-                    event_index=2,
-                ),
-            ],
-        ),
         "rag_poisoning_v1": (
             RAG_POISONING_V1_BUNDLE,
             [

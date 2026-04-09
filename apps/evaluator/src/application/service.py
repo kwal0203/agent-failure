@@ -8,6 +8,7 @@ from .types import (
     FeedbackStatusType,
     ResultType,
     EvaluatorOnceResult,
+    EvaluatorTraceEvent,
 )
 from apps.evaluator.src.application.rules.registry import resolve_bundle
 
@@ -17,6 +18,23 @@ from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_event_scope(event: EvaluatorTraceEvent, task: EvaluatorTaskInput) -> None:
+    if event.lab_id is not None and event.lab_id != task.lab_id:
+        raise ValueError("Trace event lab_id does not match evaluator task lab_id")
+    if event.lab_version_id is not None and event.lab_version_id != task.lab_version_id:
+        raise ValueError(
+            "Trace event lab_version_id does not match evaluator task lab_version_id"
+        )
+    if event.lab_difficulty is not None and event.lab_difficulty != task.lab_difficulty:
+        raise ValueError(
+            "Trace event lab_difficulty does not match evaluator task lab_difficulty"
+        )
+    if event.session_id != task.session_id:
+        raise ValueError(
+            "Trace event session_id does not match evaluator task session_id"
+        )
 
 
 def build_result_idempotency_key(
@@ -44,23 +62,8 @@ def evaluate_trace_window_once(
         raise ValueError("Invalid event window")
 
     events = repo.load_events(input=task)
-    if any(
-        event.lab_id is not None and event.lab_id != task.lab_id for event in events
-    ):
-        raise ValueError("Trace event lab_id does not match evaluator task lab_id")
-
-    if any(
-        event.lab_version_id is not None and event.lab_version_id != task.lab_version_id
-        for event in events
-    ):
-        raise ValueError(
-            "Trace event lab_version_id does not match evaluator task lab_version_id"
-        )
-
-    if any(event.session_id != task.session_id for event in events):
-        raise ValueError(
-            "Trace event session_id does not match evaluator task session_id"
-        )
+    for event in events:
+        _validate_event_scope(event=event, task=task)
 
     lab_binding = lab_lookup_repo.get_runtime_binding(
         lab_id=task.lab_id, lab_version_id=task.lab_version_id

@@ -72,6 +72,7 @@ RAG_POISONING_V1_BUNDLE = RuleBundle(
     name="rag_poisoning_v1",
     lab_id=UUID("22222222-2222-2222-2222-222222222222"),
     lab_version_id=UUID("66666666-6666-6666-6666-666666666666"),
+    lab_difficulty="medium",
     evaluator_version=1,
     rules=RULES,
 )

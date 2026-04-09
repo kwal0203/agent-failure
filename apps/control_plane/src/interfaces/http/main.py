@@ -1323,6 +1323,8 @@ async def inject_session_email(
     try:
         repo = SQLAlchemySessionMetadataRepository(db=db)
         runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
+        trace_repo = SQLAlchemyTraceEventRepository(db=db)
+        outbox_repo = SQLAlchemyOutbox(db=db)
 
         session_metadata = get_session_metadata(
             session_id=session_id, principal=principal, repo=repo
@@ -1388,9 +1390,29 @@ async def inject_session_email(
         )
 
         await client.inject_email(input=email_input)
-        # TODO(lab1-trace): Decide whether to append a control-plane trace event for
-        # learner-driven inbox injection (separate from runtime/tool events). Keep
-        # this deferred until ATTACK_EMAIL_SENT ownership semantics are finalized.
+
+        attack_email_sent_payload: dict[str, object] = {
+            "type": "attack_email_sent",
+            "email_id": email_input.email_id,
+            "email_from": email_input.email_from,
+            "subject": email_input.email_subject,
+        }
+
+        trace_event = build_trace_event(
+            trace_repo=trace_repo,
+            session_id=session_id,
+            family="learner",
+            event_type="ATTACK_EMAIL_SENT",
+            source="inject_session_email_service",
+            payload=attack_email_sent_payload,
+            correlation_id=None,
+            request_id=None,
+            actor_user_id=principal.user_id,
+            lab_id=session_metadata.lab_id,
+            lab_version_id=session_metadata.lab_version_id,
+            lab_difficulty=session_metadata.lab_difficulty,
+        )
+        append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         return InjectSessionEmailResponse(session_id=session_id)
 

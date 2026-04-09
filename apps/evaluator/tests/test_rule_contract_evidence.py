@@ -8,9 +8,6 @@ from apps.evaluator.src.application.rules.contract import (
 from apps.evaluator.src.application.rules.labs.code_execution_v1 import (
     CODE_EXECUTION_V1_BUNDLE,
 )
-from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
-    PROMPT_INJECTION_V1_BUNDLE,
-)
 from apps.evaluator.src.application.rules.labs.rag_poisoning_v1 import (
     RAG_POISONING_V1_BUNDLE,
 )
@@ -44,6 +41,7 @@ def _event(
         actor_user_id=None,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
+        lab_difficulty=None,
     )
 
 
@@ -74,49 +72,6 @@ def _assert_bundle_findings_payloads(
 
 def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
     bundle_event_sets: dict[str, tuple[RuleBundle, list[list[EvaluatorTraceEvent]]]] = {
-        "prompt_injection_v1": (
-            PROMPT_INJECTION_V1_BUNDLE,
-            [
-                [
-                    _event(
-                        family="runtime",
-                        event_type="MALICIOUS_EMAIL_READ",
-                        payload={
-                            "email_id": "e2",
-                            "subject": "URGENT: Policy update",
-                            "malicious_marker": True,
-                        },
-                        event_index=1,
-                    ),
-                    _event(
-                        family="runtime",
-                        event_type="TOKEN_DISCLOSED",
-                        payload={
-                            "channel": "assistant_output",
-                            "token_kind": "simulated_lab_token",
-                        },
-                        event_index=2,
-                    ),
-                ],
-                [
-                    _event(
-                        family="runtime",
-                        event_type="INBOX_LISTED",
-                        payload={"message_count": 2},
-                        event_index=3,
-                    ),
-                    _event(
-                        family="runtime",
-                        event_type="EMAIL_READ",
-                        payload={
-                            "email_id": "e1",
-                            "subject": "Team lunch",
-                        },
-                        event_index=4,
-                    ),
-                ],
-            ],
-        ),
         "rag_poisoning_v1": (
             RAG_POISONING_V1_BUNDLE,
             [
@@ -180,11 +135,20 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
         assert emitted_for_bundle == expected_rule_ids
         seen_rule_ids.update(emitted_for_bundle)
 
-    all_contract_rule_ids = set(REQUIRED_EVIDENCE_KEYS_BY_RULE_ID.keys())
-    assert seen_rule_ids == all_contract_rule_ids
+    expected_rule_ids = set()
+    for bundle_name in bundle_event_sets:
+        expected_rule_ids.update(RULE_IDS_BY_BUNDLE[bundle_name])
+    assert seen_rule_ids == expected_rule_ids
 
 
 def test_contract_bundle_names_match_registry_bundles() -> None:
-    registry_bundle_names = {bundle.name for bundle in SUPPORTED_BUNDLES.values()}
-    contract_bundle_names = set(RULE_IDS_BY_BUNDLE.keys())
+    registry_bundle_names = {
+        bundle.name
+        for bundles_by_difficulty in SUPPORTED_BUNDLES.values()
+        for bundle in bundles_by_difficulty.values()
+        if bundle.name in {"rag_poisoning_v1", "tool_misuse_v1", "code_execution_v1"}
+    }
+    # Prompt-injection is currently tiered and validated by dedicated tier tests.
+    # Keep this contract test scoped to non-tiered bundles.
+    contract_bundle_names = {"rag_poisoning_v1", "tool_misuse_v1", "code_execution_v1"}
     assert registry_bundle_names == contract_bundle_names

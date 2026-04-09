@@ -65,6 +65,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                     actor_user_id=row.actor_user_id,
                     lab_id=row.lab_id,
                     lab_version_id=row.lab_version_id,
+                    lab_difficulty=row.lab_difficulty,
                 )
             )
 
