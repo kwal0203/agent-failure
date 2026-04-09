@@ -8,7 +8,7 @@ from .types import TraceFamily, RuntimePayload
 
 ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
     "lifecycle": {"SESSION_CREATED", "SESSION_TRANSITIONED"},
-    "learner": {"USER_PROMPT_SUBMITTED"},
+    "learner": {"USER_PROMPT_SUBMITTED", "ATTACK_EMAIL_SENT"},
     "runtime": {
         "RUNTIME_PROVISION_REQUESTED",
         "RUNTIME_PROVISION_ACCEPTED",
@@ -45,6 +45,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
         "outbox_event_id",
         "attempt_count",
     },
+    ("learner", "ATTACK_EMAIL_SENT"): {"email_from", "subject"},
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
     ("runtime", "INBOX_LISTED"): {"message_count"},
     ("runtime", "EMAIL_READ"): {"email_id", "subject"},

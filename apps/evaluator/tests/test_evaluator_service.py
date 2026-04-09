@@ -142,6 +142,7 @@ def _make_trace_event(
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
     )
 
 

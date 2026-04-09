@@ -53,6 +53,7 @@ TOOL_MISUSE_V1_BUNDLE = RuleBundle(
     name="tool_misuse_v1",
     lab_id=UUID("33333333-3333-3333-3333-333333333333"),
     lab_version_id=UUID("77777777-7777-7777-7777-777777777777"),
+    lab_difficulty="medium",
     evaluator_version=1,
     rules=RULES,
 )

@@ -212,6 +212,10 @@ class TraceEventModel(Base):
             "family IN ('lifecycle', 'learner', 'runtime', 'tool', 'model')",
             name="ck_trace_family",
         ),
+        CheckConstraint(
+            "lab_difficulty IN ('easy', 'medium')",
+            name="ck_trace_events_lab_difficulty",
+        ),
     )
 
     event_id: Mapped[PyUUID] = mapped_column(
@@ -240,6 +244,9 @@ class TraceEventModel(Base):
     lab_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     lab_version_id: Mapped[PyUUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
+    )
+    lab_difficulty: Mapped[str] = mapped_column(
+        String(32), nullable=True, default="medium"
     )
 
 

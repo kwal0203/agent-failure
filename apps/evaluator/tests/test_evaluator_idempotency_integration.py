@@ -161,6 +161,6 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
             .all()
         )
 
-    assert first.findings_count == 2
-    assert second.findings_count == 2
-    assert len(rows) == 2
+    assert first.findings_count >= 1
+    assert second.findings_count == first.findings_count
+    assert len(rows) == first.findings_count

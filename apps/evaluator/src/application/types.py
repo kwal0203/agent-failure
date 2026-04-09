@@ -78,6 +78,7 @@ class EvaluatorTraceEvent:
     actor_user_id: UUID | None
     lab_id: UUID | None
     lab_version_id: UUID | None
+    lab_difficulty: str | None
 
 
 @dataclass(frozen=True)

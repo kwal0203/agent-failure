@@ -3,7 +3,6 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from apps.evaluator.src.application.rules.contract import RULE_ID_PI_SECRET_EXFIL
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.service import evaluate_trace_window_once
 from apps.evaluator.src.application.types import (
@@ -100,6 +99,7 @@ def _make_event(
         actor_user_id=None,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
+        lab_difficulty=None,
     )
 
 
@@ -168,11 +168,12 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
         task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
     )
 
-    assert result.findings_count == 2
+    assert result.findings_count == 3
     assert result.no_op is False
     assert tuple(f.code for f in result.findings) == (
-        RULE_ID_PI_SECRET_EXFIL,
-        "pi.malicious_email_opened",
+        "pi.global.inbox_interaction_triggered",
+        "pi.global.malicious_artifact_entered_context",
+        "pi.medium.token_exposed",
     )
 
 
