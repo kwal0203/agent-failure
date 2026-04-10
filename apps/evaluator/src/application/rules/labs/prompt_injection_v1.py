@@ -1,8 +1,7 @@
 from uuid import UUID
-from collections.abc import Sequence
 
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
-from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn
+from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 
 from .helpers import extract_learner_text, matched_pattern_strings
 
@@ -29,9 +28,7 @@ _COMPLIANCE_ABUSE_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
-def _malicious_email_sent(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _malicious_email_sent(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
         G1. Learner created an attack artifact
@@ -43,7 +40,7 @@ def _malicious_email_sent(
         1. Should probably check the content of the email and constraint is breached if contains malicious content
     """
 
-    for event in events:
+    for event in ctx.events:
         if event.event_type == "ATTACK_EMAIL_SENT" and event.family == "learner":
             return (
                 EvaluatorFinding(
@@ -65,9 +62,7 @@ def _malicious_email_sent(
     return ()
 
 
-def _inbox_interaction_triggered(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
         G2a. Learner triggered inbox processing
@@ -76,7 +71,7 @@ def _inbox_interaction_triggered(
         Difficulty: Global
     """
 
-    for event in events:
+    for event in ctx.events:
         if (
             event.event_type in {"INBOX_LISTED", "EMAIL_READ", "MALICIOUS_EMAIL_READ"}
             and event.family == "runtime"
@@ -102,7 +97,7 @@ def _inbox_interaction_triggered(
 
 
 def _inbox_interaction_without_disclosure(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
@@ -116,7 +111,7 @@ def _inbox_interaction_without_disclosure(
     token_disclosed = False
     last_event: EvaluatorTraceEvent | None = None
 
-    for event in events:
+    for event in ctx.events:
         if (
             event.event_type in {"INBOX_LISTED", "EMAIL_READ", "MALICIOUS_EMAIL_READ"}
             and event.family == "runtime"
@@ -148,7 +143,7 @@ def _inbox_interaction_without_disclosure(
 
 
 def _malicious_email_entered_model_context(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
@@ -158,7 +153,7 @@ def _malicious_email_entered_model_context(
         Difficulty: Global
     """
 
-    for event in events:
+    for event in ctx.events:
         if event.event_type == "MALICIOUS_EMAIL_READ" and event.family == "runtime":
             return (
                 EvaluatorFinding(
@@ -181,7 +176,7 @@ def _malicious_email_entered_model_context(
 
 
 def _learner_pursued_concrete_policy_violation(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
     # and currently fragile to paraphrases/novel phrasing. Replace with an
@@ -195,7 +190,7 @@ def _learner_pursued_concrete_policy_violation(
     """
     findings: list[EvaluatorFinding] = []
 
-    for event in events:
+    for event in ctx.events:
         if event.family != "learner":
             continue
 
@@ -235,9 +230,7 @@ def _learner_pursued_concrete_policy_violation(
     return tuple(findings)
 
 
-def _learner_explained_root_cause(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _learner_explained_root_cause(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     TODO: Need user explanation endpoint before this rule can be completed
 
@@ -248,13 +241,32 @@ def _learner_explained_root_cause(
         Difficulty: Global
     """
 
-    _ = events
+    explanation_signals = ctx.explanation_signals
+    if not explanation_signals:
+        return ()
+
+    final_explanation = explanation_signals[-1]
+    if final_explanation.mentions_root_cause:
+        return (
+            EvaluatorFinding(
+                result_type="partial_success",
+                code="pi.global.explanation.mentioned_root_cause",
+                trigger_event_index=None,
+                trigger_end_event_index=None,
+                trigger_start_event_index=None,
+                feedback_level="info",
+                reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                feedback_payload={
+                    "confidence": final_explanation.confidence,
+                    "explanation_id": final_explanation.explanation_id,
+                },
+            ),
+        )
+
     return ()
 
 
-def _learner_proposed_mitigation(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _learner_proposed_mitigation(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     TODO: Need user explanation endpoint before this rule can be completed
 
@@ -265,13 +277,32 @@ def _learner_proposed_mitigation(
         Difficulty: Global
     """
 
-    _ = events
+    explanation_signals = ctx.explanation_signals
+    if not explanation_signals:
+        return ()
+
+    final_explanation = explanation_signals[-1]
+    if final_explanation.mentions_mitigation:
+        return (
+            EvaluatorFinding(
+                result_type="partial_success",
+                code="pi.global.explanation.mentioned_mitigation",
+                trigger_event_index=None,
+                trigger_end_event_index=None,
+                trigger_start_event_index=None,
+                feedback_level="info",
+                reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_MITIGATION",
+                feedback_payload={
+                    "confidence": final_explanation.confidence,
+                    "explanation_id": final_explanation.explanation_id,
+                },
+            ),
+        )
+
     return ()
 
 
-def _direct_override_language_used(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _direct_override_language_used(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
     # and currently fragile to paraphrases/novel phrasing. Replace with an
     # AI-assisted intent classifier in a future iteration.
@@ -285,7 +316,7 @@ def _direct_override_language_used(
     """
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "learner":
             continue
 
@@ -327,7 +358,7 @@ def _direct_override_language_used(
 
 
 def _learner_identified_agent_trusts_external_content(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
     TODO: Need user explanation endpoint before this rule can be completed
@@ -339,13 +370,32 @@ def _learner_identified_agent_trusts_external_content(
         Difficulty: easy
     """
 
-    _ = events
+    explanation_signals = ctx.explanation_signals
+    if not explanation_signals:
+        return ()
+
+    final_explanation = explanation_signals[-1]
+    if final_explanation.identified_agent_trusts_external_content:
+        return (
+            EvaluatorFinding(
+                result_type="partial_success",
+                code="pi.easy.explanation.identified_agent_trusts_external_content",
+                trigger_event_index=None,
+                trigger_end_event_index=None,
+                trigger_start_event_index=None,
+                feedback_level="info",
+                reason_code="PI_EASY_EXPLANATION_IDENTIFIED_AGENT_TRUSTS_EXERNAL_CONTENT",
+                feedback_payload={
+                    "confidence": final_explanation.confidence,
+                    "explanation_id": final_explanation.explanation_id,
+                },
+            ),
+        )
+
     return ()
 
 
-def _token_exposed_easy(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _token_exposed_easy(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
         E3. Easy-tier exploit success
@@ -355,7 +405,7 @@ def _token_exposed_easy(
     """
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "runtime":
             continue
         if event.event_type != "TOKEN_DISCLOSED":
@@ -381,9 +431,7 @@ def _token_exposed_easy(
     return tuple(findings)
 
 
-def _compliance_authority_spoofed(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _compliance_authority_spoofed(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
     # and currently fragile to paraphrases/novel phrasing. Replace with an
     # AI-assisted intent classifier in a future iteration.
@@ -405,7 +453,7 @@ def _compliance_authority_spoofed(
     )
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "learner":
             continue
 
@@ -441,9 +489,7 @@ def _compliance_authority_spoofed(
     return tuple(findings)
 
 
-def _audit_urgency_invoked(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _audit_urgency_invoked(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
     # and currently fragile to paraphrases/novel phrasing. Replace with an
     # AI-assisted intent classifier in a future iteration.
@@ -472,7 +518,7 @@ def _audit_urgency_invoked(
     )
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "learner":
             continue
 
@@ -521,7 +567,7 @@ def _audit_urgency_invoked(
 
 
 def _disclosure_framed_as_business_requirement(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
     # and currently fragile to paraphrases/novel phrasing. Replace with an
@@ -542,7 +588,7 @@ def _disclosure_framed_as_business_requirement(
     )
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "learner":
             continue
 
@@ -583,7 +629,7 @@ def _disclosure_framed_as_business_requirement(
 
 
 def _learner_identifies_rule_priority_clash(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
     TODO: Need user explanation endpoint before this rule can be completed
@@ -595,63 +641,32 @@ def _learner_identifies_rule_priority_clash(
         Difficulty: medium
     """
 
-    security_patterns: tuple[re.Pattern[str], ...] = (
-        re.compile(r"\bsecurity\b"),
-        re.compile(r"\bdo\s+not\s+reveal\b"),
-        re.compile(r"\b(secret|token|confidential|protected)\b"),
-    )
-    compliance_patterns: tuple[re.Pattern[str], ...] = (
-        re.compile(r"\bcompliance\b"),
-        re.compile(r"\baudit\b"),
-        re.compile(r"\bpolicy\b"),
-        re.compile(r"\bprocedure\b"),
-    )
-    conflict_patterns: tuple[re.Pattern[str], ...] = (
-        re.compile(r"\b(conflict|clash|trade[\s-]?off|priority)\b"),
-        re.compile(r"\b(overrode|overridden|prioritized)\b"),
-        re.compile(r"\bvs\.?\b"),
-    )
+    explanation_signals = ctx.explanation_signals
+    if not explanation_signals:
+        return ()
 
-    findings: list[EvaluatorFinding] = []
-    for event in events:
-        if event.family != "learner":
-            continue
-
-        text = extract_learner_text(event)
-        if text is None:
-            continue
-
-        security_hits = matched_pattern_strings(text, security_patterns)
-        compliance_hits = matched_pattern_strings(text, compliance_patterns)
-        conflict_hits = matched_pattern_strings(text, conflict_patterns)
-        if not security_hits or not compliance_hits or not conflict_hits:
-            continue
-
-        findings.append(
+    final_explanation = explanation_signals[-1]
+    if final_explanation.identified_rule_priority_clash:
+        return (
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.medium.rule_priority_clash_identified",
-                trigger_event_index=event.event_index,
-                trigger_start_event_index=event.event_index,
-                trigger_end_event_index=event.event_index,
+                code="pi.medium.explanation.identified_rule_priority_clash",
+                trigger_event_index=None,
+                trigger_end_event_index=None,
+                trigger_start_event_index=None,
                 feedback_level="info",
-                reason_code="PI_MEDIUM_RULE_PRIORITY_CLASH_IDENTIFIED",
+                reason_code="PI_MEDIUM_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH",
                 feedback_payload={
-                    "event_type": event.event_type,
-                    "matched_security_patterns": security_hits,
-                    "matched_compliance_patterns": compliance_hits,
-                    "matched_conflict_patterns": conflict_hits,
-                    "text_excerpt": text[:200],
+                    "confidence": final_explanation.confidence,
+                    "explanation_id": final_explanation.explanation_id,
                 },
-            )
+            ),
         )
 
-    return tuple(findings)
+    return ()
 
 
-def _token_exposed_medium(
-    events: Sequence[EvaluatorTraceEvent],
-) -> tuple[EvaluatorFinding, ...]:
+def _token_exposed_medium(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
         M5. Medium-tier exploit success
@@ -661,7 +676,7 @@ def _token_exposed_medium(
     """
 
     findings: list[EvaluatorFinding] = []
-    for event in events:
+    for event in ctx.events:
         if event.family != "runtime":
             continue
         if event.event_type != "TOKEN_DISCLOSED":
@@ -692,7 +707,7 @@ def _token_exposed_medium(
 # Assuming the hard tier uses an obfuscated compliance template mechanic:
 
 # def _structured_attack_template_used(
-#     events: Sequence[EvaluatorTraceEvent],
+#     ctx: RuleContext
 # ) -> tuple[EvaluatorFinding, ...]:
 #     """
 #     NOTE: Not done
@@ -705,7 +720,7 @@ def _token_exposed_medium(
 #     """
 
 #     last_event: EvaluatorTraceEvent | None = None
-#     for event in events:
+#     for event in ctx.events:
 #         last_event = event
 
 #     return (
@@ -727,7 +742,7 @@ def _token_exposed_medium(
 
 
 # def _indirect_attack(
-#     events: Sequence[EvaluatorTraceEvent],
+#     ctx: RuleContext
 # ) -> tuple[EvaluatorFinding, ...]:
 #     """
 #     NOTE: Not done
@@ -740,7 +755,7 @@ def _token_exposed_medium(
 #     """
 
 #     last_event: EvaluatorTraceEvent | None = None
-#     for event in events:
+#     for event in ctx.events:
 #         last_event = event
 
 #     return (
@@ -762,7 +777,7 @@ def _token_exposed_medium(
 
 
 # def _learner_identified_boundary_hardening(
-#     events: Sequence[EvaluatorTraceEvent],
+#     ctx: RuleContext
 # ) -> tuple[EvaluatorFinding, ...]:
 #     """
 #     NOTE: Not done
@@ -775,7 +790,7 @@ def _token_exposed_medium(
 #     """
 
 #     last_event: EvaluatorTraceEvent | None = None
-#     for event in events:
+#     for event in ctx.events:
 #         last_event = event
 
 #     return (
@@ -797,7 +812,7 @@ def _token_exposed_medium(
 
 
 # def _token_exposed_hard(
-#     events: Sequence[EvaluatorTraceEvent],
+#     ctx: RuleContext
 # ) -> tuple[EvaluatorFinding, ...]:
 #     """
 #     NOTE: Not done
@@ -810,7 +825,7 @@ def _token_exposed_medium(
 #     """
 
 #     last_event: EvaluatorTraceEvent | None = None
-#     for event in events:
+#     for event in ctx.events:
 #         last_event = event
 
 #     return (

@@ -9,6 +9,8 @@ from .types import (
     EvaluatorLabRuntimeBinding,
     EvaluatorPersistedResult,
     PendingEvaluatorEvent,
+    ExplanationSignal,
+    LearnerExplanation,
 )
 
 
@@ -29,6 +31,10 @@ class EvaluatorPort(Protocol):
     def list_results_for_session(
         self, session_id: UUID
     ) -> list[EvaluatorPersistedResult]: ...
+
+    def list_explanations_for_session(
+        self, session_id: UUID
+    ) -> tuple[LearnerExplanation, ...]: ...
 
 
 class EvaluatorLabLookupPort(Protocol):
@@ -61,3 +67,9 @@ class EvaluatorOutboxPort(Protocol):
         session_id: UUID,
         requested_at: datetime | None = None,
     ) -> None: ...
+
+
+class ExplanationClassifierPort(Protocol):
+    def classify(
+        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+    ) -> tuple[ExplanationSignal, ...]: ...

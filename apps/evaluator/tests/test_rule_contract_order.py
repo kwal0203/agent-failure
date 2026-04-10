@@ -78,7 +78,7 @@ def test_bundle_rule_execution_order_matches_contract() -> None:
     }
 
     for bundle_name, (bundle, events) in bundle_events.items():
-        findings = bundle.run(events=events)
+        findings = bundle.run(events=events, explanation_signals=())
         emitted_codes = tuple(finding.code for finding in findings)
         contract_order = RULE_IDS_BY_BUNDLE[bundle_name]
         contract_positions = {code: idx for idx, code in enumerate(contract_order)}

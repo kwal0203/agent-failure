@@ -21,6 +21,8 @@ from apps.evaluator.src.application.types import (
     ResultType,
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
+    ExplanationSignal,
+    LearnerExplanation,
 )
 
 DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
@@ -67,6 +69,12 @@ class _FakeRepo:
         _ = session_id
         return list(self.persisted_results)
 
+    def list_explanations_for_session(
+        self, session_id: UUID
+    ) -> tuple[LearnerExplanation, ...]:
+        _ = session_id
+        return ()
+
 
 class _RaisingRepo:
     def load_events(self, input: EvaluatorTaskInput) -> list[EvaluatorTraceEvent]:
@@ -100,6 +108,12 @@ class _RaisingRepo:
         _ = session_id
         return []
 
+    def list_explanations_for_session(
+        self, session_id: UUID
+    ) -> tuple[LearnerExplanation, ...]:
+        _ = session_id
+        return ()
+
 
 class _StubLabLookupRepo:
     def get_runtime_binding(
@@ -110,6 +124,14 @@ class _StubLabLookupRepo:
             lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
             lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
+
+
+class _FakeClassifier:
+    def classify(
+        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+    ) -> tuple[ExplanationSignal, ...]:
+        _ = (explanations, lab_difficulty)
+        return ()
 
 
 def _make_task() -> EvaluatorTaskInput:
@@ -238,9 +260,11 @@ def test_process_evaluate_pending_once_returns_stats_success(
 
     class _FakeBundle:
         def run(
-            self, events: list[EvaluatorTraceEvent]
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
         ) -> tuple[EvaluatorFinding, ...]:
-            _ = events
+            _ = (events, explanation_signals)
             return expected_findings
 
     monkeypatch.setattr(
@@ -248,7 +272,10 @@ def test_process_evaluate_pending_once_returns_stats_success(
     )
 
     result = process_evaluate_pending_once(
-        repo=repo, lab_lookup_repo=_StubLabLookupRepo(), outbox_repo=outbox_repo
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
     )
 
     assert result == EvaluatorOnceResult(
@@ -282,9 +309,11 @@ def test_process_evaluate_pending_once_does_not_enqueue_feedback_publish_when_no
 
     class _FakeBundle:
         def run(
-            self, events: list[EvaluatorTraceEvent]
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
         ) -> tuple[EvaluatorFinding, ...]:
-            _ = events
+            _ = (events, explanation_signals)
             return ()
 
     monkeypatch.setattr(
@@ -292,7 +321,10 @@ def test_process_evaluate_pending_once_does_not_enqueue_feedback_publish_when_no
     )
 
     result = process_evaluate_pending_once(
-        repo=repo, lab_lookup_repo=_StubLabLookupRepo(), outbox_repo=outbox_repo
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
     )
 
     assert result == EvaluatorOnceResult(
@@ -323,7 +355,10 @@ def test_process_evaluate_pending_once_marks_failure_and_logs_exception(
     )
 
     result = process_evaluate_pending_once(
-        repo=repo, lab_lookup_repo=_StubLabLookupRepo(), outbox_repo=outbox_repo
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
     )
 
     assert result == EvaluatorOnceResult(
@@ -429,3 +464,72 @@ def test_get_learner_feedback_raises_on_unknown_result_type() -> None:
 
     with pytest.raises(ValueError, match="Unsupported result_type: unknown_type"):
         get_learner_feedback(session_id=task.session_id, repo=repo)
+
+
+def test_process_evaluate_pending_once_explanation_signals_influence_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_event_id = uuid4()
+    outbox_repo = _FakeOutboxRepo(
+        pending=[
+            PendingEvaluatorEvent(
+                outbox_event_id=outbox_event_id,
+                task=task,
+                attempt_count=1,
+            )
+        ]
+    )
+
+    class _SignalClassifier:
+        def classify(
+            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        ) -> tuple[ExplanationSignal, ...]:
+            _ = (explanations, lab_difficulty)
+            return (
+                ExplanationSignal(
+                    explanation_id=uuid4(), confidence=1.0, mentions_root_cause=True
+                ),
+            )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = events
+            if (
+                not explanation_signals
+                or not explanation_signals[0].mentions_root_cause
+            ):
+                return ()
+            return (
+                EvaluatorFinding(
+                    result_type="partial_success",
+                    code="pi.global.explanation.mentioned_root_cause",
+                    trigger_event_index=None,
+                    trigger_start_event_index=None,
+                    trigger_end_event_index=None,
+                    feedback_level="info",
+                    reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                    feedback_payload={"confidence": explanation_signals[0].confidence},
+                ),
+            )
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    result = process_evaluate_pending_once(
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_SignalClassifier(),
+    )
+
+    assert result.succeeded_count == 1
+    assert len(repo.persisted_calls) == 1
+    persisted_finding = repo.persisted_calls[0][-1]
+    assert persisted_finding.code == "pi.global.explanation.mentioned_root_cause"

@@ -1,8 +1,7 @@
 from uuid import UUID
-from collections.abc import Sequence
 
-from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
-from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn
+from apps.evaluator.src.application.types import EvaluatorFinding
+from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.contract import (
     RULE_ID_CE_CODE_EXECUTE_VIOLATION,
 )
@@ -12,9 +11,9 @@ EXECUTION_TOOL_NAMES = {"python", "python3", "bash", "sh", "exec", "shell"}
 
 
 def _rule_execution_tool_call_detected(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
-    for event in events:
+    for event in ctx.events:
         if event.event_type != "TOOL_CALL_SUCCEEDED":
             continue
 

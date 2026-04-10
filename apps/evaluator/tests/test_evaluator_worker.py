@@ -1,7 +1,11 @@
 from pytest import MonkeyPatch
 from typing import Literal
 
-from apps.evaluator.src.application.types import EvaluatorOnceResult
+from apps.evaluator.src.application.types import (
+    EvaluatorOnceResult,
+    ExplanationSignal,
+    LearnerExplanation,
+)
 from apps.evaluator.src.interfaces.runtime import evaluator_worker
 
 
@@ -44,12 +48,24 @@ def test_run_once_invokes_service_and_commits(monkeypatch: MonkeyPatch) -> None:
         def __init__(self, db: object) -> None:
             calls["outbox_db"] = db
 
+    class _FakeClassifier:
+        def classify(
+            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        ) -> tuple[ExplanationSignal, ...]:
+            _ = (explanations, lab_difficulty)
+            return ()
+
     def _fake_process_once(
-        *, repo: object, lab_lookup_repo: object, outbox_repo: object
+        *,
+        repo: object,
+        lab_lookup_repo: object,
+        outbox_repo: object,
+        classifier: object,
     ) -> EvaluatorOnceResult:
         calls["repo"] = repo
         calls["lab_lookup_repo"] = lab_lookup_repo
         calls["outbox_repo"] = outbox_repo
+        calls["classifier"] = classifier
         return EvaluatorOnceResult(
             claimed_count=1,
             succeeded_count=1,
@@ -69,11 +85,12 @@ def test_run_once_invokes_service_and_commits(monkeypatch: MonkeyPatch) -> None:
         evaluator_worker, "process_evaluate_pending_once", _fake_process_once
     )
 
-    evaluator_worker.run_once()
+    evaluator_worker.run_once(classifier_repo=_FakeClassifier())
 
     assert calls["repo"].__class__ is _FakeRepo
     assert calls["lab_lookup_repo"].__class__ is _FakeLookupRepo
     assert calls["outbox_repo"].__class__ is _FakeOutboxRepo
+    assert calls["classifier"].__class__ is _FakeClassifier
     assert _FakeSessionFactory.last_db is not None
     assert _FakeSessionFactory.last_db.committed is True
     assert _FakeSessionFactory.last_db.rolled_back is False
@@ -94,10 +111,21 @@ def test_run_once_rolls_back_and_reraises_on_service_error(
         def __init__(self, db: object) -> None:
             _ = db
 
+    class _FakeClassifier:
+        def classify(
+            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        ) -> tuple[ExplanationSignal, ...]:
+            _ = (explanations, lab_difficulty)
+            return ()
+
     def _fake_process_once(
-        *, repo: object, lab_lookup_repo: object, outbox_repo: object
+        *,
+        repo: object,
+        lab_lookup_repo: object,
+        outbox_repo: object,
+        classifier: object,
     ) -> EvaluatorOnceResult:
-        _ = (repo, lab_lookup_repo, outbox_repo)
+        _ = (repo, lab_lookup_repo, outbox_repo, classifier)
         raise RuntimeError("boom")
 
     monkeypatch.setattr(evaluator_worker, "SessionFactory", _FakeSessionFactory)
@@ -113,7 +141,7 @@ def test_run_once_rolls_back_and_reraises_on_service_error(
     )
 
     try:
-        evaluator_worker.run_once()
+        evaluator_worker.run_once(classifier_repo=_FakeClassifier())
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert str(exc) == "boom"

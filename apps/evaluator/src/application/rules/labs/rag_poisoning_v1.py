@@ -1,8 +1,8 @@
 from uuid import UUID
 from collections.abc import Sequence
 
-from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
-from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn
+from apps.evaluator.src.application.types import EvaluatorFinding
+from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.common import TEXT_PAYLOAD_FIELDS
 from apps.evaluator.src.application.rules.contract import RULE_ID_RAG_POISON_DETECTED
 
@@ -33,9 +33,9 @@ def _contains_poisoning_marker(texts: Sequence[str]) -> str | None:
 
 
 def _rule_rag_poisoning_signal_detected(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
-    for event in events:
+    for event in ctx.events:
         if event.event_type not in {"MODEL_TURN_COMPLETED", "TOOL_CALL_SUCCEEDED"}:
             continue
 

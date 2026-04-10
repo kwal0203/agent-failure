@@ -1,16 +1,15 @@
 from uuid import UUID
-from collections.abc import Sequence
 
-from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
-from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn
+from apps.evaluator.src.application.types import EvaluatorFinding
+from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.common import PROTECTED_RESOURCE_MARKERS
 from apps.evaluator.src.application.rules.contract import RULE_ID_TM_TOOL_VIOLATION
 
 
 def _rule_protected_tool_access_violation(
-    events: Sequence[EvaluatorTraceEvent],
+    ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
-    for event in events:
+    for event in ctx.events:
         if event.event_type != "TOOL_CALL_SUCCEEDED":
             continue
 
