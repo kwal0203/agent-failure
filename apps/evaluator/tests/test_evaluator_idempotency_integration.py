@@ -22,6 +22,8 @@ from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.types import (
     EvaluatorLabRuntimeBinding,
     EvaluatorTaskInput,
+    ExplanationSignal,
+    LearnerExplanation,
 )
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
@@ -39,6 +41,14 @@ class _StubLabLookupRepo:
             lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
             lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
+
+
+class _StubClassifier:
+    def classify(
+        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+    ) -> tuple[ExplanationSignal, ...]:
+        _ = (explanations, lab_difficulty)
+        return ()
 
 
 def _get_test_database_url() -> str:
@@ -141,13 +151,20 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
 
     with Session(bind=engine, future=True) as db:
         repo = SQLAlchemyEvaluatorRepository(db=db)
+        classifier = _StubClassifier()
 
         first = evaluate_trace_window_once(
-            task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+            task=task,
+            repo=repo,
+            lab_lookup_repo=_StubLabLookupRepo(),
+            classifier=classifier,
         )
         db.commit()
         second = evaluate_trace_window_once(
-            task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+            task=task,
+            repo=repo,
+            lab_lookup_repo=_StubLabLookupRepo(),
+            classifier=classifier,
         )
         db.commit()
 

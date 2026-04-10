@@ -9,12 +9,14 @@ from apps.evaluator.src.application.types import (
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
     EvaluatorFinding,
+    LearnerExplanation,
     ResultType,
     FeedbackLevel,
 )
 from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
     EvaluatorResultModel,
+    LearnerExplanationModel,
 )
 from uuid import uuid4, UUID
 
@@ -145,3 +147,38 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
             )
 
         return result
+
+    def list_explanations_for_session(
+        self, session_id: UUID
+    ) -> tuple[LearnerExplanation, ...]:
+        rows = (
+            self._db.execute(
+                select(LearnerExplanationModel)
+                .where(LearnerExplanationModel.session_id == session_id)
+                .order_by(
+                    LearnerExplanationModel.created_at.desc(),
+                    LearnerExplanationModel.explanation_id.desc(),
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        explanations: list[LearnerExplanation] = []
+        for row in rows:
+            explanations.append(
+                LearnerExplanation(
+                    explanation_id=row.explanation_id,
+                    explanation=row.explanation,
+                    session_id=row.session_id,
+                    lab_id=row.lab_id,
+                    lab_version_id=row.lab_version_id,
+                    lab_difficulty=row.lab_difficulty,
+                    source=row.source,
+                    actor_user_id=row.actor_user_id,
+                    idempotency_key=row.idempotency_key,
+                    created_at=row.created_at,
+                )
+            )
+
+        return tuple(explanations)

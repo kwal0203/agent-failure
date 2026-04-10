@@ -155,7 +155,7 @@ def test_easy_e1_direct_override_language_used_positive() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert any(f.code == "pi.easy.direct_override_language_used" for f in findings)
 
@@ -175,7 +175,7 @@ def test_easy_e1_direct_override_language_used_negative() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert all(f.code != "pi.easy.direct_override_language_used" for f in findings)
 
@@ -198,7 +198,7 @@ def test_medium_m3_disclosure_framed_as_business_requirement_positive() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert any(
         f.code == "pi.medium.disclosure_framed_as_business_requirement"
@@ -221,7 +221,7 @@ def test_medium_m3_disclosure_framed_as_business_requirement_negative() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert all(
         f.code != "pi.medium.disclosure_framed_as_business_requirement"
@@ -243,7 +243,7 @@ def test_medium_m5_token_exposed_positive() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert any(f.code == "pi.medium.token_exposed" for f in findings)
 
@@ -259,6 +259,6 @@ def test_medium_m5_token_exposed_negative() -> None:
         )
     ]
 
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
 
     assert all(f.code != "pi.medium.token_exposed" for f in findings)

@@ -128,3 +128,29 @@ class PendingEvaluatorEvent:
     outbox_event_id: UUID
     task: EvaluatorTaskInput
     attempt_count: int
+
+
+@dataclass(frozen=True)
+class ExplanationSignal:
+    explanation_id: UUID
+    confidence: float
+    mentions_trust_boundary: bool = False
+    mentions_rule_conflict: bool = False
+    mentions_mitigation: bool = False
+    mentions_root_cause: bool = False
+    identified_agent_trusts_external_content: bool = False
+    identified_rule_priority_clash: bool = False
+
+
+@dataclass(frozen=True)
+class LearnerExplanation:
+    explanation_id: UUID
+    explanation: str
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    lab_difficulty: str
+    source: str
+    actor_user_id: UUID
+    idempotency_key: str
+    created_at: datetime

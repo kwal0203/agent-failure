@@ -11,6 +11,8 @@ from apps.evaluator.src.application.types import (
     EvaluatorLabRuntimeBinding,
     EvaluatorTaskInput,
     EvaluatorTraceEvent,
+    ExplanationSignal,
+    LearnerExplanation,
 )
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
@@ -24,6 +26,7 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
         # DB is not used because load_events is overridden in tests.
         super().__init__(db=None)  # type: ignore[arg-type]
         self._events = events
+        self.explanations_loaded = False
 
     def load_events(self, input: EvaluatorTaskInput) -> list[EvaluatorTraceEvent]:
         _ = input
@@ -50,6 +53,13 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
         )
         return True
 
+    def list_explanations_for_session(
+        self, session_id: UUID
+    ) -> tuple[LearnerExplanation, ...]:
+        _ = session_id
+        self.explanations_loaded = True
+        return ()
+
 
 class _StubLabLookupRepo:
     def get_runtime_binding(
@@ -60,6 +70,18 @@ class _StubLabLookupRepo:
             lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
             lab_version=DEFAULT_SUPPORTED_TUPLE[1],
         )
+
+
+class _StubClassifier:
+    def __init__(self) -> None:
+        self.called = False
+
+    def classify(
+        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+    ) -> tuple[ExplanationSignal, ...]:
+        _ = (explanations, lab_difficulty)
+        self.called = True
+        return ()
 
 
 def _make_task_input() -> EvaluatorTaskInput:
@@ -122,15 +144,21 @@ def test_evaluate_trace_window_no_op_when_no_rules_match() -> None:
         ),
     ]
     repo = _StubEvaluatorRepository(events=events)
+    classifier = _StubClassifier()
 
     result: EvaluatorRunResult = evaluate_trace_window_once(
-        task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        classifier=classifier,
     )
 
     assert result.evaluated_event_count == 2
     assert result.findings_count == 0
     assert result.no_op is True
     assert result.findings == ()
+    assert repo.explanations_loaded is True
+    assert classifier.called is True
 
 
 def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
@@ -163,9 +191,13 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
         ),
     ]
     repo = _StubEvaluatorRepository(events=events)
+    classifier = _StubClassifier()
 
     result = evaluate_trace_window_once(
-        task=task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        classifier=classifier,
     )
 
     assert result.findings_count == 3
@@ -188,8 +220,12 @@ def test_evaluate_trace_window_rejects_invalid_window() -> None:
         end_event_index=4,
     )
     repo = _StubEvaluatorRepository(events=[])
+    classifier = _StubClassifier()
 
     with pytest.raises(ValueError, match="Invalid event window"):
         evaluate_trace_window_once(
-            task=bad_task, repo=repo, lab_lookup_repo=_StubLabLookupRepo()
+            task=bad_task,
+            repo=repo,
+            lab_lookup_repo=_StubLabLookupRepo(),
+            classifier=classifier,
         )

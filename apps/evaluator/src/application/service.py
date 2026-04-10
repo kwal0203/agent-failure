@@ -1,4 +1,9 @@
-from .ports import EvaluatorPort, EvaluatorLabLookupPort, EvaluatorOutboxPort
+from .ports import (
+    EvaluatorPort,
+    EvaluatorLabLookupPort,
+    EvaluatorOutboxPort,
+    ExplanationClassifierPort,
+)
 from .types import (
     EvaluatorTaskInput,
     EvaluatorFinding,
@@ -52,6 +57,7 @@ def evaluate_trace_window_once(
     task: EvaluatorTaskInput,
     repo: EvaluatorPort,
     lab_lookup_repo: EvaluatorLabLookupPort,
+    classifier: ExplanationClassifierPort,
 ) -> EvaluatorRunResult:
     inserted_count = 0
     deduped_count = 0
@@ -65,13 +71,19 @@ def evaluate_trace_window_once(
     for event in events:
         _validate_event_scope(event=event, task=task)
 
+    explanations = repo.list_explanations_for_session(session_id=task.session_id)
+    signals = classifier.classify(
+        explanations=explanations, lab_difficulty=task.lab_difficulty
+    )
     lab_binding = lab_lookup_repo.get_runtime_binding(
         lab_id=task.lab_id, lab_version_id=task.lab_version_id
     )
 
     constraint_bundle = resolve_bundle(binding=lab_binding, task=task)
 
-    findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(events=events)
+    findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(
+        events=events, explanation_signals=signals
+    )
     for finding in findings:
         idempo_key = build_result_idempotency_key(task=task, finding=finding)
         inserted = repo.persist_result_if_new(
@@ -141,6 +153,7 @@ def process_evaluate_pending_once(
     repo: EvaluatorPort,
     lab_lookup_repo: EvaluatorLabLookupPort,
     outbox_repo: EvaluatorOutboxPort,
+    classifier: ExplanationClassifierPort,
 ) -> EvaluatorOnceResult:
 
     claimed_count = 0
@@ -159,6 +172,7 @@ def process_evaluate_pending_once(
                 task=task,
                 repo=repo,
                 lab_lookup_repo=lab_lookup_repo,
+                classifier=classifier,
             )
 
             if result.inserted_count > 0:

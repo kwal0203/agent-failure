@@ -56,7 +56,7 @@ def _assert_payload_keys_match_contract(
 def _assert_bundle_findings_payloads(
     bundle: RuleBundle, events: list[EvaluatorTraceEvent]
 ) -> set[str]:
-    findings = bundle.run(events=events)
+    findings = bundle.run(events=events, explanation_signals=())
     assert findings
 
     emitted_rule_ids: set[str] = set()
@@ -120,7 +120,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
         expected_rule_ids = set(RULE_IDS_BY_BUNDLE[bundle_name])
         emitted_for_bundle: set[str] = set()
         for events in event_sets:
-            findings = bundle.run(events=events)
+            findings = bundle.run(events=events, explanation_signals=())
             emitted_codes = tuple(rule.code for rule in findings)
             contract_order = RULE_IDS_BY_BUNDLE[bundle_name]
             contract_positions = {code: idx for idx, code in enumerate(contract_order)}
