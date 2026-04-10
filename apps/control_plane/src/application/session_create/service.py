@@ -1,6 +1,12 @@
 from uuid import UUID
-from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.application.common.errors import ForbiddenError
+from apps.control_plane.src.application.common.types import (
+    PrincipalContext,
+    ALLOWED_LAB_DIFFICULTIES,
+)
+from apps.control_plane.src.application.common.errors import (
+    ForbiddenError,
+    DuplicateIdempotencyKeyError,
+)
 
 from .ports import AdmissionPolicy, CreateSessionUnitOfWork
 from .errors import (
@@ -10,7 +16,6 @@ from .errors import (
     InvalidIdempotencyKeyError,
     RateLimitedError,
     AdmissionDecisionError,
-    DuplicateIdempotencyKeyError,
     InvalidLabDifficulty,
 )
 from .schemas import CreateSessionResult, DecisionDetails
@@ -19,9 +24,6 @@ from .schemas import CreateSessionResult, DecisionDetails
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-ALLOWED_LAB_DIFFICULTIES = {"easy", "medium"}
 
 
 def _return_existing_session(

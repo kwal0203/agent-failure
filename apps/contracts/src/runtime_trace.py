@@ -1,14 +1,15 @@
-from dataclasses import dataclass
 from typing import TypeAlias, Literal
-from uuid import UUID
-from datetime import datetime
 
-from .types import TraceFamily, RuntimePayload
+from .types import TraceFamily
 
 
 ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
     "lifecycle": {"SESSION_CREATED", "SESSION_TRANSITIONED"},
-    "learner": {"USER_PROMPT_SUBMITTED", "ATTACK_EMAIL_SENT"},
+    "learner": {
+        "USER_PROMPT_SUBMITTED",
+        "ATTACK_EMAIL_SENT",
+        "LEARNER_EXPLANATION_SUBMITTED",
+    },
     "runtime": {
         "RUNTIME_PROVISION_REQUESTED",
         "RUNTIME_PROVISION_ACCEPTED",
@@ -46,6 +47,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
         "attempt_count",
     },
     ("learner", "ATTACK_EMAIL_SENT"): {"email_from", "subject"},
+    ("learner", "LEARNER_EXPLANATION_SUBMITTED"): {"type", "explanation_id", "source"},
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
     ("runtime", "INBOX_LISTED"): {"message_count"},
     ("runtime", "EMAIL_READ"): {"email_id", "subject"},
@@ -77,18 +79,18 @@ RuntimeTraceEventType: TypeAlias = Literal[
 ]
 
 
-@dataclass(frozen=True, slots=True)
-class RuntimeTraceEvent:
-    session_id: UUID
-    lab_id: UUID
-    lab_version_id: UUID
-    family: TraceFamily
-    event_type: RuntimeTraceEventType
-    payload: RuntimePayload
-    occurred_at: datetime | None = None
-    correlation_id: str | None = None
-    request_id: str | None = None
-    actor_user_id: UUID | None = None
+# @dataclass(frozen=True, slots=True)
+# class RuntimeTraceEvent:
+#     session_id: UUID
+#     lab_id: UUID
+#     lab_version_id: UUID
+#     family: TraceFamily
+#     event_type: RuntimeTraceEventType
+#     payload: RuntimePayload
+#     occurred_at: datetime | None = None
+#     correlation_id: str | None = None
+#     request_id: str | None = None
+#     actor_user_id: UUID | None = None
 
 
 REQUIRED_PAYLOAD_KEYS_BY_EVENT_TYPE: dict[RuntimeTraceEventType, tuple[str, ...]] = {

@@ -151,6 +151,19 @@ class EmailArtifact(BaseModel):
         return v
 
 
+class ExplanationArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    explanation: str = Field(min_length=20, max_length=2048)
+    source: Literal["learner"] = "learner"
+
+    @field_validator("explanation", mode="before")
+    @classmethod
+    def _strip_strings(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
 class ApiError(BaseModel):
     code: str
     message: str

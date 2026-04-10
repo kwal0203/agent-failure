@@ -22,7 +22,8 @@ class SessionModel(Base):
     __tablename__ = "sessions"
     __table_args__ = (
         CheckConstraint(
-            "lab_difficulty in ('easy', 'medium')", name="ck_sessions_lab_difficulty"
+            "lab_difficulty in ('easy', 'medium', 'hard')",
+            name="ck_sessions_lab_difficulty",
         ),
     )
 
@@ -318,4 +319,41 @@ class SessionRuntimeBindingModel(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+
+class LearnerExplanationModel(Base):
+    __tablename__ = "learner_explanations"
+    __table_args__ = (
+        CheckConstraint("source IN ('learner')", name="ck_learner_explanations_source"),
+        CheckConstraint(
+            "lab_difficulty IN ('easy', 'medium')",
+            name="ck_learner_explanations_lab_difficulty",
+        ),
+        UniqueConstraint(
+            "session_id", "idempotency_key", name="uq_learner_explanations_idempo"
+        ),
+    )
+
+    explanation_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    explanation: Mapped[str] = mapped_column(String(2048), nullable=False)
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    lab_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    lab_version_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    lab_difficulty: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="medium"
+    )
+    source: Mapped[str] = mapped_column(
+        String(64), nullable=False, server_default="learner"
+    )
+    actor_user_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(
+        String(128), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

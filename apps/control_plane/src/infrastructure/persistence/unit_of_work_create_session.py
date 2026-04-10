@@ -13,7 +13,7 @@ from apps.control_plane.src.application.session_create.schemas import (
     CreateSessionResult,
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
-from apps.control_plane.src.application.session_create.errors import (
+from apps.control_plane.src.application.common.errors import (
     DuplicateIdempotencyKeyError,
 )
 

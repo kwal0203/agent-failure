@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import UUID
 from datetime import datetime
 from typing import Literal, Any
@@ -96,4 +96,14 @@ class GetSessionTraceResponse(BaseModel):
 class InjectSessionEmailResponse(BaseModel):
     session_id: UUID
     email_id: str | None = None
+    accepted: bool = True
+
+
+class LearnerExplanationRequest(BaseModel):
+    explanation: str = Field(min_length=20, max_length=2048)
+
+
+class LearnerExplanationResponse(BaseModel):
+    session_id: UUID
+    explanation_id: UUID
     accepted: bool = True
