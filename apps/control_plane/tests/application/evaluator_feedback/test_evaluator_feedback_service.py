@@ -265,6 +265,55 @@ def test_process_pending_feedback_publish_once_success_path() -> None:
     assert publisher.calls[0][1][0].status == "learned"
 
 
+def test_process_pending_feedback_publish_once_includes_explanation_derived_finding() -> (
+    None
+):
+    session_id = uuid4()
+    outbox_event_id = uuid4()
+    outbox = _FakeOutboxRepo(
+        events=[
+            PendingLearnerFeedbackPublishEvent(
+                outbox_event_id=outbox_event_id,
+                session_id=session_id,
+                attempt_count=0,
+                requested_at=None,
+            )
+        ]
+    )
+    eval_repo = _FakeEvalRepoBySession(
+        by_session={
+            session_id: [
+                _make_result(
+                    result_type="partial_success",
+                    code="pi.global.explanation.mentioned_root_cause",
+                    reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                    feedback_payload={"confidence": 0.92},
+                )
+            ]
+        }
+    )
+    publisher = _FakePublisher()
+
+    result = asyncio.run(
+        process_pending_feedback_publish_once(
+            outbox_repo=outbox, eval_repo=eval_repo, publisher=publisher
+        )
+    )
+
+    assert result == LearnerFeedbackPublishResult(
+        claimed_count=1, succeeded_count=1, failed_count=0, retried_count=0
+    )
+    assert outbox.processed == [outbox_event_id]
+    assert len(publisher.calls) == 1
+    published_feedback = publisher.calls[0][1]
+    assert len(published_feedback) == 1
+    assert published_feedback[0].status == "progress"
+    assert (
+        published_feedback[0].reason_code
+        == "PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE"
+    )
+
+
 def test_process_pending_feedback_publish_once_marks_terminal_on_unknown_result_type() -> (
     None
 ):
