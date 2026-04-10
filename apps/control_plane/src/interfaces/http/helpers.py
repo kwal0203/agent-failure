@@ -1,10 +1,12 @@
+from uuid import uuid4, UUID
+from datetime import datetime, timezone
+from fastapi.responses import JSONResponse
+
+from apps.contracts.src.schemas import ApiError, ApiErrorEnvelope
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyTraceEventRepository,
 )
 from apps.control_plane.src.application.trace.types import TraceFamily, TraceEvent
-
-from uuid import uuid4, UUID
-from datetime import datetime, timezone
 
 
 def build_trace_event(
@@ -60,3 +62,16 @@ def build_model_turn_failed_payload(
         ),
         "chunks_emitted": chunks_emitted,
     }
+
+
+def build_api_error_response(
+    code: str,
+    message: str,
+    retryable: bool,
+    status_code: int,
+    details: dict[str, object] | None = None,
+) -> JSONResponse:
+    body = ApiErrorEnvelope(
+        error=ApiError(code=code, message=message, retryable=retryable, details=details)
+    )
+    return JSONResponse(content=body.model_dump(mode="json"), status_code=status_code)

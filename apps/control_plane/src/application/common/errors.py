@@ -9,3 +9,16 @@ class ForbiddenError(Exception):
         self.message = message
         self.details = details or {"role": role}
         super().__init__(self.message)
+
+
+class DuplicateIdempotencyKeyError(Exception):
+    def __init__(
+        self,
+        code: str,
+        message: str = "Duplicate idempotency key.",
+        details: dict[str, object] | None = None,
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__("Duplicate idempotency key detected.")

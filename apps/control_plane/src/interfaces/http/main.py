@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Depends, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from sqlalchemy.orm import Session
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from .schemas import (
     GetSessionMetadataResponse,
@@ -20,6 +21,8 @@ from .schemas import (
     SessionTraceEvent,
     GetSessionTraceResponse,
     InjectSessionEmailResponse,
+    LearnerExplanationRequest,
+    LearnerExplanationResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -43,7 +46,11 @@ from apps.control_plane.src.application.session_create.ports import (
     CreateSessionUnitOfWork,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.application.common.errors import ForbiddenError
+from apps.control_plane.src.application.common.schemas import LabDifficultyParser
+from apps.control_plane.src.application.common.errors import (
+    ForbiddenError,
+    DuplicateIdempotencyKeyError,
+)
 from apps.control_plane.src.application.session_create.service import create_session
 from apps.control_plane.src.application.session_create.errors import (
     LabNotAvailableError,
@@ -79,6 +86,18 @@ from apps.control_plane.src.application.runtime.types import (
     InjectEmailInput,
 )
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
+from apps.control_plane.src.application.learner_explanation.service import (
+    inject_learner_explanation,
+)
+from apps.control_plane.src.application.learner_explanation.types import (
+    LearnerExplanationInput,
+)
+from apps.control_plane.src.application.learner_explanation.errors import (
+    InvalidLearnerExplanationError,
+)
+from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
+    LearnerExplanationRepository,
+)
 from apps.contracts.src.schemas import EmailArtifact, ApiErrorEnvelope
 from .dependencies import (
     get_admission_policy,
@@ -95,7 +114,6 @@ from .stream_messages import (
     UserPromptMessage,
 )
 from .session_manager import WebSocketSessionManager
-from .http_responses import build_api_error_response
 from .message_builders import (
     build_policy_denial_message,
     build_agent_text_chunk_message,
@@ -103,11 +121,14 @@ from .message_builders import (
     build_trace_event_message,
     build_system_error_message,
 )
-from .helpers import build_trace_event, build_model_turn_failed_payload
+from .helpers import (
+    build_trace_event,
+    build_model_turn_failed_payload,
+    build_api_error_response,
+)
 
 import logging
 import asyncio
-from uuid import uuid4
 import contextlib
 
 
@@ -1427,6 +1448,256 @@ async def inject_session_email(
             message=exc.message,
             retryable=exc.retryable,
             status_code=502,
+            details={"session_id": str(session_id)},
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/explanation",
+    status_code=202,
+    response_model=LearnerExplanationResponse,
+    responses={
+        400: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        409: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def learner_explanation(
+    session_id: UUID,
+    request: LearnerExplanationRequest,
+    principal: PrincipalContext = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+) -> LearnerExplanationResponse | JSONResponse:
+    key = idempotency_key.strip()
+    if not key or len(key) > 128:
+        logger.warning(
+            "invalid learner explanation idempotency key",
+            extra={
+                "event": "learner_explanation_invalid_idempotency_key",
+                "session_id": str(session_id),
+                "lab_id": None,
+                "lab_difficulty": None,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            "INVALID_IDEMPOTENCY_KEY",
+            "Valid Idempotency-Key header is required",
+            False,
+            400,
+        )
+
+    log_lab_id: str | None = None
+    log_lab_difficulty: str | None = None
+
+    try:
+        session_metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
+        session_metadata = get_session_metadata(
+            session_id=session_id,
+            principal=principal,
+            repo=session_metadata_repo,
+        )
+
+        if session_metadata is None:
+            logger.warning(
+                "learner explanation session not found",
+                extra={
+                    "event": "learner_explanation_session_not_found",
+                    "session_id": str(session_id),
+                    "lab_id": None,
+                    "lab_difficulty": None,
+                    "user_id": str(principal.user_id),
+                },
+            )
+            return build_api_error_response(
+                "SESSION_NOT_FOUND",
+                "Session not found",
+                False,
+                404,
+                {"session_id": str(session_id)},
+            )
+
+        log_lab_id = str(session_metadata.lab_id) if session_metadata.lab_id else None
+        log_lab_difficulty = (
+            None
+            if not session_metadata.lab_difficulty
+            else str(session_metadata.lab_difficulty)
+        )
+
+        if session_metadata.state != "COMPLETED":
+            logger.warning(
+                "learner explanation rejected due to session state",
+                extra={
+                    "event": "learner_explanation_session_not_ready",
+                    "session_id": str(session_id),
+                    "lab_id": log_lab_id,
+                    "lab_difficulty": log_lab_difficulty,
+                    "user_id": str(principal.user_id),
+                },
+            )
+            return build_api_error_response(
+                code="SESSION_NOT_READY",
+                message="Explanations can only be submitted after lab completion.",
+                retryable=False,
+                status_code=409,
+                details={
+                    "session_id": str(session_id),
+                    "state": session_metadata.state,
+                    "required_state": "COMPLETED",
+                },
+            )
+
+        lab_id = session_metadata.lab_id
+        lab_version_id = session_metadata.lab_version_id
+
+        if lab_id is None or lab_version_id is None:
+            logger.error(
+                "learner explanation session metadata incomplete",
+                extra={
+                    "event": "learner_explanation_session_metadata_incomplete",
+                    "session_id": str(session_id),
+                    "lab_id": log_lab_id,
+                    "lab_difficulty": log_lab_difficulty,
+                    "user_id": str(principal.user_id),
+                },
+            )
+            return build_api_error_response(
+                code="SESSION_METADATA_INCOMPLETE",
+                message="Session is missing lab metadata required for explanation submission.",
+                retryable=False,
+                status_code=500,
+                details={"session_id": str(session_id)},
+            )
+
+        parsed = LabDifficultyParser.model_validate(
+            {"lab_difficulty": session_metadata.lab_difficulty}
+        )
+        explanation_artifact = LearnerExplanationInput(
+            explanation=request.explanation,
+            session_id=session_metadata.id,
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            lab_difficulty=parsed.lab_difficulty,
+            actor_user_id=principal.user_id,
+            idempotency_key=key,
+            source="learner",
+        )
+
+        learner_explanation_repo = LearnerExplanationRepository(db=db)
+        trace_repo = SQLAlchemyTraceEventRepository(db=db)
+        outbox = SQLAlchemyOutbox(db=db)
+        result = inject_learner_explanation(
+            repo=learner_explanation_repo,
+            learner_input=explanation_artifact,
+            trace_repo=trace_repo,
+            outbox=outbox,
+        )
+
+        logger.info(
+            "learner explanation accepted",
+            extra={
+                "event": "learner_explanation_submitted",
+                "session_id": str(session_id),
+                "lab_id": str(lab_id),
+                "lab_difficulty": parsed.lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return LearnerExplanationResponse(
+            session_id=session_id, explanation_id=result.explanation_id, accepted=True
+        )
+
+    except InvalidLearnerExplanationError as exc:
+        logger.warning(
+            "learner explanation validation failed",
+            extra={
+                "event": "learner_explanation_invalid_request",
+                "session_id": str(session_id),
+                "lab_id": log_lab_id,
+                "lab_difficulty": log_lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            code=exc.code,
+            message=exc.message,
+            retryable=False,
+            status_code=400,
+            details=exc.details,
+        )
+    except ForbiddenErrorSessionQuery as exc:
+        logger.warning(
+            "learner explanation forbidden",
+            extra={
+                "event": "learner_explanation_forbidden",
+                "session_id": str(session_id),
+                "lab_id": log_lab_id,
+                "lab_difficulty": log_lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            code="FORBIDDEN",
+            message=exc.message,
+            retryable=False,
+            status_code=403,
+            details=exc.details,
+        )
+    except ValidationError:
+        logger.exception(
+            "learner explanation metadata validation failed",
+            extra={
+                "event": "learner_explanation_session_metadata_invalid",
+                "session_id": str(session_id),
+                "lab_id": log_lab_id,
+                "lab_difficulty": log_lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            code="SESSION_METADATA_INVALID",
+            message="Invalid lab difficulty on session_metadata",
+            retryable=False,
+            status_code=500,
+            details={"session_id": str(session_id)},
+        )
+    except DuplicateIdempotencyKeyError as exc:
+        logger.exception(
+            "learner explanation idempotency replay failed",
+            extra={
+                "event": "learner_explanation_idempotency_replay_failed",
+                "session_id": str(session_id),
+                "lab_id": log_lab_id,
+                "lab_difficulty": log_lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            code=exc.code,
+            message=exc.message,
+            retryable=False,
+            status_code=500,
+            details=exc.details,
+        )
+    except Exception:
+        logger.exception(
+            "learner explanation endpoint failed",
+            extra={
+                "event": "learner_explanation_internal_error",
+                "session_id": str(session_id),
+                "lab_id": log_lab_id,
+                "lab_difficulty": log_lab_difficulty,
+                "user_id": str(principal.user_id),
+            },
+        )
+        return build_api_error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message="Unknown error in explanation endpoint",
+            retryable=False,
+            status_code=500,
             details={"session_id": str(session_id)},
         )
 
