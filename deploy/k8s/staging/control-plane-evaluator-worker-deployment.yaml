@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: evaluator-worker
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:4e3c5da740a1f72fbd5c135d43120ed41a5773ce38c9ee752dadc2ba286dd8bf
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:84f70b7560bab173b22971c687e2359f9560464ea455e3b00b5fece0d9daf04b
           imagePullPolicy: IfNotPresent
           command:
             - uv
@@ -28,6 +28,17 @@ spec:
           env:
             - name: DATABASE_URL
               value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+            - name: PROVIDER_ENDPOINT
+              value: "https://openrouter.ai/api/v1/chat/completions"
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: OPENROUTER_API_KEY
+            - name: MODEL_NAME
+              value: "deepseek/deepseek-v3.2"
+            - name: MODEL_TIMEOUT
+              value: "30"
           resources:
             requests:
               cpu: "100m"

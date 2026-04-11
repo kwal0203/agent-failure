@@ -108,6 +108,7 @@ def transition_session(
             actor_user_id=None,
             lab_id=None,
             lab_version_id=None,
+            lab_difficulty=None,
         )
         append_trace_event(trace=trace_event, repo=uow.trace, outbox_repo=uow.outbox)
 

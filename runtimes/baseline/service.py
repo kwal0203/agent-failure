@@ -82,7 +82,10 @@ class RuntimeTurnExecutor:
         return "\n".join(lines)
 
     def _render_email(self, item: InboxItem) -> str:
-        return f"Email {item.email_id}\nSubject: {item.email_subject}\nBody: {item.email_preview}"
+        body = item.email_body
+        if not body and item.email_preview:
+            body = item.email_preview
+        return f"Email {item.email_id}\nSubject: {item.email_subject}\nBody: {body}"
 
     def _decide_tool_or_text(self, turn: RuntimeTurnInput) -> ToolDecision:
         user_prompt = turn.prompt.strip()
