@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 
 type SessionMetadata = {
@@ -52,11 +52,69 @@ type InjectSessionEmailResponse = {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const AUTH_HEADER = "Bearer local:kane:learner";
+const DEMO_H1_STYLE = {
+	color: "#f0fdff",
+	textShadow: "0 0 14px rgba(62, 224, 255, 0.45)",
+	letterSpacing: 0.5,
+};
+const DEMO_H2_STYLE = {
+	color: "#dbf8ff",
+	letterSpacing: 0.3,
+};
+
+function statusTone(state: string | undefined): {
+	background: string;
+	border: string;
+	color: string;
+} {
+	switch ((state ?? "").toUpperCase()) {
+		case "PROVISIONING":
+			return {
+				background: "rgba(95, 69, 10, 0.72)",
+				border: "1px solid #8f7628",
+				color: "#ffe6a6",
+			};
+		case "ACTIVE":
+			return {
+				background: "rgba(8, 31, 50, 0.72)",
+				border: "1px solid #285272",
+				color: "#9fe4fb",
+			};
+		case "COMPLETED":
+			return {
+				background: "rgba(10, 50, 33, 0.72)",
+				border: "1px solid #2e7b57",
+				color: "#b9ffe0",
+			};
+		case "FAILED":
+			return {
+				background: "rgba(70, 19, 37, 0.72)",
+				border: "1px solid #8b3252",
+				color: "#ffd1df",
+			};
+		default:
+			return {
+				background: "rgba(36, 43, 52, 0.72)",
+				border: "1px solid #4a5562",
+				color: "#cfd9e2",
+			};
+	}
+}
 
 export default function SessionPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
-	const { connectionState, messages, sendPrompt, reconnect } =
-		useSessionStream(sessionId);
+	const location = useLocation();
+	const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
+	const routeState = (
+		typeof location.state === "object" && location.state !== null
+			? location.state
+			: {}
+	) as { labName?: string };
+	const headingText =
+		typeof routeState.labName === "string" &&
+		routeState.labName.trim().length > 0
+			? routeState.labName
+			: "Session";
 	const processedMessageCount = useRef(0);
 	const transcriptViewportRef = useRef<HTMLDivElement | null>(null);
 	const activeEntryTsRef = useRef<string | null>(null);
@@ -66,10 +124,8 @@ export default function SessionPage() {
 	const animationFrameRef = useRef<number | null>(null);
 	const lastRevealAtMsRef = useRef(0);
 	const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
-	const [metadataError, setMetadataError] = useState<string | null>(null);
 	const [feedbackError, setFeedbackError] = useState<string | null>(null);
 	const [feedbackLoading, setFeedbackLoading] = useState(false);
-	const [loading, setLoading] = useState(false);
 	const [prompt, setPrompt] = useState("");
 	const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>(
 		[],
@@ -161,41 +217,26 @@ export default function SessionPage() {
 		}
 	}, [drainRevealFrame]);
 
-	const refreshSessionMetadata = useCallback(
-		async (opts?: { background?: boolean }) => {
-			if (!sessionId) return;
+	const refreshSessionMetadata = useCallback(async () => {
+		if (!sessionId) return;
 
-			if (!opts?.background) {
-				setLoading(true);
-				setMetadataError(null);
+		try {
+			const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
+				method: "GET",
+				headers: {
+					Authorization: AUTH_HEADER,
+					"Content-Type": "application/json",
+				},
+			});
+
+			if (!res.ok) {
+				return;
 			}
 
-			try {
-				const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
-					method: "GET",
-					headers: {
-						Authorization: AUTH_HEADER,
-						"Content-Type": "application/json",
-					},
-				});
-
-				if (!res.ok) {
-					setMetadataError(`HTTP ${res.status}`);
-					return;
-				}
-
-				const data = (await res.json()) as GetSessionMetadataResponse;
-				setMetadata(data.session);
-			} catch (e) {
-				setMetadataError(e instanceof Error ? e.message : "request failed");
-			} finally {
-				if (!opts?.background) {
-					setLoading(false);
-				}
-			}
-		},
-		[sessionId],
-	);
+			const data = (await res.json()) as GetSessionMetadataResponse;
+			setMetadata(data.session);
+		} catch {}
+	}, [sessionId]);
 
 	useEffect(() => {
 		void refreshSessionMetadata();
@@ -206,7 +247,7 @@ export default function SessionPage() {
 		if (metadata?.state !== "PROVISIONING") return;
 
 		const intervalId = window.setInterval(() => {
-			void refreshSessionMetadata({ background: true });
+			void refreshSessionMetadata();
 		}, 2000);
 
 		return () => {
@@ -411,6 +452,11 @@ export default function SessionPage() {
 	};
 
 	const activeTokens = activeEntry.match(/(\s+|\S+)/g) ?? [];
+	const currentState = metadata?.state ?? "UNKNOWN";
+	const tone = statusTone(currentState);
+	const runtimeSuffix = metadata?.runtime_substate
+		? ` · ${metadata.runtime_substate}`
+		: "";
 
 	useEffect(() => {
 		const viewport = transcriptViewportRef.current;
@@ -428,19 +474,32 @@ export default function SessionPage() {
 
 	return (
 		<main style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
-			<header style={{ marginBottom: "16px" }}>
-				<h1>Session</h1>
-				<p>
-					<strong>session_id:</strong> {sessionId ?? "missing"}
-				</p>
-				<p>
-					<strong>WebSocket:</strong> {connectionState}
-				</p>
-				{(connectionState === "closed" || connectionState === "error") && (
-					<button type="button" onClick={reconnect}>
-						Reconnect
-					</button>
-				)}
+			<header
+				style={{
+					marginBottom: "16px",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					gap: 12,
+					flexWrap: "wrap",
+				}}
+			>
+				<h1 style={{ ...DEMO_H1_STYLE, margin: 0 }}>{headingText}</h1>
+				<div
+					style={{
+						fontSize: 13,
+						background: tone.background,
+						border: tone.border,
+						color: tone.color,
+						padding: "6px 10px",
+						borderRadius: 8,
+						transition:
+							"background-color 260ms ease, border-color 260ms ease, color 260ms ease",
+					}}
+				>
+					Status: <strong>{currentState}</strong>
+					{runtimeSuffix}
+				</div>
 			</header>
 
 			<section
@@ -451,29 +510,7 @@ export default function SessionPage() {
 					marginBottom: 16,
 				}}
 			>
-				<h2>Status</h2>
-				{loading && <p>Loading...</p>}
-				{metadataError && (
-					<p style={{ color: "red" }}>Error: {metadataError}</p>
-				)}
-				{metadata && (
-					<>
-						<p>State: {metadata.state}</p>
-						<p>Runtime substate: {metadata.runtime_substate ?? "-"}</p>
-						<p>Interactive: {String(metadata.interactive)}</p>
-					</>
-				)}
-			</section>
-
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-					marginBottom: 16,
-				}}
-			>
-				<h2>Attacker Console</h2>
+				<h2 style={DEMO_H2_STYLE}>Attacker Console</h2>
 				<form onSubmit={onSubmitEmail}>
 					<label style={{ display: "block", marginBottom: 8 }}>
 						From
@@ -537,7 +574,7 @@ export default function SessionPage() {
 					textAlign: "left",
 				}}
 			>
-				<h2>Learner feedback</h2>
+				<h2 style={DEMO_H2_STYLE}>Learner feedback</h2>
 				{feedbackLoading && <p>Loading learner feedback...</p>}
 				{feedbackError && (
 					<p style={{ color: "red" }}>Error: {feedbackError}</p>
@@ -577,7 +614,7 @@ export default function SessionPage() {
 					textAlign: "left",
 				}}
 			>
-				<h2>Transcript</h2>
+				<h2 style={DEMO_H2_STYLE}>Transcript</h2>
 				{transcriptEntries.length === 0 && !activeEntry && (
 					<p style={{ margin: 0 }}>(streamed agent text will appear here)</p>
 				)}
@@ -672,7 +709,7 @@ export default function SessionPage() {
 			<section
 				style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}
 			>
-				<h2>Prompt</h2>
+				<h2 style={DEMO_H2_STYLE}>Prompt</h2>
 				<form onSubmit={onSubmitPrompt}>
 					<textarea
 						rows={4}
