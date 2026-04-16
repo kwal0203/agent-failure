@@ -33,6 +33,16 @@ type PolicyDenialMessage = {
 	};
 };
 
+type TraceEventMessage = {
+	type: "TRACE_EVENT";
+	session_id: string;
+	timestamp: string;
+	payload: {
+		event_code: string;
+		message: string;
+	};
+};
+
 type SystemErrorMessage = {
 	type: "SYSTEM_ERROR";
 	session_id: string;
@@ -59,6 +69,7 @@ type LearnerFeedbackMessage = {
 export type ServerMessage =
 	| SessionStatusMessage
 	| AgentTextChunkMessage
+	| TraceEventMessage
 	| PolicyDenialMessage
 	| SystemErrorMessage
 	| LearnerFeedbackMessage;

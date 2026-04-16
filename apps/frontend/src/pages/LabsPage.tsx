@@ -24,9 +24,9 @@ const STUB_LABS: LabCatalogItem[] = [
 	{
 		id: "11111111-1111-1111-1111-111111111111",
 		slug: "prompt-injection",
-		name: "Prompt Injection",
+		name: "Indirect Prompt Injection",
 		summary:
-			"Practice prompt-injection attack patterns against a baseline runtime.",
+			"Practice indirect prompt-injection attack patterns against a baseline runtime.",
 		capabilities: {
 			supports_resume: true,
 			supports_uploads: false,
