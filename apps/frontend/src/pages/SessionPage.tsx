@@ -1,175 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { useLocation, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
-
-type SessionMetadata = {
-	id: string;
-	lab_id: string | null;
-	lab_version_id: string | null;
-	state: string;
-	runtime_substate: string | null;
-	resume_mode: string;
-	interactive: boolean;
-	created_at: string;
-	started_at: string | null;
-	ended_at: string | null;
-};
-
-type GetSessionMetadataResponse = {
-	session: SessionMetadata;
-};
-
-type TranscriptRole = "user" | "agent" | "policy" | "system";
-
-type TranscriptEntry = {
-	role: TranscriptRole;
-	content: string;
-	timestamp: string;
-};
-
-type LearnerFeedbackStatus =
-	| "learned"
-	| "progress"
-	| "no_progress"
-	| "session_terminal";
-
-type LearnerFeedbackItem = {
-	status: LearnerFeedbackStatus;
-	reason_code: string;
-	evidence_snippet: string;
-};
-
-type GetFeedbackResponse = {
-	feedback: LearnerFeedbackItem[];
-};
-
-type InjectSessionEmailResponse = {
-	session_id: string;
-	email_id: string | null;
-	accepted: boolean;
-};
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-const AUTH_HEADER = "Bearer local:kane:learner";
-const DEMO_H1_STYLE = {
-	color: "#f0fdff",
-	textShadow: "0 0 14px rgba(62, 224, 255, 0.45)",
-	letterSpacing: 0.5,
-};
-const DEMO_H2_STYLE = {
-	color: "#dbf8ff",
-	letterSpacing: 0.3,
-};
-
-const FEEDBACK_REASON_LABELS: Record<string, string> = {
-	PI_GLOBAL_ATTACK_ARTIFACT_CREATED: "Attack artifact created",
-	PI_GLOBAL_INBOX_INTERACTION_TRIGGERED: "Inbox tool usage detected",
-	PI_GLOBAL_INBOX_INTERACTION_WITHOUT_DISCLOSURE:
-		"Inbox reviewed, no secret disclosure yet",
-	PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT:
-		"Malicious content entered model context",
-	PI_GLOBAL_POLICY_VIOLATION_ATTEMPTED: "Policy-violation attempt detected",
-	PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE: "Learner explained root cause",
-	PI_GLOBAL_EXPLANATION_MENTIONED_MITIGATION: "Learner proposed mitigation",
-	PI_EASY_DIRECT_OVERRIDE_LANGUAGE_USED: "Direct override language used",
-	PI_EASY_EXPLANATION_IDENTIFIED_AGENT_TRUSTS_EXERNAL_CONTENT:
-		"Learner identified trust-boundary issue",
-	PI_EASY_TOKEN_EXPOSED: "Token exposed",
-	PI_MEDIUM_COMPLIANCE_AUTHORITY_SPOOFED: "Compliance authority spoofed",
-	PI_MEDIUM_AUDIT_URGENCY_INVOKED: "Audit urgency invoked",
-	PI_MEDIUM_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT:
-		"Disclosure framed as business requirement",
-	PI_MEDIUM_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH:
-		"Learner identified rule-priority clash",
-	PI_MEDIUM_TOKEN_EXPOSED: "Token exposed",
-};
-
-function formatStatusLabel(status: LearnerFeedbackStatus): string {
-	return status.replaceAll("_", " ");
-}
-
-function humanizeReasonCode(reasonCode: string): string {
-	const mapped = FEEDBACK_REASON_LABELS[reasonCode];
-	if (mapped) return mapped;
-
-	const stripped = reasonCode
-		.replace(/^PI_(GLOBAL|EASY|MEDIUM|HARD)_/, "")
-		.replace(/^PI_/, "");
-	return stripped
-		.toLowerCase()
-		.split("_")
-		.filter((token) => token.length > 0)
-		.map((token, index) =>
-			index === 0 ? token.charAt(0).toUpperCase() + token.slice(1) : token,
-		)
-		.join(" ");
-}
-
-function feedbackTone(status: LearnerFeedbackStatus): {
-	border: string;
-	background: string;
-	color: string;
-} {
-	if (status === "learned") {
-		return {
-			border: "1px solid #d94848",
-			background: "rgba(120, 22, 22, 0.42)",
-			color: "#ffdada",
-		};
-	}
-	if (status === "progress") {
-		return {
-			border: "1px solid #2f8bc8",
-			background: "rgba(18, 55, 83, 0.45)",
-			color: "#d6f0ff",
-		};
-	}
-	return {
-		border: "1px solid #586879",
-		background: "rgba(35, 46, 58, 0.42)",
-		color: "#d7e0e7",
-	};
-}
-
-function statusTone(state: string | undefined): {
-	background: string;
-	border: string;
-	color: string;
-} {
-	switch ((state ?? "").toUpperCase()) {
-		case "PROVISIONING":
-			return {
-				background: "rgba(95, 69, 10, 0.72)",
-				border: "1px solid #8f7628",
-				color: "#ffe6a6",
-			};
-		case "ACTIVE":
-			return {
-				background: "rgba(8, 31, 50, 0.72)",
-				border: "1px solid #285272",
-				color: "#9fe4fb",
-			};
-		case "COMPLETED":
-			return {
-				background: "rgba(10, 50, 33, 0.72)",
-				border: "1px solid #2e7b57",
-				color: "#b9ffe0",
-			};
-		case "FAILED":
-			return {
-				background: "rgba(70, 19, 37, 0.72)",
-				border: "1px solid #8b3252",
-				color: "#ffd1df",
-			};
-		default:
-			return {
-				background: "rgba(36, 43, 52, 0.72)",
-				border: "1px solid #4a5562",
-				color: "#cfd9e2",
-			};
-	}
-}
+import { FeedbackColumn } from "./session/components/FeedbackColumn";
+import { LabGuideColumn } from "./session/components/LabGuideColumn";
+import { WorkspaceColumn } from "./session/components/WorkspaceColumn";
+import type {
+	GetFeedbackResponse,
+	GetSessionMetadataResponse,
+	InjectSessionEmailResponse,
+	LearnerFeedbackItem,
+	SessionMetadata,
+	SessionWorkspaceState,
+	TranscriptEntry,
+} from "./session/types";
+import { API_BASE, AUTH_HEADER, DEMO_H1_STYLE, statusTone } from "./session/ui";
 
 export default function SessionPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
@@ -214,6 +58,12 @@ export default function SessionPage() {
 	const [injectEmailResult, setInjectEmailResult] = useState<string | null>(
 		null,
 	);
+	const [workspaceState] = useState<SessionWorkspaceState>({
+		selectedTool: "email",
+		toolPaneOpen: true,
+		transcriptAutoScrollEnabled: true,
+		feedbackPanelVisible: true,
+	});
 
 	const resetActiveStream = useCallback(() => {
 		displayedEntryRef.current = "";
@@ -608,257 +458,45 @@ export default function SessionPage() {
 				</div>
 			</header>
 
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-					marginBottom: 16,
-				}}
-			>
-				<h2 style={DEMO_H2_STYLE}>Attacker Console</h2>
-				<form onSubmit={onSubmitEmail}>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						From
-						<input
-							type="text"
-							value={emailFrom}
-							onChange={(e) => setEmailFrom(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						Subject
-						<input
-							type="text"
-							value={emailSubject}
-							onChange={(e) => setEmailSubject(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						Body
-						<textarea
-							rows={4}
-							value={emailBody}
-							onChange={(e) => setEmailBody(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "inline-flex", gap: 8, marginBottom: 12 }}>
-						<input
-							type="checkbox"
-							checked={emailMalicious}
-							onChange={(e) => setEmailMalicious(e.target.checked)}
-							disabled={injectingEmail}
-						/>
-						Mark as malicious
-					</label>
-					<div>
-						<button type="submit" disabled={injectingEmail || !sessionId}>
-							{injectingEmail ? "Injecting..." : "Inject Email"}
-						</button>
-					</div>
-					{injectEmailError && (
-						<p style={{ color: "red", marginTop: 8 }}>{injectEmailError}</p>
-					)}
-					{injectEmailResult && (
-						<p style={{ color: "green", marginTop: 8 }}>{injectEmailResult}</p>
-					)}
-				</form>
-			</section>
-
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-					marginBottom: 16,
-					textAlign: "left",
-				}}
-			>
-				<h2 style={DEMO_H2_STYLE}>Learner feedback</h2>
-				{feedbackLoading && <p>Loading learner feedback...</p>}
-				{feedbackError && (
-					<p style={{ color: "red" }}>Error: {feedbackError}</p>
-				)}
-				{!feedbackLoading && !feedbackError && learnerFeedback.length === 0 && (
-					<p>No learner feedback yet.</p>
-				)}
-				{!feedbackLoading && !feedbackError && learnerFeedback.length > 0 && (
-					<ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-						{learnerFeedback.map((item) => {
-							const tone = feedbackTone(item.status);
-							const normalizedReason = item.reason_code.trim().toLowerCase();
-							const normalizedEvidence = item.evidence_snippet
-								.trim()
-								.toLowerCase();
-							const showEvidence =
-								normalizedEvidence.length > 0 &&
-								normalizedEvidence !== normalizedReason;
-							return (
-								<li
-									key={`${item.reason_code}-${item.status}-${item.evidence_snippet}`}
-									style={{
-										marginBottom: 8,
-										border: tone.border,
-										background: tone.background,
-										color: tone.color,
-										borderRadius: 8,
-										padding: "8px 10px",
-										listStyle: "none",
-									}}
-								>
-									<p style={{ margin: 0 }}>
-										<strong>
-											{humanizeReasonCode(item.reason_code)} (
-											{formatStatusLabel(item.status)})
-										</strong>
-									</p>
-									{showEvidence && (
-										<p style={{ margin: "4px 0 0 0", opacity: 0.95 }}>
-											{item.evidence_snippet}
-										</p>
-									)}
-								</li>
-							);
-						})}
-					</ul>
-				)}
-			</section>
-
-			<section
-				ref={transcriptViewportRef}
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-					marginBottom: 16,
-					minHeight: 220,
-					maxHeight: 420,
-					overflowY: "auto",
-					textAlign: "left",
-				}}
-			>
-				<h2 style={DEMO_H2_STYLE}>Transcript</h2>
-				{transcriptEntries.length === 0 && !activeEntry && (
-					<p style={{ margin: 0 }}>(streamed agent text will appear here)</p>
-				)}
-				{transcriptEntries.map((entry, index) => (
-					<div
-						key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
-					>
-						<p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-							<strong>{entry.role.toUpperCase()}</strong>{" "}
-							{formatTime(entry.timestamp)}
-						</p>
-						<div className="transcript-markdown" style={{ margin: 0 }}>
-							<ReactMarkdown>{entry.content}</ReactMarkdown>
-						</div>
-						{index < transcriptEntries.length - 1 && <hr />}
-					</div>
-				))}
-				{isAwaitingResponse && !activeEntry && (
-					<div style={{ marginTop: 12 }}>
-						<p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-							<strong>AGENT</strong> thinking
-							<span className="thinking-dots" aria-hidden="true">
-								<span>.</span>
-								<span>.</span>
-								<span>.</span>
-							</span>
-						</p>
-					</div>
-				)}
-				{activeEntry && (
-					<div style={{ marginTop: 12 }}>
-						<p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-							<strong>AGENT</strong> streaming...
-						</p>
-						<div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-							{(() => {
-								let tokenOffset = 0;
-								return activeTokens.map((token) => {
-									const key = `${tokenOffset}-${token}`;
-									tokenOffset += token.length;
-									return (
-										<span
-											key={key}
-											style={{
-												display: "inline",
-												opacity: 0,
-												transform: "translateX(6px)",
-												animationName: "wordIn",
-												animationDuration: "220ms",
-												animationTimingFunction: "ease-out",
-												animationFillMode: "forwards",
-											}}
-										>
-											{token}
-										</span>
-									);
-								});
-							})()}
-						</div>
-					</div>
-				)}
-			</section>
-
-			<style>{`
-        @keyframes wordIn {
-          from { opacity: 0; transform: translateX(6px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        .transcript-markdown p {
-          margin: 0 0 0.9em 0;
-        }
-        .transcript-markdown p:last-child {
-          margin-bottom: 0;
-        }
-        .thinking-dots span {
-          opacity: 0.2;
-          animation: thinkingDot 1.2s infinite;
-        }
-        .thinking-dots span:nth-child(2) {
-          animation-delay: 0.2s;
-        }
-        .thinking-dots span:nth-child(3) {
-          animation-delay: 0.4s;
-        }
-        @keyframes thinkingDot {
-          0% { opacity: 0.2; }
-          50% { opacity: 1; }
-          100% { opacity: 0.2; }
-        }
-      `}</style>
-
-			<section
-				style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}
-			>
-				<h2 style={DEMO_H2_STYLE}>Prompt</h2>
-				<form onSubmit={onSubmitPrompt}>
-					<textarea
-						rows={4}
-						placeholder="Type your prompt..."
-						style={{ width: "100%", marginBottom: 12 }}
-						value={prompt}
-						onChange={(e) => setPrompt(e.target.value)}
-						disabled={!canSend}
+			{workspaceState.toolPaneOpen &&
+				workspaceState.selectedTool === "email" && (
+					<LabGuideColumn
+						emailFrom={emailFrom}
+						emailSubject={emailSubject}
+						emailBody={emailBody}
+						emailMalicious={emailMalicious}
+						injectingEmail={injectingEmail}
+						sessionId={sessionId}
+						injectEmailError={injectEmailError}
+						injectEmailResult={injectEmailResult}
+						onSubmitEmail={onSubmitEmail}
+						onEmailFromChange={setEmailFrom}
+						onEmailSubjectChange={setEmailSubject}
+						onEmailBodyChange={setEmailBody}
+						onEmailMaliciousChange={setEmailMalicious}
 					/>
-					<button type="submit" disabled={!canSend}>
-						Send
-					</button>
-					{!canSend && (
-						<p style={{ marginTop: 8, opacity: 0.8 }}>
-							Prompt disabled: socket must be open, session interactive, and no
-							turn in progress.
-						</p>
-					)}
-				</form>
-			</section>
+				)}
+
+			{workspaceState.feedbackPanelVisible && (
+				<FeedbackColumn
+					feedbackLoading={feedbackLoading}
+					feedbackError={feedbackError}
+					learnerFeedback={learnerFeedback}
+				/>
+			)}
+
+			<WorkspaceColumn
+				transcriptViewportRef={transcriptViewportRef}
+				transcriptEntries={transcriptEntries}
+				activeEntry={activeEntry}
+				activeTokens={activeTokens}
+				isAwaitingResponse={isAwaitingResponse}
+				prompt={prompt}
+				canSend={canSend}
+				onPromptChange={setPrompt}
+				onSubmitPrompt={onSubmitPrompt}
+				formatTime={formatTime}
+			/>
 		</main>
 	);
 }

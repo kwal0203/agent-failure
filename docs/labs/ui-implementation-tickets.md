@@ -7,7 +7,7 @@ Source specs:
 This backlog is ordered for incremental delivery and testing.
 
 ## Ticket 1: Extract Session Workspace Scaffold
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Refactor `SessionPage` into composable sections without changing behavior:
@@ -23,6 +23,19 @@ Status: `todo`
 
 ### Validation
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Extracted page sections into:
+  - `apps/frontend/src/pages/session/components/LabGuideColumn.tsx`
+  - `apps/frontend/src/pages/session/components/WorkspaceColumn.tsx`
+  - `apps/frontend/src/pages/session/components/FeedbackColumn.tsx`
+- Added shared session UI/types modules:
+  - `apps/frontend/src/pages/session/types.ts`
+  - `apps/frontend/src/pages/session/ui.ts`
+- Updated `apps/frontend/src/pages/SessionPage.tsx` to compose these sections and added page-level `SessionWorkspaceState` scaffolding.
+- Validation run:
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 
