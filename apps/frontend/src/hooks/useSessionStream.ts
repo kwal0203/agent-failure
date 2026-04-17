@@ -80,19 +80,21 @@ export function useSessionStream(sessionId?: string) {
 	const [connectionState, setConnectionState] =
 		useState<ConnectionState>("idle");
 	const [messages, setMessages] = useState<ServerMessage[]>([]);
-	const [_reconnectSeq, setReconnectSeq] = useState(0);
+	const [reconnectSeq, setReconnectSeq] = useState(0);
 
 	const wsRef = useRef<WebSocket | null>(null);
 
 	useEffect(() => {
 		if (!sessionId) return;
 
-		setConnectionState("connecting");
-		setMessages([]);
+		const resetTimer = window.setTimeout(() => {
+			setConnectionState("connecting");
+			setMessages([]);
+		}, 0);
 
 		const token = encodeURIComponent("local:kane:learner");
 		const ws = new WebSocket(
-			`${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}`,
+			`${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSeq}`,
 		);
 
 		wsRef.current = ws;
@@ -126,6 +128,7 @@ export function useSessionStream(sessionId?: string) {
 		};
 
 		return () => {
+			window.clearTimeout(resetTimer);
 			if (wsRef.current === ws) {
 				wsRef.current = null;
 			}
@@ -134,7 +137,7 @@ export function useSessionStream(sessionId?: string) {
 				ws.close();
 			}
 		};
-	}, [sessionId, wsBase]);
+	}, [reconnectSeq, sessionId, wsBase]);
 
 	const sendPrompt = useCallback(
 		(content: string) => {

@@ -72,5 +72,4 @@ export type SessionWorkspaceState = {
 	selectedTool: ToolKey | null;
 	toolPaneOpen: boolean;
 	transcriptAutoScrollEnabled: boolean;
-	feedbackPanelVisible: boolean;
 };

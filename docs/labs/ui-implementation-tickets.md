@@ -326,7 +326,7 @@ Status: `todo`
 ---
 
 ## Ticket 10: MVP Acceptance Sweep + Cleanup
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Verify all UI-spec MVP acceptance criteria.
@@ -343,6 +343,20 @@ Status: `todo`
 - `cd apps/frontend && npm run lint`
 - `cd apps/frontend && npm test`
 - Manual end-to-end session walkthrough.
+
+### Implementation Notes
+- Removed dead workspace UI state that was no longer used after right-column consolidation:
+  - removed `feedbackPanelVisible` from `SessionWorkspaceState`
+  - removed conditional render guard in `SessionPage`; `FeedbackColumn` now renders directly
+- Kept status/event chip behavior introduced in Ticket 8 intact while simplifying page state shape.
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
+  - `cd apps/frontend && npm test` (pass)
+
+### Known Follow-Ups
+- `Inbox Inject Accepted` currently depends on frontend runtime state after successful inject call.
+- To persist this across refresh/disconnect, backend should expose a persistent session/event flag that frontend can rehydrate on load.
 
 ---
 

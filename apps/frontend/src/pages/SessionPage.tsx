@@ -116,7 +116,6 @@ export default function SessionPage() {
 		selectedTool: null,
 		toolPaneOpen: false,
 		transcriptAutoScrollEnabled: true,
-		feedbackPanelVisible: true,
 	});
 	const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 	const transcriptContentSnapshotRef = useRef({ entries: 0, activeLength: 0 });
@@ -264,7 +263,9 @@ export default function SessionPage() {
 
 			const data = (await res.json()) as GetSessionMetadataResponse;
 			setMetadata(data.session);
-		} catch {}
+		} catch {
+			return;
+		}
 	}, [sessionId]);
 
 	useEffect(() => {
@@ -868,13 +869,11 @@ export default function SessionPage() {
 				</section>
 
 				<aside style={{ minHeight: 0, overflowY: "auto" }}>
-					{workspaceState.feedbackPanelVisible && (
-						<FeedbackColumn
-							feedbackLoading={feedbackLoading}
-							feedbackError={feedbackError}
-							timelineEvents={timelineEvents}
-						/>
-					)}
+					<FeedbackColumn
+						feedbackLoading={feedbackLoading}
+						feedbackError={feedbackError}
+						timelineEvents={timelineEvents}
+					/>
 				</aside>
 			</div>
 		</main>
