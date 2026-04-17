@@ -45,8 +45,10 @@ export type InjectSessionEmailResponse = {
 	accepted: boolean;
 };
 
+export type ToolKey = "email" | "files" | "payloads" | "notes" | "recon";
+
 export type SessionWorkspaceState = {
-	selectedTool: "email" | null;
+	selectedTool: ToolKey | null;
 	toolPaneOpen: boolean;
 	transcriptAutoScrollEnabled: boolean;
 	feedbackPanelVisible: boolean;

@@ -11,6 +11,7 @@ import type {
 	LearnerFeedbackItem,
 	SessionMetadata,
 	SessionWorkspaceState,
+	ToolKey,
 	TranscriptEntry,
 } from "./session/types";
 import { API_BASE, AUTH_HEADER, DEMO_H1_STYLE, statusTone } from "./session/ui";
@@ -58,9 +59,9 @@ export default function SessionPage() {
 	const [injectEmailResult, setInjectEmailResult] = useState<string | null>(
 		null,
 	);
-	const [workspaceState] = useState<SessionWorkspaceState>({
-		selectedTool: "email",
-		toolPaneOpen: true,
+	const [workspaceState, setWorkspaceState] = useState<SessionWorkspaceState>({
+		selectedTool: null,
+		toolPaneOpen: false,
 		transcriptAutoScrollEnabled: true,
 		feedbackPanelVisible: true,
 	});
@@ -401,6 +402,22 @@ export default function SessionPage() {
 		!isAwaitingResponse &&
 		(metadata?.interactive ?? false);
 
+	const onToolSelect = (tool: ToolKey) => {
+		setWorkspaceState((prev) => {
+			if (prev.toolPaneOpen && prev.selectedTool === tool) {
+				return {
+					...prev,
+					toolPaneOpen: false,
+				};
+			}
+			return {
+				...prev,
+				selectedTool: tool,
+				toolPaneOpen: true,
+			};
+		});
+	};
+
 	const formatTime = (isoTs: string) => {
 		const date = new Date(isoTs);
 		if (Number.isNaN(date.getTime())) return isoTs;
@@ -480,24 +497,21 @@ export default function SessionPage() {
 				}}
 			>
 				<aside style={{ minHeight: 0, overflowY: "auto" }}>
-					{workspaceState.toolPaneOpen &&
-						workspaceState.selectedTool === "email" && (
-							<LabGuideColumn
-								emailFrom={emailFrom}
-								emailSubject={emailSubject}
-								emailBody={emailBody}
-								emailMalicious={emailMalicious}
-								injectingEmail={injectingEmail}
-								sessionId={sessionId}
-								injectEmailError={injectEmailError}
-								injectEmailResult={injectEmailResult}
-								onSubmitEmail={onSubmitEmail}
-								onEmailFromChange={setEmailFrom}
-								onEmailSubjectChange={setEmailSubject}
-								onEmailBodyChange={setEmailBody}
-								onEmailMaliciousChange={setEmailMalicious}
-							/>
-						)}
+					<LabGuideColumn
+						emailFrom={emailFrom}
+						emailSubject={emailSubject}
+						emailBody={emailBody}
+						emailMalicious={emailMalicious}
+						injectingEmail={injectingEmail}
+						sessionId={sessionId}
+						injectEmailError={injectEmailError}
+						injectEmailResult={injectEmailResult}
+						onSubmitEmail={onSubmitEmail}
+						onEmailFromChange={setEmailFrom}
+						onEmailSubjectChange={setEmailSubject}
+						onEmailBodyChange={setEmailBody}
+						onEmailMaliciousChange={setEmailMalicious}
+					/>
 				</aside>
 
 				<section
@@ -513,6 +527,9 @@ export default function SessionPage() {
 						activeEntry={activeEntry}
 						activeTokens={activeTokens}
 						isAwaitingResponse={isAwaitingResponse}
+						selectedTool={workspaceState.selectedTool}
+						toolPaneOpen={workspaceState.toolPaneOpen}
+						onToolSelect={onToolSelect}
 						prompt={prompt}
 						canSend={canSend}
 						onPromptChange={setPrompt}

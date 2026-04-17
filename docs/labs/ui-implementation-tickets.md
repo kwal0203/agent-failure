@@ -115,7 +115,7 @@ Status: `done`
 ---
 
 ## Ticket 4: Tool Strip + Expandable Tool Pane Mechanics
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Build tool strip with 5 initial tools: Email, Files, Payloads, Notes, Recon.
@@ -134,6 +134,26 @@ Status: `todo`
 - Add state transition tests for open/close/switch.
 - Manual behavior walkthrough.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Implemented top-of-center-column tool strip and expandable pane in:
+  - `apps/frontend/src/pages/session/components/WorkspaceColumn.tsx`
+- Added 5 tools with toggle/switch behavior:
+  - `Email`, `Files`, `Payloads`, `Notes`, `Recon`
+- Implemented interaction rules:
+  - clicking closed tool opens pane and selects tool
+  - clicking active tool collapses pane
+  - clicking a different tool switches pane content without collapsing first
+- Added smooth pane transition (max-height/opacity/padding/margin transitions) and kept transcript visible below the pane at all times.
+- Updated workspace state in:
+  - `apps/frontend/src/pages/SessionPage.tsx`
+  - `apps/frontend/src/pages/session/types.ts`
+- Added behavior test coverage for open/close/switch flows:
+  - `apps/frontend/src/pages/SessionPage.test.tsx`
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 

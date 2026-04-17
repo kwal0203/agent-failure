@@ -313,4 +313,47 @@ describe("SessionPage learner feedback panel", () => {
 			screen.getByText(/assistant reads inbox content/i),
 		).toBeInTheDocument();
 	});
+
+	it("supports tool strip open close and tool switching in center pane", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		expect(screen.queryByText("Email Tool Panel")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(await screen.findByText("Email Tool Panel")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(screen.queryByText("Email Tool Panel")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Files" }));
+		expect(await screen.findByText("Files Tool Panel")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Payloads" }));
+		expect(await screen.findByText("Payloads Tool Panel")).toBeInTheDocument();
+		expect(screen.queryByText("Files Tool Panel")).not.toBeInTheDocument();
+	});
 });

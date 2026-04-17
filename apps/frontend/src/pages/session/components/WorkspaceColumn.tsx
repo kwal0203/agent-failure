@@ -1,6 +1,6 @@
 import type { FormEvent, RefObject } from "react";
 import ReactMarkdown from "react-markdown";
-import type { TranscriptEntry } from "../types";
+import type { ToolKey, TranscriptEntry } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
 
 type WorkspaceColumnProps = {
@@ -9,6 +9,9 @@ type WorkspaceColumnProps = {
 	activeEntry: string;
 	activeTokens: string[];
 	isAwaitingResponse: boolean;
+	selectedTool: ToolKey | null;
+	toolPaneOpen: boolean;
+	onToolSelect: (tool: ToolKey) => void;
 	prompt: string;
 	canSend: boolean;
 	onPromptChange: (value: string) => void;
@@ -22,12 +25,49 @@ export function WorkspaceColumn({
 	activeEntry,
 	activeTokens,
 	isAwaitingResponse,
+	selectedTool,
+	toolPaneOpen,
+	onToolSelect,
 	prompt,
 	canSend,
 	onPromptChange,
 	onSubmitPrompt,
 	formatTime,
 }: WorkspaceColumnProps) {
+	const tools: Array<{ key: ToolKey; label: string }> = [
+		{ key: "email", label: "Email" },
+		{ key: "files", label: "Files" },
+		{ key: "payloads", label: "Payloads" },
+		{ key: "notes", label: "Notes" },
+		{ key: "recon", label: "Recon" },
+	];
+
+	const paneContent: Record<ToolKey, { title: string; description: string }> = {
+		email: {
+			title: "Email Tool Panel",
+			description: "Prepare and send inbox artifacts to the target session.",
+		},
+		files: {
+			title: "Files Tool Panel",
+			description: "Review or stage supporting artifacts for attack planning.",
+		},
+		payloads: {
+			title: "Payloads Tool Panel",
+			description:
+				"Draft and iterate reusable prompt-injection payload variants.",
+		},
+		notes: {
+			title: "Notes Tool Panel",
+			description: "Track hypotheses, failed attempts, and observed behavior.",
+		},
+		recon: {
+			title: "Recon Tool Panel",
+			description: "Collect context signals before crafting exploit messages.",
+		},
+	};
+
+	const activePane = selectedTool ? paneContent[selectedTool] : null;
+
 	return (
 		<div
 			style={{
@@ -38,6 +78,68 @@ export function WorkspaceColumn({
 				overflow: "hidden",
 			}}
 		>
+			<section
+				style={{
+					border: "1px solid #ddd",
+					borderRadius: 8,
+					padding: 12,
+					marginBottom: 12,
+					flex: "0 0 auto",
+				}}
+			>
+				<h2 style={{ ...DEMO_H2_STYLE, margin: "0 0 10px 0" }}>Attack Tools</h2>
+				<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+					{tools.map((tool) => {
+						const isActive = toolPaneOpen && selectedTool === tool.key;
+						return (
+							<button
+								key={tool.key}
+								type="button"
+								onClick={() => onToolSelect(tool.key)}
+								aria-pressed={isActive}
+								title={`${tool.label} tool`}
+								style={{
+									padding: "6px 10px",
+									borderRadius: 8,
+									border: isActive ? "1px solid #4ea4d9" : "1px solid #999",
+									background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
+									color: isActive ? "#d6f1ff" : "#1f2a33",
+									cursor: "pointer",
+								}}
+							>
+								{tool.label}
+							</button>
+						);
+					})}
+				</div>
+			</section>
+
+			<section
+				aria-hidden={!toolPaneOpen}
+				style={{
+					border: "1px solid #ddd",
+					borderRadius: 8,
+					padding: toolPaneOpen ? 16 : 0,
+					marginBottom: toolPaneOpen ? 12 : 0,
+					flex: "0 0 auto",
+					maxHeight: toolPaneOpen ? 280 : 0,
+					opacity: toolPaneOpen ? 1 : 0,
+					overflowY: "auto",
+					overflowX: "hidden",
+					transition:
+						"max-height 180ms ease-out, opacity 180ms ease-out, padding 180ms ease-out, margin-bottom 180ms ease-out",
+				}}
+			>
+				{toolPaneOpen && activePane && (
+					<div>
+						<h3 style={{ marginTop: 0, marginBottom: 8 }}>
+							{activePane.title}
+						</h3>
+						<p style={{ margin: 0 }}>{activePane.description}</p>
+					</div>
+				)}
+			</section>
+
 			<section
 				ref={transcriptViewportRef}
 				style={{
