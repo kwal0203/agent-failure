@@ -195,7 +195,7 @@ Status: `done`
 ---
 
 ## Ticket 6: Transcript + Composer Behavior Hardening
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Ensure transcript occupies remaining center-column space.
@@ -215,6 +215,24 @@ Status: `todo`
 - Add tests for autoscroll/jump behavior.
 - Manual streaming test while scrolled up.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Implemented smart transcript scrolling behavior in `apps/frontend/src/pages/SessionPage.tsx`:
+  - near-bottom detection on transcript scroll (`<= 48px`)
+  - auto-scroll only when `transcriptAutoScrollEnabled` is true
+  - when scrolled up, new transcript content no longer forces scroll
+  - added `Jump to latest` control state and handler
+- Updated `apps/frontend/src/pages/session/components/WorkspaceColumn.tsx`:
+  - transcript viewport now emits scroll events to parent logic
+  - added sticky `Jump to latest` button in transcript region
+  - composer remains fixed at bottom of the center workspace
+- Added test coverage in `apps/frontend/src/pages/SessionPage.test.tsx`:
+  - `Jump to latest` appears when user is scrolled up and new transcript content arrives
+  - transcript scroll position remains stable when tool pane opens/closes
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 

@@ -65,6 +65,8 @@ export default function SessionPage() {
 		transcriptAutoScrollEnabled: true,
 		feedbackPanelVisible: true,
 	});
+	const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+	const transcriptContentSnapshotRef = useRef({ entries: 0, activeLength: 0 });
 
 	const resetActiveStream = useCallback(() => {
 		displayedEntryRef.current = "";
@@ -427,6 +429,43 @@ export default function SessionPage() {
 		});
 	};
 
+	const scrollTranscriptToBottom = useCallback(() => {
+		const viewport = transcriptViewportRef.current;
+		if (!viewport) return;
+		viewport.scrollTop = viewport.scrollHeight;
+	}, []);
+
+	const onTranscriptScroll = useCallback(() => {
+		const viewport = transcriptViewportRef.current;
+		if (!viewport) return;
+		const remaining =
+			viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+		const nearBottom = remaining <= 48;
+
+		setWorkspaceState((prev) => {
+			if (prev.transcriptAutoScrollEnabled === nearBottom) {
+				return prev;
+			}
+			return {
+				...prev,
+				transcriptAutoScrollEnabled: nearBottom,
+			};
+		});
+
+		if (nearBottom) {
+			setShowJumpToLatest(false);
+		}
+	}, []);
+
+	const onJumpToLatest = useCallback(() => {
+		scrollTranscriptToBottom();
+		setWorkspaceState((prev) => ({
+			...prev,
+			transcriptAutoScrollEnabled: true,
+		}));
+		setShowJumpToLatest(false);
+	}, [scrollTranscriptToBottom]);
+
 	const formatTime = (isoTs: string) => {
 		const date = new Date(isoTs);
 		if (Number.isNaN(date.getTime())) return isoTs;
@@ -441,10 +480,35 @@ export default function SessionPage() {
 		: "";
 
 	useEffect(() => {
-		const viewport = transcriptViewportRef.current;
-		if (!viewport) return;
-		viewport.scrollTop = viewport.scrollHeight;
-	}, []);
+		const nextSnapshot = {
+			entries: transcriptEntries.length,
+			activeLength: activeEntry.length,
+		};
+		const previous = transcriptContentSnapshotRef.current;
+		const hasNewTranscriptContent =
+			nextSnapshot.entries > previous.entries ||
+			nextSnapshot.activeLength > previous.activeLength;
+
+		transcriptContentSnapshotRef.current = nextSnapshot;
+		if (!hasNewTranscriptContent) return;
+
+		if (workspaceState.transcriptAutoScrollEnabled) {
+			scrollTranscriptToBottom();
+			setShowJumpToLatest(false);
+			return;
+		}
+
+		setShowJumpToLatest(true);
+	}, [
+		transcriptEntries,
+		activeEntry,
+		workspaceState.transcriptAutoScrollEnabled,
+		scrollTranscriptToBottom,
+	]);
+
+	useEffect(() => {
+		scrollTranscriptToBottom();
+	}, [scrollTranscriptToBottom]);
 
 	useEffect(() => {
 		return () => {
@@ -539,6 +603,9 @@ export default function SessionPage() {
 						onEmailSubjectChange={setEmailSubject}
 						onEmailBodyChange={setEmailBody}
 						onEmailMaliciousChange={setEmailMalicious}
+						onTranscriptScroll={onTranscriptScroll}
+						showJumpToLatest={showJumpToLatest}
+						onJumpToLatest={onJumpToLatest}
 						prompt={prompt}
 						canSend={canSend}
 						onPromptChange={setPrompt}

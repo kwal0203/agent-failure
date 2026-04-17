@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ServerMessage } from "../hooks/useSessionStream";
 import { useSessionStream } from "../hooks/useSessionStream";
 import SessionPage from "./SessionPage";
 
@@ -409,5 +410,126 @@ describe("SessionPage learner feedback panel", () => {
 		expect(screen.getByLabelText("From")).toHaveValue("");
 		expect(screen.getByLabelText("Subject")).toHaveValue("");
 		expect(screen.getByLabelText("Body")).toHaveValue("");
+	});
+
+	it("shows jump-to-latest when scrolled up and new transcript content arrives", async () => {
+		const streamState = {
+			connectionState: "open" as const,
+			messages: [] as ServerMessage[],
+			sendPrompt: vi.fn(),
+			reconnect: vi.fn(),
+		};
+		vi.mocked(useSessionStream).mockImplementation(() => streamState);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		const transcriptSection = (
+			await screen.findByRole("heading", { name: "Transcript" })
+		).closest("section") as HTMLDivElement;
+		Object.defineProperty(transcriptSection, "clientHeight", {
+			value: 200,
+			configurable: true,
+		});
+		Object.defineProperty(transcriptSection, "scrollHeight", {
+			value: 1200,
+			configurable: true,
+		});
+		Object.defineProperty(transcriptSection, "scrollTop", {
+			value: 0,
+			writable: true,
+			configurable: true,
+		});
+
+		fireEvent.scroll(transcriptSection);
+
+		streamState.messages = [
+			{
+				type: "SYSTEM_ERROR",
+				session_id: "11111111-1111-1111-1111-111111111111",
+				timestamp: "2026-01-01T00:00:03Z",
+				payload: {
+					code: "MODEL_FAILURE",
+					message: "Simulated transcript update",
+				},
+			},
+		];
+		fireEvent.change(screen.getByPlaceholderText("Type your prompt..."), {
+			target: { value: "trigger rerender" },
+		});
+
+		const jumpButton = await screen.findByRole("button", {
+			name: "Jump to latest",
+		});
+		fireEvent.click(jumpButton);
+		expect(transcriptSection.scrollTop).toBe(1200);
+		expect(
+			screen.queryByRole("button", { name: "Jump to latest" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("preserves transcript scroll position when opening and closing tool pane", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		const transcriptSection = (
+			await screen.findByRole("heading", { name: "Transcript" })
+		).closest("section") as HTMLDivElement;
+		Object.defineProperty(transcriptSection, "scrollTop", {
+			value: 333,
+			writable: true,
+			configurable: true,
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(await screen.findByText("Email Tool Panel")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+
+		expect(transcriptSection.scrollTop).toBe(333);
 	});
 });

@@ -27,6 +27,9 @@ type WorkspaceColumnProps = {
 	onEmailSubjectChange: (value: string) => void;
 	onEmailBodyChange: (value: string) => void;
 	onEmailMaliciousChange: (value: boolean) => void;
+	onTranscriptScroll: () => void;
+	showJumpToLatest: boolean;
+	onJumpToLatest: () => void;
 	prompt: string;
 	canSend: boolean;
 	onPromptChange: (value: string) => void;
@@ -57,6 +60,9 @@ export function WorkspaceColumn({
 	onEmailSubjectChange,
 	onEmailBodyChange,
 	onEmailMaliciousChange,
+	onTranscriptScroll,
+	showJumpToLatest,
+	onJumpToLatest,
 	prompt,
 	canSend,
 	onPromptChange,
@@ -192,6 +198,7 @@ export function WorkspaceColumn({
 
 			<section
 				ref={transcriptViewportRef}
+				onScroll={onTranscriptScroll}
 				style={{
 					border: "1px solid #ddd",
 					borderRadius: 8,
@@ -263,6 +270,21 @@ export function WorkspaceColumn({
 								});
 							})()}
 						</div>
+					</div>
+				)}
+				{showJumpToLatest && (
+					<div
+						style={{
+							position: "sticky",
+							bottom: 8,
+							display: "flex",
+							justifyContent: "flex-end",
+							marginTop: 12,
+						}}
+					>
+						<button type="button" onClick={onJumpToLatest}>
+							Jump to latest
+						</button>
 					</div>
 				)}
 			</section>
