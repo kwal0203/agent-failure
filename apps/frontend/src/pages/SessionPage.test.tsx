@@ -269,4 +269,48 @@ describe("SessionPage learner feedback panel", () => {
 			screen.queryByText("[MODEL_REQUEST_STARTED] Model request started"),
 		).not.toBeInTheDocument();
 	});
+
+	it("renders left guide sections and progressive hints", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		expect(await screen.findByText("Mission")).toBeInTheDocument();
+		expect(screen.getByText("Success Criteria")).toBeInTheDocument();
+		expect(screen.getByText("Recommended Steps")).toBeInTheDocument();
+		expect(screen.getByText("Why This Matters")).toBeInTheDocument();
+		expect(screen.getByText("Hints")).toBeInTheDocument();
+		expect(
+			screen.queryByText(/assistant reads inbox content/i),
+		).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByText("Hints"));
+		fireEvent.click(screen.getByRole("button", { name: "Reveal next hint" }));
+
+		expect(
+			screen.getByText(/assistant reads inbox content/i),
+		).toBeInTheDocument();
+	});
 });

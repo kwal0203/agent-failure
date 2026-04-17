@@ -73,7 +73,7 @@ Status: `done`
 ---
 
 ## Ticket 3: Build Left Lab Guide (Mission-First)
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Add left-column guide cards/sections:
@@ -95,6 +95,22 @@ Status: `todo`
 - Add/extend component tests for required labels.
 - Manual visual check for placement.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Updated `apps/frontend/src/pages/session/components/LabGuideColumn.tsx` to add mission-first guide sections:
+  - `Lab Guide` header (title, difficulty, estimated time)
+  - `Mission`
+  - `Scenario`
+  - `Success Criteria`
+  - `Recommended Steps`
+  - `Hints` (collapsed by default using `<details>`, with progressive hint reveal button)
+  - `Why This Matters`
+- Kept attacker email functionality intact in the left column under `Attack Tools`.
+- Added test coverage in `apps/frontend/src/pages/SessionPage.test.tsx` for required guide labels and progressive hint reveal behavior.
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 
