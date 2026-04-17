@@ -29,7 +29,15 @@ export function WorkspaceColumn({
 	formatTime,
 }: WorkspaceColumnProps) {
 	return (
-		<>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				height: "100%",
+				minHeight: 0,
+				overflow: "hidden",
+			}}
+		>
 			<section
 				ref={transcriptViewportRef}
 				style={{
@@ -37,8 +45,8 @@ export function WorkspaceColumn({
 					borderRadius: 8,
 					padding: 16,
 					marginBottom: 16,
-					minHeight: 220,
-					maxHeight: 420,
+					flex: "1 1 auto",
+					minHeight: 0,
 					overflowY: "auto",
 					textAlign: "left",
 				}}
@@ -136,7 +144,12 @@ export function WorkspaceColumn({
       `}</style>
 
 			<section
-				style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}
+				style={{
+					border: "1px solid #ddd",
+					borderRadius: 8,
+					padding: 16,
+					flex: "0 0 auto",
+				}}
 			>
 				<h2 style={DEMO_H2_STYLE}>Prompt</h2>
 				<form onSubmit={onSubmitPrompt}>
@@ -159,6 +172,6 @@ export function WorkspaceColumn({
 					)}
 				</form>
 			</section>
-		</>
+		</div>
 	);
 }

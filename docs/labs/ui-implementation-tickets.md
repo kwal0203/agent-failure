@@ -40,7 +40,7 @@ Status: `done`
 ---
 
 ## Ticket 2: Implement 3-Column Full-Height App Shell
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Implement desktop-first 3-column layout (left guide, center workspace, right feedback).
@@ -55,6 +55,20 @@ Status: `todo`
 ### Validation
 - Manual: Open Session page on desktop and confirm internal panel scrolling.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Updated `apps/frontend/src/pages/SessionPage.tsx` to a desktop 3-column grid app shell:
+  - full-height viewport container (`height: 100vh`, overflow hidden)
+  - grid columns sized as `minmax(280px, 24%) minmax(520px, 1fr) minmax(300px, 28%)`
+  - left and right columns are independently scrollable (`overflowY: auto`)
+  - center column is constrained and non-scrolling at page level (`minWidth: 0`, `overflow: hidden`)
+- Updated `apps/frontend/src/pages/session/components/WorkspaceColumn.tsx` to use a full-height flex column:
+  - transcript section is the scrollable region (`flex: 1`, `minHeight: 0`, `overflowY: auto`)
+  - prompt/composer section remains fixed at bottom (`flex: 0 0 auto`)
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 

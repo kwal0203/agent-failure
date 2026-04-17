@@ -429,10 +429,20 @@ export default function SessionPage() {
 	}, []);
 
 	return (
-		<main style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
+		<main
+			style={{
+				height: "100vh",
+				padding: 16,
+				boxSizing: "border-box",
+				display: "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+			}}
+		>
 			<header
 				style={{
-					marginBottom: "16px",
+					flex: "0 0 auto",
+					marginBottom: 16,
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "space-between",
@@ -458,45 +468,69 @@ export default function SessionPage() {
 				</div>
 			</header>
 
-			{workspaceState.toolPaneOpen &&
-				workspaceState.selectedTool === "email" && (
-					<LabGuideColumn
-						emailFrom={emailFrom}
-						emailSubject={emailSubject}
-						emailBody={emailBody}
-						emailMalicious={emailMalicious}
-						injectingEmail={injectingEmail}
-						sessionId={sessionId}
-						injectEmailError={injectEmailError}
-						injectEmailResult={injectEmailResult}
-						onSubmitEmail={onSubmitEmail}
-						onEmailFromChange={setEmailFrom}
-						onEmailSubjectChange={setEmailSubject}
-						onEmailBodyChange={setEmailBody}
-						onEmailMaliciousChange={setEmailMalicious}
+			<div
+				style={{
+					display: "grid",
+					gridTemplateColumns:
+						"minmax(280px, 24%) minmax(520px, 1fr) minmax(300px, 28%)",
+					gap: 16,
+					flex: "1 1 auto",
+					minHeight: 0,
+					overflow: "hidden",
+				}}
+			>
+				<aside style={{ minHeight: 0, overflowY: "auto" }}>
+					{workspaceState.toolPaneOpen &&
+						workspaceState.selectedTool === "email" && (
+							<LabGuideColumn
+								emailFrom={emailFrom}
+								emailSubject={emailSubject}
+								emailBody={emailBody}
+								emailMalicious={emailMalicious}
+								injectingEmail={injectingEmail}
+								sessionId={sessionId}
+								injectEmailError={injectEmailError}
+								injectEmailResult={injectEmailResult}
+								onSubmitEmail={onSubmitEmail}
+								onEmailFromChange={setEmailFrom}
+								onEmailSubjectChange={setEmailSubject}
+								onEmailBodyChange={setEmailBody}
+								onEmailMaliciousChange={setEmailMalicious}
+							/>
+						)}
+				</aside>
+
+				<section
+					style={{
+						minHeight: 0,
+						minWidth: 0,
+						overflow: "hidden",
+					}}
+				>
+					<WorkspaceColumn
+						transcriptViewportRef={transcriptViewportRef}
+						transcriptEntries={transcriptEntries}
+						activeEntry={activeEntry}
+						activeTokens={activeTokens}
+						isAwaitingResponse={isAwaitingResponse}
+						prompt={prompt}
+						canSend={canSend}
+						onPromptChange={setPrompt}
+						onSubmitPrompt={onSubmitPrompt}
+						formatTime={formatTime}
 					/>
-				)}
+				</section>
 
-			{workspaceState.feedbackPanelVisible && (
-				<FeedbackColumn
-					feedbackLoading={feedbackLoading}
-					feedbackError={feedbackError}
-					learnerFeedback={learnerFeedback}
-				/>
-			)}
-
-			<WorkspaceColumn
-				transcriptViewportRef={transcriptViewportRef}
-				transcriptEntries={transcriptEntries}
-				activeEntry={activeEntry}
-				activeTokens={activeTokens}
-				isAwaitingResponse={isAwaitingResponse}
-				prompt={prompt}
-				canSend={canSend}
-				onPromptChange={setPrompt}
-				onSubmitPrompt={onSubmitPrompt}
-				formatTime={formatTime}
-			/>
+				<aside style={{ minHeight: 0, overflowY: "auto" }}>
+					{workspaceState.feedbackPanelVisible && (
+						<FeedbackColumn
+							feedbackLoading={feedbackLoading}
+							feedbackError={feedbackError}
+							learnerFeedback={learnerFeedback}
+						/>
+					)}
+				</aside>
+			</div>
 		</main>
 	);
 }
