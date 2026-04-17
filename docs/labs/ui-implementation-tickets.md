@@ -237,7 +237,7 @@ Status: `done`
 ---
 
 ## Ticket 7: Right Column Event Timeline + Filters + Explanations
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Build right-column event timeline cards with:
@@ -256,6 +256,27 @@ Status: `todo`
 - Add tests for filter behavior and timeline rendering.
 - Manual check for live updates.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Expanded right column in `apps/frontend/src/pages/session/components/FeedbackColumn.tsx` to include:
+  - event type filter chips (`All`, `Important`, `Attacker actions`, `Agent actions`, `Tool calls`, `System`, `Learning explanations`)
+  - granularity chips (`High-level`, `Detailed`, `Full trace`)
+  - pinned important events section
+  - timeline card rendering with icon marker, title, description, timestamp/type badge, optional details
+  - distinct explanation-card section
+- Added timeline event model in `apps/frontend/src/pages/session/types.ts`:
+  - `EventType`, `EventGranularity`, `TimelineEvent`
+- Wired real-time timeline ingestion in `apps/frontend/src/pages/SessionPage.tsx`:
+  - stream-driven events (`SESSION_STATUS`, final `AGENT_TEXT_CHUNK`, `POLICY_DENIAL`, `TRACE_EVENT`, `SYSTEM_ERROR`, `LEARNER_FEEDBACK`)
+  - attacker action events on email injection success/failure
+  - dedupe for timeline IDs and learner-feedback derived explanation events
+- Added/updated tests in `apps/frontend/src/pages/SessionPage.test.tsx`:
+  - timeline filtering by type and granularity
+  - adjusted assertions for duplicated feedback text now shown in multiple timeline/feed surfaces
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 

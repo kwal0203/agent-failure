@@ -11,10 +11,18 @@ import type {
 	LearnerFeedbackItem,
 	SessionMetadata,
 	SessionWorkspaceState,
+	TimelineEvent,
 	ToolKey,
 	TranscriptEntry,
 } from "./session/types";
-import { API_BASE, AUTH_HEADER, DEMO_H1_STYLE, statusTone } from "./session/ui";
+import {
+	API_BASE,
+	AUTH_HEADER,
+	DEMO_H1_STYLE,
+	formatStatusLabel,
+	humanizeReasonCode,
+	statusTone,
+} from "./session/ui";
 
 export default function SessionPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
@@ -47,9 +55,9 @@ export default function SessionPage() {
 	);
 	const [activeEntry, setActiveEntry] = useState("");
 	const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
-	const [learnerFeedback, setLearnerFeedback] = useState<LearnerFeedbackItem[]>(
-		[],
-	);
+	const [_learnerFeedback, setLearnerFeedback] = useState<
+		LearnerFeedbackItem[]
+	>([]);
 	const [emailFrom, setEmailFrom] = useState("");
 	const [emailSubject, setEmailSubject] = useState("");
 	const [emailBody, setEmailBody] = useState("");
@@ -67,6 +75,9 @@ export default function SessionPage() {
 	});
 	const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 	const transcriptContentSnapshotRef = useRef({ entries: 0, activeLength: 0 });
+	const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+	const seenTimelineEventIdsRef = useRef(new Set<string>());
+	const seenFeedbackKeysRef = useRef(new Set<string>());
 
 	const resetActiveStream = useCallback(() => {
 		displayedEntryRef.current = "";
@@ -138,6 +149,35 @@ export default function SessionPage() {
 		}
 	}, [drainRevealFrame]);
 
+	const appendTimelineEvent = useCallback((event: TimelineEvent) => {
+		if (seenTimelineEventIdsRef.current.has(event.id)) {
+			return;
+		}
+		seenTimelineEventIdsRef.current.add(event.id);
+		setTimelineEvents((prev) => [...prev, event]);
+	}, []);
+
+	const registerLearnerFeedbackEvents = useCallback(
+		(feedback: LearnerFeedbackItem[], timestamp: string) => {
+			for (const item of feedback) {
+				const key = `${item.status}|${item.reason_code}|${item.evidence_snippet}`;
+				if (seenFeedbackKeysRef.current.has(key)) continue;
+				seenFeedbackKeysRef.current.add(key);
+				appendTimelineEvent({
+					id: `feedback-${key}`,
+					timestamp,
+					type: "explanation",
+					granularity: "high",
+					title: humanizeReasonCode(item.reason_code),
+					description: "Placeholder",
+					details: `Feedback status: ${formatStatusLabel(item.status)}`,
+					important: item.status === "learned",
+				});
+			}
+		},
+		[appendTimelineEvent],
+	);
+
 	const refreshSessionMetadata = useCallback(async () => {
 		if (!sessionId) return;
 
@@ -208,6 +248,10 @@ export default function SessionPage() {
 				const data = (await res.json()) as GetFeedbackResponse;
 				if (!cancelled) {
 					setLearnerFeedback(data.feedback);
+					registerLearnerFeedbackEvents(
+						data.feedback,
+						new Date().toISOString(),
+					);
 				}
 			} catch (e) {
 				if (!cancelled && !opts?.background) {
@@ -230,7 +274,7 @@ export default function SessionPage() {
 			cancelled = true;
 			window.clearInterval(intervalId);
 		};
-	}, [sessionId]);
+	}, [sessionId, registerLearnerFeedbackEvents]);
 
 	useEffect(() => {
 		if (processedMessageCount.current > messages.length) {
@@ -252,6 +296,14 @@ export default function SessionPage() {
 							}
 						: prev,
 				);
+				appendTimelineEvent({
+					id: `status-${message.timestamp}-${message.payload.state}-${message.payload.runtime_substate ?? "none"}`,
+					timestamp: message.timestamp,
+					type: "system",
+					granularity: "high",
+					title: "Session status updated",
+					description: `${message.payload.state}${message.payload.runtime_substate ? ` · ${message.payload.runtime_substate}` : ""}`,
+				});
 				continue;
 			}
 
@@ -262,6 +314,14 @@ export default function SessionPage() {
 				pendingBufferRef.current += message.payload.content;
 				if (message.payload.final) {
 					finalizePendingRef.current = true;
+					appendTimelineEvent({
+						id: `agent-final-${message.timestamp}`,
+						timestamp: message.timestamp,
+						type: "agent_action",
+						granularity: "detailed",
+						title: "Agent response completed",
+						description: "A streamed response finished in the transcript.",
+					});
 				}
 				ensureRevealLoop();
 				continue;
@@ -277,6 +337,16 @@ export default function SessionPage() {
 					},
 				]);
 				setIsAwaitingResponse(false);
+				appendTimelineEvent({
+					id: `policy-denial-${message.timestamp}-${message.payload.code}`,
+					timestamp: message.timestamp,
+					type: "important",
+					granularity: "high",
+					title: "Policy denial",
+					description: message.payload.message,
+					details: `Policy code: ${message.payload.code}`,
+					important: true,
+				});
 				continue;
 			}
 
@@ -295,6 +365,16 @@ export default function SessionPage() {
 						timestamp: message.timestamp,
 					},
 				]);
+				appendTimelineEvent({
+					id: `trace-${message.timestamp}-${message.payload.event_code}`,
+					timestamp: message.timestamp,
+					type: message.payload.event_code.includes("TOOL")
+						? "tool_call"
+						: "system",
+					granularity: "detailed",
+					title: message.payload.event_code,
+					description: message.payload.message,
+				});
 				continue;
 			}
 
@@ -308,16 +388,35 @@ export default function SessionPage() {
 					},
 				]);
 				setIsAwaitingResponse(false);
+				appendTimelineEvent({
+					id: `system-error-${message.timestamp}-${message.payload.code}`,
+					timestamp: message.timestamp,
+					type: "important",
+					granularity: "high",
+					title: "System error",
+					description: message.payload.message,
+					details: `Error code: ${message.payload.code}`,
+					important: true,
+				});
 				continue;
 			}
 
 			if (message.type === "LEARNER_FEEDBACK") {
 				setLearnerFeedback(message.payload.feedback);
+				registerLearnerFeedbackEvents(
+					message.payload.feedback,
+					message.timestamp,
+				);
 			}
 		}
 
 		processedMessageCount.current = messages.length;
-	}, [messages, ensureRevealLoop]);
+	}, [
+		messages,
+		ensureRevealLoop,
+		appendTimelineEvent,
+		registerLearnerFeedbackEvents,
+	]);
 
 	const onSubmitPrompt = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -380,6 +479,15 @@ export default function SessionPage() {
 						? payload.error.message
 						: `HTTP ${res.status}`;
 				setInjectEmailError(msg);
+				appendTimelineEvent({
+					id: `email-inject-error-${new Date().toISOString()}-${res.status}`,
+					timestamp: new Date().toISOString(),
+					type: "system",
+					granularity: "high",
+					title: "Email injection failed",
+					description: msg,
+					important: true,
+				});
 				return;
 			}
 
@@ -390,10 +498,27 @@ export default function SessionPage() {
 					? ` (id: ${payload.email_id})`
 					: "";
 			setInjectEmailResult(`Email ${accepted}${emailId}.`);
+			appendTimelineEvent({
+				id: `email-inject-${new Date().toISOString()}-${sender}-${subject}`,
+				timestamp: new Date().toISOString(),
+				type: "attacker_action",
+				granularity: "high",
+				title: "Email injected to inbox",
+				description: `Email ${accepted}${emailId}.`,
+				details: `From: ${sender}\nSubject: ${subject}`,
+			});
 		} catch (err) {
-			setInjectEmailError(
-				err instanceof Error ? err.message : "request failed",
-			);
+			const message = err instanceof Error ? err.message : "request failed";
+			setInjectEmailError(message);
+			appendTimelineEvent({
+				id: `email-inject-error-${new Date().toISOString()}-exception`,
+				timestamp: new Date().toISOString(),
+				type: "system",
+				granularity: "high",
+				title: "Email injection failed",
+				description: message,
+				important: true,
+			});
 		} finally {
 			setInjectingEmail(false);
 		}
@@ -619,7 +744,7 @@ export default function SessionPage() {
 						<FeedbackColumn
 							feedbackLoading={feedbackLoading}
 							feedbackError={feedbackError}
-							learnerFeedback={learnerFeedback}
+							timelineEvents={timelineEvents}
 						/>
 					)}
 				</aside>

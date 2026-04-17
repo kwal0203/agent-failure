@@ -47,6 +47,27 @@ export type InjectSessionEmailResponse = {
 
 export type ToolKey = "email" | "files" | "payloads" | "notes" | "recon";
 
+export type EventType =
+	| "important"
+	| "attacker_action"
+	| "agent_action"
+	| "tool_call"
+	| "system"
+	| "explanation";
+
+export type EventGranularity = "high" | "detailed" | "full";
+
+export type TimelineEvent = {
+	id: string;
+	timestamp: string;
+	type: EventType;
+	granularity: EventGranularity;
+	title: string;
+	description: string;
+	details?: string;
+	important?: boolean;
+};
+
 export type SessionWorkspaceState = {
 	selectedTool: ToolKey | null;
 	toolPaneOpen: boolean;
