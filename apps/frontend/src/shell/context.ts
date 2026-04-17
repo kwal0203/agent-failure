@@ -1,7 +1,7 @@
 import { useOutletContext } from "react-router-dom";
 
 export type ShellBootstrap = {
-	mode: "demo";
+	mode: "demo" | "debug";
 	learnerLabel: string;
 	apiBaseUrl: string;
 };

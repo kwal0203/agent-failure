@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import type { ShellBootstrap } from "../shell/context";
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -9,69 +9,144 @@ const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
 	fontWeight: isActive ? 700 : 500,
 });
 
+const rawUiMode = (import.meta.env.VITE_UI_MODE ?? "demo").toLowerCase();
+const uiMode: ShellBootstrap["mode"] = rawUiMode === "debug" ? "debug" : "demo";
+
 const bootstrap: ShellBootstrap = {
-	mode: "demo",
+	mode: uiMode,
 	learnerLabel: "Demo Learner",
 	apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
 };
 
 export default function AppShell() {
+	const isDebug = bootstrap.mode === "debug";
+	const navigate = useNavigate();
+
 	return (
 		<div
-			style={{ minHeight: "100vh", background: "#f5f7fb", color: "#10131a" }}
+			style={
+				isDebug
+					? { minHeight: "100vh", background: "#f5f7fb", color: "#10131a" }
+					: {
+							minHeight: "100vh",
+							color: "#d7f5ff",
+							background:
+								"radial-gradient(1200px 680px at 8% -2%, rgba(0, 230, 255, 0.18), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(28, 160, 255, 0.22), transparent 52%), linear-gradient(180deg, #040b14 0%, #071321 52%, #081726 100%)",
+							fontFamily:
+								'"Space Grotesk", "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif',
+						}
+			}
 		>
 			<header
 				style={{
-					borderBottom: "1px solid #d9dee8",
-					background: "#ffffff",
+					borderBottom: isDebug ? "1px solid #d9dee8" : "1px solid #1d3850",
+					background: isDebug
+						? "#ffffff"
+						: "linear-gradient(180deg, rgba(6, 20, 34, 0.9), rgba(6, 20, 34, 0.75))",
+					backdropFilter: isDebug ? undefined : "blur(6px)",
 					position: "sticky",
 					top: 0,
-					zIndex: 1,
+					zIndex: 3,
 				}}
 			>
 				<div
 					style={{
-						maxWidth: 1120,
+						maxWidth: 1240,
 						margin: "0 auto",
-						padding: "12px 20px",
+						padding: "14px 24px",
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
 					}}
 				>
 					<div>
-						<div style={{ fontSize: 18, fontWeight: 700 }}>
-							Agent Failure Lab
+						<div
+							style={{
+								fontSize: 22,
+								fontWeight: 700,
+								letterSpacing: 0.4,
+								color: isDebug ? "#10131a" : "#e8fbff",
+								fontFamily:
+									'"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
+								textTransform: isDebug ? undefined : "uppercase",
+							}}
+						>
+							Agent Failure
 						</div>
-						<div style={{ fontSize: 12, opacity: 0.7 }}>
-							Demo mode: auth deferred for P1 usability sprint
+						<div
+							style={{
+								fontSize: 12,
+								opacity: isDebug ? 0.7 : 1,
+								color: isDebug ? undefined : "#73b6ce",
+								letterSpacing: isDebug ? undefined : 0.3,
+							}}
+						>
+							{isDebug
+								? "Demo mode: auth deferred for P1 usability sprint"
+								: "Cyberrange Demo Surface"}
 						</div>
 					</div>
-					<div style={{ fontSize: 13, opacity: 0.8 }}>
-						Learner: <strong>{bootstrap.learnerLabel}</strong>
+					<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+						<button
+							type="button"
+							onClick={() => navigate("/labs")}
+							style={{
+								fontSize: 12,
+								fontWeight: 700,
+								padding: "7px 10px",
+								borderRadius: 8,
+								cursor: "pointer",
+								border: isDebug ? "1px solid #cfd8e3" : "1px solid #2d5a7d",
+								background: isDebug ? "#ffffff" : "#0b2a43",
+								color: isDebug ? "#0f1724" : "#cff6ff",
+							}}
+						>
+							Back to Labs
+						</button>
+						<div
+							style={{
+								fontSize: 13,
+								opacity: isDebug ? 0.8 : 1,
+								color: isDebug ? undefined : "#9fe4fb",
+								background: isDebug ? undefined : "rgba(8, 31, 50, 0.72)",
+								border: isDebug ? undefined : "1px solid #285272",
+								padding: isDebug ? undefined : "6px 10px",
+								borderRadius: isDebug ? undefined : 8,
+							}}
+						>
+							Learner: <strong>{bootstrap.learnerLabel}</strong>
+						</div>
 					</div>
 				</div>
-				<nav
-					style={{
-						maxWidth: 1120,
-						margin: "0 auto",
-						padding: "0 20px 10px",
-						display: "flex",
-						gap: 16,
-					}}
-				>
-					<NavLink to="/labs" style={navLinkStyle}>
-						Labs
-					</NavLink>
-					<NavLink to="/history" style={navLinkStyle}>
-						History
-					</NavLink>
-					<NavLink to="/trace" style={navLinkStyle}>
-						Trace
-					</NavLink>
-				</nav>
+				{bootstrap.mode === "debug" && (
+					<nav
+						style={{
+							maxWidth: 1120,
+							margin: "0 auto",
+							padding: "0 20px 10px",
+							display: "flex",
+							gap: 16,
+						}}
+					>
+						<NavLink to="/labs" style={navLinkStyle}>
+							Labs
+						</NavLink>
+						<NavLink to="/history" style={navLinkStyle}>
+							History
+						</NavLink>
+						<NavLink to="/trace" style={navLinkStyle}>
+							Trace
+						</NavLink>
+					</nav>
+				)}
 			</header>
-			<main style={{ maxWidth: 1120, margin: "0 auto", padding: "20px" }}>
+			<main
+				style={{
+					maxWidth: 1240,
+					margin: "0 auto",
+					padding: isDebug ? "20px" : "28px 24px 34px",
+				}}
+			>
 				<Outlet context={bootstrap} />
 			</main>
 		</div>

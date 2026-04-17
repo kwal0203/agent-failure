@@ -567,6 +567,7 @@ async def handle_user_prompt(
             actor_user_id=principal.user_id,
             lab_id=metadata.lab_id,
             lab_version_id=metadata.lab_version_id,
+            lab_difficulty=metadata.lab_difficulty,
         )
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
@@ -575,12 +576,14 @@ async def handle_user_prompt(
                 websocket,
                 build_trace_event_message(session_id, "TURN_STARTED", "Turn started"),
             )
+
             await ws_manager.send_to(
                 websocket,
                 build_trace_event_message(
                     session_id, "MODEL_REQUEST_STARTED", "Model request started"
                 ),
             )
+
             trace_event_model_started = build_trace_event(
                 trace_repo=trace_repo,
                 session_id=session_id,
@@ -595,7 +598,9 @@ async def handle_user_prompt(
                 actor_user_id=principal.user_id,
                 lab_id=metadata.lab_id,
                 lab_version_id=metadata.lab_version_id,
+                lab_difficulty=metadata.lab_difficulty,
             )
+
             append_trace_event(
                 trace=trace_event_model_started,
                 repo=trace_repo,
@@ -674,6 +679,7 @@ async def handle_user_prompt(
                             actor_user_id=principal.user_id,
                             lab_id=metadata.lab_id,
                             lab_version_id=metadata.lab_version_id,
+                            lab_difficulty=metadata.lab_difficulty,
                         )
                         append_trace_event(
                             trace=trace_event_model_failed,
@@ -741,6 +747,7 @@ async def handle_user_prompt(
                             actor_user_id=principal.user_id,
                             lab_id=metadata.lab_id,
                             lab_version_id=metadata.lab_version_id,
+                            lab_difficulty=metadata.lab_difficulty,
                         )
                         append_trace_event(
                             trace=trace_event_model_failed,
@@ -808,6 +815,7 @@ async def handle_user_prompt(
                         turn_start=turn_start,
                         chunks_emitted=chunks_emitted,
                     )
+
                     trace_event_model_failed = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -818,7 +826,9 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event_model_failed,
                         repo=trace_repo,
@@ -835,6 +845,7 @@ async def handle_user_prompt(
                         "recipient": event.recipient,
                         "subject": event.subject,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -845,10 +856,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "inbox_listed":
@@ -856,6 +870,7 @@ async def handle_user_prompt(
                         "type": event.type,
                         "message_count": event.message_count,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -866,10 +881,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "email_read":
@@ -878,6 +896,7 @@ async def handle_user_prompt(
                         "email_id": event.email_id,
                         "subject": event.subject,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -888,10 +907,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "malicious_email_read":
@@ -901,6 +923,7 @@ async def handle_user_prompt(
                         "subject": event.subject,
                         "malicious_marker": event.malicious_marker,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -911,10 +934,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "token_disclosure_attempted":
@@ -923,6 +949,7 @@ async def handle_user_prompt(
                         "channel": event.channel,
                         "target": event.target,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -933,10 +960,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "token_disclosed":
@@ -945,6 +975,7 @@ async def handle_user_prompt(
                         "channel": event.channel,
                         "token_kind": event.token_kind,
                     }
+
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
@@ -955,10 +986,13 @@ async def handle_user_prompt(
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
                     )
+
                     append_trace_event(
                         trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
                     )
+
                     continue
 
                 if event.type == "turn_completed":
@@ -990,12 +1024,15 @@ async def handle_user_prompt(
                 actor_user_id=principal.user_id,
                 lab_id=metadata.lab_id,
                 lab_version_id=metadata.lab_version_id,
+                lab_difficulty=metadata.lab_difficulty,
             )
+
             append_trace_event(
                 trace=trace_event_model_completed,
                 repo=trace_repo,
                 outbox_repo=outbox_repo,
             )
+
             db.commit()
 
         except RuntimeClientError as exc:
@@ -1010,6 +1047,7 @@ async def handle_user_prompt(
                     "lab_difficulty": metadata.lab_difficulty,
                 },
             )
+
             await ws_manager.send_to(
                 websocket,
                 build_system_error_message(
@@ -1018,6 +1056,7 @@ async def handle_user_prompt(
                     message=exc.message,
                 ),
             )
+
             return
 
         except Exception:

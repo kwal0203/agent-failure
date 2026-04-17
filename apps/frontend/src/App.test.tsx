@@ -18,17 +18,24 @@ describe("App shell routing", () => {
 		expect(
 			await screen.findByRole("heading", { name: "Labs" }),
 		).toBeInTheDocument();
-		expect(screen.getByText(/Demo shell is active for/i)).toBeInTheDocument();
+		expect(screen.getByText(/Cyberrange Demo Surface/i)).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Back to Labs" }),
+		).toBeInTheDocument();
 	});
 
-	it("renders history page inside shell nav", async () => {
+	it("renders history page in demo mode without top nav links", async () => {
 		renderAt("/history");
 
 		expect(
 			await screen.findByRole("heading", { name: "History" }),
 		).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "Labs" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "Trace" })).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: "Labs" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: "Trace" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("redirects unknown route to labs", async () => {

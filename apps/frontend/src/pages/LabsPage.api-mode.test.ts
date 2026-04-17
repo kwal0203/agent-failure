@@ -28,7 +28,7 @@ describe("loadLabCatalog API mode", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 
-		const { loadLabCatalog } = await import("./LabsPage");
+		const { loadLabCatalog } = await import("./labCatalogApi");
 		const labs = await loadLabCatalog("http://localhost:8000");
 
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -53,7 +53,7 @@ describe("loadLabCatalog API mode", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 
-		const { loadLabCatalog } = await import("./LabsPage");
+		const { loadLabCatalog } = await import("./labCatalogApi");
 		const labs = await loadLabCatalog("http://localhost:8000");
 
 		expect(labs).toEqual([]);

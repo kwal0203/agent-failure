@@ -27,6 +27,7 @@ describe("LabCatalog", () => {
 			<LabCatalog
 				apiBaseUrl="http://localhost:8000"
 				learnerLabel="Demo Learner"
+				mode="debug"
 				loadLabs={loadLabs}
 				createSession={createSession}
 				onOpenSession={onOpenSession}
@@ -49,8 +50,48 @@ describe("LabCatalog", () => {
 		await waitFor(() => {
 			expect(onOpenSession).toHaveBeenCalledWith(
 				"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+				"Prompt Injection Basics",
 			);
 		});
+	});
+
+	it("renders demo mode without slug metadata and with tier buttons", async () => {
+		const labs: LabCatalogItem[] = [
+			{
+				id: "11111111-1111-1111-1111-111111111111",
+				slug: "prompt-injection-basics",
+				name: "Prompt Injection Basics",
+				summary: "Practice attacking a retrieval-enabled agent.",
+				capabilities: {
+					supports_resume: true,
+					supports_uploads: false,
+				},
+			},
+		];
+		const loadLabs = vi.fn(async () => labs);
+
+		render(
+			<LabCatalog
+				apiBaseUrl="http://localhost:8000"
+				learnerLabel="Demo Learner"
+				mode="demo"
+				loadLabs={loadLabs}
+				onOpenSession={() => {}}
+			/>,
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: "Prompt Injection Basics" }),
+		).toBeInTheDocument();
+		expect(screen.queryByText(/slug:/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/resume: yes \| uploads: no/i),
+		).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "easy" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "medium" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Hard (Soon)" }),
+		).toBeInTheDocument();
 	});
 
 	it("renders explicit empty state when no labs are launchable", async () => {

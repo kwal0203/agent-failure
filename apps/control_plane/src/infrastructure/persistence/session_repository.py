@@ -302,6 +302,7 @@ class SQLAlchemyTraceEventRepository(TraceEventPort):
             actor_user_id=trace.actor_user_id,
             lab_id=trace.lab_id,
             lab_version_id=trace.lab_version_id,
+            lab_difficulty=trace.lab_difficulty,
         )
 
         self._db.add(event)

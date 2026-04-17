@@ -22,8 +22,8 @@ class SQLAlchemyLabRepository(LabRepository):
             GetLabCatalogRow(
                 lab_id=UUID("11111111-1111-1111-1111-111111111111"),
                 slug="prompt-injection",
-                name="Prompt Injection",
-                summary="Practice identifying and exploiting prompt-injection paths, then apply guardrails to contain them.",
+                name="Indirect Prompt Injection",
+                summary="Practice identifying and exploiting indirect prompt-injection paths, then apply guardrails to contain them.",
                 supports_resume=False,
                 supports_uploads=False,
             ),
