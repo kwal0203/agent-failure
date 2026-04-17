@@ -397,6 +397,15 @@ export default function SessionPage() {
 		}
 	};
 
+	const onResetEmail = () => {
+		setEmailFrom("");
+		setEmailSubject("");
+		setEmailBody("");
+		setEmailMalicious(true);
+		setInjectEmailError(null);
+		setInjectEmailResult(null);
+	};
+
 	const canSend =
 		connectionState === "open" &&
 		!isAwaitingResponse &&
@@ -497,21 +506,7 @@ export default function SessionPage() {
 				}}
 			>
 				<aside style={{ minHeight: 0, overflowY: "auto" }}>
-					<LabGuideColumn
-						emailFrom={emailFrom}
-						emailSubject={emailSubject}
-						emailBody={emailBody}
-						emailMalicious={emailMalicious}
-						injectingEmail={injectingEmail}
-						sessionId={sessionId}
-						injectEmailError={injectEmailError}
-						injectEmailResult={injectEmailResult}
-						onSubmitEmail={onSubmitEmail}
-						onEmailFromChange={setEmailFrom}
-						onEmailSubjectChange={setEmailSubject}
-						onEmailBodyChange={setEmailBody}
-						onEmailMaliciousChange={setEmailMalicious}
-					/>
+					<LabGuideColumn />
 				</aside>
 
 				<section
@@ -530,6 +525,20 @@ export default function SessionPage() {
 						selectedTool={workspaceState.selectedTool}
 						toolPaneOpen={workspaceState.toolPaneOpen}
 						onToolSelect={onToolSelect}
+						emailFrom={emailFrom}
+						emailSubject={emailSubject}
+						emailBody={emailBody}
+						emailMalicious={emailMalicious}
+						injectingEmail={injectingEmail}
+						sessionId={sessionId}
+						injectEmailError={injectEmailError}
+						injectEmailResult={injectEmailResult}
+						onSubmitEmail={onSubmitEmail}
+						onResetEmail={onResetEmail}
+						onEmailFromChange={setEmailFrom}
+						onEmailSubjectChange={setEmailSubject}
+						onEmailBodyChange={setEmailBody}
+						onEmailMaliciousChange={setEmailMalicious}
 						prompt={prompt}
 						canSend={canSend}
 						onPromptChange={setPrompt}

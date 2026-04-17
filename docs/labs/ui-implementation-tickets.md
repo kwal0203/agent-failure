@@ -158,7 +158,7 @@ Status: `done`
 ---
 
 ## Ticket 5: Move Email Attacker Form into Tool Pane with Persistent State
-Status: `todo`
+Status: `done`
 
 ### Scope
 - Move attacker email form into `EmailToolForm` inside tool pane.
@@ -175,6 +175,22 @@ Status: `todo`
 - Update existing inject-email test to new UI location.
 - Add persistence/reset tests.
 - `cd apps/frontend && npm test`
+
+### Implementation Notes
+- Moved email injection form out of the left guide and into the center-column `Email` tool pane:
+  - Added `apps/frontend/src/pages/session/components/EmailToolForm.tsx`
+  - Integrated into `apps/frontend/src/pages/session/components/WorkspaceColumn.tsx`
+- Kept email submission contract unchanged (`POST /api/v1/sessions/:id/inbox/email` with existing payload).
+- Preserved unsent draft state across tool switches by keeping form state in `SessionPage`.
+- Added explicit `Reset` button that clears `from`, `subject`, `body`, malicious toggle, and transient result/error messages.
+- Simplified left `Attack Tools` guide section to point users to the center tool strip.
+- Updated and added tests in `apps/frontend/src/pages/SessionPage.test.tsx`:
+  - inject-email flow now opens `Email` tool pane first
+  - new test verifies draft persistence across tool switches and reset behavior
+- Validation run:
+  - `cd apps/frontend && npm run biome:check` (pass)
+  - `cd apps/frontend && npm test` (pass)
+  - `cd apps/frontend && npm run typecheck` (pass)
 
 ---
 

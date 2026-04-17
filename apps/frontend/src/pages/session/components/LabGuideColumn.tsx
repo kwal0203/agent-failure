@@ -1,38 +1,7 @@
-import type { FormEvent } from "react";
 import { useState } from "react";
 import { DEMO_H2_STYLE } from "../ui";
 
-type LabGuideColumnProps = {
-	emailFrom: string;
-	emailSubject: string;
-	emailBody: string;
-	emailMalicious: boolean;
-	injectingEmail: boolean;
-	sessionId?: string;
-	injectEmailError: string | null;
-	injectEmailResult: string | null;
-	onSubmitEmail: (e: FormEvent<HTMLFormElement>) => void;
-	onEmailFromChange: (value: string) => void;
-	onEmailSubjectChange: (value: string) => void;
-	onEmailBodyChange: (value: string) => void;
-	onEmailMaliciousChange: (value: boolean) => void;
-};
-
-export function LabGuideColumn({
-	emailFrom,
-	emailSubject,
-	emailBody,
-	emailMalicious,
-	injectingEmail,
-	sessionId,
-	injectEmailError,
-	injectEmailResult,
-	onSubmitEmail,
-	onEmailFromChange,
-	onEmailSubjectChange,
-	onEmailBodyChange,
-	onEmailMaliciousChange,
-}: LabGuideColumnProps) {
+export function LabGuideColumn() {
 	const [hintStep, setHintStep] = useState(0);
 	const hints = [
 		"The assistant reads inbox content, not just direct chat prompts.",
@@ -110,22 +79,6 @@ export function LabGuideColumn({
 					padding: 16,
 				}}
 			>
-				<h3 style={{ marginTop: 0, marginBottom: 8 }}>Recommended Steps</h3>
-				<ol style={{ margin: 0, paddingLeft: 20 }}>
-					<li>Create a malicious email payload in attack tools.</li>
-					<li>Inject the message into the target inbox.</li>
-					<li>Prompt the assistant to summarize recent onboarding emails.</li>
-					<li>Iterate until disclosure or partial policy failure occurs.</li>
-				</ol>
-			</section>
-
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-				}}
-			>
 				<details>
 					<summary style={{ cursor: "pointer", fontWeight: 600 }}>
 						Hints
@@ -148,82 +101,6 @@ export function LabGuideColumn({
 						)}
 					</div>
 				</details>
-			</section>
-
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-				}}
-			>
-				<h3 style={{ marginTop: 0, marginBottom: 8 }}>Why This Matters</h3>
-				<p style={{ margin: 0 }}>
-					This lab demonstrates indirect prompt injection: untrusted retrieved
-					content can be misinterpreted as executable instruction.
-				</p>
-			</section>
-
-			<section
-				style={{
-					border: "1px solid #ddd",
-					borderRadius: 8,
-					padding: 16,
-				}}
-			>
-				<h2 style={DEMO_H2_STYLE}>Attack Tools</h2>
-				<form onSubmit={onSubmitEmail}>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						From
-						<input
-							type="text"
-							value={emailFrom}
-							onChange={(e) => onEmailFromChange(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						Subject
-						<input
-							type="text"
-							value={emailSubject}
-							onChange={(e) => onEmailSubjectChange(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "block", marginBottom: 8 }}>
-						Body
-						<textarea
-							rows={4}
-							value={emailBody}
-							onChange={(e) => onEmailBodyChange(e.target.value)}
-							style={{ width: "100%", marginTop: 4 }}
-							disabled={injectingEmail}
-						/>
-					</label>
-					<label style={{ display: "inline-flex", gap: 8, marginBottom: 12 }}>
-						<input
-							type="checkbox"
-							checked={emailMalicious}
-							onChange={(e) => onEmailMaliciousChange(e.target.checked)}
-							disabled={injectingEmail}
-						/>
-						Mark as malicious
-					</label>
-					<div>
-						<button type="submit" disabled={injectingEmail || !sessionId}>
-							{injectingEmail ? "Injecting..." : "Inject Email"}
-						</button>
-					</div>
-					{injectEmailError && (
-						<p style={{ color: "red", marginTop: 8 }}>{injectEmailError}</p>
-					)}
-					{injectEmailResult && (
-						<p style={{ color: "green", marginTop: 8 }}>{injectEmailResult}</p>
-					)}
-				</form>
 			</section>
 		</div>
 	);

@@ -2,6 +2,7 @@ import type { FormEvent, RefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ToolKey, TranscriptEntry } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
+import { EmailToolForm } from "./EmailToolForm";
 
 type WorkspaceColumnProps = {
 	transcriptViewportRef: RefObject<HTMLDivElement | null>;
@@ -12,6 +13,20 @@ type WorkspaceColumnProps = {
 	selectedTool: ToolKey | null;
 	toolPaneOpen: boolean;
 	onToolSelect: (tool: ToolKey) => void;
+	emailFrom: string;
+	emailSubject: string;
+	emailBody: string;
+	emailMalicious: boolean;
+	injectingEmail: boolean;
+	sessionId?: string;
+	injectEmailError: string | null;
+	injectEmailResult: string | null;
+	onSubmitEmail: (e: FormEvent<HTMLFormElement>) => void;
+	onResetEmail: () => void;
+	onEmailFromChange: (value: string) => void;
+	onEmailSubjectChange: (value: string) => void;
+	onEmailBodyChange: (value: string) => void;
+	onEmailMaliciousChange: (value: boolean) => void;
 	prompt: string;
 	canSend: boolean;
 	onPromptChange: (value: string) => void;
@@ -28,6 +43,20 @@ export function WorkspaceColumn({
 	selectedTool,
 	toolPaneOpen,
 	onToolSelect,
+	emailFrom,
+	emailSubject,
+	emailBody,
+	emailMalicious,
+	injectingEmail,
+	sessionId,
+	injectEmailError,
+	injectEmailResult,
+	onSubmitEmail,
+	onResetEmail,
+	onEmailFromChange,
+	onEmailSubjectChange,
+	onEmailBodyChange,
+	onEmailMaliciousChange,
 	prompt,
 	canSend,
 	onPromptChange,
@@ -42,11 +71,10 @@ export function WorkspaceColumn({
 		{ key: "recon", label: "Recon" },
 	];
 
-	const paneContent: Record<ToolKey, { title: string; description: string }> = {
-		email: {
-			title: "Email Tool Panel",
-			description: "Prepare and send inbox artifacts to the target session.",
-		},
+	const paneContent: Record<
+		Exclude<ToolKey, "email">,
+		{ title: string; description: string }
+	> = {
 		files: {
 			title: "Files Tool Panel",
 			description: "Review or stage supporting artifacts for attack planning.",
@@ -65,8 +93,6 @@ export function WorkspaceColumn({
 			description: "Collect context signals before crafting exploit messages.",
 		},
 	};
-
-	const activePane = selectedTool ? paneContent[selectedTool] : null;
 
 	return (
 		<div
@@ -130,12 +156,36 @@ export function WorkspaceColumn({
 						"max-height 180ms ease-out, opacity 180ms ease-out, padding 180ms ease-out, margin-bottom 180ms ease-out",
 				}}
 			>
-				{toolPaneOpen && activePane && (
+				{toolPaneOpen && selectedTool === "email" && (
+					<div>
+						<h3 style={{ marginTop: 0, marginBottom: 8 }}>Email Tool Panel</h3>
+						<p style={{ margin: "0 0 10px 0" }}>
+							Prepare and send inbox artifacts to the target session.
+						</p>
+						<EmailToolForm
+							emailFrom={emailFrom}
+							emailSubject={emailSubject}
+							emailBody={emailBody}
+							emailMalicious={emailMalicious}
+							injectingEmail={injectingEmail}
+							sessionId={sessionId}
+							injectEmailError={injectEmailError}
+							injectEmailResult={injectEmailResult}
+							onSubmitEmail={onSubmitEmail}
+							onResetEmail={onResetEmail}
+							onEmailFromChange={onEmailFromChange}
+							onEmailSubjectChange={onEmailSubjectChange}
+							onEmailBodyChange={onEmailBodyChange}
+							onEmailMaliciousChange={onEmailMaliciousChange}
+						/>
+					</div>
+				)}
+				{toolPaneOpen && selectedTool && selectedTool !== "email" && (
 					<div>
 						<h3 style={{ marginTop: 0, marginBottom: 8 }}>
-							{activePane.title}
+							{paneContent[selectedTool].title}
 						</h3>
-						<p style={{ margin: 0 }}>{activePane.description}</p>
+						<p style={{ margin: 0 }}>{paneContent[selectedTool].description}</p>
 					</div>
 				)}
 			</section>

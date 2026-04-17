@@ -174,8 +174,10 @@ describe("SessionPage learner feedback panel", () => {
 		vi.stubGlobal("fetch", fetchMock);
 
 		renderSessionPage();
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(await screen.findByText("Email Tool Panel")).toBeInTheDocument();
 
-		fireEvent.change(await screen.findByLabelText("From"), {
+		fireEvent.change(screen.getByLabelText("From"), {
 			target: { value: "attacker@evil.local" },
 		});
 		fireEvent.change(screen.getByLabelText("Subject"), {
@@ -299,8 +301,6 @@ describe("SessionPage learner feedback panel", () => {
 
 		expect(await screen.findByText("Mission")).toBeInTheDocument();
 		expect(screen.getByText("Success Criteria")).toBeInTheDocument();
-		expect(screen.getByText("Recommended Steps")).toBeInTheDocument();
-		expect(screen.getByText("Why This Matters")).toBeInTheDocument();
 		expect(screen.getByText("Hints")).toBeInTheDocument();
 		expect(
 			screen.queryByText(/assistant reads inbox content/i),
@@ -355,5 +355,59 @@ describe("SessionPage learner feedback panel", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Payloads" }));
 		expect(await screen.findByText("Payloads Tool Panel")).toBeInTheDocument();
 		expect(screen.queryByText("Files Tool Panel")).not.toBeInTheDocument();
+	});
+
+	it("preserves unsent email draft across tool switches and supports reset", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(await screen.findByText("Email Tool Panel")).toBeInTheDocument();
+		fireEvent.change(screen.getByLabelText("From"), {
+			target: { value: "attacker@evil.local" },
+		});
+		fireEvent.change(screen.getByLabelText("Subject"), {
+			target: { value: "Injected subject" },
+		});
+		fireEvent.change(screen.getByLabelText("Body"), {
+			target: { value: "Injected body" },
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "Files" }));
+		expect(await screen.findByText("Files Tool Panel")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Email" }));
+		expect(await screen.findByText("Email Tool Panel")).toBeInTheDocument();
+		expect(screen.getByLabelText("From")).toHaveValue("attacker@evil.local");
+		expect(screen.getByLabelText("Subject")).toHaveValue("Injected subject");
+		expect(screen.getByLabelText("Body")).toHaveValue("Injected body");
+
+		fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+		expect(screen.getByLabelText("From")).toHaveValue("");
+		expect(screen.getByLabelText("Subject")).toHaveValue("");
+		expect(screen.getByLabelText("Body")).toHaveValue("");
 	});
 });
