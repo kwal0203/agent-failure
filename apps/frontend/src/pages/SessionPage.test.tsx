@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerMessage } from "../hooks/useSessionStream";
@@ -209,6 +215,123 @@ describe("SessionPage learner feedback panel", () => {
 				);
 			}),
 		).toBe(true);
+		expect(
+			screen.getByText("Inbox Inject Accepted", { exact: false }),
+		).toBeInTheDocument();
+		const inboxChip = screen
+			.getByText("Inbox Inject Accepted", { exact: false })
+			.closest("div");
+		expect(inboxChip).not.toBeNull();
+		expect(within(inboxChip as HTMLElement).getByText("✓")).toBeInTheDocument();
+	});
+
+	it("updates agent status when learner sends a prompt", async () => {
+		const sendPrompt = vi.fn();
+		vi.mocked(useSessionStream).mockReturnValue({
+			connectionState: "open",
+			messages: [],
+			sendPrompt,
+			reconnect: vi.fn(),
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({ feedback: [] });
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		const agentChip = screen.getByText("Agent", {
+			exact: true,
+			selector: "strong",
+		}).parentElement;
+		expect(agentChip).not.toBeNull();
+		expect(agentChip as HTMLElement).toHaveStyle({
+			background: "rgba(36, 43, 52, 0.72)",
+		});
+
+		fireEvent.change(screen.getByPlaceholderText("Type your prompt..."), {
+			target: { value: "summarize inbox" },
+		});
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		fireEvent.click(sendButton);
+
+		expect(sendPrompt).toHaveBeenCalledWith("summarize inbox");
+		expect(agentChip as HTMLElement).toHaveStyle({
+			background: "rgba(10, 50, 33, 0.72)",
+		});
+	});
+
+	it("activates malicious-context and token-exposed indicators from feedback", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((input: RequestInfo | URL) => {
+				const url = String(input);
+				if (url.endsWith("/evaluator-feedback")) {
+					return mockJsonResponse({
+						feedback: [
+							{
+								status: "progress",
+								reason_code: "PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
+								evidence_snippet: "artifact entered context",
+							},
+							{
+								status: "learned",
+								reason_code: "PI_MEDIUM_TOKEN_EXPOSED",
+								evidence_snippet: "token exposure observed",
+							},
+						],
+					});
+				}
+				return mockJsonResponse({
+					session: {
+						id: "11111111-1111-1111-1111-111111111111",
+						lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+						lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+						state: "ACTIVE",
+						runtime_substate: "RUNNING",
+						resume_mode: "fresh",
+						interactive: true,
+						created_at: "2026-01-01T00:00:00Z",
+						started_at: null,
+						ended_at: null,
+					},
+				});
+			}),
+		);
+
+		renderSessionPage();
+
+		expect(
+			await screen.findByText("Malicious Artifact Entered Context", {
+				exact: false,
+			}),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("Token Exposed", { exact: false, selector: "div" }),
+		).toBeInTheDocument();
+		expect(
+			(await screen.findAllByText("✓", { selector: "strong" })).length,
+		).toBeGreaterThanOrEqual(2);
 	});
 
 	it("does not render orchestration trace events in transcript", async () => {

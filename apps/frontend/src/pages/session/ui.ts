@@ -99,11 +99,6 @@ export function statusTone(state: string | undefined): {
 				color: "#ffe6a6",
 			};
 		case "ACTIVE":
-			return {
-				background: "rgba(8, 31, 50, 0.72)",
-				border: "1px solid #285272",
-				color: "#9fe4fb",
-			};
 		case "COMPLETED":
 			return {
 				background: "rgba(10, 50, 33, 0.72)",
@@ -111,6 +106,7 @@ export function statusTone(state: string | undefined): {
 				color: "#b9ffe0",
 			};
 		case "FAILED":
+		case "ERROR":
 			return {
 				background: "rgba(70, 19, 37, 0.72)",
 				border: "1px solid #8b3252",

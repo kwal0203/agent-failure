@@ -1,5 +1,6 @@
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
 import { LabGuideColumn } from "./session/components/LabGuideColumn";
@@ -18,26 +19,73 @@ import type {
 import {
 	API_BASE,
 	AUTH_HEADER,
-	DEMO_H1_STYLE,
 	formatStatusLabel,
 	humanizeReasonCode,
 	statusTone,
 } from "./session/ui";
 
+type AgentStatus = "idle" | "active";
+
+function agentStatusTone(status: AgentStatus): {
+	background: string;
+	border: string;
+	color: string;
+} {
+	switch (status) {
+		case "active":
+			return {
+				background: "rgba(10, 50, 33, 0.72)",
+				border: "1px solid #2e7b57",
+				color: "#b9ffe0",
+			};
+		default:
+			return {
+				background: "rgba(36, 43, 52, 0.72)",
+				border: "1px solid #4a5562",
+				color: "#cfd9e2",
+			};
+	}
+}
+
+function objectiveTone(active: boolean): {
+	background: string;
+	border: string;
+	color: string;
+} {
+	if (active) {
+		return {
+			background: "rgba(10, 50, 33, 0.72)",
+			border: "1px solid #2e7b57",
+			color: "#b9ffe0",
+		};
+	}
+	return {
+		background: "rgba(8, 31, 50, 0.72)",
+		border: "1px solid #285272",
+		color: "#9fe4fb",
+	};
+}
+
+function statusChipStyle(tone: {
+	background: string;
+	border: string;
+	color: string;
+}): CSSProperties {
+	return {
+		fontSize: 13,
+		background: tone.background,
+		border: tone.border,
+		color: tone.color,
+		padding: "6px 10px",
+		borderRadius: 8,
+		transition:
+			"background-color 260ms ease, border-color 260ms ease, color 260ms ease",
+	};
+}
+
 export default function SessionPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
-	const location = useLocation();
 	const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
-	const routeState = (
-		typeof location.state === "object" && location.state !== null
-			? location.state
-			: {}
-	) as { labName?: string };
-	const headingText =
-		typeof routeState.labName === "string" &&
-		routeState.labName.trim().length > 0
-			? routeState.labName
-			: "Session";
 	const processedMessageCount = useRef(0);
 	const transcriptViewportRef = useRef<HTMLDivElement | null>(null);
 	const activeEntryTsRef = useRef<string | null>(null);
@@ -55,9 +103,6 @@ export default function SessionPage() {
 	);
 	const [activeEntry, setActiveEntry] = useState("");
 	const [isAwaitingResponse, setIsAwaitingResponse] = useState(false);
-	const [_learnerFeedback, setLearnerFeedback] = useState<
-		LearnerFeedbackItem[]
-	>([]);
 	const [emailFrom, setEmailFrom] = useState("");
 	const [emailSubject, setEmailSubject] = useState("");
 	const [emailBody, setEmailBody] = useState("");
@@ -78,6 +123,12 @@ export default function SessionPage() {
 	const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
 	const seenTimelineEventIdsRef = useRef(new Set<string>());
 	const seenFeedbackKeysRef = useRef(new Set<string>());
+	const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
+	const [progressState, setProgressState] = useState({
+		inboxInjectAccepted: false,
+		maliciousArtifactEnteredContext: false,
+		tokenExposed: false,
+	});
 
 	const resetActiveStream = useCallback(() => {
 		displayedEntryRef.current = "";
@@ -160,6 +211,23 @@ export default function SessionPage() {
 	const registerLearnerFeedbackEvents = useCallback(
 		(feedback: LearnerFeedbackItem[], timestamp: string) => {
 			for (const item of feedback) {
+				const reason = item.reason_code.toUpperCase();
+				if (reason.includes("MALICIOUS_ARTIFACT_ENTERED_CONTEXT")) {
+					setProgressState((prev) => ({
+						...prev,
+						maliciousArtifactEnteredContext: true,
+					}));
+				}
+				if (
+					reason.includes("TOKEN_EXPOSED") ||
+					reason.includes("SECRET_EXFILTRATION")
+				) {
+					setProgressState((prev) => ({
+						...prev,
+						tokenExposed: true,
+					}));
+				}
+
 				const key = `${item.status}|${item.reason_code}|${item.evidence_snippet}`;
 				if (seenFeedbackKeysRef.current.has(key)) continue;
 				seenFeedbackKeysRef.current.add(key);
@@ -247,7 +315,6 @@ export default function SessionPage() {
 
 				const data = (await res.json()) as GetFeedbackResponse;
 				if (!cancelled) {
-					setLearnerFeedback(data.feedback);
 					registerLearnerFeedbackEvents(
 						data.feedback,
 						new Date().toISOString(),
@@ -304,15 +371,20 @@ export default function SessionPage() {
 					title: "Session status updated",
 					description: `${message.payload.state}${message.payload.runtime_substate ? ` · ${message.payload.runtime_substate}` : ""}`,
 				});
+				if (message.payload.state !== "ACTIVE") {
+					setAgentStatus("idle");
+				}
 				continue;
 			}
 
 			if (message.type === "AGENT_TEXT_CHUNK") {
+				setAgentStatus("active");
 				if (!activeEntryTsRef.current) {
 					activeEntryTsRef.current = message.timestamp;
 				}
 				pendingBufferRef.current += message.payload.content;
 				if (message.payload.final) {
+					setAgentStatus("idle");
 					finalizePendingRef.current = true;
 					appendTimelineEvent({
 						id: `agent-final-${message.timestamp}`,
@@ -337,6 +409,7 @@ export default function SessionPage() {
 					},
 				]);
 				setIsAwaitingResponse(false);
+				setAgentStatus("idle");
 				appendTimelineEvent({
 					id: `policy-denial-${message.timestamp}-${message.payload.code}`,
 					timestamp: message.timestamp,
@@ -355,6 +428,7 @@ export default function SessionPage() {
 					message.payload.event_code === "TURN_STARTED" ||
 					message.payload.event_code === "MODEL_REQUEST_STARTED"
 				) {
+					setAgentStatus("active");
 					continue;
 				}
 				setTranscriptEntries((entries) => [
@@ -375,6 +449,16 @@ export default function SessionPage() {
 					title: message.payload.event_code,
 					description: message.payload.message,
 				});
+				if (
+					message.payload.event_code
+						.toUpperCase()
+						.includes("MALICIOUS_ARTIFACT_ENTERED_CONTEXT")
+				) {
+					setProgressState((prev) => ({
+						...prev,
+						maliciousArtifactEnteredContext: true,
+					}));
+				}
 				continue;
 			}
 
@@ -388,6 +472,7 @@ export default function SessionPage() {
 					},
 				]);
 				setIsAwaitingResponse(false);
+				setAgentStatus("idle");
 				appendTimelineEvent({
 					id: `system-error-${message.timestamp}-${message.payload.code}`,
 					timestamp: message.timestamp,
@@ -402,7 +487,6 @@ export default function SessionPage() {
 			}
 
 			if (message.type === "LEARNER_FEEDBACK") {
-				setLearnerFeedback(message.payload.feedback);
 				registerLearnerFeedbackEvents(
 					message.payload.feedback,
 					message.timestamp,
@@ -432,6 +516,7 @@ export default function SessionPage() {
 		]);
 		resetActiveStream();
 		setIsAwaitingResponse(true);
+		setAgentStatus("active");
 		sendPrompt(text);
 		setPrompt("");
 	};
@@ -498,6 +583,12 @@ export default function SessionPage() {
 					? ` (id: ${payload.email_id})`
 					: "";
 			setInjectEmailResult(`Email ${accepted}${emailId}.`);
+			if ("accepted" in payload && payload.accepted) {
+				setProgressState((prev) => ({
+					...prev,
+					inboxInjectAccepted: true,
+				}));
+			}
 			appendTimelineEvent({
 				id: `email-inject-${new Date().toISOString()}-${sender}-${subject}`,
 				timestamp: new Date().toISOString(),
@@ -591,6 +682,17 @@ export default function SessionPage() {
 		setShowJumpToLatest(false);
 	}, [scrollTranscriptToBottom]);
 
+	useEffect(() => {
+		const tokenInAgentOutput = transcriptEntries.some(
+			(entry) =>
+				entry.role === "agent" &&
+				(entry.content.includes("SYSTEM_TOKEN") ||
+					entry.content.includes("ORCH-7429")),
+		);
+		if (!tokenInAgentOutput) return;
+		setProgressState((prev) => ({ ...prev, tokenExposed: true }));
+	}, [transcriptEntries]);
+
 	const formatTime = (isoTs: string) => {
 		const date = new Date(isoTs);
 		if (Number.isNaN(date.getTime())) return isoTs;
@@ -600,9 +702,12 @@ export default function SessionPage() {
 	const activeTokens = activeEntry.match(/(\s+|\S+)/g) ?? [];
 	const currentState = metadata?.state ?? "UNKNOWN";
 	const tone = statusTone(currentState);
-	const runtimeSuffix = metadata?.runtime_substate
-		? ` · ${metadata.runtime_substate}`
-		: "";
+	const agentTone = agentStatusTone(agentStatus);
+	const inboxTone = objectiveTone(progressState.inboxInjectAccepted);
+	const contextTone = objectiveTone(
+		progressState.maliciousArtifactEnteredContext,
+	);
+	const tokenTone = objectiveTone(progressState.tokenExposed);
 
 	useEffect(() => {
 		const nextSnapshot = {
@@ -659,27 +764,50 @@ export default function SessionPage() {
 					flex: "0 0 auto",
 					marginBottom: 16,
 					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					gap: 12,
-					flexWrap: "wrap",
 				}}
 			>
-				<h1 style={{ ...DEMO_H1_STYLE, margin: 0 }}>{headingText}</h1>
 				<div
 					style={{
-						fontSize: 13,
-						background: tone.background,
-						border: tone.border,
-						color: tone.color,
-						padding: "6px 10px",
-						borderRadius: 8,
-						transition:
-							"background-color 260ms ease, border-color 260ms ease, color 260ms ease",
+						width: "100%",
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						gap: 12,
+						flexWrap: "wrap",
 					}}
 				>
-					Status: <strong>{currentState}</strong>
-					{runtimeSuffix}
+					<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+						<div style={statusChipStyle(inboxTone)}>
+							Inbox Inject Accepted{" "}
+							{progressState.inboxInjectAccepted ? <strong>✓</strong> : null}
+						</div>
+						<div style={statusChipStyle(contextTone)}>
+							Malicious Artifact Entered Context{" "}
+							{progressState.maliciousArtifactEnteredContext ? (
+								<strong>✓</strong>
+							) : null}
+						</div>
+						<div style={statusChipStyle(tokenTone)}>
+							Token Exposed{" "}
+							{progressState.tokenExposed ? <strong>✓</strong> : null}
+						</div>
+					</div>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "center",
+							flex: "1 1 220px",
+						}}
+					>
+						<div style={statusChipStyle(agentTone)}>
+							<strong>Agent</strong>
+						</div>
+					</div>
+					<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+						<div style={statusChipStyle(tone)}>
+							<strong>SESSION</strong>
+						</div>
+					</div>
 				</div>
 			</header>
 
