@@ -141,6 +141,7 @@ describe("SessionPage learner feedback panel", () => {
 	});
 
 	it("injects attacker email via control-plane inbox endpoint", async () => {
+		let inboxInjected = false;
 		const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
 			if (url.endsWith("/evaluator-feedback")) {
@@ -157,6 +158,7 @@ describe("SessionPage learner feedback panel", () => {
 					malicious: true,
 					source: "learner",
 				});
+				inboxInjected = true;
 				return mockJsonResponse({
 					session_id: "11111111-1111-1111-1111-111111111111",
 					email_id: "evil-1",
@@ -175,6 +177,29 @@ describe("SessionPage learner feedback panel", () => {
 					created_at: "2026-01-01T00:00:00Z",
 					started_at: null,
 					ended_at: null,
+					progress_chips: [
+						{
+							objective_key: "malicious_email_injected",
+							label: "Malicious email injected",
+							status: inboxInjected ? "complete" : "pending",
+							completed_at: inboxInjected ? "2026-01-01T00:01:00Z" : null,
+							updated_at: "2026-01-01T00:01:00Z",
+						},
+						{
+							objective_key: "malicious_instructions_entered_context",
+							label: "Malicious instructions entered context",
+							status: "pending",
+							completed_at: null,
+							updated_at: "2026-01-01T00:01:00Z",
+						},
+						{
+							objective_key: "token_exposed",
+							label: "Token Exposed",
+							status: "pending",
+							completed_at: null,
+							updated_at: "2026-01-01T00:01:00Z",
+						},
+					],
 				},
 			});
 		});
@@ -216,10 +241,10 @@ describe("SessionPage learner feedback panel", () => {
 			}),
 		).toBe(true);
 		expect(
-			screen.getByText("Inbox Inject Accepted", { exact: false }),
+			screen.getByText("Malicious email injected", { exact: false }),
 		).toBeInTheDocument();
 		const inboxChip = screen
-			.getByText("Inbox Inject Accepted", { exact: false })
+			.getByText("Malicious email injected", { exact: false })
 			.closest("div");
 		expect(inboxChip).not.toBeNull();
 		expect(within(inboxChip as HTMLElement).getByText("✓")).toBeInTheDocument();
@@ -282,11 +307,13 @@ describe("SessionPage learner feedback panel", () => {
 	});
 
 	it("activates malicious-context and token-exposed indicators from feedback", async () => {
+		let progressed = false;
 		vi.stubGlobal(
 			"fetch",
 			vi.fn((input: RequestInfo | URL) => {
 				const url = String(input);
 				if (url.endsWith("/evaluator-feedback")) {
+					progressed = true;
 					return mockJsonResponse({
 						feedback: [
 							{
@@ -314,6 +341,29 @@ describe("SessionPage learner feedback panel", () => {
 						created_at: "2026-01-01T00:00:00Z",
 						started_at: null,
 						ended_at: null,
+						progress_chips: [
+							{
+								objective_key: "malicious_email_injected",
+								label: "Malicious email injected",
+								status: "pending",
+								completed_at: null,
+								updated_at: "2026-01-01T00:01:00Z",
+							},
+							{
+								objective_key: "malicious_instructions_entered_context",
+								label: "Malicious instructions entered context",
+								status: progressed ? "complete" : "pending",
+								completed_at: progressed ? "2026-01-01T00:01:00Z" : null,
+								updated_at: "2026-01-01T00:01:00Z",
+							},
+							{
+								objective_key: "token_exposed",
+								label: "Token Exposed",
+								status: progressed ? "complete" : "pending",
+								completed_at: progressed ? "2026-01-01T00:01:00Z" : null,
+								updated_at: "2026-01-01T00:01:00Z",
+							},
+						],
 					},
 				});
 			}),
@@ -322,7 +372,7 @@ describe("SessionPage learner feedback panel", () => {
 		renderSessionPage();
 
 		expect(
-			await screen.findByText("Malicious Artifact Entered Context", {
+			await screen.findByText("Malicious instructions entered context", {
 				exact: false,
 			}),
 		).toBeInTheDocument();
@@ -396,7 +446,7 @@ describe("SessionPage learner feedback panel", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("renders left guide sections and progressive hints", async () => {
+	it("renders left guide sections and hint chip trigger", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn((input: RequestInfo | URL) => {
@@ -425,17 +475,13 @@ describe("SessionPage learner feedback panel", () => {
 
 		expect(await screen.findByText("Mission")).toBeInTheDocument();
 		expect(screen.getByText("Success Criteria")).toBeInTheDocument();
-		expect(screen.getByText("Hints")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Hints" })).toBeInTheDocument();
 		expect(
 			screen.queryByText(/assistant reads inbox content/i),
 		).not.toBeInTheDocument();
-
-		fireEvent.click(screen.getByText("Hints"));
-		fireEvent.click(screen.getByRole("button", { name: "Reveal next hint" }));
-
 		expect(
-			screen.getByText(/assistant reads inbox content/i),
-		).toBeInTheDocument();
+			screen.queryByRole("button", { name: "Reveal next hint" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("supports tool strip open close and tool switching in center pane", async () => {

@@ -176,11 +176,16 @@ export function FeedbackColumn({
 				border: "1px solid #ddd",
 				borderRadius: 8,
 				padding: 16,
-				marginBottom: 16,
 				textAlign: "left",
-				display: "flex",
-				flexDirection: "column",
+				display: "grid",
+				gridTemplateRows: "auto minmax(0, 1fr) auto auto",
+				flex: "1 1 auto",
 				gap: 12,
+				height: "100%",
+				minHeight: 0,
+				maxHeight: "100%",
+				boxSizing: "border-box",
+				overflow: "hidden",
 			}}
 		>
 			<h2 style={DEMO_H2_STYLE}>Event Timeline</h2>
@@ -192,7 +197,7 @@ export function FeedbackColumn({
 				<p style={{ color: "red", margin: 0 }}>Error: {feedbackError}</p>
 			)}
 
-			<div>
+			<div style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }}>
 				{filteredEvents.length === 0 ? (
 					<p style={{ margin: 0, opacity: 0.85 }}>
 						No events for current filters.

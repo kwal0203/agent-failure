@@ -111,9 +111,17 @@ def create_session(
             if existing:
                 return existing
 
+            lab_version_id = uow.lab_repo.get_active_version_id(lab_id=lab_id)
+            if lab_version_id is None:
+                raise LabNotAvailableError(
+                    lab_id=lab_id,
+                    details={"lab_id": str(lab_id), "reason": "NO_ACTIVE_LAB_VERSION"},
+                )
+
             # Add new session now that session has been confirmed to be 'not existing'
             session = uow.sessions.create_provision_session(
                 lab_id=lab_id,
+                lab_version_id=lab_version_id,
                 lab_difficulty=normalized_difficulty,
                 actor_id=principal.user_id,
                 actor_role=principal.role,

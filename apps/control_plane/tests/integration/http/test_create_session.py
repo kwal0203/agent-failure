@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
     IdempotencyRecordModel,
+    LabModel,
+    LabVersionModel,
     OutboxEventModel,
     SessionModel,
 )
@@ -34,10 +36,35 @@ def _override_create_session_uow() -> SQLAlchemyCreateSessionUnitOfWork:
     return SQLAlchemyCreateSessionUnitOfWork(session_factory=SessionFactory)
 
 
+def _seed_lab_with_active_version(*, lab_id: UUID) -> UUID:
+    lab_version_id = uuid4()
+    with SessionFactory() as db:
+        db.add(
+            LabModel(
+                id=lab_id,
+                slug=f"lab-{str(lab_id)[:8]}",
+                name="Test Lab",
+                summary="test",
+                is_active=True,
+            )
+        )
+        db.add(
+            LabVersionModel(
+                id=lab_version_id,
+                lab_id=lab_id,
+                version="v1",
+                is_active=True,
+            )
+        )
+        db.commit()
+    return lab_version_id
+
+
 @pytest.mark.usefixtures("engine")
 def test_create_session_returns_202() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-1"
 
     app.dependency_overrides[get_current_principal] = _override_principal(
@@ -102,6 +129,7 @@ def test_create_session_returns_202() -> None:
 def test_create_session_accepts_explicit_lab_difficulty_easy() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-easy"
 
     app.dependency_overrides[get_current_principal] = _override_principal(
@@ -137,6 +165,7 @@ def test_create_session_accepts_explicit_lab_difficulty_easy() -> None:
 def test_create_session_rejects_invalid_lab_difficulty() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-invalid-difficulty"
 
     app.dependency_overrides[get_current_principal] = _override_principal(
@@ -163,6 +192,7 @@ def test_create_session_rejects_invalid_lab_difficulty() -> None:
 def test_create_session_replay_same_key_returns_existing_session() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-2"
 
     app.dependency_overrides[get_current_principal] = _override_principal(
@@ -214,6 +244,7 @@ def test_create_session_replay_same_key_returns_existing_session() -> None:
 def test_create_session_invalid_idempotency_key_returns_typed_error() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
 
     app.dependency_overrides[get_current_principal] = _override_principal(
         user_id=principal_id, role="learner"
@@ -241,6 +272,7 @@ def test_create_session_lab_unavailable_returns_typed_error(
 ) -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-3"
 
     def _always_unavailable(self: SQLAlchemyLabRepository, lab_id: UUID) -> bool:
@@ -274,6 +306,7 @@ def test_create_session_lab_unavailable_returns_typed_error(
 def test_create_session_forbidden_returns_typed_error() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
+    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-4"
 
     app.dependency_overrides[get_current_principal] = _override_principal(

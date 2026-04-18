@@ -18,7 +18,12 @@ class AdmissionPolicy(Protocol):
 
 class CreateSessionRepository(Protocol):
     def create_provision_session(
-        self, lab_id: UUID, lab_difficulty: str, actor_id: UUID, actor_role: str
+        self,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        lab_difficulty: str,
+        actor_id: UUID,
+        actor_role: str,
     ) -> CreateSessionResult: ...
 
 

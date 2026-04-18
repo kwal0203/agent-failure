@@ -154,3 +154,17 @@ class LearnerExplanation:
     actor_user_id: UUID
     idempotency_key: str
     created_at: datetime
+
+
+@dataclass(frozen=True)
+class ObjectiveCompletedEvent:
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    objective_key: str
+    reason_code: str
+    trigger_event_index: int
+    occurred_at: datetime
+    idempotency_key: str
+    source: str = "evaluator"
+    evaluator_version: int | None = None

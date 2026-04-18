@@ -4,6 +4,10 @@ from uuid import UUID
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.application.trace.ports import TraceEventPort
+from apps.control_plane.src.application.session_objectives.ports import (
+    LabObjectiveTemplateReaderPort,
+    SessionObjectiveWriterPort,
+)
 
 from .types import (
     ProvisionResult,
@@ -107,6 +111,12 @@ class ProcessPendingOnceUnitOfWork(Protocol):
 
     @property
     def runtime_binding(self) -> SessionRuntimeBindingPort: ...
+
+    @property
+    def objective_templates(self) -> LabObjectiveTemplateReaderPort: ...
+
+    @property
+    def session_objectives(self) -> SessionObjectiveWriterPort: ...
 
     def transaction(self) -> ContextManager[None]: ...
 

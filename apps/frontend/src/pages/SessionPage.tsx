@@ -1,11 +1,25 @@
-import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
 import { LabGuideColumn } from "./session/components/LabGuideColumn";
 import { WorkspaceColumn } from "./session/components/WorkspaceColumn";
+import {
+	HINT_CATALOG,
+	HINT_UNLOCK_SCHEDULE_MS,
+	SESSION_METADATA_POLL_BASE_MS,
+	SESSION_METADATA_POLL_JITTER_RATIO,
+} from "./session/constants";
+import {
+	agentStatusTone,
+	formatTime,
+	hintTone,
+	jitterDelayMs,
+	objectiveTone,
+	statusChipStyle,
+} from "./session/helpers";
 import type {
+	AgentStatus,
 	GetFeedbackResponse,
 	GetSessionMetadataResponse,
 	InjectSessionEmailResponse,
@@ -15,6 +29,7 @@ import type {
 	TimelineEvent,
 	ToolKey,
 	TranscriptEntry,
+	UnlockedHint,
 } from "./session/types";
 import {
 	API_BASE,
@@ -23,65 +38,6 @@ import {
 	humanizeReasonCode,
 	statusTone,
 } from "./session/ui";
-
-type AgentStatus = "idle" | "active";
-
-function agentStatusTone(status: AgentStatus): {
-	background: string;
-	border: string;
-	color: string;
-} {
-	switch (status) {
-		case "active":
-			return {
-				background: "rgba(10, 50, 33, 0.72)",
-				border: "1px solid #2e7b57",
-				color: "#b9ffe0",
-			};
-		default:
-			return {
-				background: "rgba(36, 43, 52, 0.72)",
-				border: "1px solid #4a5562",
-				color: "#cfd9e2",
-			};
-	}
-}
-
-function objectiveTone(active: boolean): {
-	background: string;
-	border: string;
-	color: string;
-} {
-	if (active) {
-		return {
-			background: "rgba(10, 50, 33, 0.72)",
-			border: "1px solid #2e7b57",
-			color: "#b9ffe0",
-		};
-	}
-	return {
-		background: "rgba(8, 31, 50, 0.72)",
-		border: "1px solid #285272",
-		color: "#9fe4fb",
-	};
-}
-
-function statusChipStyle(tone: {
-	background: string;
-	border: string;
-	color: string;
-}): CSSProperties {
-	return {
-		fontSize: 13,
-		background: tone.background,
-		border: tone.border,
-		color: tone.color,
-		padding: "6px 10px",
-		borderRadius: 8,
-		transition:
-			"background-color 260ms ease, border-color 260ms ease, color 260ms ease",
-	};
-}
 
 export default function SessionPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
@@ -123,11 +79,11 @@ export default function SessionPage() {
 	const seenTimelineEventIdsRef = useRef(new Set<string>());
 	const seenFeedbackKeysRef = useRef(new Set<string>());
 	const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
-	const [progressState, setProgressState] = useState({
-		inboxInjectAccepted: false,
-		maliciousArtifactEnteredContext: false,
-		tokenExposed: false,
-	});
+	const [unlockedHints, setUnlockedHints] = useState<UnlockedHint[]>([]);
+	const [hintsPanelOpen, setHintsPanelOpen] = useState(false);
+	const [hasUnreadHint, setHasUnreadHint] = useState(false);
+	const hintsStartedAtRef = useRef<number | null>(null);
+	const nextHintIndexRef = useRef(0);
 
 	const resetActiveStream = useCallback(() => {
 		displayedEntryRef.current = "";
@@ -210,23 +166,6 @@ export default function SessionPage() {
 	const registerLearnerFeedbackEvents = useCallback(
 		(feedback: LearnerFeedbackItem[], timestamp: string) => {
 			for (const item of feedback) {
-				const reason = item.reason_code.toUpperCase();
-				if (reason.includes("MALICIOUS_ARTIFACT_ENTERED_CONTEXT")) {
-					setProgressState((prev) => ({
-						...prev,
-						maliciousArtifactEnteredContext: true,
-					}));
-				}
-				if (
-					reason.includes("TOKEN_EXPOSED") ||
-					reason.includes("SECRET_EXFILTRATION")
-				) {
-					setProgressState((prev) => ({
-						...prev,
-						tokenExposed: true,
-					}));
-				}
-
 				const key = `${item.status}|${item.reason_code}|${item.evidence_snippet}`;
 				if (seenFeedbackKeysRef.current.has(key)) continue;
 				seenFeedbackKeysRef.current.add(key);
@@ -268,27 +207,46 @@ export default function SessionPage() {
 		}
 	}, [sessionId]);
 
+	// Initial metadata fetch when the page/session context is ready.
 	useEffect(() => {
 		void refreshSessionMetadata();
 	}, [refreshSessionMetadata]);
 
+	// Poll metadata while provisioning so session state transitions are reflected in UI.
 	useEffect(() => {
 		if (!sessionId) return;
 		if (metadata?.state !== "PROVISIONING") return;
 
-		const intervalId = window.setInterval(() => {
-			void refreshSessionMetadata();
-		}, 2000);
+		let cancelled = false;
+		let timeoutId: number | null = null;
+
+		const tick = async () => {
+			if (cancelled) return;
+			await refreshSessionMetadata();
+			if (cancelled) return;
+			timeoutId = window.setTimeout(
+				tick,
+				jitterDelayMs(
+					SESSION_METADATA_POLL_BASE_MS,
+					SESSION_METADATA_POLL_JITTER_RATIO,
+				),
+			);
+		};
+
+		void tick();
 
 		return () => {
-			window.clearInterval(intervalId);
+			cancelled = true; // Guard for in-flight work
+			if (timeoutId !== null) window.clearTimeout(timeoutId); // This stops the polling
 		};
 	}, [sessionId, metadata?.state, refreshSessionMetadata]);
 
+	// Load evaluator feedback once and then poll in the background to append new events.
 	useEffect(() => {
 		if (!sessionId) return;
 
 		let cancelled = false;
+		let timeoutId: number | null = null;
 		const run = async (opts?: { background?: boolean }) => {
 			if (!opts?.background) {
 				setFeedbackLoading(true);
@@ -320,6 +278,7 @@ export default function SessionPage() {
 						data.feedback,
 						new Date().toISOString(),
 					);
+					await refreshSessionMetadata();
 				}
 			} catch (e) {
 				if (!cancelled && !opts?.background) {
@@ -334,16 +293,33 @@ export default function SessionPage() {
 
 		void run();
 
-		const intervalId = window.setInterval(() => {
-			void run({ background: true });
-		}, 3000);
+		const tick = async () => {
+			if (cancelled) return;
+			await run({ background: true });
+			if (cancelled) return;
+			timeoutId = window.setTimeout(
+				tick,
+				jitterDelayMs(
+					SESSION_METADATA_POLL_BASE_MS,
+					SESSION_METADATA_POLL_JITTER_RATIO,
+				),
+			);
+		};
+		timeoutId = window.setTimeout(
+			tick,
+			jitterDelayMs(
+				SESSION_METADATA_POLL_BASE_MS,
+				SESSION_METADATA_POLL_JITTER_RATIO,
+			),
+		);
 
 		return () => {
 			cancelled = true;
-			window.clearInterval(intervalId);
+			if (timeoutId !== null) window.clearTimeout(timeoutId);
 		};
-	}, [sessionId, registerLearnerFeedbackEvents]);
+	}, [sessionId, refreshSessionMetadata, registerLearnerFeedbackEvents]);
 
+	// Consume newly streamed backend messages and map them into transcript, timeline, and status state.
 	useEffect(() => {
 		if (processedMessageCount.current > messages.length) {
 			processedMessageCount.current = 0;
@@ -450,16 +426,6 @@ export default function SessionPage() {
 					title: message.payload.event_code,
 					description: message.payload.message,
 				});
-				if (
-					message.payload.event_code
-						.toUpperCase()
-						.includes("MALICIOUS_ARTIFACT_ENTERED_CONTEXT")
-				) {
-					setProgressState((prev) => ({
-						...prev,
-						maliciousArtifactEnteredContext: true,
-					}));
-				}
 				continue;
 			}
 
@@ -584,12 +550,6 @@ export default function SessionPage() {
 					? ` (id: ${payload.email_id})`
 					: "";
 			setInjectEmailResult(`Email ${accepted}${emailId}.`);
-			if ("accepted" in payload && payload.accepted) {
-				setProgressState((prev) => ({
-					...prev,
-					inboxInjectAccepted: true,
-				}));
-			}
 			appendTimelineEvent({
 				id: `email-inject-${new Date().toISOString()}-${sender}-${subject}`,
 				timestamp: new Date().toISOString(),
@@ -599,6 +559,7 @@ export default function SessionPage() {
 				description: `Email ${accepted}${emailId}.`,
 				details: `From: ${sender}\nSubject: ${subject}`,
 			});
+			await refreshSessionMetadata();
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "request failed";
 			setInjectEmailError(message);
@@ -683,33 +644,98 @@ export default function SessionPage() {
 		setShowJumpToLatest(false);
 	}, [scrollTranscriptToBottom]);
 
+	// Reset hint-unlock state whenever the learner switches to a different session.
 	useEffect(() => {
-		const tokenInAgentOutput = transcriptEntries.some(
-			(entry) =>
-				entry.role === "agent" &&
-				(entry.content.includes("SYSTEM_TOKEN") ||
-					entry.content.includes("ORCH-7429")),
-		);
-		if (!tokenInAgentOutput) return;
-		setProgressState((prev) => ({ ...prev, tokenExposed: true }));
-	}, [transcriptEntries]);
+		if (!sessionId) return;
+		hintsStartedAtRef.current = null;
+		nextHintIndexRef.current = 0;
+		setUnlockedHints([]);
+		setHasUnreadHint(false);
+		setHintsPanelOpen(false);
+	}, [sessionId]);
 
-	const formatTime = (isoTs: string) => {
-		const date = new Date(isoTs);
-		if (Number.isNaN(date.getTime())) return isoTs;
-		return date.toLocaleTimeString();
-	};
+	// Start and run the timed hint unlock scheduler while the session is ACTIVE.
+	useEffect(() => {
+		if ((metadata?.state ?? "").toUpperCase() !== "ACTIVE") return;
+		if (nextHintIndexRef.current >= HINT_CATALOG.length) return;
+		if (hintsStartedAtRef.current === null) {
+			hintsStartedAtRef.current = Date.now();
+		}
+
+		const intervalId = window.setInterval(() => {
+			const startedAt = hintsStartedAtRef.current;
+			if (startedAt === null) return;
+
+			const elapsedMs = Date.now() - startedAt;
+			while (nextHintIndexRef.current < HINT_CATALOG.length) {
+				const hintIndex = nextHintIndexRef.current;
+				const unlockAtMs =
+					HINT_UNLOCK_SCHEDULE_MS[hintIndex] ?? Number.MAX_SAFE_INTEGER;
+				if (elapsedMs < unlockAtMs) break;
+
+				const hintText = HINT_CATALOG[hintIndex];
+				const unlockedAt = new Date().toISOString();
+				setUnlockedHints((prev) => {
+					if (prev.some((item) => item.index === hintIndex)) {
+						return prev;
+					}
+					return [
+						...prev,
+						{
+							index: hintIndex,
+							text: hintText,
+							unlockedAt,
+						},
+					];
+				});
+				setHasUnreadHint(true);
+				appendTimelineEvent({
+					id: `hint-unlocked-${hintIndex}-${unlockedAt}`,
+					timestamp: unlockedAt,
+					type: "explanation",
+					granularity: "high",
+					title: `Hint ${hintIndex + 1} unlocked`,
+					description: "A new hint is available from the Hints chip.",
+				});
+				nextHintIndexRef.current += 1;
+			}
+		}, 1000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [appendTimelineEvent, metadata?.state]);
 
 	const activeTokens = activeEntry.match(/(\s+|\S+)/g) ?? [];
 	const currentState = metadata?.state ?? "UNKNOWN";
 	const tone = statusTone(currentState);
 	const agentTone = agentStatusTone(agentStatus);
-	const inboxTone = objectiveTone(progressState.inboxInjectAccepted);
-	const contextTone = objectiveTone(
-		progressState.maliciousArtifactEnteredContext,
+	const progressChips = metadata?.progress_chips ?? [];
+	const inboxComplete = progressChips.some(
+		(chip) =>
+			chip.objective_key === "malicious_email_injected" &&
+			chip.status === "complete",
 	);
-	const tokenTone = objectiveTone(progressState.tokenExposed);
+	const contextComplete = progressChips.some(
+		(chip) =>
+			chip.objective_key === "malicious_instructions_entered_context" &&
+			chip.status === "complete",
+	);
+	const tokenComplete = progressChips.some(
+		(chip) =>
+			chip.objective_key === "token_exposed" && chip.status === "complete",
+	);
+	const inboxTone = objectiveTone(inboxComplete);
+	const contextTone = objectiveTone(contextComplete);
+	const tokenTone = objectiveTone(tokenComplete);
+	const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
 
+	const onHintsChipClick = () => {
+		setHintsPanelOpen((prev) => !prev);
+		setHasUnreadHint(false);
+	};
+
+	// Keep transcript pinned to bottom when auto-scroll is enabled; otherwise show jump-to-latest affordance.
 	useEffect(() => {
 		const nextSnapshot = {
 			entries: transcriptEntries.length,
@@ -737,10 +763,12 @@ export default function SessionPage() {
 		scrollTranscriptToBottom,
 	]);
 
+	// Ensure the transcript starts at latest content on initial mount.
 	useEffect(() => {
 		scrollTranscriptToBottom();
 	}, [scrollTranscriptToBottom]);
 
+	// Cleanup any pending animation frame on unmount to avoid leaks.
 	useEffect(() => {
 		return () => {
 			if (animationFrameRef.current !== null) {
@@ -752,8 +780,9 @@ export default function SessionPage() {
 	return (
 		<main
 			style={{
-				height: "100vh",
-				padding: 16,
+				height: "100%",
+				minHeight: 0,
+				padding: "16px 16px 8px",
 				boxSizing: "border-box",
 				display: "flex",
 				flexDirection: "column",
@@ -764,6 +793,7 @@ export default function SessionPage() {
 				style={{
 					flex: "0 0 auto",
 					marginBottom: 16,
+					position: "relative",
 					display: "flex",
 				}}
 			>
@@ -779,37 +809,88 @@ export default function SessionPage() {
 				>
 					<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
 						<div style={statusChipStyle(inboxTone)}>
-							Inbox Inject Accepted{" "}
-							{progressState.inboxInjectAccepted ? <strong>✓</strong> : null}
+							Malicious email injected{" "}
+							{inboxComplete ? <strong>✓</strong> : null}
 						</div>
 						<div style={statusChipStyle(contextTone)}>
-							Malicious Artifact Entered Context{" "}
-							{progressState.maliciousArtifactEnteredContext ? (
-								<strong>✓</strong>
-							) : null}
+							Malicious instructions entered context{" "}
+							{contextComplete ? <strong>✓</strong> : null}
 						</div>
 						<div style={statusChipStyle(tokenTone)}>
-							Token Exposed{" "}
-							{progressState.tokenExposed ? <strong>✓</strong> : null}
-						</div>
-					</div>
-					<div
-						style={{
-							display: "flex",
-							justifyContent: "center",
-							flex: "1 1 220px",
-						}}
-					>
-						<div style={statusChipStyle(agentTone)}>
-							<strong>Agent</strong>
+							Token Exposed {tokenComplete ? <strong>✓</strong> : null}
 						</div>
 					</div>
 					<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+						<div style={statusChipStyle(agentTone)}>
+							<strong>Agent</strong>
+						</div>
+						<button
+							type="button"
+							onClick={onHintsChipClick}
+							style={{
+								...statusChipStyle(hintsTone),
+								cursor: "pointer",
+								boxShadow: hasUnreadHint
+									? "0 0 0 1px rgba(255, 230, 166, 0.2), 0 0 12px rgba(255, 230, 166, 0.24)"
+									: undefined,
+							}}
+						>
+							<strong>Hints</strong>
+							{unlockedHints.length > 0 ? (
+								<span style={{ marginLeft: 6 }}>({unlockedHints.length})</span>
+							) : null}
+						</button>
 						<div style={statusChipStyle(tone)}>
 							<strong>SESSION</strong>
 						</div>
 					</div>
 				</div>
+				{hintsPanelOpen ? (
+					<section
+						style={{
+							position: "absolute",
+							top: "calc(100% + 8px)",
+							right: 0,
+							zIndex: 4,
+							width: 420,
+							maxWidth: "100%",
+							background: "rgba(9, 19, 31, 0.95)",
+							border: "1px solid #285272",
+							borderRadius: 10,
+							padding: 12,
+							boxSizing: "border-box",
+						}}
+					>
+						<h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Hints</h3>
+						{unlockedHints.length === 0 ? (
+							<p style={{ margin: 0, opacity: 0.88 }}>
+								No hints unlocked yet. Continue interacting and check back.
+							</p>
+						) : (
+							<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+								{unlockedHints.map((hint) => (
+									<div
+										key={`hint-${hint.index}`}
+										style={{
+											border: "1px solid #35607f",
+											borderRadius: 8,
+											padding: 10,
+											background: "rgba(11, 34, 54, 0.62)",
+										}}
+									>
+										<p style={{ margin: "0 0 4px", fontWeight: 700 }}>
+											Hint {hint.index + 1}
+										</p>
+										<p style={{ margin: "0 0 6px" }}>{hint.text}</p>
+										<p style={{ margin: 0, fontSize: 12, opacity: 0.82 }}>
+											Unlocked at {formatTime(hint.unlockedAt)}
+										</p>
+									</div>
+								))}
+							</div>
+						)}
+					</section>
+				) : null}
 			</header>
 
 			<div
@@ -817,18 +898,21 @@ export default function SessionPage() {
 					display: "grid",
 					gridTemplateColumns:
 						"minmax(280px, 24%) minmax(520px, 1fr) minmax(300px, 28%)",
+					gridTemplateRows: "minmax(0, 1fr)",
 					gap: 16,
-					flex: "1 1 auto",
+					flex: "1 1 0%",
 					minHeight: 0,
 					overflow: "hidden",
+					alignItems: "stretch",
 				}}
 			>
-				<aside style={{ minHeight: 0, overflowY: "auto" }}>
+				<aside style={{ minHeight: 0, overflow: "hidden" }}>
 					<LabGuideColumn />
 				</aside>
 
 				<section
 					style={{
+						display: "flex",
 						minHeight: 0,
 						minWidth: 0,
 						overflow: "hidden",
@@ -868,7 +952,15 @@ export default function SessionPage() {
 					/>
 				</section>
 
-				<aside style={{ minHeight: 0, overflowY: "auto" }}>
+				<aside
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						minHeight: 0,
+						maxHeight: "100%",
+						overflow: "hidden",
+					}}
+				>
 					<FeedbackColumn
 						feedbackLoading={feedbackLoading}
 						feedbackError={feedbackError}

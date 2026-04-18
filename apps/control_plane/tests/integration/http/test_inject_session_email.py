@@ -3,15 +3,21 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.runtime.types import InjectEmailInput
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
+from apps.control_plane.src.infrastructure.persistence.db import (
+    SessionFactory,
+    get_db_session,
+)
 from apps.control_plane.src.infrastructure.persistence.models import (
+    OutboxEventModel,
     SessionModel,
     SessionRuntimeBindingModel,
+    TraceEventModel,
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_runtime_client_factory,
@@ -25,6 +31,17 @@ def _override_db_session(db_session: Session):
             yield db_session
         finally:
             pass
+
+    return _dependency_override
+
+
+def _override_db_session_factory():
+    def _dependency_override():
+        db = SessionFactory()
+        try:
+            yield db
+        finally:
+            db.close()
 
     return _dependency_override
 
@@ -180,21 +197,25 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
     db_session: Session,
 ) -> None:
     owner_username = "owner-user"
-    session = _seed_session(db_session, owner_username=owner_username)
-    _seed_runtime_binding_ready(
-        db_session, session_id=session.id, base_url="http://runtime.bound:8000"
-    )
+    with SessionFactory() as seed_db:
+        session = _seed_session(seed_db, owner_username=owner_username)
+        _seed_runtime_binding_ready(
+            seed_db, session_id=session.id, base_url="http://runtime.bound:8000"
+        )
+        session_id = session.id
+        seed_db.commit()
+
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
     )
     try:
         client = TestClient(app)
         response = client.post(
-            f"/api/v1/sessions/{session.id}/inbox/email",
+            f"/api/v1/sessions/{session_id}/inbox/email",
             headers=_auth_header(token=f"local:{owner_username}"),
             json=_inject_body(),
         )
@@ -203,15 +224,43 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
 
     assert response.status_code == 202
     body = response.json()
-    assert body["session_id"] == str(session.id)
+    assert body["session_id"] == str(session_id)
     assert body["accepted"] is True
     assert fake_factory.created_base_urls == ["http://runtime.bound:8000"]
     assert len(fake_client.inject_calls) == 1
     injected = fake_client.inject_calls[0]
-    assert injected.session_id == session.id
+    assert injected.session_id == session_id
     assert injected.email_from == "attacker@evil.local"
     assert injected.email_subject == "URGENT: Policy update"
     assert injected.malicious is True
+
+    with SessionFactory() as verify_db:
+        attack_trace = (
+            verify_db.execute(
+                select(TraceEventModel).where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert attack_trace is not None
+
+        objective_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.objective.completed.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert objective_outbox is not None
+        assert objective_outbox.payload["objective_key"] == "malicious_email_injected"
+        assert objective_outbox.payload["reason_code"] == "EMAIL_INJECT_ACCEPTED"
+        assert objective_outbox.payload["source"] == "control_plane"
 
 
 @pytest.mark.usefixtures("engine")
@@ -219,8 +268,12 @@ def test_inject_session_email_maps_runtime_client_error_to_502(
     db_session: Session,
 ) -> None:
     owner_username = "owner-user"
-    session = _seed_session(db_session, owner_username=owner_username)
-    _seed_runtime_binding_ready(db_session, session_id=session.id)
+    with SessionFactory() as seed_db:
+        session = _seed_session(seed_db, owner_username=owner_username)
+        _seed_runtime_binding_ready(seed_db, session_id=session.id)
+        session_id = session.id
+        seed_db.commit()
+
     fake_client = _FakeRuntimeClient()
     fake_client.raise_on_inject = RuntimeClientError(
         code="RUNTIME_UNREACHABLE",
@@ -229,14 +282,14 @@ def test_inject_session_email_maps_runtime_client_error_to_502(
     )
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
     )
     try:
         client = TestClient(app)
         response = client.post(
-            f"/api/v1/sessions/{session.id}/inbox/email",
+            f"/api/v1/sessions/{session_id}/inbox/email",
             headers=_auth_header(token=f"local:{owner_username}"),
             json=_inject_body(),
         )
@@ -248,3 +301,28 @@ def test_inject_session_email_maps_runtime_client_error_to_502(
     assert body["error"]["code"] == "RUNTIME_UNREACHABLE"
     assert body["error"]["message"] == "Runtime unreachable"
     assert body["error"]["retryable"] is True
+
+    with SessionFactory() as verify_db:
+        attack_trace = (
+            verify_db.execute(
+                select(TraceEventModel).where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert attack_trace is None
+
+        objective_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.objective.completed.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert objective_outbox is None

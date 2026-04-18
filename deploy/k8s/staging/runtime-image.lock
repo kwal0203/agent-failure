@@ -3,6 +3,14 @@ kind: RuntimeImageLock
 metadata:
   environment: staging
 images:
+  - lab_slug: prompt-injection
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:5931b470a3cef2b09bdad9a4630c15132efbd051a000dcedb62bf3c39bf95f66"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:5931b470a3cef2b09bdad9a4630c15132efbd051a000dcedb62bf3c39bf95f66"
+    build_git_sha: "b1aea34"
+    built_at_utc: "2026-04-18T04:05:19Z"
+    status: "active"
   - lab_slug: baseline
     lab_version: "0.1.0"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
@@ -10,7 +18,7 @@ images:
     image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:532fc18b8990ddd08c44c2b6c5948941e96eba84084b2227c6b701789362d38b"
     build_git_sha: "f069515"
     built_at_utc: "2026-04-11T01:29:41Z"
-    status: "active"
+    status: "revoked"
   - lab_slug: baseline
     lab_version: "0.1.0"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"

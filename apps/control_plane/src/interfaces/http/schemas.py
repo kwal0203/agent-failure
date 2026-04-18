@@ -10,6 +10,14 @@ EvaluatorFeedbackStatusType = Literal[
 TraceFamilyType = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
 
+class SessionProgressChipResponse(BaseModel):
+    objective_key: str
+    label: str
+    status: Literal["pending", "complete"]
+    completed_at: datetime | None
+    updated_at: datetime
+
+
 class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
@@ -25,6 +33,7 @@ class SessionMetadataResponse(BaseModel):
     ended_at: datetime | None
     provisioning_stalled: bool = False
     provisioning_stall_reason_code: str | None
+    progress_chips: list[SessionProgressChipResponse] = []
 
 
 class GetSessionMetadataResponse(BaseModel):

@@ -5,6 +5,7 @@ from sqlalchemy import (
     Integer,
     Text,
     DateTime,
+    Boolean,
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
@@ -16,6 +17,61 @@ from datetime import datetime
 
 class Base(DeclarativeBase):
     pass
+
+
+class LabModel(Base):
+    __tablename__ = "labs"
+    __table_args__ = (
+        UniqueConstraint("slug", name="uq_labs_slug"),
+        CheckConstraint("slug <> ''", name="ck_labs_slug_not_empty"),
+        CheckConstraint("name <> ''", name="ck_labs_name_not_empty"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    slug: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class LabVersionModel(Base):
+    __tablename__ = "lab_versions"
+    __table_args__ = (
+        UniqueConstraint("lab_id", "version", name="uq_lab_versions_lab_id_version"),
+        CheckConstraint("version <> ''", name="ck_lab_versions_version_not_empty"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    lab_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("labs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
 
 class SessionModel(Base):
@@ -357,3 +413,69 @@ class LearnerExplanationModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class SessionObjectiveModel(Base):
+    __tablename__ = "session_objectives"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "objective_key", name="uq_session_objective_key"
+        ),
+        CheckConstraint(
+            "status in ('pending', 'complete')", name="ck_session_objectives_status"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    objective_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class LabObjectivesModel(Base):
+    __tablename__ = "lab_objectives"
+    __table_args__ = (
+        UniqueConstraint(
+            "lab_version_id", "objective_key", name="uq_lab_objectives_objective_key"
+        ),
+        UniqueConstraint(
+            "lab_version_id", "sort_order", name="uq_lab_objectives_sort_order"
+        ),
+        CheckConstraint(
+            "objective_key <> ''", name="ck_lab_objectives_objective_key_not_empty"
+        ),
+        CheckConstraint("label <> ''", name="ck_lab_objectives_label_not_empty"),
+        CheckConstraint(
+            "sort_order >= 0", name="ck_lab_objectives_sort_order_nonnegative"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    lab_version_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    objective_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

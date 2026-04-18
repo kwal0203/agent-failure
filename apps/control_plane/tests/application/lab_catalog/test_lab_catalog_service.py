@@ -25,10 +25,14 @@ class StubLabRepository:
         return True
 
     def get_runtime_binding(
-        self, lab_id: UUID, lab_version_id: UUID | None
+        self, lab_id: UUID, lab_version_id: UUID
     ) -> LabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+
+    def get_active_version_id(self, lab_id: UUID) -> UUID | None:
+        _ = lab_id
+        return None
 
 
 def test_get_labs_for_principal_returns_mapped_catalog() -> None:

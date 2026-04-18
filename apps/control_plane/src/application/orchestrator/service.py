@@ -1,4 +1,7 @@
 from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+from apps.control_plane.src.application.session_objectives.service import (
+    initialize_session_objectives,
+)
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
 )
@@ -248,6 +251,13 @@ def process_pending_once(
                                 metadata={"outbox_event_id": str(outbox_event_id)},
                                 idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
                                 uow=uow.lifecycle_uow,
+                            )
+
+                            initialize_session_objectives(
+                                session_id=session_id,
+                                lab_version_id=lab_version_id,
+                                template_reader=uow.objective_templates,
+                                objective_writer=uow.session_objectives,
                             )
 
                             if not base_url or not base_url.strip():

@@ -15,7 +15,14 @@ from apps.control_plane.src.application.session_lifecycle.schemas import (
 
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
+)
+from apps.control_plane.src.application.session_query.types import (
     SessionMetadataRow,
+    SessionObjectiveRow,
+    SessionMetadataBundleRow,
+)
+from apps.control_plane.src.application.session_query.helpers import (
+    parse_progress_status,
 )
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
@@ -55,7 +62,12 @@ from datetime import datetime, timezone
 from typing import Mapping, cast
 from uuid import UUID, uuid4
 
-from .models import SessionModel, SessionTransitionEventModel, TraceEventModel
+from .models import (
+    SessionModel,
+    SessionTransitionEventModel,
+    TraceEventModel,
+    SessionObjectiveModel,
+)
 from .errors import StateMismatch
 
 
@@ -141,29 +153,46 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def get_session_metadata(self, session_id: UUID) -> SessionMetadataRow | None:
-        stmt = select(SessionModel).where(SessionModel.id == session_id)
-        result = self._db.execute(statement=stmt).scalar_one_or_none()
-        if result is None:
+    def get_session_metadata(self, session_id: UUID) -> SessionMetadataBundleRow | None:
+        session_stmt = select(SessionModel).where(SessionModel.id == session_id)
+        session_model = self._db.execute(statement=session_stmt).scalar_one_or_none()
+        if session_model is None:
             return None
 
-        # TODO(P2-EA-T4): This currently reads denormalized reason from
-        # sessions.last_transition_reason for fast metadata responses.
-        # Long-term, query/project latest reason + metadata from
-        # session_transition_events as the source of truth.
-        return SessionMetadataRow(
-            id=result.id,
-            lab_id=result.lab_id,
-            lab_version_id=result.lab_version_id,
-            lab_difficulty=result.lab_difficulty,
-            owner_user_id=result.owner_user_id,
-            state=result.state,
-            runtime_substate=result.runtime_substate,
-            resume_mode=result.resume_mode,
-            last_transition_reason=result.last_transition_reason,
-            created_at=result.created_at,
-            started_at=result.started_at,
-            ended_at=result.ended_at,
+        objectives_stmt = (
+            select(SessionObjectiveModel)
+            .where(SessionObjectiveModel.session_id == session_id)
+            .order_by(SessionObjectiveModel.sort_order.asc())
+        )
+        objective_models = self._db.execute(statement=objectives_stmt).scalars().all()
+
+        session_metadata = SessionMetadataRow(
+            id=session_model.id,
+            lab_id=session_model.lab_id,
+            lab_version_id=session_model.lab_version_id,
+            lab_difficulty=session_model.lab_difficulty,
+            owner_user_id=session_model.owner_user_id,
+            state=session_model.state,
+            runtime_substate=session_model.runtime_substate,
+            resume_mode=session_model.resume_mode,
+            last_transition_reason=session_model.last_transition_reason,
+            created_at=session_model.created_at,
+            started_at=session_model.started_at,
+            ended_at=session_model.ended_at,
+        )
+        progress_chips = [
+            SessionObjectiveRow(
+                objective_key=obj.objective_key,
+                label=obj.label,
+                status=parse_progress_status(obj.status),
+                completed_at=obj.completed_at,
+                updated_at=obj.updated_at,
+            )
+            for obj in objective_models
+        ]
+
+        return SessionMetadataBundleRow(
+            metadata=session_metadata, objectives=progress_chips
         )
 
 
@@ -172,13 +201,16 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
         self._db = db
 
     def create_provision_session(
-        self, lab_id: UUID, lab_difficulty: str, actor_id: UUID, actor_role: str
+        self,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        lab_difficulty: str,
+        actor_id: UUID,
+        actor_role: str,
     ) -> CreateSessionResult:
         session = SessionModel(
             lab_id=lab_id,
-            # TODO(E4 follow-up): replace placeholder lab_version_id assignment
-            # with real lab-version binding at launch time.
-            lab_version_id=uuid4(),
+            lab_version_id=lab_version_id,
             owner_user_id=actor_id,
             state=SessionState.PROVISIONING.value,
             last_transition_actor=actor_role,

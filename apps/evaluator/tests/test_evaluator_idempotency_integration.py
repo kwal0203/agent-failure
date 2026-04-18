@@ -24,6 +24,7 @@ from apps.evaluator.src.application.types import (
     EvaluatorTaskInput,
     ExplanationSignal,
     LearnerExplanation,
+    PendingEvaluatorEvent,
 )
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
@@ -49,6 +50,36 @@ class _StubClassifier:
     ) -> tuple[ExplanationSignal, ...]:
         _ = (explanations, lab_difficulty)
         return ()
+
+
+class _StubOutboxRepo:
+    def claim_pending_evaluate(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingEvaluatorEvent]:
+        _ = (limit, now)
+        return []
+
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None:
+        _ = (outbox_event_id, processed_at)
+
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None:
+        _ = (outbox_event_id, error_message, failed_at)
+
+    def enqueue_learner_feedback_publish_request(
+        self, *, session_id: UUID, requested_at: datetime | None = None
+    ) -> None:
+        _ = (session_id, requested_at)
+
+    def enqueue_objective_completed_event(self, *, event: object) -> None:
+        _ = event
 
 
 def _get_test_database_url() -> str:
@@ -157,6 +188,7 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
             task=task,
             repo=repo,
             lab_lookup_repo=_StubLabLookupRepo(),
+            outbox_repo=_StubOutboxRepo(),
             classifier=classifier,
         )
         db.commit()
@@ -164,6 +196,7 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
             task=task,
             repo=repo,
             lab_lookup_repo=_StubLabLookupRepo(),
+            outbox_repo=_StubOutboxRepo(),
             classifier=classifier,
         )
         db.commit()

@@ -4,11 +4,14 @@ from apps.control_plane.src.application.orchestrator.ports import (
     ProcessPendingOnceUnitOfWork,
     OutboxProvisioningSessionPort,
     SessionRuntimeBindingPort,
-    RuntimeInspectorPort,
 )
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
 from apps.control_plane.src.application.trace.ports import TraceEventPort
+from apps.control_plane.src.application.session_objectives.ports import (
+    LabObjectiveTemplateReaderPort,
+    SessionObjectiveWriterPort,
+)
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
@@ -21,6 +24,10 @@ from .session_repository import (
     SQLAlchemySessionRuntimeBindingRepository,
     SQLAlchemyTraceEventRepository,
 )
+from .session_objectives_repository import (
+    SQLAlchemyLabObjectiveTemplateRepository,
+    SQLAlchemySessionObjectiveWriterRepository,
+)
 
 
 class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
@@ -31,7 +38,8 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._lifecycle_uow: UnitOfWork | None = None
         self._trace: TraceEventPort | None = None
         self._runtime_binding: SessionRuntimeBindingPort | None = None
-        self._runtime_inspector: RuntimeInspectorPort | None = None
+        self._objective_templates: LabObjectiveTemplateReaderPort | None = None
+        self._session_objectives: SessionObjectiveWriterPort | None = None
 
     @property
     def outbox(self) -> OutboxProvisioningSessionPort:
@@ -63,6 +71,18 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             raise RuntimeError("No active runtime binding")
         return self._runtime_binding
 
+    @property
+    def session_objectives(self) -> SessionObjectiveWriterPort:
+        if self._session_objectives is None:
+            raise RuntimeError("No active session objectives")
+        return self._session_objectives
+
+    @property
+    def objective_templates(self) -> LabObjectiveTemplateReaderPort:
+        if self._objective_templates is None:
+            raise RuntimeError("No active objective templates")
+        return self._objective_templates
+
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
@@ -77,6 +97,12 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         )
         self._trace = SQLAlchemyTraceEventRepository(db=db_session)
         self._runtime_binding = SQLAlchemySessionRuntimeBindingRepository(db=db_session)
+        self._session_objectives = SQLAlchemySessionObjectiveWriterRepository(
+            db=db_session
+        )
+        self._objective_templates = SQLAlchemyLabObjectiveTemplateRepository(
+            db=db_session
+        )
 
         try:
             yield
@@ -91,4 +117,5 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             self._lifecycle_uow = None
             self._trace = None
             self._runtime_binding = None
-            self._runtime_inspector = None
+            self._session_objectives = None
+            self._objective_templates = None

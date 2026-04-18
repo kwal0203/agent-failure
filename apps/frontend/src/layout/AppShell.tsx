@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { ShellBootstrap } from "../shell/context";
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -21,14 +21,24 @@ const bootstrap: ShellBootstrap = {
 export default function AppShell() {
 	const isDebug = bootstrap.mode === "debug";
 	const navigate = useNavigate();
+	const location = useLocation();
+	const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
 
 	return (
 		<div
 			style={
 				isDebug
-					? { minHeight: "100vh", background: "#f5f7fb", color: "#10131a" }
+					? {
+							minHeight: "100vh",
+							display: "flex",
+							flexDirection: "column",
+							background: "#f5f7fb",
+							color: "#10131a",
+						}
 					: {
 							minHeight: "100vh",
+							display: "flex",
+							flexDirection: "column",
 							color: "#d7f5ff",
 							background:
 								"radial-gradient(1200px 680px at 8% -2%, rgba(0, 230, 255, 0.18), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(28, 160, 255, 0.22), transparent 52%), linear-gradient(180deg, #040b14 0%, #071321 52%, #081726 100%)",
@@ -51,9 +61,9 @@ export default function AppShell() {
 			>
 				<div
 					style={{
-						maxWidth: 1240,
-						margin: "0 auto",
-						padding: "14px 24px",
+						maxWidth: isSessionRoute ? undefined : 1240,
+						margin: isSessionRoute ? 0 : "0 auto",
+						padding: isSessionRoute ? "14px 16px" : "14px 24px",
 						display: "flex",
 						justifyContent: "space-between",
 						alignItems: "center",
@@ -121,9 +131,9 @@ export default function AppShell() {
 				{bootstrap.mode === "debug" && (
 					<nav
 						style={{
-							maxWidth: 1120,
-							margin: "0 auto",
-							padding: "0 20px 10px",
+							maxWidth: isSessionRoute ? undefined : 1120,
+							margin: isSessionRoute ? 0 : "0 auto",
+							padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
 							display: "flex",
 							gap: 16,
 						}}
@@ -142,9 +152,12 @@ export default function AppShell() {
 			</header>
 			<main
 				style={{
-					maxWidth: 1240,
-					margin: "0 auto",
-					padding: isDebug ? "20px" : "28px 24px 34px",
+					maxWidth: isSessionRoute ? undefined : 1240,
+					margin: isSessionRoute ? 0 : "0 auto",
+					padding: isSessionRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
+					flex: "1 1 auto",
+					minHeight: 0,
+					width: "100%",
 				}}
 			>
 				<Outlet context={bootstrap} />

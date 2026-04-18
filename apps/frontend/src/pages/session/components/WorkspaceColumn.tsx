@@ -105,6 +105,7 @@ export function WorkspaceColumn({
 			style={{
 				display: "flex",
 				flexDirection: "column",
+				flex: "1 1 auto",
 				height: "100%",
 				minHeight: 0,
 				overflow: "hidden",
@@ -205,6 +206,7 @@ export function WorkspaceColumn({
 					padding: 16,
 					marginBottom: 16,
 					flex: "1 1 auto",
+					height: 0,
 					minHeight: 0,
 					overflowY: "auto",
 					textAlign: "left",
@@ -214,7 +216,7 @@ export function WorkspaceColumn({
 				{transcriptEntries.length === 0 && !activeEntry && (
 					<p style={{ margin: 0 }}>(streamed agent text will appear here)</p>
 				)}
-				{transcriptEntries.map((entry, index) => (
+				{transcriptEntries.map((entry) => (
 					<div
 						key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
 					>
@@ -225,7 +227,6 @@ export function WorkspaceColumn({
 						<div className="transcript-markdown" style={{ margin: 0 }}>
 							<ReactMarkdown>{entry.content}</ReactMarkdown>
 						</div>
-						{index < transcriptEntries.length - 1 && <hr />}
 					</div>
 				))}
 				{isAwaitingResponse && !activeEntry && (
@@ -295,7 +296,7 @@ export function WorkspaceColumn({
           to { opacity: 1; transform: translateX(0); }
         }
         .transcript-markdown p {
-          margin: 0 0 0.9em 0;
+          margin: 0 0 0.5em 0;
         }
         .transcript-markdown p:last-child {
           margin-bottom: 0;
