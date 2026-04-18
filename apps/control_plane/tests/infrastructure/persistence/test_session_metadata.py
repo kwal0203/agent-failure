@@ -38,12 +38,12 @@ def test_get_session_metadata_returns_row(db_session: Session) -> None:
     result = repo.get_session_metadata(session_id=row.id)
 
     assert result is not None
-    assert result.id == row.id
-    assert result.lab_id == row.lab_id
-    assert result.lab_version_id == row.lab_version_id
-    assert result.state == SessionState.ACTIVE.value
-    assert result.runtime_substate == "WAITING_FOR_INPUT"
-    assert result.resume_mode == "hot_resume"
+    assert result.metadata.id == row.id
+    assert result.metadata.lab_id == row.lab_id
+    assert result.metadata.lab_version_id == row.lab_version_id
+    assert result.metadata.state == SessionState.ACTIVE.value
+    assert result.metadata.runtime_substate == "WAITING_FOR_INPUT"
+    assert result.metadata.resume_mode == "hot_resume"
 
 
 def test_get_session_metadata_returns_none_for_missing(db_session: Session) -> None:

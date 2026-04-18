@@ -1,3 +1,11 @@
+export type SessionProgressChip = {
+	objective_key: string;
+	label: string;
+	status: "pending" | "complete";
+	completed_at: string | null;
+	updated_at: string;
+};
+
 export type SessionMetadata = {
 	id: string;
 	lab_id: string | null;
@@ -9,6 +17,7 @@ export type SessionMetadata = {
 	created_at: string;
 	started_at: string | null;
 	ended_at: string | null;
+	progress_chips: SessionProgressChip[];
 };
 
 export type GetSessionMetadataResponse = {
@@ -46,6 +55,14 @@ export type InjectSessionEmailResponse = {
 };
 
 export type ToolKey = "email" | "files" | "payloads" | "notes" | "recon";
+
+export type AgentStatus = "idle" | "active";
+
+export type UnlockedHint = {
+	index: number;
+	text: string;
+	unlockedAt: string;
+};
 
 export type EventType =
 	| "important"

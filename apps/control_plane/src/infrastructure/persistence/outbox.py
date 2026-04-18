@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Mapping
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.session_lifecycle.ports import Outbox
@@ -111,4 +112,53 @@ class SQLAlchemyOutbox(Outbox):
             payload=payload,
         )
 
+        self._db.add(event)
+
+    def enqueue_session_objective_completed(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        objective_key: str,
+        reason_code: str,
+        trigger_event_index: int,
+        idempotency_key: str,
+        source: str = "control_plane",
+        evaluator_version: int | None = None,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        existing = (
+            self._db.execute(
+                select(OutboxEventModel.id).where(
+                    OutboxEventModel.event_type == "session.objective.completed.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                    OutboxEventModel.payload["idempotency_key"].astext
+                    == idempotency_key,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return
+
+        payload: dict[str, object] = {
+            "session_id": str(session_id),
+            "lab_id": str(lab_id),
+            "lab_version_id": str(lab_version_id),
+            "objective_key": objective_key,
+            "reason_code": reason_code,
+            "trigger_event_index": trigger_event_index,
+            "occurred_at": (occurred_at or datetime.now(timezone.utc)).isoformat(),
+            "idempotency_key": idempotency_key,
+            "source": source,
+            "evaluator_version": evaluator_version,
+        }
+
+        event = OutboxEventModel(
+            event_type="session.objective.completed.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
         self._db.add(event)

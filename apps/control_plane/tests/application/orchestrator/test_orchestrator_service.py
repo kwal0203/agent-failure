@@ -128,6 +128,10 @@ class _FakeLabRepository:
         _ = (lab_id, lab_version_id)
         return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
 
+    def get_active_version_id(self, lab_id: UUID) -> UUID | None:
+        _ = lab_id
+        return None
+
 
 class _FakeResolver:
     def resolve(self, lab_slug: str, lab_version: str) -> str:
@@ -212,6 +216,8 @@ class _FakeProcessPendingOnceUoW:
         self._lifecycle_uow: SessionLifecycleUnitOfWork = _FakeLifecycleUoW()  # type: ignore[assignment]
         self._trace = _FakeTraceRepo()
         self._runtime_binding = _FakeRuntimeBindingRepo()
+        self._objective_templates = _FakeObjectiveTemplateRepo()
+        self._session_objectives = _FakeSessionObjectiveWriter()
 
     @property
     def outbox(self) -> _FakeOutbox:
@@ -233,6 +239,14 @@ class _FakeProcessPendingOnceUoW:
     def runtime_binding(self) -> "_FakeRuntimeBindingRepo":
         return self._runtime_binding
 
+    @property
+    def objective_templates(self) -> "_FakeObjectiveTemplateRepo":
+        return self._objective_templates
+
+    @property
+    def session_objectives(self) -> "_FakeSessionObjectiveWriter":
+        return self._session_objectives
+
     @contextmanager
     def transaction(self):
         yield
@@ -244,6 +258,34 @@ class _FakeRuntimeBindingRepo:
 
     def upsert_runtime_binding(self, *, input: Any) -> None:
         self.upsert_calls.append(input)
+
+
+class _FakeObjectiveTemplateRepo:
+    def list_objective_templates(
+        self, lab_version_id: UUID
+    ) -> list[tuple[str, str, int]]:
+        _ = lab_version_id
+        return []
+
+
+class _FakeSessionObjectiveWriter:
+    def upsert_objective(
+        self,
+        session_id: UUID,
+        objective_key: str,
+        label: str,
+        sort_order: int,
+    ) -> None:
+        _ = (session_id, objective_key, label, sort_order)
+
+    def mark_complete(
+        self,
+        *,
+        session_id: UUID,
+        objective_key: str,
+        completed_at: datetime | None = None,
+    ) -> None:
+        _ = (session_id, objective_key, completed_at)
 
 
 class _FakeCleanupOutbox:

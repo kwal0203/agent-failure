@@ -174,6 +174,7 @@ class _FakeOutboxRepo:
         self.processed: list[UUID] = []
         self.failed: list[tuple[UUID, str]] = []
         self.enqueued_feedback_requests: list[tuple[UUID, datetime | None]] = []
+        self.objective_events_enqueued = 0
 
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
@@ -201,6 +202,10 @@ class _FakeOutboxRepo:
         self, *, session_id: UUID, requested_at: datetime | None = None
     ) -> None:
         self.enqueued_feedback_requests.append((session_id, requested_at))
+
+    def enqueue_objective_completed_event(self, *, event: object) -> None:
+        _ = event
+        self.objective_events_enqueued += 1
 
 
 def _make_persisted_result(

@@ -9,6 +9,7 @@ from apps.control_plane.src.application.session_query.errors import (
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_query.types import (
+    SessionMetadataBundleRow,
     SessionMetadataRow,
 )
 from apps.control_plane.src.application.session_query.service import (
@@ -17,20 +18,20 @@ from apps.control_plane.src.application.session_query.service import (
 
 
 class FakeSessionMetadataRepository:
-    def __init__(self, row: SessionMetadataRow | None) -> None:
+    def __init__(self, row: SessionMetadataBundleRow | None) -> None:
         self._row = row
 
-    def get_session_metadata(self, session_id: UUID) -> SessionMetadataRow | None:
+    def get_session_metadata(self, session_id: UUID) -> SessionMetadataBundleRow | None:
         return self._row
 
 
-def _sample_row() -> SessionMetadataRow:
-    return SessionMetadataRow(
+def _sample_row(state: str = "ACTIVE") -> SessionMetadataBundleRow:
+    metadata = SessionMetadataRow(
         id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
         owner_user_id=uuid4(),
-        state="ACTIVE",
+        state=state,
         runtime_substate="WAITING_FOR_INPUT",
         resume_mode="hot_resume",
         last_transition_reason=None,
@@ -38,6 +39,7 @@ def _sample_row() -> SessionMetadataRow:
         started_at=None,
         ended_at=None,
     )
+    return SessionMetadataBundleRow(metadata=metadata, objectives=[])
 
 
 def test_get_session_metadata_owner_is_allowed() -> None:
@@ -45,13 +47,16 @@ def test_get_session_metadata_owner_is_allowed() -> None:
     repo = FakeSessionMetadataRepository(row=row)
 
     result = get_session_metadata(
-        session_id=row.id,
-        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
+        session_id=row.metadata.id,
+        principal=PrincipalContext(
+            user_id=row.metadata.owner_user_id,
+            role="learner",
+        ),
         repo=repo,
     )
 
     assert result is not None
-    assert result.id == row.id
+    assert result.id == row.metadata.id
 
 
 def test_get_session_metadata_admin_non_owner_is_allowed() -> None:
@@ -59,37 +64,36 @@ def test_get_session_metadata_admin_non_owner_is_allowed() -> None:
     repo = FakeSessionMetadataRepository(row=row)
 
     result = get_session_metadata(
-        session_id=row.id,
+        session_id=row.metadata.id,
         principal=PrincipalContext(user_id=uuid4(), role="admin"),
         repo=repo,
     )
 
     assert result is not None
-    assert result.id == row.id
+    assert result.id == row.metadata.id
 
 
 def test_get_session_metadata_non_owner_non_admin_is_forbidden() -> None:
     row = _sample_row()
     repo = FakeSessionMetadataRepository(row=row)
     requester_user_id = uuid4()
-    assert requester_user_id != row.owner_user_id
+    assert requester_user_id != row.metadata.owner_user_id
 
     with pytest.raises(ForbiddenErrorSessionQuery):
         get_session_metadata(
-            session_id=row.id,
+            session_id=row.metadata.id,
             principal=PrincipalContext(user_id=requester_user_id, role="learner"),
             repo=repo,
         )
 
 
 def test_get_session_metadata_derives_interactive_true_for_active() -> None:
-    row = _sample_row()
-    row.state = SessionState.ACTIVE.value
+    row = _sample_row(state=SessionState.ACTIVE.value)
     repo = FakeSessionMetadataRepository(row=row)
 
     result = get_session_metadata(
-        session_id=row.id,
-        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
+        session_id=row.metadata.id,
+        principal=PrincipalContext(user_id=row.metadata.owner_user_id, role="learner"),
         repo=repo,
     )
 
@@ -98,13 +102,12 @@ def test_get_session_metadata_derives_interactive_true_for_active() -> None:
 
 
 def test_get_session_metadata_derives_interactive_false_for_terminal() -> None:
-    row = _sample_row()
-    row.state = SessionState.COMPLETED.value
+    row = _sample_row(state=SessionState.COMPLETED.value)
     repo = FakeSessionMetadataRepository(row=row)
 
     result = get_session_metadata(
-        session_id=row.id,
-        principal=PrincipalContext(user_id=row.owner_user_id, role="learner"),
+        session_id=row.metadata.id,
+        principal=PrincipalContext(user_id=row.metadata.owner_user_id, role="learner"),
         repo=repo,
     )
 

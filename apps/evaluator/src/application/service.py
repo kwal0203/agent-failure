@@ -14,7 +14,9 @@ from .types import (
     ResultType,
     EvaluatorOnceResult,
     EvaluatorTraceEvent,
+    ObjectiveCompletedEvent,
 )
+from .idempotency import build_objective_event_idempotency_key
 from apps.evaluator.src.application.rules.registry import resolve_bundle
 
 from uuid import UUID
@@ -23,6 +25,25 @@ from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _map_finding_to_objective_key(finding: EvaluatorFinding) -> str | None:
+    reason = finding.reason_code.upper()
+    if "MALICIOUS_ARTIFACT_ENTERED_CONTEXT" in reason:
+        return "malicious_instructions_entered_context"
+    if "TOKEN_EXPOSED" in reason or "SECRET_EXFILTRATION" in reason:
+        return "token_exposed"
+    return None
+
+
+def _extract_trigger_event_index(finding: EvaluatorFinding) -> int | None:
+    if finding.trigger_event_index is not None:
+        return finding.trigger_event_index
+    if finding.trigger_end_event_index is not None:
+        return finding.trigger_end_event_index
+    if finding.trigger_start_event_index is not None:
+        return finding.trigger_start_event_index
+    return None
 
 
 def _validate_event_scope(event: EvaluatorTraceEvent, task: EvaluatorTaskInput) -> None:
@@ -57,6 +78,7 @@ def evaluate_trace_window_once(
     task: EvaluatorTaskInput,
     repo: EvaluatorPort,
     lab_lookup_repo: EvaluatorLabLookupPort,
+    outbox_repo: EvaluatorOutboxPort,
     classifier: ExplanationClassifierPort,
 ) -> EvaluatorRunResult:
     inserted_count = 0
@@ -95,6 +117,25 @@ def evaluate_trace_window_once(
             evaluator_version=task.evaluator_version,
             finding=finding,
         )
+        objective_key = _map_finding_to_objective_key(finding)
+        trigger_event_index = _extract_trigger_event_index(finding)
+        if objective_key is not None and trigger_event_index is not None:
+            objective_event = ObjectiveCompletedEvent(
+                session_id=task.session_id,
+                lab_id=task.lab_id,
+                lab_version_id=task.lab_version_id,
+                objective_key=objective_key,
+                reason_code=finding.reason_code,
+                trigger_event_index=trigger_event_index,
+                occurred_at=datetime.now(timezone.utc),
+                idempotency_key=build_objective_event_idempotency_key(
+                    session_id=task.session_id,
+                    objective_key=objective_key,
+                    trigger_event_index=trigger_event_index,
+                ),
+                evaluator_version=task.evaluator_version,
+            )
+            outbox_repo.enqueue_objective_completed_event(event=objective_event)
 
         if inserted:
             inserted_count += 1
@@ -172,6 +213,7 @@ def process_evaluate_pending_once(
                 task=task,
                 repo=repo,
                 lab_lookup_repo=lab_lookup_repo,
+                outbox_repo=outbox_repo,
                 classifier=classifier,
             )
 

@@ -6,7 +6,7 @@ from uuid import UUID
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 
 from .errors import ForbiddenErrorSessionQuery
-from .types import SessionMetadataDTO
+from .types import SessionMetadataDTO, SessionObjectiveDTO
 
 
 def derive_interactive(state: str) -> bool:
@@ -22,23 +22,38 @@ def get_session_metadata(
     row = repo.get_session_metadata(session_id=session_id)
     if row is None:
         return None
-    is_owner = row.owner_user_id == principal.user_id
+
+    metadata = row.metadata
+    objectives: list[SessionObjectiveDTO] = []
+    for objective in row.objectives:
+        objectives.append(
+            SessionObjectiveDTO(
+                objective_key=objective.objective_key,
+                label=objective.label,
+                status=objective.status,
+                completed_at=objective.completed_at,
+                updated_at=objective.updated_at,
+            )
+        )
+
+    is_owner = metadata.owner_user_id == principal.user_id
     is_admin = principal.role == "admin"
     if not (is_owner or is_admin):
         raise ForbiddenErrorSessionQuery(role=principal.role)
 
     return SessionMetadataDTO(
-        id=row.id,
-        lab_id=row.lab_id,
-        lab_version_id=row.lab_version_id,
-        lab_difficulty=row.lab_difficulty,
-        owner_user_id=row.owner_user_id,
-        state=row.state,
-        runtime_substate=row.runtime_substate,
-        resume_mode=row.resume_mode,
-        last_transition_reason=row.last_transition_reason,
-        interactive=derive_interactive(state=row.state),
-        created_at=row.created_at,
-        started_at=row.started_at,
-        ended_at=row.ended_at,
+        id=metadata.id,
+        lab_id=metadata.lab_id,
+        lab_version_id=metadata.lab_version_id,
+        owner_user_id=metadata.owner_user_id,
+        state=metadata.state,
+        runtime_substate=metadata.runtime_substate,
+        resume_mode=metadata.resume_mode,
+        last_transition_reason=metadata.last_transition_reason,
+        interactive=derive_interactive(metadata.state),
+        created_at=metadata.created_at,
+        started_at=metadata.started_at,
+        ended_at=metadata.ended_at,
+        lab_difficulty=metadata.lab_difficulty,
+        progress_chips=objectives,
     )

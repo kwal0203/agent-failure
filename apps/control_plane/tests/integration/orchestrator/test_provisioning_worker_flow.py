@@ -17,6 +17,8 @@ from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
+    LabModel,
+    LabVersionModel,
     OutboxEventModel,
     SessionModel,
     SessionTransitionEventModel,
@@ -77,6 +79,25 @@ class _InspectorReady:
 def _launch_session() -> UUID:
     principal = PrincipalContext(user_id=uuid4(), role="learner")
     lab_id = uuid4()
+    with SessionFactory() as db:
+        db.add(
+            LabModel(
+                id=lab_id,
+                slug=f"lab-{str(lab_id)[:8]}",
+                name="Test Lab",
+                summary="test",
+                is_active=True,
+            )
+        )
+        db.add(
+            LabVersionModel(
+                id=uuid4(),
+                lab_id=lab_id,
+                version="v1",
+                is_active=True,
+            )
+        )
+        db.commit()
     key = f"idem-{uuid4()}"
     create_uow = SQLAlchemyCreateSessionUnitOfWork(session_factory=SessionFactory)
     admission = StubAdmissionPolicy()

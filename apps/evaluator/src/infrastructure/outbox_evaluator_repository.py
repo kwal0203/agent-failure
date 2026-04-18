@@ -2,6 +2,7 @@ from apps.evaluator.src.application.ports import EvaluatorOutboxPort
 from apps.evaluator.src.application.types import (
     PendingEvaluatorEvent,
     EvaluatorTaskInput,
+    ObjectiveCompletedEvent,
 )
 from apps.control_plane.src.infrastructure.persistence.models import OutboxEventModel
 from apps.evaluator.src.application.schemas import EvaluatorRequestedPayload
@@ -117,3 +118,39 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         )
 
         self._db.add(event)
+
+    def enqueue_objective_completed_event(
+        self, *, event: ObjectiveCompletedEvent
+    ) -> None:
+        existing = self._db.execute(
+            select(OutboxEventModel.id)
+            .where(
+                OutboxEventModel.event_type == "session.objective.completed.v1",
+                OutboxEventModel.aggregate_id == event.session_id,
+                OutboxEventModel.payload["idempotency_key"].astext
+                == event.idempotency_key,
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        if existing is not None:
+            return
+
+        payload: dict[str, object] = {
+            "session_id": str(event.session_id),
+            "lab_id": str(event.lab_id),
+            "lab_version_id": str(event.lab_version_id),
+            "objective_key": event.objective_key,
+            "reason_code": event.reason_code,
+            "trigger_event_index": event.trigger_event_index,
+            "occurred_at": event.occurred_at.isoformat(),
+            "idempotency_key": event.idempotency_key,
+            "source": event.source,
+            "evaluator_version": event.evaluator_version,
+        }
+
+        outbox_event = OutboxEventModel(
+            event_type="session.objective.completed.v1",
+            aggregate_id=event.session_id,
+            payload=payload,
+        )
+        self._db.add(outbox_event)

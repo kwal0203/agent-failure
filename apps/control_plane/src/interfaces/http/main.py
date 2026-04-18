@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+import hashlib
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from .schemas import (
@@ -23,6 +25,7 @@ from .schemas import (
     InjectSessionEmailResponse,
     LearnerExplanationRequest,
     LearnerExplanationResponse,
+    SessionProgressChipResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -65,6 +68,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyTraceEventRepository,
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionRuntimeBindingRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.models import (
+    SessionObjectiveModel,
 )
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
@@ -258,6 +264,18 @@ def get_metadata(
             except Exception:
                 logger.warning("heartbeat read failed in get_metadata", exc_info=True)
 
+        progress_chips: list[SessionProgressChipResponse] = []
+        for item in session_metadata.progress_chips:
+            progress_chips.append(
+                SessionProgressChipResponse(
+                    objective_key=item.objective_key,
+                    label=item.label,
+                    status=item.status,
+                    completed_at=item.completed_at,
+                    updated_at=item.updated_at,
+                )
+            )
+
         http_obj = SessionMetadataResponse(
             id=session_metadata.id,
             lab_id=session_metadata.lab_id,
@@ -277,6 +295,7 @@ def get_metadata(
             provisioning_stall_reason_code="SESSION_PROVISIONING_STALLED"
             if stalled
             else None,
+            progress_chips=progress_chips,
         )
         return GetSessionMetadataResponse(session=http_obj)
 
@@ -1474,6 +1493,53 @@ async def inject_session_email(
         )
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
+        if (
+            session_metadata.lab_id is not None
+            and session_metadata.lab_version_id is not None
+        ):
+            objective = (
+                db.execute(
+                    select(SessionObjectiveModel).where(
+                        SessionObjectiveModel.session_id == session_id,
+                        SessionObjectiveModel.objective_key
+                        == "malicious_email_injected",
+                    )
+                )
+                .scalars()
+                .one_or_none()
+            )
+            if objective is None or objective.status != "complete":
+                fingerprint = hashlib.sha256(
+                    "|".join(
+                        [
+                            str(session_id),
+                            email_input.email_from.strip().lower(),
+                            email_input.email_subject.strip(),
+                            email_input.email_body.strip(),
+                            str(bool(email_input.malicious)),
+                            (email_input.source or "learner").strip().lower(),
+                            (email_input.email_id or "").strip(),
+                        ]
+                    ).encode("utf-8")
+                ).hexdigest()
+                objective_idempotency_key = (
+                    f"objective:{session_id}:malicious_email_injected:{fingerprint}"
+                )
+
+                outbox_repo.enqueue_session_objective_completed(
+                    session_id=session_id,
+                    lab_id=session_metadata.lab_id,
+                    lab_version_id=session_metadata.lab_version_id,
+                    objective_key="malicious_email_injected",
+                    reason_code="EMAIL_INJECT_ACCEPTED",
+                    trigger_event_index=trace_event.event_index,
+                    idempotency_key=objective_idempotency_key,
+                    source="control_plane",
+                    evaluator_version=None,
+                    occurred_at=trace_event.occurred_at,
+                )
+
+        db.commit()
         return InjectSessionEmailResponse(session_id=session_id)
 
     except ForbiddenErrorSessionQuery as exc:
@@ -1482,11 +1548,22 @@ async def inject_session_email(
         )
 
     except RuntimeClientError as exc:
+        db.rollback()
         return build_api_error_response(
             code=exc.code,
             message=exc.message,
             retryable=exc.retryable,
             status_code=502,
+            details={"session_id": str(session_id)},
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("inject session email failed")
+        return build_api_error_response(
+            code="INTERNAL_ERROR",
+            message="Unexpected server error",
+            retryable=False,
+            status_code=500,
             details={"session_id": str(session_id)},
         )
 

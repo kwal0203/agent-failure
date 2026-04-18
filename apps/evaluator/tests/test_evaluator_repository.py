@@ -13,6 +13,7 @@ from apps.evaluator.src.application.types import (
     EvaluatorTraceEvent,
     ExplanationSignal,
     LearnerExplanation,
+    PendingEvaluatorEvent,
 )
 from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
@@ -84,6 +85,36 @@ class _StubClassifier:
         return ()
 
 
+class _StubOutboxRepo:
+    def claim_pending_evaluate(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingEvaluatorEvent]:
+        _ = (limit, now)
+        return []
+
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None:
+        _ = (outbox_event_id, processed_at)
+
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None:
+        _ = (outbox_event_id, error_message, failed_at)
+
+    def enqueue_learner_feedback_publish_request(
+        self, *, session_id: UUID, requested_at: datetime | None = None
+    ) -> None:
+        _ = (session_id, requested_at)
+
+    def enqueue_objective_completed_event(self, *, event: object) -> None:
+        _ = event
+
+
 def _make_task_input() -> EvaluatorTaskInput:
     return EvaluatorTaskInput(
         session_id=uuid4(),
@@ -150,6 +181,7 @@ def test_evaluate_trace_window_no_op_when_no_rules_match() -> None:
         task=task,
         repo=repo,
         lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=_StubOutboxRepo(),
         classifier=classifier,
     )
 
@@ -197,6 +229,7 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
         task=task,
         repo=repo,
         lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=_StubOutboxRepo(),
         classifier=classifier,
     )
 
@@ -227,5 +260,6 @@ def test_evaluate_trace_window_rejects_invalid_window() -> None:
             task=bad_task,
             repo=repo,
             lab_lookup_repo=_StubLabLookupRepo(),
+            outbox_repo=_StubOutboxRepo(),
             classifier=classifier,
         )

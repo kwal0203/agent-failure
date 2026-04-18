@@ -1,2 +1,2 @@
-default_lab_slug: baseline
-default_lab_version: "0.1.0"
+default_lab_slug: prompt-injection
+default_lab_version: "v1"

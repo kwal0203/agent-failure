@@ -1,8 +1,13 @@
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.evaluator.src.application.ports import EvaluatorLabLookupPort
 from apps.evaluator.src.application.types import EvaluatorLabRuntimeBinding
+from apps.control_plane.src.infrastructure.persistence.models import (
+    LabModel,
+    LabVersionModel,
+)
 
 
 class SQLAlchemyEvaluatorLabLookupRepository(EvaluatorLabLookupPort):
@@ -10,31 +15,32 @@ class SQLAlchemyEvaluatorLabLookupRepository(EvaluatorLabLookupPort):
         self._db = db
 
     def get_runtime_binding(
-        self, lab_id: UUID, lab_version_id: UUID | None
+        self, lab_id: UUID, lab_version_id: UUID
     ) -> EvaluatorLabRuntimeBinding:
-        # TODO(P1-E7 follow-up): This static lab_id -> (slug, version) mapping is a
-        # temporary hack until lab/lab_version metadata is durably persisted and
-        # queryable from DB. Replace with a real SELECT-backed lookup keyed by
-        # (lab_id, lab_version_id), and remove hardcoded UUID constants.
-        _ = lab_version_id  # until version table exists
+        row = (
+            self._db.execute(
+                select(
+                    LabModel.slug.label("lab_slug"),
+                    LabVersionModel.version.label("lab_version"),
+                )
+                .join(LabVersionModel, LabVersionModel.lab_id == LabModel.id)
+                .where(
+                    LabModel.id == lab_id,
+                    LabVersionModel.id == lab_version_id,
+                    LabModel.is_active.is_(True),
+                    LabVersionModel.is_active.is_(True),
+                )
+                .limit(1)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise ValueError(
+                f"No runtime binding found for lab_id={lab_id}, lab_version_id={lab_version_id}"
+            )
 
-        bindings: dict[UUID, EvaluatorLabRuntimeBinding] = {
-            UUID("11111111-1111-1111-1111-111111111111"): EvaluatorLabRuntimeBinding(
-                lab_slug="prompt-injection",
-                lab_version="v1",
-            ),
-            UUID("22222222-2222-2222-2222-222222222222"): EvaluatorLabRuntimeBinding(
-                lab_slug="rag-poisoning",
-                lab_version="v1",
-            ),
-            UUID("33333333-3333-3333-3333-333333333333"): EvaluatorLabRuntimeBinding(
-                lab_slug="tool-misuse",
-                lab_version="v1",
-            ),
-        }
-
-        binding = bindings.get(lab_id)
-        if binding is None:
-            raise ValueError(f"Unsupported lab_id for runtime binding: {lab_id}")
-
-        return binding
+        return EvaluatorLabRuntimeBinding(
+            lab_slug=row["lab_slug"],
+            lab_version=row["lab_version"],
+        )

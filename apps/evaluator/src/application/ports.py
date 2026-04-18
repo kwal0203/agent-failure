@@ -11,6 +11,7 @@ from .types import (
     PendingEvaluatorEvent,
     ExplanationSignal,
     LearnerExplanation,
+    ObjectiveCompletedEvent,
 )
 
 
@@ -43,7 +44,6 @@ class EvaluatorLabLookupPort(Protocol):
     ) -> EvaluatorLabRuntimeBinding: ...
 
 
-# class EvaluatorOutboxRepository(Protocol):
 class EvaluatorOutboxPort(Protocol):
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
@@ -66,6 +66,10 @@ class EvaluatorOutboxPort(Protocol):
         *,
         session_id: UUID,
         requested_at: datetime | None = None,
+    ) -> None: ...
+
+    def enqueue_objective_completed_event(
+        self, *, event: ObjectiveCompletedEvent
     ) -> None: ...
 
 

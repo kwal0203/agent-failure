@@ -1,14 +1,19 @@
 from uuid import UUID
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from apps.control_plane.src.application.session_create.ports import (
     LabRepository,
 )
-
+from apps.control_plane.src.application.session_create.errors import (
+    LabNotAvailableError,
+)
 from apps.control_plane.src.application.common.types import (
     GetLabCatalogRow,
     LabRuntimeBinding,
 )
+
+from .models import LabVersionModel, LabModel
 
 
 class SQLAlchemyLabRepository(LabRepository):
@@ -54,33 +59,48 @@ class SQLAlchemyLabRepository(LabRepository):
     def get_runtime_binding(
         self, lab_id: UUID, lab_version_id: UUID | None
     ) -> LabRuntimeBinding:
-        _ = lab_version_id  # until version table exists
+        if lab_version_id is None:
+            raise LabNotAvailableError(
+                lab_id=lab_id,
+                details={"lab_id": str(lab_id), "reason": "NO_ACTIVE_LAB_VERSION"},
+            )
 
-        # TODO: Hack to map the container I have in GHCR get used during manual testing
-        bindings: dict[UUID, LabRuntimeBinding] = {
-            UUID("11111111-1111-1111-1111-111111111111"): LabRuntimeBinding(
-                # lab_slug="prompt-injection",
-                # lab_version="v1",
-                lab_slug="baseline",
-                lab_version="0.1.0",
-            ),
-            UUID("22222222-2222-2222-2222-222222222222"): LabRuntimeBinding(
-                lab_slug="rag-poisoning",
-                lab_version="v1",
-            ),
-            UUID("33333333-3333-3333-3333-333333333333"): LabRuntimeBinding(
-                lab_slug="tool-misuse",
-                lab_version="v1",
-            ),
-        }
+        row = (
+            self._db.execute(
+                select(
+                    LabModel.slug.label("lab_slug"),
+                    LabVersionModel.version.label("lab_version"),
+                )
+                .join(LabVersionModel, LabVersionModel.lab_id == LabModel.id)
+                .where(
+                    LabModel.id == lab_id,
+                    LabVersionModel.id == lab_version_id,
+                    LabModel.is_active.is_(True),
+                    LabVersionModel.is_active.is_(True),
+                )
+                .limit(1)
+            )
+            .mappings()
+            .one_or_none()
+        )
 
-        binding = bindings.get(lab_id)
-        if binding is None:
-            # NOTE(P1-E7-T3): Keep backward-compatible fallback behavior for
-            # unknown lab IDs while control-plane lab metadata is still stubbed
-            # and tests may create ad-hoc UUIDs. Once labs/lab_versions are
-            # persisted and validated in DB, replace this fallback with strict
-            # not-found handling.
-            return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+        if row is None:
+            raise LabNotAvailableError(
+                lab_id=lab_id,
+                details={"lab_id": str(lab_id), "reason": "NO_ACTIVE_LAB_VERSION"},
+            )
 
-        return binding
+        return LabRuntimeBinding(
+            lab_slug=row["lab_slug"], lab_version=row["lab_version"]
+        )
+
+    def get_active_version_id(self, lab_id: UUID) -> UUID | None:
+        row = self._db.execute(
+            select(LabVersionModel.id)
+            .where(
+                LabVersionModel.lab_id == lab_id,
+                LabVersionModel.is_active.is_(True),
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        return row
