@@ -4,6 +4,7 @@ from apps.control_plane.src.infrastructure.persistence.outbox import (
     SQLAlchemyOutbox,
     OutboxEventModel,
 )
+from datetime import datetime, timezone
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
     Trigger,
@@ -201,3 +202,69 @@ def test_enqueue_raises_on_non_json_serializable_metadata(db_session: Session) -
 
     with pytest.raises(TypeError):
         db_session.flush()
+
+
+def test_enqueue_session_hint_unlocked_happy_path(db_session: Session) -> None:
+    outbox = SQLAlchemyOutbox(db=db_session)
+    session_id = uuid4()
+    unlocked_at = datetime(2026, 4, 19, 19, 0, 0, tzinfo=timezone.utc)
+
+    outbox.enqueue_session_hint_unlocked(
+        session_id=session_id,
+        hint_key="hint_1",
+        text="Ask what tools are available.",
+        sort_order=0,
+        unlocked_at=unlocked_at,
+        idempotency_key=f"hint_unlock:{session_id}:hint_1",
+    )
+    db_session.flush()
+
+    event = db_session.execute(
+        select(OutboxEventModel).where(
+            OutboxEventModel.aggregate_id == session_id,
+            OutboxEventModel.event_type == "session.hint.unlocked.v1",
+        )
+    ).scalar_one()
+    assert event.status == "pending"
+    assert event.payload["session_id"] == str(session_id)
+    assert event.payload["hint_key"] == "hint_1"
+    assert event.payload["text"] == "Ask what tools are available."
+    assert event.payload["sort_order"] == 0
+    assert event.payload["idempotency_key"] == f"hint_unlock:{session_id}:hint_1"
+
+
+def test_enqueue_session_hint_unlocked_is_idempotent_by_key(
+    db_session: Session,
+) -> None:
+    outbox = SQLAlchemyOutbox(db=db_session)
+    session_id = uuid4()
+    idempotency_key = f"hint_unlock:{session_id}:hint_1"
+    unlocked_at = datetime(2026, 4, 19, 19, 0, 0, tzinfo=timezone.utc)
+
+    outbox.enqueue_session_hint_unlocked(
+        session_id=session_id,
+        hint_key="hint_1",
+        text="Hint 1",
+        sort_order=0,
+        unlocked_at=unlocked_at,
+        idempotency_key=idempotency_key,
+    )
+    outbox.enqueue_session_hint_unlocked(
+        session_id=session_id,
+        hint_key="hint_1",
+        text="Hint 1 duplicate",
+        sort_order=0,
+        unlocked_at=unlocked_at,
+        idempotency_key=idempotency_key,
+    )
+    db_session.flush()
+
+    count = db_session.execute(
+        select(func.count())
+        .select_from(OutboxEventModel)
+        .where(
+            OutboxEventModel.aggregate_id == session_id,
+            OutboxEventModel.event_type == "session.hint.unlocked.v1",
+        )
+    ).scalar_one()
+    assert count == 1

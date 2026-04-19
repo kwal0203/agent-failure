@@ -1,15 +1,21 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.session_hints.ports import (
     LabHintTemplateReaderPort,
+    SessionHintProjectorPort,
     SessionHintWriterPort,
 )
-from apps.control_plane.src.application.session_hints.types import HintTemplate
+from apps.control_plane.src.application.session_hints.types import (
+    DueSessionHint,
+    HintTemplate,
+)
 
 from .models import LabHintTemplateModel, SessionHintModel
 
@@ -78,3 +84,57 @@ class SQLAlchemySessionHintWriterRepository(SessionHintWriterPort):
             },
         )
         self._db.execute(stmt)
+
+
+class SQLAlchemySessionHintProjectorRepository(SessionHintProjectorPort):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def claim_due_pending_hints(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[DueSessionHint]:
+        ts = now or datetime.now(timezone.utc)
+        stmt = (
+            select(SessionHintModel)
+            .where(
+                SessionHintModel.status == "pending",
+                SessionHintModel.unlock_at <= ts,
+            )
+            .order_by(
+                SessionHintModel.unlock_at.asc(), SessionHintModel.sort_order.asc()
+            )
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        rows = self._db.execute(stmt).scalars().all()
+        return [
+            DueSessionHint(
+                session_id=row.session_id,
+                hint_key=row.hint_key,
+                text=row.text,
+                sort_order=row.sort_order,
+                unlock_at=row.unlock_at,
+            )
+            for row in rows
+        ]
+
+    def mark_unlocked(
+        self,
+        *,
+        session_id: UUID,
+        hint_key: str,
+        unlocked_at: datetime | None = None,
+    ) -> bool:
+        ts = unlocked_at or datetime.now(timezone.utc)
+        stmt = (
+            update(SessionHintModel)
+            .where(
+                SessionHintModel.session_id == session_id,
+                SessionHintModel.hint_key == hint_key,
+                SessionHintModel.status == "pending",
+            )
+            .values(status="unlocked", unlocked_at=ts, updated_at=func.now())
+        )
+        result = cast(CursorResult[object], self._db.execute(stmt))
+        rowcount = result.rowcount or 0
+        return rowcount > 0

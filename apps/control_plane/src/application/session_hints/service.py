@@ -1,7 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from .ports import LabHintTemplateReaderPort, SessionHintWriterPort
+from .idempotency import build_hint_unlock_idempotency_key
+from .ports import (
+    LabHintTemplateReaderPort,
+    OutboxSessionHintUnlockedPort,
+    SessionHintProjectorPort,
+    SessionHintWriterPort,
+)
+from .types import SessionHintUnlockOnceResult
 
 
 def initialize_session_hints(
@@ -35,3 +42,45 @@ def initialize_session_hints(
         )
 
     return len(templates)
+
+
+def process_due_session_hints_once(
+    *,
+    projector: SessionHintProjectorPort,
+    outbox: OutboxSessionHintUnlockedPort,
+    now: datetime | None = None,
+) -> SessionHintUnlockOnceResult:
+    ts = now or datetime.now(timezone.utc)
+    due_hints = projector.claim_due_pending_hints(now=ts)
+    claimed_count = len(due_hints)
+    succeeded_count = 0
+    skipped_count = 0
+
+    for hint in due_hints:
+        changed = projector.mark_unlocked(
+            session_id=hint.session_id,
+            hint_key=hint.hint_key,
+            unlocked_at=ts,
+        )
+        if not changed:
+            skipped_count += 1
+            continue
+
+        outbox.enqueue_session_hint_unlocked(
+            session_id=hint.session_id,
+            hint_key=hint.hint_key,
+            text=hint.text,
+            sort_order=hint.sort_order,
+            unlocked_at=ts,
+            idempotency_key=build_hint_unlock_idempotency_key(
+                session_id=hint.session_id,
+                hint_key=hint.hint_key,
+            ),
+        )
+        succeeded_count += 1
+
+    return SessionHintUnlockOnceResult(
+        claimed_count=claimed_count,
+        succeeded_count=succeeded_count,
+        skipped_count=skipped_count,
+    )

@@ -83,6 +83,17 @@ class Outbox(Protocol):
         requested_at: datetime | None = None,
     ) -> None: ...
 
+    def enqueue_session_hint_unlocked(
+        self,
+        *,
+        session_id: UUID,
+        hint_key: str,
+        text: str,
+        sort_order: int,
+        unlocked_at: datetime,
+        idempotency_key: str,
+    ) -> None: ...
+
 
 class UnitOfWork(Protocol):
     @property
