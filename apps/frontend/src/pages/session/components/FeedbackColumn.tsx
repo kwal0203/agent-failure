@@ -226,6 +226,7 @@ export function FeedbackColumn({
       </div>
 
       <div
+        className="timeline-scroll-region"
         style={{
           flex: "1 1 auto",
           height: 0,
@@ -304,6 +305,28 @@ export function FeedbackColumn({
           </div>
         )}
       </div>
+
+      <style>{`
+        .timeline-scroll-region {
+          scrollbar-width: thin;
+          scrollbar-color: #88a2b8 transparent;
+        }
+        .timeline-scroll-region::-webkit-scrollbar {
+          width: 10px;
+        }
+        .timeline-scroll-region::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .timeline-scroll-region::-webkit-scrollbar-thumb {
+          background-color: #88a2b8;
+          border-radius: 999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        .timeline-scroll-region::-webkit-scrollbar-thumb:hover {
+          background-color: #6f8ea8;
+        }
+      `}</style>
 
       <div
         ref={controlsRef}

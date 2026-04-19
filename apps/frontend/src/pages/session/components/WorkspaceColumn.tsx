@@ -198,6 +198,7 @@ export function WorkspaceColumn({
       </section>
 
       <section
+        className="transcript-scroll-region"
         ref={transcriptViewportRef}
         onScroll={onTranscriptScroll}
         style={{
@@ -294,6 +295,25 @@ export function WorkspaceColumn({
         @keyframes wordIn {
           from { opacity: 0; transform: translateX(6px); }
           to { opacity: 1; transform: translateX(0); }
+        }
+        .transcript-scroll-region {
+          scrollbar-width: thin;
+          scrollbar-color: #88a2b8 transparent;
+        }
+        .transcript-scroll-region::-webkit-scrollbar {
+          width: 10px;
+        }
+        .transcript-scroll-region::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .transcript-scroll-region::-webkit-scrollbar-thumb {
+          background-color: #88a2b8;
+          border-radius: 999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        .transcript-scroll-region::-webkit-scrollbar-thumb:hover {
+          background-color: #6f8ea8;
         }
         .transcript-markdown p {
           margin: 0 0 0.5em 0;
