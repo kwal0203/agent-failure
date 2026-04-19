@@ -2,6 +2,9 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigge
 from apps.control_plane.src.application.session_objectives.service import (
     initialize_session_objectives,
 )
+from apps.control_plane.src.application.session_hints.service import (
+    initialize_session_hints,
+)
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
 )
@@ -239,9 +242,10 @@ def process_pending_once(
                             time.sleep(1.0)
 
                         if is_ready:
+                            activated_at = datetime.now(timezone.utc)
                             uow.outbox.mark_processed(
                                 outbox_event_id=event.outbox_event_id,
-                                processed_at=datetime.now(timezone.utc),
+                                processed_at=activated_at,
                             )
 
                             transition_session(
@@ -258,6 +262,13 @@ def process_pending_once(
                                 lab_version_id=lab_version_id,
                                 template_reader=uow.objective_templates,
                                 objective_writer=uow.session_objectives,
+                            )
+                            initialize_session_hints(
+                                session_id=session_id,
+                                lab_version_id=lab_version_id,
+                                activated_at=activated_at,
+                                template_reader=uow.hint_templates,
+                                hint_writer=uow.session_hints,
                             )
 
                             if not base_url or not base_url.strip():

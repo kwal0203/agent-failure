@@ -36,6 +36,7 @@ from apps.control_plane.src.application.session_lifecycle.ports import (
 )
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+from apps.control_plane.src.application.session_hints.types import HintTemplate
 
 
 @dataclass
@@ -218,6 +219,8 @@ class _FakeProcessPendingOnceUoW:
         self._runtime_binding = _FakeRuntimeBindingRepo()
         self._objective_templates = _FakeObjectiveTemplateRepo()
         self._session_objectives = _FakeSessionObjectiveWriter()
+        self._hint_templates = _FakeHintTemplateRepo()
+        self._session_hints = _FakeSessionHintWriter()
 
     @property
     def outbox(self) -> _FakeOutbox:
@@ -246,6 +249,14 @@ class _FakeProcessPendingOnceUoW:
     @property
     def session_objectives(self) -> "_FakeSessionObjectiveWriter":
         return self._session_objectives
+
+    @property
+    def hint_templates(self) -> "_FakeHintTemplateRepo":
+        return self._hint_templates
+
+    @property
+    def session_hints(self) -> "_FakeSessionHintWriter":
+        return self._session_hints
 
     @contextmanager
     def transaction(self):
@@ -286,6 +297,36 @@ class _FakeSessionObjectiveWriter:
         completed_at: datetime | None = None,
     ) -> None:
         _ = (session_id, objective_key, completed_at)
+
+
+class _FakeHintTemplateRepo:
+    def list_hint_templates(self, lab_version_id: UUID) -> list[HintTemplate]:
+        _ = lab_version_id
+        return []
+
+
+class _FakeSessionHintWriter:
+    def __init__(self) -> None:
+        self.upsert_calls: list[dict[str, Any]] = []
+
+    def upsert_hint(
+        self,
+        *,
+        session_id: UUID,
+        hint_key: str,
+        text: str,
+        sort_order: int,
+        unlock_at: datetime,
+    ) -> None:
+        self.upsert_calls.append(
+            {
+                "session_id": session_id,
+                "hint_key": hint_key,
+                "text": text,
+                "sort_order": sort_order,
+                "unlock_at": unlock_at,
+            }
+        )
 
 
 class _FakeCleanupOutbox:

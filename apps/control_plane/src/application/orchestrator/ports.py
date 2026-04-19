@@ -8,6 +8,10 @@ from apps.control_plane.src.application.session_objectives.ports import (
     LabObjectiveTemplateReaderPort,
     SessionObjectiveWriterPort,
 )
+from apps.control_plane.src.application.session_hints.ports import (
+    LabHintTemplateReaderPort,
+    SessionHintWriterPort,
+)
 
 from .types import (
     ProvisionResult,
@@ -117,6 +121,12 @@ class ProcessPendingOnceUnitOfWork(Protocol):
 
     @property
     def session_objectives(self) -> SessionObjectiveWriterPort: ...
+
+    @property
+    def hint_templates(self) -> LabHintTemplateReaderPort: ...
+
+    @property
+    def session_hints(self) -> SessionHintWriterPort: ...
 
     def transaction(self) -> ContextManager[None]: ...
 
