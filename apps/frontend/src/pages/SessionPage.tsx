@@ -111,8 +111,9 @@ export default function SessionPage() {
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
     useHintsState({
       sessionId,
-      sessionState: metadata?.state,
-      appendTimelineEvent,
+      hints: metadata?.hints,
+      unreadHintCount: metadata?.unread_hint_count,
+      refreshSessionMetadata,
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";

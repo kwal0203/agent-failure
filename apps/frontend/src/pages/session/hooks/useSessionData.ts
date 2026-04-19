@@ -135,10 +135,12 @@ export function useSessionData({
     void refreshSessionMetadata();
   }, [refreshSessionMetadata]);
 
-  // Poll metadata while provisioning so session state transitions are reflected in UI.
+  // Poll metadata while provisioning/active so session transitions and timed hint unlocks
+  // are reflected even if evaluator feedback polling is delayed or unavailable.
   useEffect(() => {
     if (!sessionId) return;
-    if (metadata?.state !== "PROVISIONING") return;
+    const state = (metadata?.state ?? "").toUpperCase();
+    if (state !== "PROVISIONING" && state !== "ACTIVE") return;
 
     let cancelled = false;
     let timeoutId: number | null = null;

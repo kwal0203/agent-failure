@@ -6,6 +6,16 @@ export type SessionProgressChip = {
   updated_at: string;
 };
 
+export type SessionHint = {
+  hint_key: string;
+  text: string;
+  sort_order: number;
+  status: "pending" | "unlocked";
+  unlock_at: string;
+  unlocked_at: string | null;
+  seen_at: string | null;
+};
+
 export type SessionMetadata = {
   id: string;
   lab_id: string | null;
@@ -18,10 +28,17 @@ export type SessionMetadata = {
   started_at: string | null;
   ended_at: string | null;
   progress_chips: SessionProgressChip[];
+  hints: SessionHint[];
+  unread_hint_count: number;
 };
 
 export type GetSessionMetadataResponse = {
   session: SessionMetadata;
+};
+
+export type MarkSessionHintsSeenResponse = {
+  session_id: string;
+  updated_count: number;
 };
 
 export type TranscriptRole = "user" | "agent" | "policy" | "system";
