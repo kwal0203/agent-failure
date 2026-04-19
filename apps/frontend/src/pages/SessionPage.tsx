@@ -113,7 +113,7 @@ export default function SessionPage() {
   return (
     <main
       style={{
-        height: "100%",
+        flex: "1 1 auto",
         minHeight: 0,
         padding: "16px 16px 8px",
         boxSizing: "border-box",

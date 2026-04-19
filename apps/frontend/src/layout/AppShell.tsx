@@ -159,6 +159,8 @@ export default function AppShell() {
           flex: "1 1 auto",
           minHeight: 0,
           width: "100%",
+          display: isSessionRoute ? "flex" : undefined,
+          flexDirection: isSessionRoute ? "column" : undefined,
         }}
       >
         <Outlet context={bootstrap} />
