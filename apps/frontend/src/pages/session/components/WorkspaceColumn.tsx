@@ -147,55 +147,50 @@ export function WorkspaceColumn({
         </div>
       </section>
 
-      <section
-        aria-hidden={!toolPaneOpen}
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: toolPaneOpen ? 16 : 0,
-          marginBottom: toolPaneOpen ? 12 : 0,
-          flex: "0 0 auto",
-          maxHeight: toolPaneOpen ? 280 : 0,
-          opacity: toolPaneOpen ? 1 : 0,
-          overflowY: "auto",
-          overflowX: "hidden",
-          transition:
-            "max-height 180ms ease-out, opacity 180ms ease-out, padding 180ms ease-out, margin-bottom 180ms ease-out",
-        }}
-      >
-        {toolPaneOpen && selectedTool === "email" && (
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Email Tool Panel</h3>
-            <p style={{ margin: "0 0 10px 0" }}>
-              Prepare and send inbox artifacts to the target session.
-            </p>
-            <EmailToolForm
-              emailFrom={emailFrom}
-              emailSubject={emailSubject}
-              emailBody={emailBody}
-              emailMalicious={emailMalicious}
-              injectingEmail={injectingEmail}
-              sessionId={sessionId}
-              injectEmailError={injectEmailError}
-              injectEmailResult={injectEmailResult}
-              onSubmitEmail={onSubmitEmail}
-              onResetEmail={onResetEmail}
-              onEmailFromChange={onEmailFromChange}
-              onEmailSubjectChange={onEmailSubjectChange}
-              onEmailBodyChange={onEmailBodyChange}
-              onEmailMaliciousChange={onEmailMaliciousChange}
-            />
-          </div>
-        )}
-        {toolPaneOpen && selectedTool && selectedTool !== "email" && (
-          <div>
-            <h3 style={{ marginTop: 0, marginBottom: 8 }}>
-              {paneContent[selectedTool].title}
-            </h3>
-            <p style={{ margin: 0 }}>{paneContent[selectedTool].description}</p>
-          </div>
-        )}
-      </section>
+      {toolPaneOpen ? (
+        <section
+          style={{
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 12,
+            flex: "0 0 auto",
+            maxHeight: 280,
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
+        >
+          {selectedTool === "email" ? (
+            <div>
+              <EmailToolForm
+                emailFrom={emailFrom}
+                emailSubject={emailSubject}
+                emailBody={emailBody}
+                emailMalicious={emailMalicious}
+                injectingEmail={injectingEmail}
+                sessionId={sessionId}
+                injectEmailError={injectEmailError}
+                injectEmailResult={injectEmailResult}
+                onSubmitEmail={onSubmitEmail}
+                onResetEmail={onResetEmail}
+                onEmailFromChange={onEmailFromChange}
+                onEmailSubjectChange={onEmailSubjectChange}
+                onEmailBodyChange={onEmailBodyChange}
+                onEmailMaliciousChange={onEmailMaliciousChange}
+              />
+            </div>
+          ) : selectedTool ? (
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+                {paneContent[selectedTool].title}
+              </h3>
+              <p style={{ margin: 0 }}>
+                {paneContent[selectedTool].description}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section
         className="transcript-scroll-region"
