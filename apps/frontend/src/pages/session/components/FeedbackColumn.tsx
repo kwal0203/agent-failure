@@ -177,10 +177,10 @@ export function FeedbackColumn({
         borderRadius: 8,
         padding: 16,
         textAlign: "left",
-        display: "grid",
-        gridTemplateRows: "auto minmax(0, 1fr) auto auto",
-        flex: "1 1 auto",
-        gap: 12,
+        display: "flex",
+        flexDirection: "column",
+        flex: "1 1 0%",
+        gap: 10,
         height: "100%",
         minHeight: 0,
         maxHeight: "100%",
@@ -188,16 +188,26 @@ export function FeedbackColumn({
         overflow: "hidden",
       }}
     >
-      <h2 style={DEMO_H2_STYLE}>Event Timeline</h2>
+      <div style={{ flex: "0 0 auto" }}>
+        <h2 style={DEMO_H2_STYLE}>Event Timeline</h2>
+        {feedbackLoading ? (
+          <p style={{ margin: "8px 0 0 0" }}>Loading learner feedback...</p>
+        ) : null}
+        {feedbackError ? (
+          <p style={{ color: "red", margin: "8px 0 0 0" }}>
+            Error: {feedbackError}
+          </p>
+        ) : null}
+      </div>
 
-      {feedbackLoading && (
-        <p style={{ margin: 0 }}>Loading learner feedback...</p>
-      )}
-      {feedbackError && (
-        <p style={{ color: "red", margin: 0 }}>Error: {feedbackError}</p>
-      )}
-
-      <div style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }}>
+      <div
+        style={{
+          flex: "1 1 auto",
+          height: 0,
+          minHeight: 0,
+          overflowY: "auto",
+        }}
+      >
         {filteredEvents.length === 0 ? (
           <p style={{ margin: 0, opacity: 0.85 }}>
             No events for current filters.
@@ -268,7 +278,7 @@ export function FeedbackColumn({
         )}
       </div>
 
-      <div>
+      <div style={{ flex: "0 0 auto" }}>
         <p style={{ margin: "0 0 8px 0", fontWeight: 600 }}>Event type</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {EVENT_TYPE_FILTERS.map((filter) => {
@@ -296,7 +306,7 @@ export function FeedbackColumn({
         </div>
       </div>
 
-      <div>
+      <div style={{ flex: "0 0 auto" }}>
         <p style={{ margin: "0 0 8px 0", fontWeight: 600 }}>Granularity</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {GRANULARITY_FILTERS.map((filter) => {
