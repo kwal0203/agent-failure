@@ -322,24 +322,55 @@ export function WorkspaceColumn({
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
-          padding: 16,
+          padding: 12,
           flex: "0 0 auto",
         }}
       >
         <form onSubmit={onSubmitPrompt}>
-          <textarea
-            rows={4}
-            placeholder="Type your prompt..."
-            style={{ width: "100%", marginBottom: 12 }}
-            value={prompt}
-            onChange={(e) => onPromptChange(e.target.value)}
-            disabled={!canSend}
-          />
-          <button type="submit" disabled={!canSend}>
-            Send
-          </button>
+          <div style={{ position: "relative" }}>
+            <textarea
+              rows={4}
+              placeholder="Type your prompt..."
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                borderRadius: 12,
+                border: "1px solid #9eb8cd",
+                padding: "10px 48px 10px 12px",
+                resize: "vertical",
+              }}
+              value={prompt}
+              onChange={(e) => onPromptChange(e.target.value)}
+              disabled={!canSend}
+            />
+            <button
+              type="submit"
+              disabled={!canSend}
+              aria-label="Send prompt"
+              title="Send"
+              style={{
+                position: "absolute",
+                right: 10,
+                bottom: 10,
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                border: "1px solid #2f6ea1",
+                background: canSend ? "#1f5f92" : "#8fa5b6",
+                color: "#ffffff",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                lineHeight: 1,
+                cursor: canSend ? "pointer" : "not-allowed",
+              }}
+            >
+              ↑
+            </button>
+          </div>
           {!canSend && (
-            <p style={{ marginTop: 8, opacity: 0.8 }}>
+            <p style={{ margin: "8px 0 0 0", opacity: 0.8, fontSize: 12 }}>
               Prompt disabled: socket must be open, session interactive, and no
               turn in progress.
             </p>
