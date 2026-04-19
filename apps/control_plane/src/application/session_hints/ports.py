@@ -65,3 +65,23 @@ class OutboxSessionHintUnlockedPort(Protocol):
         unlocked_at: datetime,
         idempotency_key: str,
     ) -> None: ...
+
+
+class SessionHintSeenPort(Protocol):
+    def get_session_owner_user_id(self, *, session_id: UUID) -> UUID | None:
+        """
+        Return owner user id for a session, or None when session does not exist.
+        """
+        ...
+
+    def mark_all_unlocked_seen(
+        self,
+        *,
+        session_id: UUID,
+        seen_at: datetime,
+    ) -> int:
+        """
+        Mark all unlocked unseen hints as seen for the session.
+        Returns number of rows updated.
+        """
+        ...

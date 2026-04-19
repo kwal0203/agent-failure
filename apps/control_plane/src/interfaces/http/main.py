@@ -25,6 +25,7 @@ from .schemas import (
     InjectSessionEmailResponse,
     LearnerExplanationRequest,
     LearnerExplanationResponse,
+    MarkSessionHintsSeenResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
 )
@@ -70,6 +71,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionRuntimeBindingRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
+    SQLAlchemySessionHintSeenRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionObjectiveModel,
 )
@@ -101,6 +105,13 @@ from apps.control_plane.src.application.learner_explanation.types import (
 )
 from apps.control_plane.src.application.learner_explanation.errors import (
     InvalidLearnerExplanationError,
+)
+from apps.control_plane.src.application.session_hints.errors import (
+    ForbiddenErrorSessionHints,
+    SessionNotFoundErrorSessionHints,
+)
+from apps.control_plane.src.application.session_hints.service import (
+    mark_session_hints_seen,
 )
 from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
     LearnerExplanationRepository,
@@ -484,6 +495,62 @@ def create_session_endpoint(
 
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/hints/mark-seen",
+    response_model=MarkSessionHintsSeenResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+    },
+)
+def mark_hints_seen_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> MarkSessionHintsSeenResponse | JSONResponse:
+    seen_repo = SQLAlchemySessionHintSeenRepository(db=db)
+    try:
+        updated_count = mark_session_hints_seen(
+            session_id=session_id,
+            principal=principal,
+            seen_repo=seen_repo,
+        )
+        db.commit()
+        return MarkSessionHintsSeenResponse(
+            session_id=session_id,
+            updated_count=updated_count,
+        )
+    except ForbiddenErrorSessionHints as exc:
+        db.rollback()
+        return build_api_error_response(
+            "FORBIDDEN",
+            exc.message,
+            False,
+            403,
+            exc.details,
+        )
+    except SessionNotFoundErrorSessionHints:
+        db.rollback()
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id), "exists": False},
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("mark hints seen failed")
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
         )
 
 

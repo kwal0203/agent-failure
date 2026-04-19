@@ -28,6 +28,11 @@ class SessionHintResponse(BaseModel):
     seen_at: datetime | None
 
 
+class MarkSessionHintsSeenResponse(BaseModel):
+    session_id: UUID
+    updated_count: int
+
+
 class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None

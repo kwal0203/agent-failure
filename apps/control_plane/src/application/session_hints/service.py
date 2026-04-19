@@ -1,11 +1,15 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from apps.control_plane.src.application.common.types import PrincipalContext
+
+from .errors import ForbiddenErrorSessionHints, SessionNotFoundErrorSessionHints
 from .idempotency import build_hint_unlock_idempotency_key
 from .ports import (
     LabHintTemplateReaderPort,
     OutboxSessionHintUnlockedPort,
     SessionHintProjectorPort,
+    SessionHintSeenPort,
     SessionHintWriterPort,
 )
 from .types import SessionHintUnlockOnceResult
@@ -84,3 +88,23 @@ def process_due_session_hints_once(
         succeeded_count=succeeded_count,
         skipped_count=skipped_count,
     )
+
+
+def mark_session_hints_seen(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    seen_repo: SessionHintSeenPort,
+    now: datetime | None = None,
+) -> int:
+    owner_user_id = seen_repo.get_session_owner_user_id(session_id=session_id)
+    if owner_user_id is None:
+        raise SessionNotFoundErrorSessionHints()
+
+    is_owner = owner_user_id == principal.user_id
+    is_admin = principal.role == "admin"
+    if not (is_owner or is_admin):
+        raise ForbiddenErrorSessionHints(role=principal.role)
+
+    seen_at = now or datetime.now(timezone.utc)
+    return seen_repo.mark_all_unlocked_seen(session_id=session_id, seen_at=seen_at)

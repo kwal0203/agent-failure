@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from apps.control_plane.src.application.session_hints.ports import (
     LabHintTemplateReaderPort,
     SessionHintProjectorPort,
+    SessionHintSeenPort,
     SessionHintWriterPort,
 )
 from apps.control_plane.src.application.session_hints.types import (
@@ -17,7 +18,7 @@ from apps.control_plane.src.application.session_hints.types import (
     HintTemplate,
 )
 
-from .models import LabHintTemplateModel, SessionHintModel
+from .models import LabHintTemplateModel, SessionHintModel, SessionModel
 
 
 class SQLAlchemyLabHintTemplateRepository(LabHintTemplateReaderPort):
@@ -138,3 +139,30 @@ class SQLAlchemySessionHintProjectorRepository(SessionHintProjectorPort):
         result = cast(CursorResult[object], self._db.execute(stmt))
         rowcount = result.rowcount or 0
         return rowcount > 0
+
+
+class SQLAlchemySessionHintSeenRepository(SessionHintSeenPort):
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def get_session_owner_user_id(self, *, session_id: UUID) -> UUID | None:
+        stmt = select(SessionModel.owner_user_id).where(SessionModel.id == session_id)
+        return self._db.execute(stmt).scalars().one_or_none()
+
+    def mark_all_unlocked_seen(
+        self,
+        *,
+        session_id: UUID,
+        seen_at: datetime,
+    ) -> int:
+        stmt = (
+            update(SessionHintModel)
+            .where(
+                SessionHintModel.session_id == session_id,
+                SessionHintModel.status == "unlocked",
+                SessionHintModel.seen_at.is_(None),
+            )
+            .values(seen_at=seen_at, updated_at=func.now())
+        )
+        result = cast(CursorResult[object], self._db.execute(stmt))
+        return result.rowcount or 0
