@@ -43,6 +43,7 @@ export default function SessionPage() {
   const {
     metadata,
     setMetadata,
+    progressReady,
     timelineEvents,
     feedbackError,
     feedbackLoading,
@@ -140,6 +141,7 @@ export default function SessionPage() {
         }}
       >
         <SessionHeaderStatus
+          progressReady={progressReady}
           inboxComplete={inboxComplete}
           contextComplete={contextComplete}
           tokenComplete={tokenComplete}

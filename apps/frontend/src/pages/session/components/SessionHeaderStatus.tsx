@@ -9,6 +9,7 @@ import type { AgentStatus, UnlockedHint } from "../types";
 import { statusTone } from "../ui";
 
 type ProgressStatusHeaderProps = {
+  progressReady: boolean;
   inboxComplete: boolean;
   contextComplete: boolean;
   tokenComplete: boolean;
@@ -24,6 +25,7 @@ type SessionStatusHeaderProps = {
 };
 
 type SessionHeaderStatusProps = {
+  progressReady: boolean;
   inboxComplete: boolean;
   contextComplete: boolean;
   tokenComplete: boolean;
@@ -36,24 +38,64 @@ type SessionHeaderStatusProps = {
 };
 
 export function ProgressStatusHeader({
+  progressReady,
   inboxComplete,
   contextComplete,
   tokenComplete,
 }: ProgressStatusHeaderProps) {
+  if (!progressReady) {
+    const placeholderStyle = {
+      ...statusChipStyle({
+        background: "rgba(36, 43, 52, 0.72)",
+        border: "1px solid #4a5562",
+        color: "#cfd9e2",
+      }),
+      opacity: 0.92,
+    };
+
+    return (
+      <>
+        <div style={placeholderStyle}>Malicious email injected</div>
+        <div style={placeholderStyle}>
+          Malicious instructions entered context
+        </div>
+        <div style={placeholderStyle}>Token exposed</div>
+      </>
+    );
+  }
+
   const inboxTone = objectiveTone(inboxComplete);
   const contextTone = objectiveTone(contextComplete);
   const tokenTone = objectiveTone(tokenComplete);
 
   return (
     <>
-      <div style={statusChipStyle(inboxTone)}>
+      <div
+        style={{
+          ...statusChipStyle(inboxTone),
+          animation: "progressChipIn 220ms ease-out both",
+          animationDelay: "0ms",
+        }}
+      >
         Malicious email injected {inboxComplete ? <strong>✓</strong> : null}
       </div>
-      <div style={statusChipStyle(contextTone)}>
+      <div
+        style={{
+          ...statusChipStyle(contextTone),
+          animation: "progressChipIn 220ms ease-out both",
+          animationDelay: "40ms",
+        }}
+      >
         Malicious instructions entered context{" "}
         {contextComplete ? <strong>✓</strong> : null}
       </div>
-      <div style={statusChipStyle(tokenTone)}>
+      <div
+        style={{
+          ...statusChipStyle(tokenTone),
+          animation: "progressChipIn 220ms ease-out both",
+          animationDelay: "80ms",
+        }}
+      >
         Token exposed {tokenComplete ? <strong>✓</strong> : null}
       </div>
     </>
@@ -154,6 +196,7 @@ export function SessionStatusHeader({
 
 export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
   const {
+    progressReady,
     inboxComplete,
     contextComplete,
     tokenComplete,
@@ -178,6 +221,7 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     >
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <ProgressStatusHeader
+          progressReady={progressReady}
           inboxComplete={inboxComplete}
           contextComplete={contextComplete}
           tokenComplete={tokenComplete}
@@ -200,6 +244,12 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
           onHintsChipClick={onHintsChipClick}
         />
       </div>
+      <style>{`
+        @keyframes progressChipIn {
+          from { opacity: 0; transform: translateY(-3px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

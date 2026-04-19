@@ -26,6 +26,7 @@ type UseSessionDataParams = {
 type UseSessionDataResult = {
   metadata: SessionMetadata | null;
   setMetadata: Dispatch<SetStateAction<SessionMetadata | null>>;
+  progressReady: boolean;
   timelineEvents: TimelineEvent[];
   feedbackError: string | null;
   feedbackLoading: boolean;
@@ -111,6 +112,7 @@ export function useSessionData({
   );
 
   const progressChips = metadata?.progress_chips ?? [];
+  const progressReady = metadata !== null;
   const sessionState = metadata?.state ?? "UNKNOWN";
   const inboxComplete = progressChips.some(
     (chip) =>
@@ -129,6 +131,7 @@ export function useSessionData({
 
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
+    setMetadata(null);
     void refreshSessionMetadata();
   }, [refreshSessionMetadata]);
 
@@ -286,6 +289,7 @@ export function useSessionData({
   return {
     metadata,
     setMetadata,
+    progressReady,
     timelineEvents,
     feedbackError,
     feedbackLoading,
