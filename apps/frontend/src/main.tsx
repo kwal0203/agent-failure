@@ -7,13 +7,13 @@ import App from "./App.tsx";
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-	throw new Error("Missing root element #root");
+  throw new Error("Missing root element #root");
 }
 
 createRoot(rootElement).render(
-	<StrictMode>
-		<BrowserRouter>
-			<App />
-		</BrowserRouter>
-	</StrictMode>,
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>,
 );

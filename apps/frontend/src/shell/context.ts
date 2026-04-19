@@ -1,11 +1,11 @@
 import { useOutletContext } from "react-router-dom";
 
 export type ShellBootstrap = {
-	mode: "demo" | "debug";
-	learnerLabel: string;
-	apiBaseUrl: string;
+  mode: "demo" | "debug";
+  learnerLabel: string;
+  apiBaseUrl: string;
 };
 
 export function useShellBootstrap() {
-	return useOutletContext<ShellBootstrap>();
+  return useOutletContext<ShellBootstrap>();
 }
