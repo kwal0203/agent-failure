@@ -147,7 +147,7 @@ export default function SessionPage() {
         style={{
           display: "grid",
           gridTemplateColumns:
-            "minmax(280px, 24%) minmax(520px, 1fr) minmax(300px, 28%)",
+            "minmax(280px, 20%) minmax(520px, 1fr) minmax(300px, 23.3%)",
           gridTemplateRows: "minmax(0, 1fr)",
           gap: 16,
           flex: "1 1 0%",
