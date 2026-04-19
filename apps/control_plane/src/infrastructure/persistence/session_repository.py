@@ -17,11 +17,13 @@ from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
 )
 from apps.control_plane.src.application.session_query.types import (
+    SessionHintRow,
     SessionMetadataRow,
     SessionObjectiveRow,
     SessionMetadataBundleRow,
 )
 from apps.control_plane.src.application.session_query.helpers import (
+    parse_hint_status,
     parse_progress_status,
 )
 
@@ -66,6 +68,7 @@ from .models import (
     SessionModel,
     SessionTransitionEventModel,
     TraceEventModel,
+    SessionHintModel,
     SessionObjectiveModel,
 )
 from .errors import StateMismatch
@@ -165,6 +168,10 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             .order_by(SessionObjectiveModel.sort_order.asc())
         )
         objective_models = self._db.execute(statement=objectives_stmt).scalars().all()
+        hints_stmt = select(SessionHintModel).where(
+            SessionHintModel.session_id == session_id
+        )
+        hint_models = self._db.execute(statement=hints_stmt).scalars().all()
 
         session_metadata = SessionMetadataRow(
             id=session_model.id,
@@ -190,9 +197,29 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             )
             for obj in objective_models
         ]
+        hints = [
+            SessionHintRow(
+                hint_key=hint.hint_key,
+                text=hint.text,
+                sort_order=hint.sort_order,
+                status=parse_hint_status(hint.status),
+                unlock_at=hint.unlock_at,
+                unlocked_at=hint.unlocked_at,
+                seen_at=hint.seen_at,
+            )
+            for hint in hint_models
+        ]
+        hints.sort(
+            key=lambda hint: (
+                0 if hint.status == "unlocked" else 1,
+                hint.unlocked_at if hint.status == "unlocked" else hint.unlock_at,
+                hint.sort_order,
+                hint.hint_key,
+            )
+        )
 
         return SessionMetadataBundleRow(
-            metadata=session_metadata, objectives=progress_chips
+            metadata=session_metadata, objectives=progress_chips, hints=hints
         )
 
 

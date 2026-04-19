@@ -6,7 +6,7 @@ from uuid import UUID
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 
 from .errors import ForbiddenErrorSessionQuery
-from .types import SessionMetadataDTO, SessionObjectiveDTO
+from .types import SessionHintDTO, SessionMetadataDTO, SessionObjectiveDTO
 
 
 def derive_interactive(state: str) -> bool:
@@ -35,6 +35,22 @@ def get_session_metadata(
                 updated_at=objective.updated_at,
             )
         )
+    hints: list[SessionHintDTO] = []
+    unread_hint_count = 0
+    for hint in row.hints:
+        hints.append(
+            SessionHintDTO(
+                hint_key=hint.hint_key,
+                text=hint.text,
+                sort_order=hint.sort_order,
+                status=hint.status,
+                unlock_at=hint.unlock_at,
+                unlocked_at=hint.unlocked_at,
+                seen_at=hint.seen_at,
+            )
+        )
+        if hint.status == "unlocked" and hint.seen_at is None:
+            unread_hint_count += 1
 
     is_owner = metadata.owner_user_id == principal.user_id
     is_admin = principal.role == "admin"
@@ -56,4 +72,6 @@ def get_session_metadata(
         ended_at=metadata.ended_at,
         lab_difficulty=metadata.lab_difficulty,
         progress_chips=objectives,
+        hints=hints,
+        unread_hint_count=unread_hint_count,
     )

@@ -26,6 +26,7 @@ from .schemas import (
     LearnerExplanationRequest,
     LearnerExplanationResponse,
     SessionProgressChipResponse,
+    SessionHintResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -265,14 +266,27 @@ def get_metadata(
                 logger.warning("heartbeat read failed in get_metadata", exc_info=True)
 
         progress_chips: list[SessionProgressChipResponse] = []
-        for item in session_metadata.progress_chips:
+        for progress_item in session_metadata.progress_chips:
             progress_chips.append(
                 SessionProgressChipResponse(
-                    objective_key=item.objective_key,
-                    label=item.label,
-                    status=item.status,
-                    completed_at=item.completed_at,
-                    updated_at=item.updated_at,
+                    objective_key=progress_item.objective_key,
+                    label=progress_item.label,
+                    status=progress_item.status,
+                    completed_at=progress_item.completed_at,
+                    updated_at=progress_item.updated_at,
+                )
+            )
+        hints: list[SessionHintResponse] = []
+        for hint_item in session_metadata.hints:
+            hints.append(
+                SessionHintResponse(
+                    hint_key=hint_item.hint_key,
+                    text=hint_item.text,
+                    sort_order=hint_item.sort_order,
+                    status=hint_item.status,
+                    unlock_at=hint_item.unlock_at,
+                    unlocked_at=hint_item.unlocked_at,
+                    seen_at=hint_item.seen_at,
                 )
             )
 
@@ -296,6 +310,8 @@ def get_metadata(
             if stalled
             else None,
             progress_chips=progress_chips,
+            hints=hints,
+            unread_hint_count=session_metadata.unread_hint_count,
         )
         return GetSessionMetadataResponse(session=http_obj)
 

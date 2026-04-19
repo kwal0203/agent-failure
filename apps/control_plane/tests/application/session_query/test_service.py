@@ -9,6 +9,7 @@ from apps.control_plane.src.application.session_query.errors import (
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_query.types import (
+    SessionHintRow,
     SessionMetadataBundleRow,
     SessionMetadataRow,
 )
@@ -39,7 +40,7 @@ def _sample_row(state: str = "ACTIVE") -> SessionMetadataBundleRow:
         started_at=None,
         ended_at=None,
     )
-    return SessionMetadataBundleRow(metadata=metadata, objectives=[])
+    return SessionMetadataBundleRow(metadata=metadata, objectives=[], hints=[])
 
 
 def test_get_session_metadata_owner_is_allowed() -> None:
@@ -113,3 +114,55 @@ def test_get_session_metadata_derives_interactive_false_for_terminal() -> None:
 
     assert result is not None
     assert result.interactive is False
+
+
+def test_get_session_metadata_maps_hints_and_derives_unread_count() -> None:
+    row = _sample_row(state=SessionState.ACTIVE.value)
+    now = datetime.now(timezone.utc)
+    row = SessionMetadataBundleRow(
+        metadata=row.metadata,
+        objectives=[],
+        hints=[
+            SessionHintRow(
+                hint_key="hint_1",
+                text="h1",
+                sort_order=0,
+                status="unlocked",
+                unlock_at=now,
+                unlocked_at=now,
+                seen_at=None,
+            ),
+            SessionHintRow(
+                hint_key="hint_2",
+                text="h2",
+                sort_order=1,
+                status="unlocked",
+                unlock_at=now,
+                unlocked_at=now,
+                seen_at=now,
+            ),
+            SessionHintRow(
+                hint_key="hint_3",
+                text="h3",
+                sort_order=2,
+                status="pending",
+                unlock_at=now,
+                unlocked_at=None,
+                seen_at=None,
+            ),
+        ],
+    )
+    repo = FakeSessionMetadataRepository(row=row)
+
+    result = get_session_metadata(
+        session_id=row.metadata.id,
+        principal=PrincipalContext(
+            user_id=row.metadata.owner_user_id,
+            role="learner",
+        ),
+        repo=repo,
+    )
+
+    assert result is not None
+    assert [hint.hint_key for hint in result.hints] == ["hint_1", "hint_2", "hint_3"]
+    assert result.unread_hint_count == 1

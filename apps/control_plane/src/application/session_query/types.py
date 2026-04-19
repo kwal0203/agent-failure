@@ -5,6 +5,7 @@ from typing import cast, TypeAlias, Literal
 
 
 ProgressStatus: TypeAlias = Literal["pending", "complete"]
+HintStatus: TypeAlias = Literal["pending", "unlocked"]
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,17 @@ class SessionObjectiveRow:
     status: ProgressStatus
     completed_at: datetime | None
     updated_at: datetime
+
+
+@dataclass(frozen=True)
+class SessionHintRow:
+    hint_key: str
+    text: str
+    sort_order: int
+    status: HintStatus
+    unlock_at: datetime
+    unlocked_at: datetime | None
+    seen_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -42,6 +54,17 @@ class SessionObjectiveDTO:
 
 
 @dataclass(frozen=True)
+class SessionHintDTO:
+    hint_key: str
+    text: str
+    sort_order: int
+    status: HintStatus
+    unlock_at: datetime
+    unlocked_at: datetime | None
+    seen_at: datetime | None
+
+
+@dataclass(frozen=True)
 class SessionMetadataDTO:
     id: UUID
     lab_id: UUID | None
@@ -59,9 +82,14 @@ class SessionMetadataDTO:
     progress_chips: list[SessionObjectiveDTO] = field(
         default_factory=lambda: cast(list[SessionObjectiveDTO], [])
     )
+    hints: list[SessionHintDTO] = field(
+        default_factory=lambda: cast(list[SessionHintDTO], [])
+    )
+    unread_hint_count: int = 0
 
 
 @dataclass(frozen=True)
 class SessionMetadataBundleRow:
     metadata: SessionMetadataRow
     objectives: list[SessionObjectiveRow]
+    hints: list[SessionHintRow]
