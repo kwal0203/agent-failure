@@ -479,3 +479,90 @@ class LabObjectivesModel(Base):
     objective_key: Mapped[str] = mapped_column(String(64), nullable=False)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class LabHintTemplateModel(Base):
+    __tablename__ = "lab_hint_templates"
+    __table_args__ = (
+        UniqueConstraint(
+            "lab_version_id", "hint_key", name="uq_lab_hint_templates_version_key"
+        ),
+        UniqueConstraint(
+            "lab_version_id", "sort_order", name="uq_lab_hint_templates_version_sort"
+        ),
+        CheckConstraint(
+            "hint_key <> ''", name="ck_lab_hint_templates_hint_key_not_empty"
+        ),
+        CheckConstraint("text <> ''", name="ck_lab_hint_templates_text_not_empty"),
+        CheckConstraint(
+            "offset_seconds >= 0", name="ck_lab_hint_templates_offset_nonnegative"
+        ),
+        CheckConstraint(
+            "sort_order >= 0", name="ck_lab_hint_templates_sort_nonnegative"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    lab_version_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("lab_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    hint_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    offset_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class SessionHintModel(Base):
+    __tablename__ = "session_hints"
+    __table_args__ = (
+        UniqueConstraint("session_id", "hint_key", name="uq_session_hints_session_key"),
+        CheckConstraint("hint_key <> ''", name="ck_session_hints_hint_key_not_empty"),
+        CheckConstraint("text <> ''", name="ck_session_hints_text_not_empty"),
+        CheckConstraint("sort_order >= 0", name="ck_session_hints_sort_nonnegative"),
+        CheckConstraint(
+            "status in ('pending', 'unlocked')", name="ck_session_hints_status"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    hint_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unlock_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    unlocked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+        index=True,
+    )
