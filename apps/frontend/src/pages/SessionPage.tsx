@@ -304,7 +304,7 @@ export default function SessionPage() {
             maxHeight: "100%",
             overflow: "hidden",
             border: "1px solid",
-            borderColor: isRightCollapsed ? "#d3dce5" : "transparent",
+            borderColor: "#d3dce5",
             borderRadius: 8,
             background: isRightCollapsed ? "#f6f9fc" : "transparent",
             transition:
@@ -386,6 +386,20 @@ export default function SessionPage() {
           >
             ◂ Timeline
           </button>
+
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 1,
+              background: "#9bb0c5",
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
+          />
         </aside>
       </div>
     </main>

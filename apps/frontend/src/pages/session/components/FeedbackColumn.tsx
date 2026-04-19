@@ -198,8 +198,8 @@ export function FeedbackColumn({
   return (
     <section
       style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
+        borderBottom: "2px solid #8ea5b8",
+        borderRadius: 0,
         padding: 16,
         textAlign: "left",
         display: "flex",
