@@ -116,7 +116,9 @@ export default function SessionPage() {
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
-  const rightColumnTemplate = isRightCollapsed ? "38px" : "minmax(260px, 18%)";
+  const rightColumnTemplate = isRightCollapsed
+    ? "38px"
+    : "minmax(180px, 12.6%)";
 
   return (
     <main

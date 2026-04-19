@@ -242,6 +242,8 @@ export function WorkspaceColumn({
           padding: 12,
           marginBottom: 16,
           flex: isTranscriptCollapsed ? "0 0 auto" : "1 1 auto",
+          display: "flex",
+          flexDirection: "column",
           minHeight: 0,
           overflow: "hidden",
           textAlign: "left",
@@ -291,7 +293,7 @@ export function WorkspaceColumn({
             onScroll={onTranscriptScroll}
             style={{
               flex: "1 1 auto",
-              height: "100%",
+              height: 0,
               minHeight: 0,
               overflowY: "auto",
               paddingRight: 2,
