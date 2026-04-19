@@ -5,7 +5,7 @@ import {
   objectiveTone,
   statusChipStyle,
 } from "../helpers";
-import type { AgentStatus, SessionMetadata, UnlockedHint } from "../types";
+import type { AgentStatus, UnlockedHint } from "../types";
 import { statusTone } from "../ui";
 
 type ProgressStatusHeaderProps = {
@@ -30,7 +30,7 @@ type SessionHeaderStatusProps = {
   agentStatus: AgentStatus;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
-  sessionState: SessionMetadata["state"];
+  sessionState: string;
   hintsPanelOpen: boolean;
   onHintsChipClick: () => void;
 };

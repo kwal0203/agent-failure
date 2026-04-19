@@ -88,5 +88,4 @@ export type TimelineEvent = {
 export type SessionWorkspaceState = {
   selectedTool: ToolKey | null;
   toolPaneOpen: boolean;
-  transcriptAutoScrollEnabled: boolean;
 };
