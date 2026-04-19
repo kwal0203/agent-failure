@@ -326,7 +326,6 @@ export function WorkspaceColumn({
           flex: "0 0 auto",
         }}
       >
-        <h2 style={DEMO_H2_STYLE}>Prompt</h2>
         <form onSubmit={onSubmitPrompt}>
           <textarea
             rows={4}
