@@ -341,6 +341,12 @@ export function WorkspaceColumn({
               }}
               value={prompt}
               onChange={(e) => onPromptChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.ctrlKey && e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
               disabled={!canSend}
             />
             <button
@@ -369,12 +375,6 @@ export function WorkspaceColumn({
               ↑
             </button>
           </div>
-          {!canSend && (
-            <p style={{ margin: "8px 0 0 0", opacity: 0.8, fontSize: 12 }}>
-              Prompt disabled: socket must be open, session interactive, and no
-              turn in progress.
-            </p>
-          )}
         </form>
       </section>
     </div>
