@@ -25,12 +25,6 @@ const GRANULARITY_FILTERS: Array<{ label: string; value: EventGranularity }> = [
   { label: "Full trace", value: "full" },
 ];
 
-const GRANULARITY_RANK: Record<EventGranularity, number> = {
-  high: 1,
-  detailed: 2,
-  full: 3,
-};
-
 const EVENT_TYPE_BADGE: Record<EventType, string> = {
   important: "important",
   attacker_action: "attacker",
@@ -124,25 +118,6 @@ function formatTimestamp(isoTs: string): string {
   return date.toLocaleTimeString();
 }
 
-function eventIcon(type: EventType): string {
-  switch (type) {
-    case "important":
-      return "!";
-    case "attacker_action":
-      return "A";
-    case "agent_action":
-      return "G";
-    case "tool_call":
-      return "T";
-    case "system":
-      return "S";
-    case "explanation":
-      return "L";
-    default:
-      return "E";
-  }
-}
-
 export function FeedbackColumn({
   feedbackLoading,
   feedbackReady,
@@ -151,7 +126,7 @@ export function FeedbackColumn({
 }: FeedbackColumnProps) {
   const [selectedType, setSelectedType] = useState<"all" | EventType>("all");
   const [selectedGranularity, setSelectedGranularity] =
-    useState<EventGranularity>("detailed");
+    useState<EventGranularity>("high");
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [granularityMenuOpen, setGranularityMenuOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement | null>(null);
@@ -180,15 +155,13 @@ export function FeedbackColumn({
     [timelineEvents],
   );
 
-  const filteredEvents = useMemo(() => {
-    const maxGranularity = GRANULARITY_RANK[selectedGranularity];
-    return sortedEvents.filter((event) => {
-      const typeMatches = selectedType === "all" || event.type === selectedType;
-      const granularityMatches =
-        GRANULARITY_RANK[event.granularity] <= maxGranularity;
-      return typeMatches && granularityMatches;
-    });
-  }, [sortedEvents, selectedType, selectedGranularity]);
+  const filteredEvents = useMemo(
+    () =>
+      sortedEvents.filter(
+        (event) => selectedType === "all" || event.type === selectedType,
+      ),
+    [sortedEvents, selectedType],
+  );
 
   const selectedTypeLabel =
     EVENT_TYPE_FILTERS.find((filter) => filter.value === selectedType)?.label ??
@@ -268,9 +241,9 @@ export function FeedbackColumn({
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      alignItems: "center",
+                      flexDirection: "column",
+                      gap: 6,
+                      alignItems: "flex-start",
                     }}
                   >
                     <p
@@ -280,36 +253,58 @@ export function FeedbackColumn({
                         color: tone.titleColor,
                       }}
                     >
-                      [{eventIcon(event.type)}] {event.title}
+                      {event.title}
                     </p>
-                    <span
+                    <div
                       style={{
-                        fontSize: 11,
-                        opacity: 0.9,
+                        display: "inline-flex",
+                        gap: 6,
+                        alignItems: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 11,
+                          lineHeight: 1,
+                          border: "1px solid rgba(255, 255, 255, 0.35)",
+                          borderRadius: 999,
+                          padding: "2px 7px",
+                          color: tone.bodyColor,
+                          opacity: 0.95,
+                        }}
+                      >
+                        {EVENT_TYPE_BADGE[event.type]}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          opacity: 0.9,
+                          color: tone.bodyColor,
+                        }}
+                      >
+                        {formatTimestamp(event.timestamp)}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedGranularity !== "high" ? (
+                    <p
+                      style={{
+                        margin: "6px 0 0 0",
+                        fontSize: 13,
                         color: tone.bodyColor,
                       }}
                     >
-                      {EVENT_TYPE_BADGE[event.type]} •{" "}
-                      {formatTimestamp(event.timestamp)}
-                    </span>
-                  </div>
-                  <p
-                    style={{
-                      margin: "6px 0 0 0",
-                      fontSize: 13,
-                      color: tone.bodyColor,
-                    }}
-                  >
-                    {event.description}
-                  </p>
-                  {event.details && (
+                      {event.description}
+                    </p>
+                  ) : null}
+                  {selectedGranularity === "full" && event.details ? (
                     <details style={{ marginTop: 6, color: tone.bodyColor }}>
                       <summary>Details</summary>
                       <p style={{ margin: "6px 0 0 0", fontSize: 13 }}>
                         {event.details}
                       </p>
                     </details>
-                  )}
+                  ) : null}
                 </div>
               );
             })}

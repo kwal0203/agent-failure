@@ -118,7 +118,7 @@ export default function SessionPage() {
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
   const rightColumnTemplate = isRightCollapsed
     ? "38px"
-    : "minmax(300px, 23.3%)";
+    : "minmax(180px, 12.6%)";
 
   return (
     <main
