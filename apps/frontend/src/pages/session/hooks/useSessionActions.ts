@@ -12,6 +12,7 @@ import { API_BASE, AUTH_HEADER } from "../ui";
 
 type UseSessionActionsParams = {
   sessionId?: string;
+  canSend: boolean;
   sendPrompt: (text: string) => void;
   setTranscriptEntries: Dispatch<SetStateAction<TranscriptEntry[]>>;
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
@@ -40,6 +41,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
 
   const onSubmitPrompt = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!params.canSend) return;
     const text = prompt.trim();
     if (!text) return;
 

@@ -56,8 +56,14 @@ export default function SessionPage() {
     tokenComplete,
   } = sessionData;
 
+  const canSend =
+    connectionState === "open" &&
+    !isAwaitingResponse &&
+    (metadata?.interactive ?? false);
+
   const sessionActions = useSessionActions({
     sessionId,
+    canSend,
     sendPrompt,
     setTranscriptEntries,
     setIsAwaitingResponse,
@@ -100,11 +106,6 @@ export default function SessionPage() {
     setMetadata,
     setAgentStatus,
   });
-
-  const canSend =
-    connectionState === "open" &&
-    !isAwaitingResponse &&
-    (metadata?.interactive ?? false);
 
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
     useHintsState({

@@ -362,11 +362,10 @@ export function WorkspaceColumn({
                   e.currentTarget.form?.requestSubmit();
                 }
               }}
-              disabled={!canSend}
             />
             <button
               type="submit"
-              disabled={!canSend}
+              aria-disabled={!canSend}
               aria-label="Send prompt"
               title="Send"
               style={{
@@ -377,14 +376,14 @@ export function WorkspaceColumn({
                 height: 30,
                 borderRadius: "50%",
                 border: "1px solid #2f6ea1",
-                background: canSend ? "#1f5f92" : "#8fa5b6",
+                background: "#1f5f92",
                 color: "#ffffff",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontWeight: 700,
                 lineHeight: 1,
-                cursor: canSend ? "pointer" : "not-allowed",
+                cursor: "pointer",
               }}
             >
               ↑
