@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { EventGranularity, EventType, TimelineEvent } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
 
@@ -150,6 +150,24 @@ export function FeedbackColumn({
   const [selectedType, setSelectedType] = useState<"all" | EventType>("all");
   const [selectedGranularity, setSelectedGranularity] =
     useState<EventGranularity>("detailed");
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [granularityMenuOpen, setGranularityMenuOpen] = useState(false);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (controlsRef.current?.contains(target)) return;
+      setTypeMenuOpen(false);
+      setGranularityMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+    };
+  }, []);
 
   const sortedEvents = useMemo(
     () =>
@@ -169,6 +187,13 @@ export function FeedbackColumn({
       return typeMatches && granularityMatches;
     });
   }, [sortedEvents, selectedType, selectedGranularity]);
+
+  const selectedTypeLabel =
+    EVENT_TYPE_FILTERS.find((filter) => filter.value === selectedType)?.label ??
+    "All";
+  const selectedGranularityLabel =
+    GRANULARITY_FILTERS.find((filter) => filter.value === selectedGranularity)
+      ?.label ?? "Detailed";
 
   return (
     <section
@@ -278,59 +303,163 @@ export function FeedbackColumn({
         )}
       </div>
 
-      <div style={{ flex: "0 0 auto" }}>
-        <p style={{ margin: "0 0 8px 0", fontWeight: 600 }}>Event type</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {EVENT_TYPE_FILTERS.map((filter) => {
-            const isActive = selectedType === filter.value;
-            return (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setSelectedType(filter.value)}
-                aria-pressed={isActive}
+      <div
+        ref={controlsRef}
+        style={{
+          flex: "0 0 auto",
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+          position: "relative",
+        }}
+      >
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Event type</span>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={typeMenuOpen}
+              onClick={() => {
+                setTypeMenuOpen((prev) => !prev);
+                setGranularityMenuOpen(false);
+              }}
+              style={{
+                padding: "4px 10px",
+                fontSize: 12,
+                borderRadius: 999,
+                border: "1px solid #4ea4d9",
+                background: "rgba(26, 76, 107, 0.55)",
+                color: "#d6f1ff",
+                cursor: "pointer",
+              }}
+            >
+              {selectedTypeLabel} ▾
+            </button>
+            {typeMenuOpen ? (
+              <div
+                role="menu"
                 style={{
-                  padding: "4px 8px",
-                  fontSize: 12,
-                  borderRadius: 999,
-                  border: isActive ? "1px solid #4ea4d9" : "1px solid #9aa7b3",
-                  background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
-                  color: isActive ? "#d6f1ff" : "#203040",
-                  cursor: "pointer",
+                  position: "absolute",
+                  bottom: "calc(100% + 6px)",
+                  left: 0,
+                  zIndex: 5,
+                  minWidth: 180,
+                  border: "1px solid #7f93a6",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  boxShadow: "0 8px 24px rgba(6, 24, 39, 0.18)",
+                  padding: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
                 }}
               >
-                {filter.label}
-              </button>
-            );
-          })}
+                {EVENT_TYPE_FILTERS.map((filter) => {
+                  const isActive = selectedType === filter.value;
+                  return (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      onClick={() => {
+                        setSelectedType(filter.value);
+                        setTypeMenuOpen(false);
+                      }}
+                      style={{
+                        textAlign: "left",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        border: "1px solid transparent",
+                        background: isActive ? "#e8f4ff" : "#ffffff",
+                        color: "#203040",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      <div style={{ flex: "0 0 auto" }}>
-        <p style={{ margin: "0 0 8px 0", fontWeight: 600 }}>Granularity</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {GRANULARITY_FILTERS.map((filter) => {
-            const isActive = selectedGranularity === filter.value;
-            return (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setSelectedGranularity(filter.value)}
-                aria-pressed={isActive}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Granularity</span>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={granularityMenuOpen}
+              onClick={() => {
+                setGranularityMenuOpen((prev) => !prev);
+                setTypeMenuOpen(false);
+              }}
+              style={{
+                padding: "4px 10px",
+                fontSize: 12,
+                borderRadius: 999,
+                border: "1px solid #4ea4d9",
+                background: "rgba(26, 76, 107, 0.55)",
+                color: "#d6f1ff",
+                cursor: "pointer",
+              }}
+            >
+              {selectedGranularityLabel} ▾
+            </button>
+            {granularityMenuOpen ? (
+              <div
+                role="menu"
                 style={{
-                  padding: "4px 8px",
-                  fontSize: 12,
-                  borderRadius: 999,
-                  border: isActive ? "1px solid #4ea4d9" : "1px solid #9aa7b3",
-                  background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
-                  color: isActive ? "#d6f1ff" : "#203040",
-                  cursor: "pointer",
+                  position: "absolute",
+                  bottom: "calc(100% + 6px)",
+                  left: 0,
+                  zIndex: 5,
+                  minWidth: 150,
+                  border: "1px solid #7f93a6",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  boxShadow: "0 8px 24px rgba(6, 24, 39, 0.18)",
+                  padding: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
                 }}
               >
-                {filter.label}
-              </button>
-            );
-          })}
+                {GRANULARITY_FILTERS.map((filter) => {
+                  const isActive = selectedGranularity === filter.value;
+                  return (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      onClick={() => {
+                        setSelectedGranularity(filter.value);
+                        setGranularityMenuOpen(false);
+                      }}
+                      style={{
+                        textAlign: "left",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        border: "1px solid transparent",
+                        background: isActive ? "#e8f4ff" : "#ffffff",
+                        color: "#203040",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>
