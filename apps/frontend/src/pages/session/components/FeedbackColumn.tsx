@@ -214,7 +214,7 @@ export function FeedbackColumn({
       }}
     >
       <div style={{ flex: "0 0 auto" }}>
-        <h2 style={DEMO_H2_STYLE}>Event Timeline</h2>
+        <h2 style={{ ...DEMO_H2_STYLE, textAlign: "right" }}>Event Timeline</h2>
         {feedbackLoading ? (
           <p style={{ margin: "8px 0 0 0" }}>Loading learner feedback...</p>
         ) : null}

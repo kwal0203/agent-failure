@@ -16,6 +16,7 @@ import type { AgentStatus } from "./session/types";
 export default function SessionPage() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const { sessionId } = useParams<{ sessionId: string }>();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
 
@@ -112,6 +113,9 @@ export default function SessionPage() {
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
+  const rightColumnTemplate = isRightCollapsed
+    ? "38px"
+    : "minmax(300px, 23.3%)";
 
   return (
     <main
@@ -149,7 +153,7 @@ export default function SessionPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `${leftColumnTemplate} minmax(520px, 1fr) minmax(300px, 23.3%)`,
+          gridTemplateColumns: `${leftColumnTemplate} minmax(520px, 1fr) ${rightColumnTemplate}`,
           gridTemplateRows: "minmax(0, 1fr)",
           gap: 16,
           flex: "1 1 0%",
@@ -293,17 +297,95 @@ export default function SessionPage() {
           style={{
             display: "flex",
             flexDirection: "column",
+            position: "relative",
+            minWidth: 0,
             height: "100%",
             minHeight: 0,
             maxHeight: "100%",
             overflow: "hidden",
+            border: "1px solid",
+            borderColor: isRightCollapsed ? "#d3dce5" : "transparent",
+            borderRadius: 8,
+            background: isRightCollapsed ? "#f6f9fc" : "transparent",
+            transition:
+              "border-color 360ms ease, background-color 360ms ease, border-radius 360ms ease",
           }}
         >
-          <FeedbackColumn
-            feedbackLoading={feedbackLoading}
-            feedbackError={feedbackError}
-            timelineEvents={timelineEvents}
-          />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "hidden",
+              opacity: isRightCollapsed ? 0 : 1,
+              transition: "opacity 420ms ease",
+              pointerEvents: isRightCollapsed ? "none" : "auto",
+            }}
+          >
+            <FeedbackColumn
+              feedbackLoading={feedbackLoading}
+              feedbackError={feedbackError}
+              timelineEvents={timelineEvents}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsRightCollapsed(true)}
+            aria-label="Collapse event timeline"
+            title="Collapse event timeline"
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              zIndex: 2,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "1px solid #9bb0c5",
+              borderRadius: 6,
+              background: "#eef4fa",
+              color: "#2a4258",
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              opacity: isRightCollapsed ? 0 : 1,
+              transition: "opacity 360ms ease",
+              pointerEvents: isRightCollapsed ? "none" : "auto",
+            }}
+          >
+            ▸
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsRightCollapsed(false)}
+            aria-label="Expand event timeline"
+            title="Expand event timeline"
+            style={{
+              position: "absolute",
+              inset: 0,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "none",
+              background: "transparent",
+              color: "#2a4258",
+              cursor: "pointer",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              writingMode: "vertical-lr",
+              textOrientation: "mixed",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              opacity: isRightCollapsed ? 1 : 0,
+              transition: "opacity 420ms ease",
+              pointerEvents: isRightCollapsed ? "auto" : "none",
+            }}
+          >
+            ◂ Timeline
+          </button>
         </aside>
       </div>
     </main>
