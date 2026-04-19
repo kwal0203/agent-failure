@@ -25,12 +25,6 @@ const GRANULARITY_FILTERS: Array<{ label: string; value: EventGranularity }> = [
   { label: "Full trace", value: "full" },
 ];
 
-const GRANULARITY_RANK: Record<EventGranularity, number> = {
-  high: 1,
-  detailed: 2,
-  full: 3,
-};
-
 const EVENT_TYPE_BADGE: Record<EventType, string> = {
   important: "important",
   attacker_action: "attacker",
@@ -151,7 +145,7 @@ export function FeedbackColumn({
 }: FeedbackColumnProps) {
   const [selectedType, setSelectedType] = useState<"all" | EventType>("all");
   const [selectedGranularity, setSelectedGranularity] =
-    useState<EventGranularity>("detailed");
+    useState<EventGranularity>("high");
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [granularityMenuOpen, setGranularityMenuOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement | null>(null);
@@ -180,15 +174,13 @@ export function FeedbackColumn({
     [timelineEvents],
   );
 
-  const filteredEvents = useMemo(() => {
-    const maxGranularity = GRANULARITY_RANK[selectedGranularity];
-    return sortedEvents.filter((event) => {
-      const typeMatches = selectedType === "all" || event.type === selectedType;
-      const granularityMatches =
-        GRANULARITY_RANK[event.granularity] <= maxGranularity;
-      return typeMatches && granularityMatches;
-    });
-  }, [sortedEvents, selectedType, selectedGranularity]);
+  const filteredEvents = useMemo(
+    () =>
+      sortedEvents.filter(
+        (event) => selectedType === "all" || event.type === selectedType,
+      ),
+    [sortedEvents, selectedType],
+  );
 
   const selectedTypeLabel =
     EVENT_TYPE_FILTERS.find((filter) => filter.value === selectedType)?.label ??
@@ -293,23 +285,25 @@ export function FeedbackColumn({
                       {formatTimestamp(event.timestamp)}
                     </span>
                   </div>
-                  <p
-                    style={{
-                      margin: "6px 0 0 0",
-                      fontSize: 13,
-                      color: tone.bodyColor,
-                    }}
-                  >
-                    {event.description}
-                  </p>
-                  {event.details && (
+                  {selectedGranularity !== "high" ? (
+                    <p
+                      style={{
+                        margin: "6px 0 0 0",
+                        fontSize: 13,
+                        color: tone.bodyColor,
+                      }}
+                    >
+                      {event.description}
+                    </p>
+                  ) : null}
+                  {selectedGranularity === "full" && event.details ? (
                     <details style={{ marginTop: 6, color: tone.bodyColor }}>
                       <summary>Details</summary>
                       <p style={{ margin: "6px 0 0 0", fontSize: 13 }}>
                         {event.details}
                       </p>
                     </details>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
