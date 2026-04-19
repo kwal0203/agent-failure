@@ -46,6 +46,7 @@ export default function SessionPage() {
     timelineEvents,
     feedbackError,
     feedbackLoading,
+    feedbackReady,
     appendTimelineEvent,
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
@@ -323,6 +324,7 @@ export default function SessionPage() {
           >
             <FeedbackColumn
               feedbackLoading={feedbackLoading}
+              feedbackReady={feedbackReady}
               feedbackError={feedbackError}
               timelineEvents={timelineEvents}
             />

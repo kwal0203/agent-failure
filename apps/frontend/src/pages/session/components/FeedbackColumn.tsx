@@ -4,6 +4,7 @@ import { DEMO_H2_STYLE } from "../ui";
 
 type FeedbackColumnProps = {
   feedbackLoading: boolean;
+  feedbackReady: boolean;
   feedbackError: string | null;
   timelineEvents: TimelineEvent[];
 };
@@ -144,6 +145,7 @@ function eventIcon(type: EventType): string {
 
 export function FeedbackColumn({
   feedbackLoading,
+  feedbackReady,
   feedbackError,
   timelineEvents,
 }: FeedbackColumnProps) {
@@ -236,13 +238,15 @@ export function FeedbackColumn({
           scrollbarGutter: "stable",
         }}
       >
-        {filteredEvents.length === 0 ? (
+        {!feedbackReady ? (
+          <p style={{ margin: 0, opacity: 0.85 }} />
+        ) : filteredEvents.length === 0 ? (
           <p style={{ margin: 0, opacity: 0.85 }}>
             No events for current filters.
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filteredEvents.map((event) => {
+            {filteredEvents.map((event, index) => {
               const tone = eventTone(event);
               return (
                 <div
@@ -252,6 +256,13 @@ export function FeedbackColumn({
                     background: tone.background,
                     borderRadius: 8,
                     padding: 10,
+                    opacity: 0,
+                    transform: "translateY(4px)",
+                    animationName: "timelineEventIn",
+                    animationDuration: "330ms",
+                    animationTimingFunction: "ease-out",
+                    animationFillMode: "forwards",
+                    animationDelay: `${Math.min(index, 8) * 36}ms`,
                   }}
                 >
                   <div
@@ -307,6 +318,10 @@ export function FeedbackColumn({
       </div>
 
       <style>{`
+        @keyframes timelineEventIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .timeline-scroll-region {
           scrollbar-width: thin;
           scrollbar-color: #88a2b8 transparent;
