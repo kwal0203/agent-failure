@@ -1,4 +1,5 @@
 import type { FormEvent, RefObject } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ToolKey, TranscriptEntry } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
@@ -69,6 +70,9 @@ export function WorkspaceColumn({
   onSubmitPrompt,
   formatTime,
 }: WorkspaceColumnProps) {
+  const [isAttackToolsCollapsed, setIsAttackToolsCollapsed] = useState(false);
+  const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
+
   const tools: Array<{ key: ToolKey; label: string }> = [
     { key: "email", label: "Email" },
     { key: "files", label: "Files" },
@@ -120,34 +124,73 @@ export function WorkspaceColumn({
           flex: "0 0 auto",
         }}
       >
-        <h2 style={{ ...DEMO_H2_STYLE, margin: "0 0 10px 0" }}>Attack Tools</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {tools.map((tool) => {
-            const isActive = toolPaneOpen && selectedTool === tool.key;
-            return (
-              <button
-                key={tool.key}
-                type="button"
-                onClick={() => onToolSelect(tool.key)}
-                aria-pressed={isActive}
-                title={`${tool.label} tool`}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  border: isActive ? "1px solid #4ea4d9" : "1px solid #999",
-                  background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
-                  color: isActive ? "#d6f1ff" : "#1f2a33",
-                  cursor: "pointer",
-                }}
-              >
-                {tool.label}
-              </button>
-            );
-          })}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Tools</h2>
+          <button
+            type="button"
+            onClick={() => setIsAttackToolsCollapsed((prev) => !prev)}
+            aria-label={
+              isAttackToolsCollapsed
+                ? "Expand attack tools"
+                : "Collapse attack tools"
+            }
+            title={
+              isAttackToolsCollapsed
+                ? "Expand attack tools"
+                : "Collapse attack tools"
+            }
+            style={{
+              border: "1px solid #9bb0c5",
+              borderRadius: 6,
+              background: "#eef4fa",
+              color: "#2a4258",
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            {isAttackToolsCollapsed ? "▾" : "▴"}
+          </button>
         </div>
+        {!isAttackToolsCollapsed ? (
+          <div
+            style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}
+          >
+            {tools.map((tool) => {
+              const isActive = toolPaneOpen && selectedTool === tool.key;
+              return (
+                <button
+                  key={tool.key}
+                  type="button"
+                  onClick={() => onToolSelect(tool.key)}
+                  aria-pressed={isActive}
+                  title={`${tool.label} tool`}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: isActive ? "1px solid #4ea4d9" : "1px solid #999",
+                    background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
+                    color: isActive ? "#d6f1ff" : "#1f2a33",
+                    cursor: "pointer",
+                  }}
+                >
+                  {tool.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
-      {toolPaneOpen ? (
+      {toolPaneOpen && !isAttackToolsCollapsed ? (
         <section
           style={{
             border: "1px solid #ddd",
@@ -193,96 +236,155 @@ export function WorkspaceColumn({
       ) : null}
 
       <section
-        className="transcript-scroll-region"
-        ref={transcriptViewportRef}
-        onScroll={onTranscriptScroll}
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
-          padding: 16,
+          padding: 12,
           marginBottom: 16,
-          flex: "1 1 auto",
-          height: 0,
+          flex: isTranscriptCollapsed ? "0 0 auto" : "1 1 auto",
           minHeight: 0,
-          overflowY: "auto",
+          overflow: "hidden",
           textAlign: "left",
         }}
       >
-        <h2 style={DEMO_H2_STYLE}>Transcript</h2>
-        {transcriptEntries.length === 0 && !activeEntry && (
-          <p style={{ margin: 0 }}>(streamed agent text will appear here)</p>
-        )}
-        {transcriptEntries.map((entry) => (
-          <div
-            key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
-          >
-            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-              <strong>{entry.role.toUpperCase()}</strong>{" "}
-              {formatTime(entry.timestamp)}
-            </p>
-            <div className="transcript-markdown" style={{ margin: 0 }}>
-              <ReactMarkdown>{entry.content}</ReactMarkdown>
-            </div>
-          </div>
-        ))}
-        {isAwaitingResponse && !activeEntry && (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-              <strong>AGENT</strong> thinking
-              <span className="thinking-dots" aria-hidden="true">
-                <span>.</span>
-                <span>.</span>
-                <span>.</span>
-              </span>
-            </p>
-          </div>
-        )}
-        {activeEntry && (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}>
-              <strong>AGENT</strong> streaming...
-            </p>
-            <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-              {(() => {
-                let tokenOffset = 0;
-                return activeTokens.map((token) => {
-                  const key = `${tokenOffset}-${token}`;
-                  tokenOffset += token.length;
-                  return (
-                    <span
-                      key={key}
-                      style={{
-                        display: "inline",
-                        opacity: 0,
-                        transform: "translateX(6px)",
-                        animationName: "wordIn",
-                        animationDuration: "220ms",
-                        animationTimingFunction: "ease-out",
-                        animationFillMode: "forwards",
-                      }}
-                    >
-                      {token}
-                    </span>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        )}
-        {showJumpToLatest && (
-          <div
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            marginBottom: isTranscriptCollapsed ? 0 : 8,
+          }}
+        >
+          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Transcript</h2>
+          <button
+            type="button"
+            onClick={() => setIsTranscriptCollapsed((prev) => !prev)}
+            aria-label={
+              isTranscriptCollapsed
+                ? "Expand transcript"
+                : "Collapse transcript"
+            }
+            title={
+              isTranscriptCollapsed
+                ? "Expand transcript"
+                : "Collapse transcript"
+            }
             style={{
-              position: "sticky",
-              bottom: 8,
-              display: "flex",
-              justifyContent: "flex-end",
-              marginTop: 12,
+              border: "1px solid #9bb0c5",
+              borderRadius: 6,
+              background: "#eef4fa",
+              color: "#2a4258",
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
             }}
           >
-            <button type="button" onClick={onJumpToLatest}>
-              Jump to latest
-            </button>
+            {isTranscriptCollapsed ? "▾" : "▴"}
+          </button>
+        </div>
+        {!isTranscriptCollapsed ? (
+          <div
+            className="transcript-scroll-region"
+            ref={transcriptViewportRef}
+            onScroll={onTranscriptScroll}
+            style={{
+              flex: "1 1 auto",
+              height: "100%",
+              minHeight: 0,
+              overflowY: "auto",
+              paddingRight: 2,
+            }}
+          >
+            {transcriptEntries.length === 0 && !activeEntry && (
+              <p style={{ margin: 0 }}>
+                (streamed agent text will appear here)
+              </p>
+            )}
+            {transcriptEntries.map((entry) => (
+              <div
+                key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
+              >
+                <p
+                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
+                >
+                  <strong>{entry.role.toUpperCase()}</strong>{" "}
+                  {formatTime(entry.timestamp)}
+                </p>
+                <div className="transcript-markdown" style={{ margin: 0 }}>
+                  <ReactMarkdown>{entry.content}</ReactMarkdown>
+                </div>
+              </div>
+            ))}
+            {isAwaitingResponse && !activeEntry && (
+              <div style={{ marginTop: 12 }}>
+                <p
+                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
+                >
+                  <strong>AGENT</strong> thinking
+                  <span className="thinking-dots" aria-hidden="true">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
+                </p>
+              </div>
+            )}
+            {activeEntry && (
+              <div style={{ marginTop: 12 }}>
+                <p
+                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
+                >
+                  <strong>AGENT</strong> streaming...
+                </p>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                  {(() => {
+                    let tokenOffset = 0;
+                    return activeTokens.map((token) => {
+                      const key = `${tokenOffset}-${token}`;
+                      tokenOffset += token.length;
+                      return (
+                        <span
+                          key={key}
+                          style={{
+                            display: "inline",
+                            opacity: 0,
+                            transform: "translateX(6px)",
+                            animationName: "wordIn",
+                            animationDuration: "220ms",
+                            animationTimingFunction: "ease-out",
+                            animationFillMode: "forwards",
+                          }}
+                        >
+                          {token}
+                        </span>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
+            {showJumpToLatest && (
+              <div
+                style={{
+                  position: "sticky",
+                  bottom: 8,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 12,
+                }}
+              >
+                <button type="button" onClick={onJumpToLatest}>
+                  Jump to latest
+                </button>
+              </div>
+            )}
           </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
+            Transcript collapsed
+          </p>
         )}
       </section>
 
@@ -338,13 +440,28 @@ export function WorkspaceColumn({
           border: "1px solid #ddd",
           borderRadius: 8,
           padding: 12,
-          flex: "0 0 auto",
+          flex: isTranscriptCollapsed ? "1 1 auto" : "0 0 auto",
+          minHeight: isTranscriptCollapsed ? 0 : undefined,
+          overflow: isTranscriptCollapsed ? "hidden" : undefined,
         }}
       >
-        <form onSubmit={onSubmitPrompt}>
-          <div style={{ position: "relative" }}>
+        <form
+          onSubmit={onSubmitPrompt}
+          style={{
+            height: isTranscriptCollapsed ? "100%" : undefined,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              flex: isTranscriptCollapsed ? "1 1 auto" : undefined,
+              minHeight: isTranscriptCollapsed ? 0 : undefined,
+            }}
+          >
             <textarea
-              rows={4}
+              rows={isTranscriptCollapsed ? 10 : 4}
               placeholder="Type your prompt..."
               style={{
                 width: "100%",
@@ -352,7 +469,9 @@ export function WorkspaceColumn({
                 borderRadius: 12,
                 border: "1px solid #9eb8cd",
                 padding: "10px 48px 10px 12px",
-                resize: "vertical",
+                height: isTranscriptCollapsed ? "100%" : undefined,
+                minHeight: isTranscriptCollapsed ? 220 : undefined,
+                resize: isTranscriptCollapsed ? "none" : "vertical",
               }}
               value={prompt}
               onChange={(e) => onPromptChange(e.target.value)}
