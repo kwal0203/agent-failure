@@ -1,5 +1,5 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AgentStatus,
   InjectSessionEmailResponse,
@@ -12,6 +12,7 @@ import { API_BASE, AUTH_HEADER } from "../ui";
 
 type UseSessionActionsParams = {
   sessionId?: string;
+  canSend: boolean;
   sendPrompt: (text: string) => void;
   setTranscriptEntries: Dispatch<SetStateAction<TranscriptEntry[]>>;
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
@@ -22,6 +23,7 @@ type UseSessionActionsParams = {
 };
 
 export function useSessionActions(params: UseSessionActionsParams) {
+  const injectSuccessTimeoutRef = useRef<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -39,6 +41,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
 
   const onSubmitPrompt = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!params.canSend) return;
     const text = prompt.trim();
     if (!text) return;
 
@@ -67,6 +70,10 @@ export function useSessionActions(params: UseSessionActionsParams) {
 
     setInjectingEmail(true);
     setInjectEmailError(null);
+    if (injectSuccessTimeoutRef.current !== null) {
+      window.clearTimeout(injectSuccessTimeoutRef.current);
+      injectSuccessTimeoutRef.current = null;
+    }
     setInjectEmailResult(null);
 
     try {
@@ -116,7 +123,11 @@ export function useSessionActions(params: UseSessionActionsParams) {
         "email_id" in payload && payload.email_id
           ? ` (id: ${payload.email_id})`
           : "";
-      setInjectEmailResult(`Email ${accepted}${emailId}.`);
+      setInjectEmailResult("success");
+      injectSuccessTimeoutRef.current = window.setTimeout(() => {
+        setInjectEmailResult(null);
+        injectSuccessTimeoutRef.current = null;
+      }, 1800);
       params.appendTimelineEvent({
         id: `email-inject-${new Date().toISOString()}-${sender}-${subject}`,
         timestamp: new Date().toISOString(),
@@ -150,8 +161,20 @@ export function useSessionActions(params: UseSessionActionsParams) {
     setEmailBody("");
     setEmailMalicious(true);
     setInjectEmailError(null);
+    if (injectSuccessTimeoutRef.current !== null) {
+      window.clearTimeout(injectSuccessTimeoutRef.current);
+      injectSuccessTimeoutRef.current = null;
+    }
     setInjectEmailResult(null);
   };
+
+  useEffect(() => {
+    return () => {
+      if (injectSuccessTimeoutRef.current !== null) {
+        window.clearTimeout(injectSuccessTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const onToolSelect = (tool: ToolKey) => {
     setWorkspaceState((prev) => {

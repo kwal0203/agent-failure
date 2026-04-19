@@ -15,6 +15,8 @@ import type { AgentStatus } from "./session/types";
 
 export default function SessionPage() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const { sessionId } = useParams<{ sessionId: string }>();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
 
@@ -41,9 +43,11 @@ export default function SessionPage() {
   const {
     metadata,
     setMetadata,
+    progressReady,
     timelineEvents,
     feedbackError,
     feedbackLoading,
+    feedbackReady,
     appendTimelineEvent,
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
@@ -53,8 +57,14 @@ export default function SessionPage() {
     tokenComplete,
   } = sessionData;
 
+  const canSend =
+    connectionState === "open" &&
+    !isAwaitingResponse &&
+    (metadata?.interactive ?? false);
+
   const sessionActions = useSessionActions({
     sessionId,
+    canSend,
     sendPrompt,
     setTranscriptEntries,
     setIsAwaitingResponse,
@@ -98,11 +108,6 @@ export default function SessionPage() {
     setAgentStatus,
   });
 
-  const canSend =
-    connectionState === "open" &&
-    !isAwaitingResponse &&
-    (metadata?.interactive ?? false);
-
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
     useHintsState({
       sessionId,
@@ -110,10 +115,15 @@ export default function SessionPage() {
       appendTimelineEvent,
     });
 
+  const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
+  const rightColumnTemplate = isRightCollapsed
+    ? "38px"
+    : "minmax(300px, 23.3%)";
+
   return (
     <main
       style={{
-        height: "100%",
+        flex: "1 1 auto",
         minHeight: 0,
         padding: "16px 16px 8px",
         boxSizing: "border-box",
@@ -131,6 +141,7 @@ export default function SessionPage() {
         }}
       >
         <SessionHeaderStatus
+          progressReady={progressReady}
           inboxComplete={inboxComplete}
           contextComplete={contextComplete}
           tokenComplete={tokenComplete}
@@ -146,18 +157,102 @@ export default function SessionPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns:
-            "minmax(280px, 24%) minmax(520px, 1fr) minmax(300px, 28%)",
+          gridTemplateColumns: `${leftColumnTemplate} minmax(520px, 1fr) ${rightColumnTemplate}`,
           gridTemplateRows: "minmax(0, 1fr)",
           gap: 16,
           flex: "1 1 0%",
           minHeight: 0,
           overflow: "hidden",
           alignItems: "stretch",
+          transition:
+            "grid-template-columns 500ms cubic-bezier(0.22, 0.61, 0.36, 1)",
         }}
       >
-        <aside style={{ minHeight: 0, overflow: "hidden" }}>
-          <LabGuideColumn />
+        <aside
+          style={{
+            minHeight: 0,
+            minWidth: 0,
+            overflow: "hidden",
+            position: "relative",
+            border: "1px solid",
+            borderColor: isLeftCollapsed ? "#d3dce5" : "transparent",
+            borderRadius: 8,
+            background: isLeftCollapsed ? "#f6f9fc" : "transparent",
+            transition:
+              "border-color 360ms ease, background-color 360ms ease, border-radius 360ms ease",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "hidden",
+              opacity: isLeftCollapsed ? 0 : 1,
+              transition: "opacity 420ms ease",
+              pointerEvents: isLeftCollapsed ? "none" : "auto",
+            }}
+          >
+            <LabGuideColumn />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsLeftCollapsed(true)}
+            aria-label="Collapse lab guide"
+            title="Collapse lab guide"
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              zIndex: 2,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "1px solid #9bb0c5",
+              borderRadius: 6,
+              background: "#eef4fa",
+              color: "#2a4258",
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              opacity: isLeftCollapsed ? 0 : 1,
+              transition: "opacity 360ms ease",
+              pointerEvents: isLeftCollapsed ? "none" : "auto",
+            }}
+          >
+            ◂
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsLeftCollapsed(false)}
+            aria-label="Expand lab guide"
+            title="Expand lab guide"
+            style={{
+              position: "absolute",
+              inset: 0,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "none",
+              background: "transparent",
+              color: "#2a4258",
+              cursor: "pointer",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              writingMode: "vertical-rl",
+              textOrientation: "mixed",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              opacity: isLeftCollapsed ? 1 : 0,
+              transition: "opacity 420ms ease",
+              pointerEvents: isLeftCollapsed ? "auto" : "none",
+            }}
+          >
+            Lab Guide ▸
+          </button>
         </aside>
 
         <section
@@ -206,15 +301,109 @@ export default function SessionPage() {
           style={{
             display: "flex",
             flexDirection: "column",
+            position: "relative",
+            minWidth: 0,
+            height: "100%",
             minHeight: 0,
             maxHeight: "100%",
             overflow: "hidden",
+            border: "1px solid",
+            borderColor: "#d3dce5",
+            borderRadius: 8,
+            background: isRightCollapsed ? "#f6f9fc" : "transparent",
+            transition:
+              "border-color 360ms ease, background-color 360ms ease, border-radius 360ms ease",
           }}
         >
-          <FeedbackColumn
-            feedbackLoading={feedbackLoading}
-            feedbackError={feedbackError}
-            timelineEvents={timelineEvents}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "hidden",
+              opacity: isRightCollapsed ? 0 : 1,
+              transition: "opacity 420ms ease",
+              pointerEvents: isRightCollapsed ? "none" : "auto",
+            }}
+          >
+            <FeedbackColumn
+              feedbackLoading={feedbackLoading}
+              feedbackReady={feedbackReady}
+              feedbackError={feedbackError}
+              timelineEvents={timelineEvents}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsRightCollapsed(true)}
+            aria-label="Collapse event timeline"
+            title="Collapse event timeline"
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              zIndex: 2,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "1px solid #9bb0c5",
+              borderRadius: 6,
+              background: "#eef4fa",
+              color: "#2a4258",
+              padding: "2px 6px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              opacity: isRightCollapsed ? 0 : 1,
+              transition: "opacity 360ms ease",
+              pointerEvents: isRightCollapsed ? "none" : "auto",
+            }}
+          >
+            ▸
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsRightCollapsed(false)}
+            aria-label="Expand event timeline"
+            title="Expand event timeline"
+            style={{
+              position: "absolute",
+              inset: 0,
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              border: "none",
+              background: "transparent",
+              color: "#2a4258",
+              cursor: "pointer",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              writingMode: "vertical-lr",
+              textOrientation: "mixed",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              opacity: isRightCollapsed ? 1 : 0,
+              transition: "opacity 420ms ease",
+              pointerEvents: isRightCollapsed ? "auto" : "none",
+            }}
+          >
+            ◂ Timeline
+          </button>
+
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 1,
+              background: "#9bb0c5",
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
           />
         </aside>
       </div>

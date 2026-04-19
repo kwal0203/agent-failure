@@ -26,9 +26,11 @@ type UseSessionDataParams = {
 type UseSessionDataResult = {
   metadata: SessionMetadata | null;
   setMetadata: Dispatch<SetStateAction<SessionMetadata | null>>;
+  progressReady: boolean;
   timelineEvents: TimelineEvent[];
   feedbackError: string | null;
   feedbackLoading: boolean;
+  feedbackReady: boolean;
   appendTimelineEvent: (event: TimelineEvent) => void;
   registerLearnerFeedbackEvents: (
     feedback: LearnerFeedbackItem[],
@@ -41,6 +43,9 @@ type UseSessionDataResult = {
   tokenComplete: boolean;
 };
 
+const FEEDBACK_LOADING_SHOW_DELAY_MS = 200;
+const FEEDBACK_LOADING_MIN_VISIBLE_MS = 300;
+
 export function useSessionData({
   sessionId,
 }: UseSessionDataParams): UseSessionDataResult {
@@ -50,6 +55,9 @@ export function useSessionData({
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackReady, setFeedbackReady] = useState(false);
+  const feedbackLoadingShowTimerRef = useRef<number | null>(null);
+  const feedbackLoadingVisibleSinceRef = useRef<number | null>(null);
 
   const refreshSessionMetadata = useCallback(async () => {
     if (!sessionId) return;
@@ -104,6 +112,7 @@ export function useSessionData({
   );
 
   const progressChips = metadata?.progress_chips ?? [];
+  const progressReady = metadata !== null;
   const sessionState = metadata?.state ?? "UNKNOWN";
   const inboxComplete = progressChips.some(
     (chip) =>
@@ -122,6 +131,7 @@ export function useSessionData({
 
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
+    setMetadata(null);
     void refreshSessionMetadata();
   }, [refreshSessionMetadata]);
 
@@ -160,9 +170,48 @@ export function useSessionData({
 
     let cancelled = false;
     let timeoutId: number | null = null;
+    setFeedbackReady(false);
+    const beginForegroundLoading = () => {
+      if (feedbackLoadingShowTimerRef.current !== null) {
+        window.clearTimeout(feedbackLoadingShowTimerRef.current);
+      }
+      feedbackLoadingVisibleSinceRef.current = null;
+      feedbackLoadingShowTimerRef.current = window.setTimeout(() => {
+        if (cancelled) return;
+        feedbackLoadingVisibleSinceRef.current = Date.now();
+        setFeedbackLoading(true);
+        feedbackLoadingShowTimerRef.current = null;
+      }, FEEDBACK_LOADING_SHOW_DELAY_MS);
+    };
+    const endForegroundLoading = () => {
+      if (feedbackLoadingShowTimerRef.current !== null) {
+        window.clearTimeout(feedbackLoadingShowTimerRef.current);
+        feedbackLoadingShowTimerRef.current = null;
+      }
+
+      const visibleSince = feedbackLoadingVisibleSinceRef.current;
+      if (visibleSince === null) {
+        setFeedbackLoading(false);
+        return;
+      }
+
+      const elapsed = Date.now() - visibleSince;
+      const remaining = FEEDBACK_LOADING_MIN_VISIBLE_MS - elapsed;
+      if (remaining > 0) {
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setFeedbackLoading(false);
+          feedbackLoadingVisibleSinceRef.current = null;
+        }, remaining);
+        return;
+      }
+
+      setFeedbackLoading(false);
+      feedbackLoadingVisibleSinceRef.current = null;
+    };
     const run = async (opts?: { background?: boolean }) => {
       if (!opts?.background) {
-        setFeedbackLoading(true);
+        beginForegroundLoading();
         setFeedbackError(null);
       }
 
@@ -199,7 +248,8 @@ export function useSessionData({
         }
       } finally {
         if (!cancelled && !opts?.background) {
-          setFeedbackLoading(false);
+          endForegroundLoading();
+          setFeedbackReady(true);
         }
       }
     };
@@ -229,15 +279,21 @@ export function useSessionData({
     return () => {
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (feedbackLoadingShowTimerRef.current !== null) {
+        window.clearTimeout(feedbackLoadingShowTimerRef.current);
+        feedbackLoadingShowTimerRef.current = null;
+      }
     };
   }, [sessionId, refreshSessionMetadata, registerLearnerFeedbackEvents]);
 
   return {
     metadata,
     setMetadata,
+    progressReady,
     timelineEvents,
     feedbackError,
     feedbackLoading,
+    feedbackReady,
     appendTimelineEvent,
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,

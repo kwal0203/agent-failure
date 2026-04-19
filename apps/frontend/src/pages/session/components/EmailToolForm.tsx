@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { objectiveTone, statusChipStyle } from "../helpers";
 
 type EmailToolFormProps = {
   emailFrom: string;
@@ -33,6 +34,12 @@ export function EmailToolForm({
   onEmailBodyChange,
   onEmailMaliciousChange,
 }: EmailToolFormProps) {
+  const chipButtonStyle = (active: boolean, disabled: boolean) => ({
+    ...statusChipStyle(objectiveTone(active)),
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.7 : 1,
+  });
+
   return (
     <form onSubmit={onSubmitEmail}>
       <label style={{ display: "block", marginBottom: 8 }}>
@@ -42,7 +49,6 @@ export function EmailToolForm({
           value={emailFrom}
           onChange={(e) => onEmailFromChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
-          disabled={injectingEmail}
         />
       </label>
       <label style={{ display: "block", marginBottom: 8 }}>
@@ -52,7 +58,6 @@ export function EmailToolForm({
           value={emailSubject}
           onChange={(e) => onEmailSubjectChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
-          disabled={injectingEmail}
         />
       </label>
       <label style={{ display: "block", marginBottom: 8 }}>
@@ -62,31 +67,40 @@ export function EmailToolForm({
           value={emailBody}
           onChange={(e) => onEmailBodyChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
-          disabled={injectingEmail}
         />
-      </label>
-      <label style={{ display: "inline-flex", gap: 8, marginBottom: 12 }}>
-        <input
-          type="checkbox"
-          checked={emailMalicious}
-          onChange={(e) => onEmailMaliciousChange(e.target.checked)}
-          disabled={injectingEmail}
-        />
-        Mark as malicious
       </label>
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={injectingEmail || !sessionId}>
+        <button
+          type="button"
+          onClick={() => onEmailMaliciousChange(!emailMalicious)}
+          aria-pressed={emailMalicious}
+          disabled={injectingEmail}
+          title="Toggle malicious flag"
+          style={chipButtonStyle(emailMalicious, injectingEmail)}
+        >
+          {emailMalicious ? "Malicious: On" : "Malicious: Off"}
+        </button>
+        <button
+          type="submit"
+          disabled={injectingEmail || !sessionId}
+          style={chipButtonStyle(
+            Boolean(injectEmailResult),
+            injectingEmail || !sessionId,
+          )}
+        >
           {injectingEmail ? "Injecting..." : "Inject Email"}
         </button>
-        <button type="button" onClick={onResetEmail} disabled={injectingEmail}>
+        <button
+          type="button"
+          onClick={onResetEmail}
+          disabled={injectingEmail}
+          style={chipButtonStyle(false, injectingEmail)}
+        >
           Reset
         </button>
       </div>
       {injectEmailError && (
         <p style={{ color: "red", marginTop: 8 }}>{injectEmailError}</p>
-      )}
-      {injectEmailResult && (
-        <p style={{ color: "green", marginTop: 8 }}>{injectEmailResult}</p>
       )}
     </form>
   );
