@@ -19,6 +19,7 @@ const bootstrap: ShellBootstrap = {
 };
 
 export default function AppShell() {
+  const currentYear = new Date().getFullYear();
   const isDebug = bootstrap.mode === "debug";
   const navigate = useNavigate();
   const location = useLocation();
@@ -162,6 +163,57 @@ export default function AppShell() {
       >
         <Outlet context={bootstrap} />
       </main>
+      <footer
+        style={{
+          borderTop: isDebug ? "1px solid #d9dee8" : "1px solid #1d3850",
+          padding: isSessionRoute ? "10px 16px" : "10px 24px",
+          color: isDebug ? "#516171" : "#83b5c8",
+          fontSize: 12,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: isSessionRoute ? undefined : 1240,
+            margin: isSessionRoute ? 0 : "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>© {currentYear} Agent Failure</span>
+          <nav
+            aria-label="Footer links"
+            style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          >
+            <a
+              href="https://agent-failure.local/docs"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              Docs
+            </a>
+            <a
+              href="https://agent-failure.local/privacy"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              Privacy
+            </a>
+            <a
+              href="https://agent-failure.local/terms"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              Terms
+            </a>
+            <a
+              href="https://agent-failure.local/support"
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              Report issue
+            </a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
