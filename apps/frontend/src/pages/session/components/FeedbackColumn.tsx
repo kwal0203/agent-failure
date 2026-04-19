@@ -118,25 +118,6 @@ function formatTimestamp(isoTs: string): string {
   return date.toLocaleTimeString();
 }
 
-function eventIcon(type: EventType): string {
-  switch (type) {
-    case "important":
-      return "!";
-    case "attacker_action":
-      return "A";
-    case "agent_action":
-      return "G";
-    case "tool_call":
-      return "T";
-    case "system":
-      return "S";
-    case "explanation":
-      return "L";
-    default:
-      return "E";
-  }
-}
-
 export function FeedbackColumn({
   feedbackLoading,
   feedbackReady,
@@ -260,9 +241,9 @@ export function FeedbackColumn({
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      alignItems: "center",
+                      flexDirection: "column",
+                      gap: 6,
+                      alignItems: "flex-start",
                     }}
                   >
                     <p
@@ -272,18 +253,38 @@ export function FeedbackColumn({
                         color: tone.titleColor,
                       }}
                     >
-                      [{eventIcon(event.type)}] {event.title}
+                      {event.title}
                     </p>
-                    <span
+                    <div
                       style={{
-                        fontSize: 11,
-                        opacity: 0.9,
-                        color: tone.bodyColor,
+                        display: "inline-flex",
+                        gap: 6,
+                        alignItems: "center",
                       }}
                     >
-                      {EVENT_TYPE_BADGE[event.type]} •{" "}
-                      {formatTimestamp(event.timestamp)}
-                    </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          lineHeight: 1,
+                          border: "1px solid rgba(255, 255, 255, 0.35)",
+                          borderRadius: 999,
+                          padding: "2px 7px",
+                          color: tone.bodyColor,
+                          opacity: 0.95,
+                        }}
+                      >
+                        {EVENT_TYPE_BADGE[event.type]}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          opacity: 0.9,
+                          color: tone.bodyColor,
+                        }}
+                      >
+                        {formatTimestamp(event.timestamp)}
+                      </span>
+                    </div>
                   </div>
                   {selectedGranularity !== "high" ? (
                     <p
