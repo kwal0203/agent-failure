@@ -231,6 +231,8 @@ export function FeedbackColumn({
           height: 0,
           minHeight: 0,
           overflowY: "auto",
+          paddingRight: 6,
+          scrollbarGutter: "stable",
         }}
       >
         {filteredEvents.length === 0 ? (
