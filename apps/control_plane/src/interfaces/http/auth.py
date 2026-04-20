@@ -1,5 +1,6 @@
-from uuid import uuid5, NAMESPACE_URL
 from fastapi import Header, WebSocket
+from apps.control_plane.src.application.auth.mapper import auth_claims_to_principal
+from apps.control_plane.src.application.auth.types import AuthClaims
 from apps.control_plane.src.application.common.types import PrincipalContext
 
 
@@ -24,8 +25,15 @@ def _principal_from_token(token: str) -> PrincipalContext:
     if len(parts) == 3:
         role = parts[2].strip() or "learner"
 
-    user_id = uuid5(namespace=NAMESPACE_URL, name=f"local-user:{username}")
-    return PrincipalContext(user_id=user_id, role=role)
+    claims = AuthClaims(
+        sub=f"local-user:{username}",
+        email=None,
+        roles=(role,),
+        scopes=(),
+        issued_at=None,
+        expires_at=None,
+    )
+    return auth_claims_to_principal(claims)
 
 
 def get_current_principal(
