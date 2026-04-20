@@ -29,6 +29,12 @@ spec:
               value: "dev-secret"
             - name: RUNTIME_TIMEOUT_SECONDS
               value: "60"
+            - name: AUTH_ISSUER
+              value: ""
+            - name: AUTH_AUDIENCE
+              value: ""
+            - name: AUTH_JWKS_URI
+              value: ""
           resources:
             requests:
               cpu: "250m"

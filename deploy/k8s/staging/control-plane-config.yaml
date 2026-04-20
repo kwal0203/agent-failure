@@ -7,6 +7,9 @@ data:
   APP_ENV: "staging"
   LOG_LEVEL: "INFO"
   MODEL_CLIENT_MODE: "fake"
+  AUTH_ISSUER: ""
+  AUTH_AUDIENCE: ""
+  AUTH_JWKS_URI: ""
 ---
 apiVersion: v1
 kind: Secret
