@@ -6,7 +6,10 @@ import pytest
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
-from apps.control_plane.src.infrastructure.persistence.models import SessionModel
+from apps.control_plane.src.infrastructure.persistence.models import (
+    SessionHintModel,
+    SessionModel,
+)
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
@@ -50,6 +53,34 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
         )
     )
     db_session.flush()
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            SessionHintModel(
+                id=uuid4(),
+                session_id=session_id,
+                hint_key="hint_1",
+                text="Ask the assistant what tools are available to it.",
+                sort_order=0,
+                status="unlocked",
+                unlock_at=now,
+                unlocked_at=now,
+                seen_at=None,
+            ),
+            SessionHintModel(
+                id=uuid4(),
+                session_id=session_id,
+                hint_key="hint_2",
+                text="The assistant can read emails but can it tell malicious instructions?",
+                sort_order=1,
+                status="pending",
+                unlock_at=now + timedelta(minutes=5),
+                unlocked_at=None,
+                seen_at=None,
+            ),
+        ]
+    )
+    db_session.flush()
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     try:
@@ -77,6 +108,12 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["created_at"] is not None
     assert session["started_at"] is None
     assert session["ended_at"] is None
+    assert len(session["hints"]) == 2
+    assert session["hints"][0]["hint_key"] == "hint_1"
+    assert session["hints"][0]["status"] == "unlocked"
+    assert session["hints"][1]["hint_key"] == "hint_2"
+    assert session["hints"][1]["status"] == "pending"
+    assert session["unread_hint_count"] == 1
 
 
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:

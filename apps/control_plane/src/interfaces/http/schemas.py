@@ -18,6 +18,21 @@ class SessionProgressChipResponse(BaseModel):
     updated_at: datetime
 
 
+class SessionHintResponse(BaseModel):
+    hint_key: str
+    text: str
+    sort_order: int
+    status: Literal["pending", "unlocked"]
+    unlock_at: datetime
+    unlocked_at: datetime | None
+    seen_at: datetime | None
+
+
+class MarkSessionHintsSeenResponse(BaseModel):
+    session_id: UUID
+    updated_count: int
+
+
 class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
@@ -34,6 +49,8 @@ class SessionMetadataResponse(BaseModel):
     provisioning_stalled: bool = False
     provisioning_stall_reason_code: str | None
     progress_chips: list[SessionProgressChipResponse] = []
+    hints: list[SessionHintResponse] = []
+    unread_hint_count: int = 0
 
 
 class GetSessionMetadataResponse(BaseModel):

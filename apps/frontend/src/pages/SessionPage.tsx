@@ -111,8 +111,9 @@ export default function SessionPage() {
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
     useHintsState({
       sessionId,
-      sessionState: metadata?.state,
-      appendTimelineEvent,
+      hints: metadata?.hints,
+      unreadHintCount: metadata?.unread_hint_count,
+      refreshSessionMetadata,
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
@@ -138,20 +139,50 @@ export default function SessionPage() {
           marginBottom: 16,
           position: "relative",
           display: "flex",
+          minHeight: 40,
+          alignItems: "center",
+          zIndex: 20,
+          overflow: "visible",
         }}
       >
-        <SessionHeaderStatus
-          progressReady={progressReady}
-          inboxComplete={inboxComplete}
-          contextComplete={contextComplete}
-          tokenComplete={tokenComplete}
-          agentStatus={agentStatus}
-          hasUnreadHint={hasUnreadHint}
-          unlockedHints={unlockedHints}
-          sessionState={sessionState}
-          hintsPanelOpen={hintsPanelOpen}
-          onHintsChipClick={onHintsChipClick}
-        />
+        {progressReady ? (
+          <div
+            style={{
+              width: "100%",
+              animation: "headerChipsIn 220ms ease-out both",
+            }}
+          >
+            <SessionHeaderStatus
+              progressReady={progressReady}
+              inboxComplete={inboxComplete}
+              contextComplete={contextComplete}
+              tokenComplete={tokenComplete}
+              agentStatus={agentStatus}
+              hasUnreadHint={hasUnreadHint}
+              unlockedHints={unlockedHints}
+              hintsReady={progressReady}
+              sessionState={sessionState}
+              hintsPanelOpen={hintsPanelOpen}
+              onHintsChipClick={onHintsChipClick}
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: 32,
+              borderRadius: 8,
+              background: "rgba(36, 43, 52, 0.28)",
+              border: "1px solid rgba(74, 85, 98, 0.35)",
+            }}
+          />
+        )}
+        <style>{`
+          @keyframes headerChipsIn {
+            from { opacity: 0; transform: translateY(-2px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       </header>
 
       <div

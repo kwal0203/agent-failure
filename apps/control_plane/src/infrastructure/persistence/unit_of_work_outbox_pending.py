@@ -12,6 +12,10 @@ from apps.control_plane.src.application.session_objectives.ports import (
     LabObjectiveTemplateReaderPort,
     SessionObjectiveWriterPort,
 )
+from apps.control_plane.src.application.session_hints.ports import (
+    LabHintTemplateReaderPort,
+    SessionHintWriterPort,
+)
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
@@ -28,6 +32,10 @@ from .session_objectives_repository import (
     SQLAlchemyLabObjectiveTemplateRepository,
     SQLAlchemySessionObjectiveWriterRepository,
 )
+from .session_hints_repository import (
+    SQLAlchemyLabHintTemplateRepository,
+    SQLAlchemySessionHintWriterRepository,
+)
 
 
 class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
@@ -40,6 +48,8 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._runtime_binding: SessionRuntimeBindingPort | None = None
         self._objective_templates: LabObjectiveTemplateReaderPort | None = None
         self._session_objectives: SessionObjectiveWriterPort | None = None
+        self._hint_templates: LabHintTemplateReaderPort | None = None
+        self._session_hints: SessionHintWriterPort | None = None
 
     @property
     def outbox(self) -> OutboxProvisioningSessionPort:
@@ -83,6 +93,18 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             raise RuntimeError("No active objective templates")
         return self._objective_templates
 
+    @property
+    def hint_templates(self) -> LabHintTemplateReaderPort:
+        if self._hint_templates is None:
+            raise RuntimeError("No active hint templates")
+        return self._hint_templates
+
+    @property
+    def session_hints(self) -> SessionHintWriterPort:
+        if self._session_hints is None:
+            raise RuntimeError("No active session hints")
+        return self._session_hints
+
     @contextmanager
     def transaction(self) -> Iterator[None]:
         db_session = self._session_factory()
@@ -103,6 +125,8 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         self._objective_templates = SQLAlchemyLabObjectiveTemplateRepository(
             db=db_session
         )
+        self._session_hints = SQLAlchemySessionHintWriterRepository(db=db_session)
+        self._hint_templates = SQLAlchemyLabHintTemplateRepository(db=db_session)
 
         try:
             yield
@@ -119,3 +143,5 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
             self._runtime_binding = None
             self._session_objectives = None
             self._objective_templates = None
+            self._session_hints = None
+            self._hint_templates = None

@@ -25,7 +25,9 @@ from .schemas import (
     InjectSessionEmailResponse,
     LearnerExplanationRequest,
     LearnerExplanationResponse,
+    MarkSessionHintsSeenResponse,
     SessionProgressChipResponse,
+    SessionHintResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -69,6 +71,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionRuntimeBindingRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
+    SQLAlchemySessionHintSeenRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionObjectiveModel,
 )
@@ -100,6 +105,13 @@ from apps.control_plane.src.application.learner_explanation.types import (
 )
 from apps.control_plane.src.application.learner_explanation.errors import (
     InvalidLearnerExplanationError,
+)
+from apps.control_plane.src.application.session_hints.errors import (
+    ForbiddenErrorSessionHints,
+    SessionNotFoundErrorSessionHints,
+)
+from apps.control_plane.src.application.session_hints.service import (
+    mark_session_hints_seen,
 )
 from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
     LearnerExplanationRepository,
@@ -265,14 +277,27 @@ def get_metadata(
                 logger.warning("heartbeat read failed in get_metadata", exc_info=True)
 
         progress_chips: list[SessionProgressChipResponse] = []
-        for item in session_metadata.progress_chips:
+        for progress_item in session_metadata.progress_chips:
             progress_chips.append(
                 SessionProgressChipResponse(
-                    objective_key=item.objective_key,
-                    label=item.label,
-                    status=item.status,
-                    completed_at=item.completed_at,
-                    updated_at=item.updated_at,
+                    objective_key=progress_item.objective_key,
+                    label=progress_item.label,
+                    status=progress_item.status,
+                    completed_at=progress_item.completed_at,
+                    updated_at=progress_item.updated_at,
+                )
+            )
+        hints: list[SessionHintResponse] = []
+        for hint_item in session_metadata.hints:
+            hints.append(
+                SessionHintResponse(
+                    hint_key=hint_item.hint_key,
+                    text=hint_item.text,
+                    sort_order=hint_item.sort_order,
+                    status=hint_item.status,
+                    unlock_at=hint_item.unlock_at,
+                    unlocked_at=hint_item.unlocked_at,
+                    seen_at=hint_item.seen_at,
                 )
             )
 
@@ -296,6 +321,8 @@ def get_metadata(
             if stalled
             else None,
             progress_chips=progress_chips,
+            hints=hints,
+            unread_hint_count=session_metadata.unread_hint_count,
         )
         return GetSessionMetadataResponse(session=http_obj)
 
@@ -468,6 +495,62 @@ def create_session_endpoint(
 
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/hints/mark-seen",
+    response_model=MarkSessionHintsSeenResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+    },
+)
+def mark_hints_seen_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> MarkSessionHintsSeenResponse | JSONResponse:
+    seen_repo = SQLAlchemySessionHintSeenRepository(db=db)
+    try:
+        updated_count = mark_session_hints_seen(
+            session_id=session_id,
+            principal=principal,
+            seen_repo=seen_repo,
+        )
+        db.commit()
+        return MarkSessionHintsSeenResponse(
+            session_id=session_id,
+            updated_count=updated_count,
+        )
+    except ForbiddenErrorSessionHints as exc:
+        db.rollback()
+        return build_api_error_response(
+            "FORBIDDEN",
+            exc.message,
+            False,
+            403,
+            exc.details,
+        )
+    except SessionNotFoundErrorSessionHints:
+        db.rollback()
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id), "exists": False},
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("mark hints seen failed")
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
         )
 
 

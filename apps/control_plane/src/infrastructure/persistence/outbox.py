@@ -4,6 +4,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from apps.control_plane.src.application.session_hints.schemas import (
+    HintUnlockedEventPayload,
+)
 from apps.control_plane.src.application.session_lifecycle.ports import Outbox
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
@@ -158,6 +161,48 @@ class SQLAlchemyOutbox(Outbox):
 
         event = OutboxEventModel(
             event_type="session.objective.completed.v1",
+            aggregate_id=session_id,
+            payload=payload,
+        )
+        self._db.add(event)
+
+    def enqueue_session_hint_unlocked(
+        self,
+        *,
+        session_id: UUID,
+        hint_key: str,
+        text: str,
+        sort_order: int,
+        unlocked_at: datetime,
+        idempotency_key: str,
+    ) -> None:
+        existing = (
+            self._db.execute(
+                select(OutboxEventModel.id).where(
+                    OutboxEventModel.event_type == "session.hint.unlocked.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                    OutboxEventModel.payload["idempotency_key"].astext
+                    == idempotency_key,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return
+
+        payload_model = HintUnlockedEventPayload(
+            session_id=session_id,
+            hint_key=hint_key,
+            text=text,
+            sort_order=sort_order,
+            unlocked_at=unlocked_at,
+            idempotency_key=idempotency_key,
+        )
+        payload = payload_model.model_dump(mode="json")
+
+        event = OutboxEventModel(
+            event_type="session.hint.unlocked.v1",
             aggregate_id=session_id,
             payload=payload,
         )

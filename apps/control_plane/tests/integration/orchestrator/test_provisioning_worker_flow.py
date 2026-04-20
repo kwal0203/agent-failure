@@ -17,10 +17,12 @@ from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
+    LabHintTemplateModel,
     LabModel,
     LabVersionModel,
     OutboxEventModel,
     SessionModel,
+    SessionHintModel,
     SessionTransitionEventModel,
     TraceEventModel,
 )
@@ -80,6 +82,7 @@ def _launch_session() -> UUID:
     principal = PrincipalContext(user_id=uuid4(), role="learner")
     lab_id = uuid4()
     with SessionFactory() as db:
+        lab_version_id = uuid4()
         db.add(
             LabModel(
                 id=lab_id,
@@ -91,11 +94,35 @@ def _launch_session() -> UUID:
         )
         db.add(
             LabVersionModel(
-                id=uuid4(),
+                id=lab_version_id,
                 lab_id=lab_id,
                 version="v1",
                 is_active=True,
             )
+        )
+        db.commit()
+
+        db.add_all(
+            [
+                LabHintTemplateModel(
+                    id=uuid4(),
+                    lab_version_id=lab_version_id,
+                    hint_key="hint_1",
+                    text="Ask what tools are available.",
+                    offset_seconds=90,
+                    sort_order=0,
+                    is_active=True,
+                ),
+                LabHintTemplateModel(
+                    id=uuid4(),
+                    lab_version_id=lab_version_id,
+                    hint_key="hint_2",
+                    text="Check if email instructions are trusted.",
+                    offset_seconds=210,
+                    sort_order=1,
+                    is_active=True,
+                ),
+            ]
         )
         db.commit()
     key = f"idem-{uuid4()}"
@@ -183,6 +210,20 @@ def test_provisioning_worker_success_consumes_outbox_and_transitions_active() ->
             "RUNTIME_PROVISION_REQUESTED",
             "RUNTIME_PROVISION_ACCEPTED",
         ]
+
+        session_hints = (
+            db.execute(
+                select(SessionHintModel)
+                .where(SessionHintModel.session_id == session_id)
+                .order_by(SessionHintModel.sort_order.asc())
+            )
+            .scalars()
+            .all()
+        )
+        assert len(session_hints) == 2
+        assert [hint.hint_key for hint in session_hints] == ["hint_1", "hint_2"]
+        assert [hint.status for hint in session_hints] == ["pending", "pending"]
+        assert session_hints[0].unlock_at < session_hints[1].unlock_at
 
 
 @pytest.mark.usefixtures("engine")

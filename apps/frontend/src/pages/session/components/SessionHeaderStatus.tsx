@@ -19,6 +19,7 @@ type SessionStatusHeaderProps = {
   agentStatus: AgentStatus;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
+  hintsReady: boolean;
   sessionState: string;
   hintsPanelOpen: boolean;
   onHintsChipClick: () => void;
@@ -32,6 +33,7 @@ type SessionHeaderStatusProps = {
   agentStatus: AgentStatus;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
+  hintsReady: boolean;
   sessionState: string;
   hintsPanelOpen: boolean;
   onHintsChipClick: () => void;
@@ -106,6 +108,7 @@ export function SessionStatusHeader({
   agentStatus,
   hasUnreadHint,
   unlockedHints,
+  hintsReady,
   sessionState,
   hintsPanelOpen,
   onHintsChipClick,
@@ -119,6 +122,7 @@ export function SessionStatusHeader({
 
     return (
       <section
+        className="hints-scroll-region"
         style={{
           position: "absolute",
           top: "calc(100% + 8px)",
@@ -126,15 +130,21 @@ export function SessionStatusHeader({
           zIndex: 4,
           width: 420,
           maxWidth: "100%",
-          background: "rgba(9, 19, 31, 0.95)",
-          border: "1px solid #285272",
+          maxHeight: 640,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingRight: 6,
+          background: "#09131f",
+          border: "1px solid #35607f",
           borderRadius: 10,
           padding: 12,
           boxSizing: "border-box",
+          boxShadow: "0 10px 24px rgba(0, 0, 0, 0.35)",
         }}
       >
-        <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Hints</h3>
-        {unlockedHints.length === 0 ? (
+        {!hintsReady ? (
+          <p style={{ margin: 0, opacity: 0.88 }} />
+        ) : unlockedHints.length === 0 ? (
           <p style={{ margin: 0, opacity: 0.88 }}>
             No hints unlocked yet. Continue interacting and check back.
           </p>
@@ -144,17 +154,25 @@ export function SessionStatusHeader({
               <div
                 key={`hint-${hint.index}`}
                 style={{
-                  border: "1px solid #35607f",
+                  border: "1px solid #9a4f8a",
                   borderRadius: 8,
                   padding: 10,
-                  background: "rgba(11, 34, 54, 0.62)",
+                  background: "rgba(64, 24, 58, 0.64)",
                 }}
               >
-                <p style={{ margin: "0 0 4px", fontWeight: 700 }}>
+                <p
+                  style={{
+                    margin: "0 0 4px",
+                    fontWeight: 700,
+                    color: "#ffd8f5",
+                  }}
+                >
                   Hint {hint.index + 1}
                 </p>
-                <p style={{ margin: "0 0 6px" }}>{hint.text}</p>
-                <p style={{ margin: 0, fontSize: 12, opacity: 0.82 }}>
+                <p style={{ margin: "0 0 6px", color: "#ffeafd" }}>
+                  {hint.text}
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: "#f2cbe8" }}>
                   Unlocked at {formatTime(hint.unlockedAt)}
                 </p>
               </div>
@@ -203,6 +221,7 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     agentStatus,
     hasUnreadHint,
     unlockedHints,
+    hintsReady,
     sessionState,
     hintsPanelOpen,
     onHintsChipClick,
@@ -239,6 +258,7 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
           agentStatus={agentStatus}
           hasUnreadHint={hasUnreadHint}
           unlockedHints={unlockedHints}
+          hintsReady={hintsReady}
           sessionState={sessionState}
           hintsPanelOpen={hintsPanelOpen}
           onHintsChipClick={onHintsChipClick}
@@ -248,6 +268,25 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
         @keyframes progressChipIn {
           from { opacity: 0; transform: translateY(-3px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .hints-scroll-region {
+          scrollbar-width: thin;
+          scrollbar-color: #88a2b8 transparent;
+        }
+        .hints-scroll-region::-webkit-scrollbar {
+          width: 10px;
+        }
+        .hints-scroll-region::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .hints-scroll-region::-webkit-scrollbar-thumb {
+          background-color: #88a2b8;
+          border-radius: 999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        .hints-scroll-region::-webkit-scrollbar-thumb:hover {
+          background-color: #6f8ea8;
         }
       `}</style>
     </div>
