@@ -44,6 +44,7 @@ export default function SessionPage() {
     metadata,
     setMetadata,
     progressReady,
+    progressChips,
     timelineEvents,
     feedbackError,
     feedbackLoading,
@@ -52,9 +53,6 @@ export default function SessionPage() {
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
     sessionState,
-    inboxComplete,
-    contextComplete,
-    tokenComplete,
   } = sessionData;
 
   const canSend =
@@ -114,6 +112,7 @@ export default function SessionPage() {
       hints: metadata?.hints,
       unreadHintCount: metadata?.unread_hint_count,
       refreshSessionMetadata,
+      appendTimelineEvent,
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
@@ -154,9 +153,7 @@ export default function SessionPage() {
           >
             <SessionHeaderStatus
               progressReady={progressReady}
-              inboxComplete={inboxComplete}
-              contextComplete={contextComplete}
-              tokenComplete={tokenComplete}
+              progressChips={progressChips}
               agentStatus={agentStatus}
               hasUnreadHint={hasUnreadHint}
               unlockedHints={unlockedHints}
@@ -223,7 +220,7 @@ export default function SessionPage() {
               pointerEvents: isLeftCollapsed ? "none" : "auto",
             }}
           >
-            <LabGuideColumn />
+            <LabGuideColumn labId={metadata?.lab_id} />
           </div>
 
           <button

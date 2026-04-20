@@ -5,14 +5,12 @@ import {
   objectiveTone,
   statusChipStyle,
 } from "../helpers";
-import type { AgentStatus, UnlockedHint } from "../types";
+import type { AgentStatus, SessionProgressChip, UnlockedHint } from "../types";
 import { statusTone } from "../ui";
 
 type ProgressStatusHeaderProps = {
   progressReady: boolean;
-  inboxComplete: boolean;
-  contextComplete: boolean;
-  tokenComplete: boolean;
+  progressChips: SessionProgressChip[];
 };
 
 type SessionStatusHeaderProps = {
@@ -27,9 +25,7 @@ type SessionStatusHeaderProps = {
 
 type SessionHeaderStatusProps = {
   progressReady: boolean;
-  inboxComplete: boolean;
-  contextComplete: boolean;
-  tokenComplete: boolean;
+  progressChips: SessionProgressChip[];
   agentStatus: AgentStatus;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
@@ -41,9 +37,7 @@ type SessionHeaderStatusProps = {
 
 export function ProgressStatusHeader({
   progressReady,
-  inboxComplete,
-  contextComplete,
-  tokenComplete,
+  progressChips,
 }: ProgressStatusHeaderProps) {
   if (!progressReady) {
     const placeholderStyle = {
@@ -55,51 +49,27 @@ export function ProgressStatusHeader({
       opacity: 0.92,
     };
 
-    return (
-      <>
-        <div style={placeholderStyle}>Malicious email injected</div>
-        <div style={placeholderStyle}>
-          Malicious instructions entered context
-        </div>
-        <div style={placeholderStyle}>Token exposed</div>
-      </>
-    );
+    return <div style={placeholderStyle}>Loading objective status</div>;
   }
-
-  const inboxTone = objectiveTone(inboxComplete);
-  const contextTone = objectiveTone(contextComplete);
-  const tokenTone = objectiveTone(tokenComplete);
 
   return (
     <>
-      <div
-        style={{
-          ...statusChipStyle(inboxTone),
-          animation: "progressChipIn 220ms ease-out both",
-          animationDelay: "0ms",
-        }}
-      >
-        Malicious email injected {inboxComplete ? <strong>✓</strong> : null}
-      </div>
-      <div
-        style={{
-          ...statusChipStyle(contextTone),
-          animation: "progressChipIn 220ms ease-out both",
-          animationDelay: "40ms",
-        }}
-      >
-        Malicious instructions entered context{" "}
-        {contextComplete ? <strong>✓</strong> : null}
-      </div>
-      <div
-        style={{
-          ...statusChipStyle(tokenTone),
-          animation: "progressChipIn 220ms ease-out both",
-          animationDelay: "80ms",
-        }}
-      >
-        Token exposed {tokenComplete ? <strong>✓</strong> : null}
-      </div>
+      {progressChips.map((chip, index) => {
+        const complete = chip.status === "complete";
+        const tone = objectiveTone(complete);
+        return (
+          <div
+            key={chip.objective_key}
+            style={{
+              ...statusChipStyle(tone),
+              animation: "progressChipIn 220ms ease-out both",
+              animationDelay: `${index * 40}ms`,
+            }}
+          >
+            {chip.label} {complete ? <strong>✓</strong> : null}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -215,9 +185,7 @@ export function SessionStatusHeader({
 export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
   const {
     progressReady,
-    inboxComplete,
-    contextComplete,
-    tokenComplete,
+    progressChips,
     agentStatus,
     hasUnreadHint,
     unlockedHints,
@@ -241,9 +209,7 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <ProgressStatusHeader
           progressReady={progressReady}
-          inboxComplete={inboxComplete}
-          contextComplete={contextComplete}
-          tokenComplete={tokenComplete}
+          progressChips={progressChips}
         />
       </div>
       <div
