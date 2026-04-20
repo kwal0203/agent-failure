@@ -50,6 +50,7 @@ export function useSessionData({
   sessionId,
 }: UseSessionDataParams): UseSessionDataResult {
   const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
+  const [metadataReady, setMetadataReady] = useState(false);
   const seenFeedbackKeysRef = useRef(new Set<string>());
   const seenTimelineEventIdsRef = useRef(new Set<string>());
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
@@ -77,6 +78,7 @@ export function useSessionData({
 
       const data = (await res.json()) as GetSessionMetadataResponse;
       setMetadata(data.session);
+      setMetadataReady(true);
     } catch {
       return;
     }
@@ -112,7 +114,7 @@ export function useSessionData({
   );
 
   const progressChips = metadata?.progress_chips ?? [];
-  const progressReady = metadata !== null;
+  const progressReady = metadataReady;
   const sessionState = metadata?.state ?? "UNKNOWN";
   const inboxComplete = progressChips.some(
     (chip) =>
@@ -131,7 +133,7 @@ export function useSessionData({
 
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
-    setMetadata(null);
+    setMetadataReady(false);
     void refreshSessionMetadata();
   }, [refreshSessionMetadata]);
 
