@@ -1,8 +1,8 @@
-from sqlalchemy.orm import Session
 from functools import lru_cache
+from sqlalchemy.orm import Session
 
 # from fastapi import Depends, HTTPException, status
-from fastapi import Depends
+from fastapi import Depends, Request
 from dataclasses import replace
 
 from apps.control_plane.src.application.session_create.ports import (
@@ -117,6 +117,13 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
 def get_token_verifier() -> TokenVerifierPort:
     config = get_auth_verifier_config()
     return LocalTokenVerifier(config=config)
+
+
+def get_token_verifier_from_request(request: Request) -> TokenVerifierPort:
+    verifier = getattr(request.app.state, "token_verifier", None)
+    if verifier is not None:
+        return verifier
+    return get_token_verifier()
 
 
 class RuntimeClientFactory:

@@ -6,7 +6,10 @@ from apps.control_plane.src.application.auth.errors import (
 from apps.control_plane.src.application.auth.mapper import auth_claims_to_principal
 from apps.control_plane.src.application.auth.ports import TokenVerifierPort
 from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.interfaces.http.dependencies import get_token_verifier
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_token_verifier,
+    get_token_verifier_from_request,
+)
 
 
 class UnauthenticatedError(Exception):
@@ -39,14 +42,16 @@ def _principal_from_token(token: str, verifier: TokenVerifierPort) -> PrincipalC
 
 def get_current_principal(
     authorization: str = Header(..., alias="Authorization"),
-    verifier: TokenVerifierPort = Depends(get_token_verifier),
+    verifier: TokenVerifierPort = Depends(get_token_verifier_from_request),
 ) -> PrincipalContext:
     token = _extract_bearer_token(authorization)
     return _principal_from_token(token=token, verifier=verifier)
 
 
 def get_current_principal_ws(websocket: WebSocket) -> PrincipalContext:
-    verifier = get_token_verifier()
+    verifier = getattr(websocket.app.state, "token_verifier", None)
+    if verifier is None:
+        verifier = get_token_verifier()
 
     token_qs = websocket.query_params.get("access_token")
     if token_qs:
