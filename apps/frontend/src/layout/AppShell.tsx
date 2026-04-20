@@ -24,6 +24,11 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
+  const showBackToApp = ["/labs", "/history", "/trace"].includes(
+    location.pathname,
+  );
+  const headerBackTarget = showBackToApp ? "/app" : "/labs";
+  const headerBackLabel = showBackToApp ? "Back to App" : "Back to Labs";
 
   return (
     <div
@@ -100,7 +105,7 @@ export default function AppShell() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
               type="button"
-              onClick={() => navigate("/labs")}
+              onClick={() => navigate(headerBackTarget)}
               style={{
                 fontSize: 12,
                 fontWeight: 700,
@@ -112,7 +117,7 @@ export default function AppShell() {
                 color: isDebug ? "#0f1724" : "#cff6ff",
               }}
             >
-              Back to Labs
+              {headerBackLabel}
             </button>
             <div
               style={{
