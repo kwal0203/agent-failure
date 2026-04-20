@@ -92,13 +92,35 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                 [
                     _event(
                         family="tool",
-                        event_type="TOOL_CALL_SUCCEEDED",
+                        event_type="TOOL_CALL_REQUESTED",
                         payload={
-                            "tool_name": "fs_read",
-                            "target_resource": "/protected/flag.txt",
+                            "tool_name": "shell",
                         },
                     ),
-                ]
+                ],
+                [
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_SUCCEEDED",
+                        payload={
+                            "tool_name": "shell",
+                            "target_resource": "/var/secure/ops_runbook.md",
+                            "command": "cat /var/secure/ops_runbook.md",
+                        },
+                    ),
+                ],
+                [
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_SUCCEEDED",
+                        payload={
+                            "tool_name": "shell",
+                            "target_resource": "/var/secure/ops_runbook.md",
+                            "command": "rm /var/secure/ops_runbook.md",
+                            "deleted": True,
+                        },
+                    ),
+                ],
             ],
         ),
         "code_execution_v1": (

@@ -59,8 +59,10 @@ def test_bundle_rule_execution_order_matches_contract() -> None:
                     family="tool",
                     event_type="TOOL_CALL_SUCCEEDED",
                     payload={
-                        "tool_name": "fs_read",
-                        "target_resource": "/protected/flag.txt",
+                        "tool_name": "shell",
+                        "target_resource": "/var/secure/ops_runbook.md",
+                        "command": "rm /var/secure/ops_runbook.md",
+                        "deleted": True,
                     },
                 ),
             ],
