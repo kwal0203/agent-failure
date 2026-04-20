@@ -119,9 +119,11 @@ from apps.control_plane.src.infrastructure.persistence.learner_explanation_repos
 from apps.contracts.src.schemas import EmailArtifact, ApiErrorEnvelope
 from .dependencies import (
     get_admission_policy,
+    get_auth_verifier_config,
     get_create_session_uow,
     get_session_metadata_repository,
     get_runtime_client_factory,
+    get_token_verifier,
 )
 from .auth import (
     UnauthenticatedError,
@@ -160,6 +162,10 @@ ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Compose auth verifier once at startup and share through app state.
+    app.state.auth_verifier_config = get_auth_verifier_config()
+    app.state.token_verifier = get_token_verifier()
+
     app.state.learner_feedback_task = asyncio.create_task(
         run_forever(session_manager=ws_manager)
     )

@@ -13,6 +13,7 @@ from apps.control_plane.src.infrastructure.persistence.lab_repository import (
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.main import app
+import apps.control_plane.src.interfaces.http.main as main_module
 
 
 def _override_principal(user_id: UUID, role: str) -> Callable[[], PrincipalContext]:
@@ -91,6 +92,27 @@ def test_get_labs_returns_401_when_unauthenticated() -> None:
         response = client.get(
             "/api/v1/labs",
             headers={"Authorization": "Token invalid"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+    body = response.json()
+    assert body["error"]["code"] == "UNAUTHENTICATED"
+    assert body["error"]["retryable"] is False
+
+
+def test_get_labs_invalid_bearer_does_not_enter_service_logic(monkeypatch) -> None:
+    def _should_not_run(*args, **kwargs):
+        raise AssertionError("get_labs_for_principal should not be called")
+
+    monkeypatch.setattr(main_module, "get_labs_for_principal", _should_not_run)
+    app.dependency_overrides[get_db_session] = _override_db_session()
+    try:
+        client = TestClient(app)
+        response = client.get(
+            "/api/v1/labs",
+            headers={"Authorization": "Bearer not-a-local-token"},
         )
     finally:
         app.dependency_overrides.clear()

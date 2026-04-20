@@ -1,7 +1,8 @@
+from functools import lru_cache
 from sqlalchemy.orm import Session
 
 # from fastapi import Depends, HTTPException, status
-from fastapi import Depends
+from fastapi import Depends, Request
 from dataclasses import replace
 
 from apps.control_plane.src.application.session_create.ports import (
@@ -15,7 +16,12 @@ from apps.control_plane.src.application.session_create.schemas import (
 )
 from apps.control_plane.src.application.common.ports import IdempotencyStore
 from apps.control_plane.src.application.runtime.types import RuntimeClientConfig
+from apps.control_plane.src.application.auth.ports import TokenVerifierPort
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
+from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
+    LocalTokenVerifier,
+)
+from apps.control_plane.src.infrastructure.auth.types import AuthVerifierConfig
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
 )
@@ -92,6 +98,32 @@ def get_runtime_client_config() -> RuntimeClientConfig:
         timeout_seconds=timeout_seconds,
         auth_token=auth_token or None,
     )
+
+
+@lru_cache(maxsize=1)
+def get_auth_verifier_config() -> AuthVerifierConfig:
+    issuer = os.getenv("AUTH_ISSUER", "").strip()
+    audience = os.getenv("AUTH_AUDIENCE", "").strip()
+    jwks_uri = os.getenv("AUTH_JWKS_URI", "").strip()
+
+    return AuthVerifierConfig(
+        issuer=issuer,
+        audience=audience,
+        jwks_uri=jwks_uri,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_token_verifier() -> TokenVerifierPort:
+    config = get_auth_verifier_config()
+    return LocalTokenVerifier(config=config)
+
+
+def get_token_verifier_from_request(request: Request) -> TokenVerifierPort:
+    verifier = getattr(request.app.state, "token_verifier", None)
+    if verifier is not None:
+        return verifier
+    return get_token_verifier()
 
 
 class RuntimeClientFactory:
