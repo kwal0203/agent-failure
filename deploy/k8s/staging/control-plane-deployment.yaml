@@ -35,6 +35,8 @@ spec:
               value: ""
             - name: AUTH_JWKS_URI
               value: ""
+            - name: AUTH_JWKS_CACHE_TTL_SECONDS
+              value: "300"
           resources:
             requests:
               cpu: "250m"

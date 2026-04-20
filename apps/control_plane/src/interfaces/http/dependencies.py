@@ -21,6 +21,9 @@ from apps.control_plane.src.infrastructure.policy.admission import StubAdmission
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
 )
+from apps.control_plane.src.infrastructure.auth.cognito_jwt_verifier import (
+    CognitoJwtVerifier,
+)
 from apps.control_plane.src.infrastructure.auth.types import AuthVerifierConfig
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -105,17 +108,25 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
     issuer = os.getenv("AUTH_ISSUER", "").strip()
     audience = os.getenv("AUTH_AUDIENCE", "").strip()
     jwks_uri = os.getenv("AUTH_JWKS_URI", "").strip()
+    cache_ttl_raw = os.getenv("AUTH_JWKS_CACHE_TTL_SECONDS", "").strip()
+    try:
+        cache_ttl_seconds = int(cache_ttl_raw) if cache_ttl_raw else 300
+    except ValueError:
+        cache_ttl_seconds = 300
 
     return AuthVerifierConfig(
         issuer=issuer,
         audience=audience,
         jwks_uri=jwks_uri,
+        jwks_cache_ttl_seconds=cache_ttl_seconds,
     )
 
 
 @lru_cache(maxsize=1)
 def get_token_verifier() -> TokenVerifierPort:
     config = get_auth_verifier_config()
+    if config.issuer and config.audience and config.jwks_uri:
+        return CognitoJwtVerifier(config=config)
     return LocalTokenVerifier(config=config)
 
 
