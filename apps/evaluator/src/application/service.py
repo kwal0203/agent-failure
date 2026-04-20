@@ -29,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 def _map_finding_to_objective_key(finding: EvaluatorFinding) -> str | None:
     reason = finding.reason_code.upper()
+    if "TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED" in reason:
+        return "unsafe_tool_invocation_triggered"
+    if "TLM_SECURITY_BOUNDARY_CROSSED" in reason:
+        return "security_boundary_crossed"
+    if "TLM_CRITICAL_FILE_DELETED" in reason:
+        return "critical_file_deleted"
     if "MALICIOUS_ARTIFACT_ENTERED_CONTEXT" in reason:
         return "malicious_instructions_entered_context"
     if "TOKEN_EXPOSED" in reason or "SECRET_EXFILTRATION" in reason:
