@@ -12,12 +12,22 @@ from apps.agent_harness.src.application.session_loop.types import (
     HarnessFailure,
     HarnessTurnInput,
     InboxItem,
+    InvoiceRecord,
+    AttackerTargetRecord,
+    MemoryRecord,
+    MemoryType,
     ModelRequest,
     ToolDecision,
     DeleteFileResult,
     ReadFileResult,
+    VendorMasterRecord,
+    WriteMemoryInput,
 )
-from runtimes.baseline.service import LAB_2_TOOL_MISUSE_ID, RuntimeTurnExecutor
+from runtimes.baseline.service import (
+    LAB_2_TOOL_MISUSE_ID,
+    LAB_3_ID,
+    RuntimeTurnExecutor,
+)
 from runtimes.baseline.types import RuntimeTurnInput, TextItem, EventItem
 
 
@@ -170,6 +180,36 @@ class _MissingFileTool:
     def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
         _ = (session_id, path)
         return DeleteFileResult(deleted=False, exists_after=False)
+
+
+class _InvoiceMemoryTool:
+    def __init__(self) -> None:
+        self.seed_calls: list[tuple[UUID, bool]] = []
+
+    def seed_session_state(self, *, session_id: UUID, overwrite: bool = False) -> None:
+        self.seed_calls.append((session_id, overwrite))
+
+    def get_vendor_master(self, *, session_id: UUID) -> VendorMasterRecord | None:
+        _ = session_id
+        return None
+
+    def get_attacker_target(self, *, session_id: UUID) -> AttackerTargetRecord | None:
+        _ = session_id
+        return None
+
+    def list_invoices(self, *, session_id: UUID) -> tuple[InvoiceRecord, ...]:
+        _ = session_id
+        return ()
+
+    def list_memory(
+        self, *, session_id: UUID, memory_type: MemoryType | None = None
+    ) -> tuple[MemoryRecord, ...]:
+        _ = (session_id, memory_type)
+        return ()
+
+    def write_memory(self, *, session_id: UUID, item: WriteMemoryInput) -> MemoryRecord:
+        _ = (session_id, item)
+        raise NotImplementedError
 
 
 async def _collect_items(
@@ -386,3 +426,61 @@ def test_runtime_does_not_seed_lab2_file_artifact_for_other_labs() -> None:
     unseeded = tool.read_file(session_id=turn.session_id, path=OPS_RUNBOOK_PATH)
     assert unseeded.content is None
     assert unseeded.error_code == "FILE_NOT_FOUND"
+
+
+def test_runtime_seeds_lab3_invoice_memory_once_per_session() -> None:
+    invoice_tool = _InvoiceMemoryTool()
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=_MissingFileTool(),
+        invoice_memory_tool=invoice_tool,
+    )
+    session_id = uuid4()
+    first_turn = RuntimeTurnInput(
+        session_id=session_id,
+        lab_id=LAB_3_ID,
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="first turn",
+        idempotency_key="k-lab3-seed-1",
+    )
+    second_turn = RuntimeTurnInput(
+        session_id=session_id,
+        lab_id=LAB_3_ID,
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="second turn",
+        idempotency_key="k-lab3-seed-2",
+    )
+
+    _ = asyncio.run(_collect_items(executor=executor, turn=first_turn))
+    _ = asyncio.run(_collect_items(executor=executor, turn=second_turn))
+
+    assert invoice_tool.seed_calls == [(session_id, False)]
+
+
+def test_runtime_does_not_seed_lab3_invoice_memory_for_other_labs() -> None:
+    invoice_tool = _InvoiceMemoryTool()
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=_MissingFileTool(),
+        invoice_memory_tool=invoice_tool,
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=LAB_2_TOOL_MISUSE_ID,
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="lab2 turn",
+        idempotency_key="k-lab3-no-seed",
+    )
+
+    _ = asyncio.run(_collect_items(executor=executor, turn=turn))
+
+    assert invoice_tool.seed_calls == []
