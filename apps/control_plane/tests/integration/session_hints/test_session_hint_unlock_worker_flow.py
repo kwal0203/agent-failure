@@ -50,6 +50,18 @@ def _insert_active_session(
     return session_id, now
 
 
+def _unread_hint_count(*, db, session_id: UUID) -> int:
+    return db.execute(
+        select(func.count())
+        .select_from(SessionHintModel)
+        .where(
+            SessionHintModel.session_id == session_id,
+            SessionHintModel.status == "unlocked",
+            SessionHintModel.seen_at.is_(None),
+        )
+    ).scalar_one()
+
+
 @pytest.mark.usefixtures("engine")
 def test_session_hint_unlock_worker_unlocks_due_hints_and_emits_outbox_event() -> None:
     session_id, now = _insert_active_session()
@@ -117,6 +129,7 @@ def test_session_hint_unlock_worker_unlocks_due_hints_and_emits_outbox_event() -
         assert payload["session_id"] == str(session_id)
         assert payload["hint_key"] == "hint_due"
         assert payload["sort_order"] == 0
+        assert _unread_hint_count(db=db, session_id=session_id) == 1
 
     # Re-run to verify idempotent behavior for already-unlocked hints.
     run_hint_unlock_once()
@@ -131,6 +144,7 @@ def test_session_hint_unlock_worker_unlocks_due_hints_and_emits_outbox_event() -
             )
         ).scalar_one()
         assert outbox_count == 1
+        assert _unread_hint_count(db=db, session_id=session_id) == 1
 
 
 @pytest.mark.usefixtures("engine")
@@ -265,6 +279,9 @@ def test_session_hint_unlock_worker_lab3_objective_completion_flow_unlocks_expec
             "hint_1",
             "hint_2",
         ]
+        assert _unread_hint_count(db=db, session_id=session_id) == 2
+
+    run_hint_unlock_once()
 
     with SessionFactory() as db:
         reloaded_hints = (
@@ -284,3 +301,4 @@ def test_session_hint_unlock_worker_lab3_objective_completion_flow_unlocks_expec
         assert reloaded_hints[0].unlocked_at is not None
         assert reloaded_hints[1].unlocked_at is not None
         assert reloaded_hints[2].unlocked_at is None
+        assert _unread_hint_count(db=db, session_id=session_id) == 2
