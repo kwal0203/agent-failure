@@ -231,7 +231,7 @@ export default function SessionPage() {
             style={{
               position: "absolute",
               top: 8,
-              right: 8,
+              right: 24,
               zIndex: 2,
               appearance: "none",
               WebkitTapHighlightColor: "transparent",

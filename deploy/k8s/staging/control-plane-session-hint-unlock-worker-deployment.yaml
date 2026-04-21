@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: session-hint-unlock-worker
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:2c15ea3afe52984e2ad4cf368defc3c801f78ddd8d9bd12d34462723cce48867
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:4d58dc91f1008c90ea64c33c8467ad65de17abb5bdf4892919773b378b3f0ec4
           imagePullPolicy: IfNotPresent
           command:
             - uv
