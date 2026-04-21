@@ -19,6 +19,7 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
       }}
     >
       <section
+        className="lab-guide-scroll-region"
         style={{
           border: "1px solid #ddd",
           borderRadius: 8,
@@ -52,6 +53,28 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
           </ul>
         </div>
       </section>
+
+      <style>{`
+        .lab-guide-scroll-region {
+          scrollbar-width: thin;
+          scrollbar-color: #88a2b8 transparent;
+        }
+        .lab-guide-scroll-region::-webkit-scrollbar {
+          width: 10px;
+        }
+        .lab-guide-scroll-region::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .lab-guide-scroll-region::-webkit-scrollbar-thumb {
+          background-color: #88a2b8;
+          border-radius: 999px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        .lab-guide-scroll-region::-webkit-scrollbar-thumb:hover {
+          background-color: #6f8ea8;
+        }
+      `}</style>
     </div>
   );
 }

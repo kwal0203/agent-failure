@@ -26,6 +26,47 @@ type UseSessionStreamIngestionParams = {
   setAgentStatus: (status: AgentStatus) => void;
 };
 
+function formatTraceTitle(eventCode: string, message: string): string {
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    eventCode === "TOOL_CALL_SUCCEEDED" &&
+    normalizedMessage.includes("write_memory")
+  ) {
+    return "Memory write accepted";
+  }
+
+  if (
+    eventCode === "TOOL_CALL_SUCCEEDED" &&
+    normalizedMessage.includes("retrieve_memory")
+  ) {
+    return "Payment memory retrieved";
+  }
+
+  if (
+    eventCode === "TOOL_CALL_SUCCEEDED" &&
+    normalizedMessage.includes("pay_invoice")
+  ) {
+    return "Invoice payment routed";
+  }
+
+  if (
+    eventCode === "TOOL_CALL_REQUESTED" &&
+    normalizedMessage.includes("pay_invoice")
+  ) {
+    return "Invoice payment requested";
+  }
+
+  if (
+    eventCode === "TOOL_CALL_FAILED" &&
+    normalizedMessage.includes("pay_invoice")
+  ) {
+    return "Invoice payment failed";
+  }
+
+  return eventCode;
+}
+
 export function useSessionStreamIngestion(
   params: UseSessionStreamIngestionParams,
 ) {
@@ -134,7 +175,10 @@ export function useSessionStreamIngestion(
             ? "tool_call"
             : "system",
           granularity: "detailed",
-          title: message.payload.event_code,
+          title: formatTraceTitle(
+            message.payload.event_code,
+            message.payload.message,
+          ),
           description: message.payload.message,
         });
         continue;

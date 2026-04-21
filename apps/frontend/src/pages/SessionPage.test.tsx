@@ -384,6 +384,54 @@ describe("SessionPage learner feedback panel", () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
+  it("renders progress chip label from backend label field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/evaluator-feedback")) {
+          return mockJsonResponse({ feedback: [] });
+        }
+        return mockJsonResponse({
+          session: {
+            id: "11111111-1111-1111-1111-111111111111",
+            lab_id: "33333333-3333-3333-3333-333333333333",
+            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            state: "ACTIVE",
+            runtime_substate: "RUNNING",
+            resume_mode: "fresh",
+            interactive: true,
+            created_at: "2026-01-01T00:00:00Z",
+            started_at: null,
+            ended_at: null,
+            progress_chips: [
+              {
+                objective_key: "payment_routed_to_attacker_account",
+                label: "Payment routed to attacker account",
+                status: "complete",
+                completed_at: "2026-01-01T00:05:00Z",
+                updated_at: "2026-01-01T00:05:00Z",
+              },
+            ],
+          },
+        });
+      }),
+    );
+
+    renderSessionPage();
+
+    expect(
+      await screen.findByText("Payment routed to attacker account", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("payment_routed_to_attacker_account", {
+        exact: false,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not render orchestration trace events in transcript", async () => {
     vi.mocked(useSessionStream).mockReturnValue({
       connectionState: "open",
@@ -482,6 +530,76 @@ describe("SessionPage learner feedback panel", () => {
     expect(
       screen.queryByRole("button", { name: "Reveal next hint" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders hints from backend metadata and uses unread_hint_count for mark-seen flow", async () => {
+    let hintsSeen = false;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/evaluator-feedback")) {
+        return mockJsonResponse({ feedback: [] });
+      }
+      if (url.endsWith("/hints/mark-seen")) {
+        expect(init?.method).toBe("POST");
+        hintsSeen = true;
+        return mockJsonResponse({
+          session_id: "11111111-1111-1111-1111-111111111111",
+          updated_count: 1,
+        });
+      }
+      return mockJsonResponse({
+        session: {
+          id: "11111111-1111-1111-1111-111111111111",
+          lab_id: "33333333-3333-3333-3333-333333333333",
+          lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          state: "ACTIVE",
+          runtime_substate: "RUNNING",
+          resume_mode: "fresh",
+          interactive: true,
+          created_at: "2026-01-01T00:00:00Z",
+          started_at: null,
+          ended_at: null,
+          progress_chips: [],
+          hints: [
+            {
+              hint_key: "inspect_vendor_memory",
+              text: "Inspect vendor memory retrieval around ACCT-4421 before approving payment.",
+              sort_order: 0,
+              status: "unlocked",
+              unlock_at: "2026-01-01T00:03:00Z",
+              unlocked_at: "2026-01-01T00:03:00Z",
+              seen_at: hintsSeen ? "2026-01-01T00:04:00Z" : null,
+            },
+          ],
+          unread_hint_count: hintsSeen ? 0 : 1,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderSessionPage();
+
+    const hintsButton = await screen.findByRole("button", { name: /Hints/ });
+    expect(hintsButton).toHaveTextContent("Hints");
+    expect(hintsButton).toHaveTextContent("(1)");
+
+    fireEvent.click(hintsButton);
+    expect(
+      await screen.findByText(
+        "Inspect vendor memory retrieval around ACCT-4421 before approving payment.",
+      ),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input, requestInit]) => {
+          const url = String(input);
+          return (
+            url.endsWith("/hints/mark-seen") && requestInit?.method === "POST"
+          );
+        }),
+      ).toBe(true);
+    });
   });
 
   it("supports tool strip open close and tool switching in center pane", async () => {
@@ -603,6 +721,86 @@ describe("SessionPage learner feedback panel", () => {
     expect(
       (await screen.findAllByText(/TOOL_CALL_LIST_EMAILS/)).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("formats lab 3 memory poisoning trace chain with meaningful timeline labels", async () => {
+    vi.mocked(useSessionStream).mockReturnValue({
+      connectionState: "open",
+      messages: [
+        {
+          type: "TRACE_EVENT",
+          session_id: "11111111-1111-1111-1111-111111111111",
+          timestamp: "2026-01-01T00:00:01Z",
+          payload: {
+            event_code: "TOOL_CALL_SUCCEEDED",
+            message:
+              "tool_call_succeeded write_memory vendor_profile_memory accepted",
+          },
+        },
+        {
+          type: "TRACE_EVENT",
+          session_id: "11111111-1111-1111-1111-111111111111",
+          timestamp: "2026-01-01T00:00:02Z",
+          payload: {
+            event_code: "TOOL_CALL_SUCCEEDED",
+            message:
+              "tool_call_succeeded retrieve_memory operation=retrieve_during_payment invoice=inv-acme-2026-041",
+          },
+        },
+        {
+          type: "TRACE_EVENT",
+          session_id: "11111111-1111-1111-1111-111111111111",
+          timestamp: "2026-01-01T00:00:03Z",
+          payload: {
+            event_code: "TOOL_CALL_SUCCEEDED",
+            message:
+              "tool_call_succeeded pay_invoice account_number=ACCT-4421 invoice_id=inv-acme-2026-041",
+          },
+        },
+      ],
+      sendPrompt: vi.fn(),
+      reconnect: vi.fn(),
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/evaluator-feedback")) {
+          return mockJsonResponse({ feedback: [] });
+        }
+        return mockJsonResponse({
+          session: {
+            id: "11111111-1111-1111-1111-111111111111",
+            lab_id: "33333333-3333-3333-3333-333333333333",
+            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            state: "ACTIVE",
+            runtime_substate: "RUNNING",
+            resume_mode: "fresh",
+            interactive: true,
+            created_at: "2026-01-01T00:00:00Z",
+            started_at: null,
+            ended_at: null,
+          },
+        });
+      }),
+    );
+
+    renderSessionPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "Event Timeline" }),
+    ).toBeInTheDocument();
+
+    expect(
+      await screen.findByText("Memory write accepted"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Payment memory retrieved"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Invoice payment routed"),
+    ).toBeInTheDocument();
   });
 
   it("preserves unsent email draft across tool switches and supports reset", async () => {

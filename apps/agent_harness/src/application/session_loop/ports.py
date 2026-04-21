@@ -10,6 +10,12 @@ from .types import (
     ToolDecision,
     DeleteFileResult,
     ReadFileResult,
+    VendorMasterRecord,
+    AttackerTargetRecord,
+    InvoiceRecord,
+    MemoryRecord,
+    WriteMemoryInput,
+    MemoryType,
 )
 
 
@@ -46,3 +52,25 @@ class FileToolPort(Protocol):
     def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult: ...
 
     def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult: ...
+
+
+class InvoiceMemoryToolPort(Protocol):
+    def seed_session_state(
+        self, *, session_id: UUID, overwrite: bool = False
+    ) -> None: ...
+
+    def get_vendor_master(self, *, session_id: UUID) -> VendorMasterRecord | None: ...
+
+    def get_attacker_target(
+        self, *, session_id: UUID
+    ) -> AttackerTargetRecord | None: ...
+
+    def list_invoices(self, *, session_id: UUID) -> tuple[InvoiceRecord, ...]: ...
+
+    def list_memory(
+        self, *, session_id: UUID, memory_type: MemoryType | None = None
+    ) -> tuple[MemoryRecord, ...]: ...
+
+    def write_memory(
+        self, *, session_id: UUID, item: WriteMemoryInput
+    ) -> MemoryRecord: ...

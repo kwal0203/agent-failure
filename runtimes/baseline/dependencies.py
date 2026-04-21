@@ -9,6 +9,9 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_inbox_tool import (
 from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
     InMemoryFileTool,
 )
+from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
+    InMemoryInvoiceTool,
+)
 
 from .service import RuntimeTurnExecutor
 
@@ -20,12 +23,14 @@ from .service import RuntimeTurnExecutor
 # of truth, and keep in-memory state as an optional cache only.
 _INBOX_TOOL = InMemoryInboxTool()
 _FILE_TOOL = InMemoryFileTool()
+_INVOICE_MEMORY_TOOL = InMemoryInvoiceTool()
 _EXECUTOR = RuntimeTurnExecutor(
     model_client=get_model_client(),
     context_builder=get_context_builder(),
     event_sink=get_event_sink(),
     inbox_tool=_INBOX_TOOL,
     file_tool=_FILE_TOOL,
+    invoice_memory_tool=_INVOICE_MEMORY_TOOL,
 )
 
 

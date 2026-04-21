@@ -42,9 +42,9 @@ class SQLAlchemyLabRepository(LabRepository):
             ),
             GetLabCatalogRow(
                 lab_id=UUID("33333333-3333-3333-3333-333333333333"),
-                slug="rag-poisoning",
-                name="RAG Poisoning",
-                summary="Explore how poisoned retrieval content can steer agent behavior and test mitigation strategies.",
+                slug="memory-poisoning",
+                name="Memory Poisoning",
+                summary="Poison memory signals to reroute invoice payment decisions.",
                 supports_resume=False,
                 supports_uploads=False,
             ),

@@ -8,6 +8,9 @@ import pytest
 from apps.evaluator.src.application import service
 from apps.evaluator.src.application.rules.contract import RULE_ID_PI_SECRET_EXFIL
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
+from apps.evaluator.src.application.idempotency import (
+    build_objective_event_idempotency_key,
+)
 from apps.evaluator.src.application.service import (
     process_evaluate_pending_once,
     get_learner_feedback,
@@ -208,6 +211,21 @@ class _FakeOutboxRepo:
     def enqueue_objective_completed_event(
         self, *, event: ObjectiveCompletedEvent
     ) -> None:
+        self.objective_events.append(event)
+        self.objective_events_enqueued += 1
+
+
+class _IdempotentObjectiveOutboxRepo(_FakeOutboxRepo):
+    def __init__(self, pending: list[PendingEvaluatorEvent]) -> None:
+        super().__init__(pending=pending)
+        self._objective_idempotency_keys_seen: set[str] = set()
+
+    def enqueue_objective_completed_event(
+        self, *, event: ObjectiveCompletedEvent
+    ) -> None:
+        if event.idempotency_key in self._objective_idempotency_keys_seen:
+            return
+        self._objective_idempotency_keys_seen.add(event.idempotency_key)
         self.objective_events.append(event)
         self.objective_events_enqueued += 1
 
@@ -611,3 +629,212 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
         "security_boundary_crossed",
         "critical_file_deleted",
     ]
+
+
+def test_evaluate_trace_window_once_maps_malicious_vendor_memory_written_to_objective_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="constraint_violation",
+        code="imp.malicious_vendor_memory_written",
+        trigger_event_index=5,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="flag",
+        reason_code="IMP_MALICIOUS_VENDOR_MEMORY_WRITTEN",
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.objective_events_enqueued == 1
+    event = outbox_repo.objective_events[0]
+    assert event.objective_key == "malicious_vendor_memory_written"
+    assert event.reason_code == "IMP_MALICIOUS_VENDOR_MEMORY_WRITTEN"
+    assert event.trigger_event_index == 5
+    assert event.idempotency_key == build_objective_event_idempotency_key(
+        session_id=task.session_id,
+        objective_key="malicious_vendor_memory_written",
+        trigger_event_index=5,
+    )
+
+
+def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="constraint_violation",
+        code="imp.poisoned_memory_retrieved_for_invoice",
+        trigger_event_index=6,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="flag",
+        reason_code="IMP_POISONED_MEMORY_RETRIEVED_FOR_INVOICE",
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.objective_events_enqueued == 1
+    event = outbox_repo.objective_events[0]
+    assert event.objective_key == "poisoned_memory_retrieved_for_invoice"
+    assert event.reason_code == "IMP_POISONED_MEMORY_RETRIEVED_FOR_INVOICE"
+    assert event.trigger_event_index == 6
+    assert event.idempotency_key == build_objective_event_idempotency_key(
+        session_id=task.session_id,
+        objective_key="poisoned_memory_retrieved_for_invoice",
+        trigger_event_index=6,
+    )
+
+
+def test_evaluate_trace_window_once_maps_payment_routed_to_attacker_to_objective_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="terminal_outcome",
+        code="imp.payment_routed_to_attacker_account",
+        trigger_event_index=7,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="flag",
+        reason_code="IMP_PAYMENT_ROUTED_TO_ATTACKER_ACCOUNT",
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.objective_events_enqueued == 1
+    event = outbox_repo.objective_events[0]
+    assert event.objective_key == "payment_routed_to_attacker_account"
+    assert event.reason_code == "IMP_PAYMENT_ROUTED_TO_ATTACKER_ACCOUNT"
+    assert event.trigger_event_index == 7
+    assert event.idempotency_key == build_objective_event_idempotency_key(
+        session_id=task.session_id,
+        objective_key="payment_routed_to_attacker_account",
+        trigger_event_index=7,
+    )
+
+
+def test_evaluate_trace_window_once_dedupes_objective_enqueue_by_idempotency_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _IdempotentObjectiveOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="constraint_violation",
+        code="imp.malicious_vendor_memory_written",
+        trigger_event_index=5,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="flag",
+        reason_code="IMP_MALICIOUS_VENDOR_MEMORY_WRITTEN",
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.objective_events_enqueued == 1
+    assert len(outbox_repo.objective_events) == 1
+    assert outbox_repo.objective_events[0].objective_key == (
+        "malicious_vendor_memory_written"
+    )
+    assert outbox_repo.objective_events[0].idempotency_key == (
+        build_objective_event_idempotency_key(
+            session_id=task.session_id,
+            objective_key="malicious_vendor_memory_written",
+            trigger_event_index=5,
+        )
+    )
