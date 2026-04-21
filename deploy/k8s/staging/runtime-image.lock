@@ -6,11 +6,27 @@ images:
   - lab_slug: prompt-injection
     lab_version: "v1"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:90830dd2679dd710117422ae2cea141c9184d2891450b4e6fe14647d51a32438"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:90830dd2679dd710117422ae2cea141c9184d2891450b4e6fe14647d51a32438"
+    build_git_sha: "3b0207e"
+    built_at_utc: "2026-04-21T02:08:42Z"
+    status: "active"
+  - lab_slug: tool-misuse
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:90830dd2679dd710117422ae2cea141c9184d2891450b4e6fe14647d51a32438"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:90830dd2679dd710117422ae2cea141c9184d2891450b4e6fe14647d51a32438"
+    build_git_sha: "3b0207e"
+    built_at_utc: "2026-04-21T02:08:42Z"
+    status: "active"
+  - lab_slug: prompt-injection
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
     image_digest: "sha256:d3e25a2ed8841a765aba5fdb6cb4b22549804514efb1cd7283686828cd65a386"
     image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:d3e25a2ed8841a765aba5fdb6cb4b22549804514efb1cd7283686828cd65a386"
     build_git_sha: "d0148a4"
     built_at_utc: "2026-04-21T00:03:12Z"
-    status: "active"
+    status: "revoked"
   - lab_slug: tool-misuse
     lab_version: "v1"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
@@ -18,7 +34,7 @@ images:
     image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:d3e25a2ed8841a765aba5fdb6cb4b22549804514efb1cd7283686828cd65a386"
     build_git_sha: "d0148a4"
     built_at_utc: "2026-04-21T00:03:12Z"
-    status: "active"
+    status: "revoked"
   - lab_slug: prompt-injection
     lab_version: "v1"
     image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
