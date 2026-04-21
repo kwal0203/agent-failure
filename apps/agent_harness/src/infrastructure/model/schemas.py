@@ -46,6 +46,10 @@ class LLMToolCall(BaseModel):
             return value
 
         required = CANONICAL_TOOL_ARGS_REQUIRED[cast(ToolName, tool_name)]
+        unexpected = [key for key in value if key not in required]
+        if unexpected:
+            unexpected_csv = ", ".join(sorted(unexpected))
+            raise ValueError(f"unexpected tool args for {tool_name}: {unexpected_csv}")
         missing = [
             key
             for key in required
