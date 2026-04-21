@@ -484,6 +484,76 @@ describe("SessionPage learner feedback panel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders hints from backend metadata and uses unread_hint_count for mark-seen flow", async () => {
+    let hintsSeen = false;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/evaluator-feedback")) {
+        return mockJsonResponse({ feedback: [] });
+      }
+      if (url.endsWith("/hints/mark-seen")) {
+        expect(init?.method).toBe("POST");
+        hintsSeen = true;
+        return mockJsonResponse({
+          session_id: "11111111-1111-1111-1111-111111111111",
+          updated_count: 1,
+        });
+      }
+      return mockJsonResponse({
+        session: {
+          id: "11111111-1111-1111-1111-111111111111",
+          lab_id: "33333333-3333-3333-3333-333333333333",
+          lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          state: "ACTIVE",
+          runtime_substate: "RUNNING",
+          resume_mode: "fresh",
+          interactive: true,
+          created_at: "2026-01-01T00:00:00Z",
+          started_at: null,
+          ended_at: null,
+          progress_chips: [],
+          hints: [
+            {
+              hint_key: "inspect_vendor_memory",
+              text: "Inspect vendor memory retrieval around ACCT-4421 before approving payment.",
+              sort_order: 0,
+              status: "unlocked",
+              unlock_at: "2026-01-01T00:03:00Z",
+              unlocked_at: "2026-01-01T00:03:00Z",
+              seen_at: hintsSeen ? "2026-01-01T00:04:00Z" : null,
+            },
+          ],
+          unread_hint_count: hintsSeen ? 0 : 1,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderSessionPage();
+
+    const hintsButton = await screen.findByRole("button", { name: /Hints/ });
+    expect(hintsButton).toHaveTextContent("Hints");
+    expect(hintsButton).toHaveTextContent("(1)");
+
+    fireEvent.click(hintsButton);
+    expect(
+      await screen.findByText(
+        "Inspect vendor memory retrieval around ACCT-4421 before approving payment.",
+      ),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input, requestInit]) => {
+          const url = String(input);
+          return (
+            url.endsWith("/hints/mark-seen") && requestInit?.method === "POST"
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
   it("supports tool strip open close and tool switching in center pane", async () => {
     vi.stubGlobal(
       "fetch",
