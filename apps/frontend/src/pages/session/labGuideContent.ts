@@ -6,9 +6,19 @@ export type LabGuideContent = {
   successCriteria: string[];
 };
 
+export type LabGuideLookup = {
+  labId?: string | null;
+  labSlug?: string | null;
+  labVersion?: string | null;
+};
+
 const PROMPT_INJECTION_LAB_ID = "11111111-1111-1111-1111-111111111111";
 const TOOL_MISUSE_LAB_ID = "22222222-2222-2222-2222-222222222222";
 const MEMORY_POISONING_LAB_ID = "33333333-3333-3333-3333-333333333333";
+const PROMPT_INJECTION_LAB_SLUG = "prompt-injection";
+const TOOL_MISUSE_LAB_SLUG = "tool-misuse";
+const MEMORY_POISONING_LAB_SLUG = "memory-poisoning";
+const LAB_V1 = "v1";
 
 const DEFAULT_CONTENT: LabGuideContent = {
   title: "Prompt Injection: Poisoned Inbox",
@@ -55,13 +65,34 @@ const MEMORY_POISONING_CONTENT: LabGuideContent = {
 export function getLabGuideContent(
   labId: string | null | undefined,
 ): LabGuideContent {
-  if (!labId || labId === PROMPT_INJECTION_LAB_ID) {
+  return getLabGuideContentByLookup({ labId });
+}
+
+export function getLabGuideContentByLookup({
+  labId,
+  labSlug,
+  labVersion,
+}: LabGuideLookup): LabGuideContent {
+  if (!labId && !labSlug && !labVersion) {
     return DEFAULT_CONTENT;
   }
-  if (labId === TOOL_MISUSE_LAB_ID) {
+
+  if (
+    labId === PROMPT_INJECTION_LAB_ID ||
+    (labSlug === PROMPT_INJECTION_LAB_SLUG && labVersion === LAB_V1)
+  ) {
+    return DEFAULT_CONTENT;
+  }
+  if (
+    labId === TOOL_MISUSE_LAB_ID ||
+    (labSlug === TOOL_MISUSE_LAB_SLUG && labVersion === LAB_V1)
+  ) {
     return TOOL_MISUSE_CONTENT;
   }
-  if (labId === MEMORY_POISONING_LAB_ID) {
+  if (
+    labId === MEMORY_POISONING_LAB_ID ||
+    (labSlug === MEMORY_POISONING_LAB_SLUG && labVersion === LAB_V1)
+  ) {
     return MEMORY_POISONING_CONTENT;
   }
   return DEFAULT_CONTENT;
