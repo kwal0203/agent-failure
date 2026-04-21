@@ -8,6 +8,7 @@ from .types import (
     InboxItem,
     ToolDecision,
     DeleteFileResult,
+    ReadFileResult,
 )
 
 
@@ -37,6 +38,6 @@ class InboxToolPort(Protocol):
 
 
 class FileToolPort(Protocol):
-    def read_file(self, path: str) -> str | None: ...
+    def read_file(self, path: str) -> ReadFileResult: ...
 
     def delete_file(self, path: str) -> DeleteFileResult: ...

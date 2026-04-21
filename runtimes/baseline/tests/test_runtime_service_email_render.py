@@ -11,6 +11,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     ModelRequest,
     ToolDecision,
     DeleteFileResult,
+    ReadFileResult,
 )
 from runtimes.baseline.service import RuntimeTurnExecutor
 from runtimes.baseline.types import RuntimeTurnInput, TextItem
@@ -70,9 +71,9 @@ class _InboxTool:
 
 
 class _FileTool:
-    def read_file(self, path: str) -> str | None:
+    def read_file(self, path: str) -> ReadFileResult:
         _ = path
-        return None
+        return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
 
     def delete_file(self, path: str) -> DeleteFileResult:
         _ = path

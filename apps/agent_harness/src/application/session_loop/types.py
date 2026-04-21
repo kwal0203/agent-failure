@@ -69,3 +69,9 @@ class ToolDecision:
 class DeleteFileResult:
     deleted: bool
     exists_after: bool
+
+
+@dataclass(frozen=True)
+class ReadFileResult:
+    content: str | None
+    error_code: str | None = None
