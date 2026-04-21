@@ -41,6 +41,14 @@ class _ResolverOK:
         return "ghcr.io/test/runtime@sha256:abc123"
 
 
+class _ResolverCapture:
+    last: tuple[str, str] | None = None
+
+    def resolve(self, lab_slug: str, lab_version: str) -> str:
+        self.last = (lab_slug, lab_version)
+        return "ghcr.io/test/runtime@sha256:abc123"
+
+
 class _ProvisionerAccepted:
     last_request: RuntimeProvisionRequest | None = None
 
@@ -314,3 +322,56 @@ def test_provisioning_worker_defaults_lab_difficulty_when_missing_in_payload() -
     assert result.failed_count == 0
     assert provisioner.last_request is not None
     assert provisioner.last_request.lab_difficulty == "medium"
+
+
+@pytest.mark.usefixtures("engine")
+def test_provisioning_worker_lab3_resolves_memory_poisoning_runtime_binding() -> None:
+    principal = PrincipalContext(user_id=uuid4(), role="learner")
+    lab_id = UUID("33333333-3333-3333-3333-333333333333")
+    lab_version_id = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
+
+    with SessionFactory() as db:
+        db.add(
+            LabModel(
+                id=lab_id,
+                slug="memory-poisoning",
+                name="Memory Poisoning",
+                summary="test",
+                is_active=True,
+            )
+        )
+        db.add(
+            LabVersionModel(
+                id=lab_version_id,
+                lab_id=lab_id,
+                version="v1",
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    created = create_session(
+        principal=principal,
+        admission_policy=StubAdmissionPolicy(),
+        lab_id=lab_id,
+        idempotency_key=f"idem-{uuid4()}",
+        uow=SQLAlchemyCreateSessionUnitOfWork(session_factory=SessionFactory),
+    )
+    session_id = created.session_id
+
+    resolver = _ResolverCapture()
+    provisioner = _ProvisionerAccepted()
+    worker_uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
+    result = process_pending_once(
+        uow=worker_uow,
+        image_resolver=resolver,
+        provisioner=provisioner,
+        runtime_inspector=_InspectorReady(),
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert resolver.last == ("memory-poisoning", "v1")
+    assert provisioner.last_request is not None
+    assert provisioner.last_request.session_id == session_id

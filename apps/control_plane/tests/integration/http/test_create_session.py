@@ -24,6 +24,9 @@ from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import get_create_session_uow
 from apps.control_plane.src.interfaces.http.main import app
 
+LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
+LAB_3_VERSION_ID = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
+
 
 def _override_principal(user_id: UUID, role: str) -> Callable[[], PrincipalContext]:
     def _dependency_override() -> PrincipalContext:
@@ -238,6 +241,55 @@ def test_create_session_replay_same_key_returns_existing_session() -> None:
             select(func.count()).select_from(OutboxEventModel)
         ).scalar_one()
         assert outbox_count == 1
+
+
+@pytest.mark.usefixtures("engine")
+def test_create_session_lab3_uses_db_active_lab_version() -> None:
+    principal_id = uuid4()
+    key = "create-session-key-lab3"
+
+    with SessionFactory() as db:
+        db.add(
+            LabModel(
+                id=LAB_3_ID,
+                slug="memory-poisoning",
+                name="Memory Poisoning",
+                summary="test",
+                is_active=True,
+            )
+        )
+        db.add(
+            LabVersionModel(
+                id=LAB_3_VERSION_ID,
+                lab_id=LAB_3_ID,
+                version="v1",
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    app.dependency_overrides[get_current_principal] = _override_principal(
+        user_id=principal_id, role="learner"
+    )
+    app.dependency_overrides[get_create_session_uow] = _override_create_session_uow
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/sessions",
+            headers={"Idempotency-Key": key},
+            json={"lab_id": str(LAB_3_ID)},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    session_id = UUID(response.json()["session"]["id"])
+
+    with SessionFactory() as db:
+        session = db.execute(
+            select(SessionModel).where(SessionModel.id == session_id)
+        ).scalar_one()
+        assert session.lab_version_id == LAB_3_VERSION_ID
 
 
 @pytest.mark.usefixtures("engine")
