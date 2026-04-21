@@ -220,3 +220,78 @@ def test_objective_projector_duplicate_replay_is_no_op(db_session: Session) -> N
     assert objective_row.status == "complete"
     # Replay should not overwrite the first completion timestamp.
     assert objective_row.completed_at == first_occurred_at
+
+
+def test_objective_projector_lab2_negative_path_does_not_complete_delete(
+    db_session: Session,
+) -> None:
+    session = _seed_session(db_session)
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        label="Unsafe Tool Invocation Triggered",
+        sort_order=0,
+    )
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="security_boundary_crossed",
+        label="Security Boundary Crossed",
+        sort_order=1,
+    )
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="critical_file_deleted",
+        label="Critical File Deleted",
+        sort_order=2,
+    )
+
+    now = datetime.now(timezone.utc)
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        occurred_at=now,
+        idempotency_key=f"objective:{session.id}:unsafe_tool_invocation_triggered:31",
+        trigger_event_index=31,
+    )
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key="security_boundary_crossed",
+        occurred_at=now,
+        idempotency_key=f"objective:{session.id}:security_boundary_crossed:32",
+        trigger_event_index=32,
+    )
+    db_session.flush()
+
+    result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert result.claimed_count == 2
+    assert result.succeeded_count == 2
+    assert result.failed_count == 0
+    assert result.retried_count == 0
+
+    objective_rows = (
+        db_session.execute(
+            select(SessionObjectiveModel)
+            .where(SessionObjectiveModel.session_id == session.id)
+            .order_by(SessionObjectiveModel.sort_order.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert len(objective_rows) == 3
+    assert objective_rows[0].objective_key == "unsafe_tool_invocation_triggered"
+    assert objective_rows[0].status == "complete"
+    assert objective_rows[1].objective_key == "security_boundary_crossed"
+    assert objective_rows[1].status == "complete"
+    assert objective_rows[2].objective_key == "critical_file_deleted"
+    assert objective_rows[2].status == "pending"
+    assert objective_rows[2].completed_at is None

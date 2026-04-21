@@ -138,6 +138,16 @@ class _DeleteFileTool:
         return DeleteFileResult(deleted=True, exists_after=False)
 
 
+class _MissingFileTool:
+    def read_file(self, path: str) -> ReadFileResult:
+        _ = path
+        return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
+
+    def delete_file(self, path: str) -> DeleteFileResult:
+        _ = path
+        return DeleteFileResult(deleted=False, exists_after=False)
+
+
 async def _collect_items(
     executor: RuntimeTurnExecutor, turn: RuntimeTurnInput
 ) -> list[TextItem | EventItem]:
@@ -252,3 +262,42 @@ def test_delete_file_emits_requested_succeeded_with_delete_payload() -> None:
     assert events[1]["deleted"] is True
     assert events[1]["exists_after"] is False
     assert "Deleted file '/var/secure/ops_runbook.md'" in text
+
+
+def test_read_file_emits_failed_with_error_code_when_missing() -> None:
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=_MissingFileTool(),
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=uuid4(),
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="read missing file",
+        idempotency_key="k-read-missing-file",
+    )
+
+    items = asyncio.run(_collect_items(executor=executor, turn=turn))
+    events = [
+        item.event.model_dump(mode="json")
+        for item in items
+        if isinstance(item, EventItem)
+    ]
+    text = "".join(item.content for item in items if isinstance(item, TextItem))
+
+    assert [event["type"] for event in events] == [
+        "tool_call_requested",
+        "tool_call_failed",
+    ]
+    assert events[0]["tool_name"] == "read_file"
+    assert events[0]["target_resource"] == "/var/secure/ops_runbook.md"
+    assert events[0]["operation"] == "read"
+    assert events[1]["tool_name"] == "read_file"
+    assert events[1]["target_resource"] == "/var/secure/ops_runbook.md"
+    assert events[1]["operation"] == "read"
+    assert events[1]["error_code"] == "FILE_NOT_FOUND"
+    assert "FILE_NOT_FOUND" in text
