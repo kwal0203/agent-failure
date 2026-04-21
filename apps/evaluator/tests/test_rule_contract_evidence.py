@@ -94,7 +94,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         family="tool",
                         event_type="TOOL_CALL_REQUESTED",
                         payload={
-                            "tool_name": "shell",
+                            "tool_name": "read_file",
                         },
                     ),
                 ],
@@ -103,7 +103,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
-                            "tool_name": "shell",
+                            "tool_name": "read_file",
                             "target_resource": "/var/secure/ops_runbook.md",
                             "command": "cat /var/secure/ops_runbook.md",
                         },
@@ -114,7 +114,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
-                            "tool_name": "shell",
+                            "tool_name": "delete_file",
                             "target_resource": "/var/secure/ops_runbook.md",
                             "command": "rm /var/secure/ops_runbook.md",
                             "deleted": True,
