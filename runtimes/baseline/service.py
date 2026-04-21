@@ -286,6 +286,164 @@ class RuntimeTurnExecutor:
 
                 return
 
+            if tool_name == "read_file":
+                path = tool_call_decision.args.get("path")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="read_file",
+                        target_resource=str(path) if path else None,
+                        operation="read",
+                    )
+                )
+                if not path:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_file",
+                            operation="read",
+                            error_code="MISSING_PATH",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: path"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                file_result = self._file_tool.read_file(path=path)
+                if file_result.error_code or file_result.content is None:
+                    error_code = file_result.error_code or "FILE_NOT_FOUND"
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_file",
+                            target_resource=path,
+                            operation="read",
+                            error_code=error_code,
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"I couldn't read file '{path}' ({error_code})"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="read_file",
+                        target_resource=path,
+                        operation="read",
+                    )
+                )
+
+                for part in self._chunk_text(f"File {path}\n{file_result.content}"):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "delete_file":
+                path = tool_call_decision.args.get("path")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="delete_file",
+                        target_resource=str(path) if path else None,
+                        operation="delete",
+                    )
+                )
+                if not path:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="delete_file",
+                            operation="delete",
+                            error_code="MISSING_PATH",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: path"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                delete_result = self._file_tool.delete_file(path=path)
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="delete_file",
+                        target_resource=path,
+                        operation="delete",
+                        deleted=delete_result.deleted,
+                        exists_after=delete_result.exists_after,
+                    )
+                )
+
+                result_text = (
+                    f"Deleted file '{path}'"
+                    if delete_result.deleted
+                    else f"No file deleted for '{path}'"
+                )
+                for part in self._chunk_text(result_text):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
             return
 
         harness_turn = HarnessTurnInput(
