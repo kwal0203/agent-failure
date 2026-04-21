@@ -418,3 +418,97 @@ def test_objective_projector_lab3_completion_persists_after_reload(
     )
     assert reloaded_row.status == "complete"
     assert reloaded_row.completed_at == occurred_at
+
+
+def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
+    db_session: Session,
+) -> None:
+    session = _seed_session(
+        db_session,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    objective_key = "poisoned_memory_retrieved_for_invoice"
+    first_occurred_at = datetime(2026, 4, 21, 18, 10, 0, tzinfo=timezone.utc)
+    replay_occurred_at = datetime(2026, 4, 21, 18, 15, 0, tzinfo=timezone.utc)
+
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        label="Poisoned Memory Retrieved For Invoice",
+        sort_order=0,
+    )
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        occurred_at=first_occurred_at,
+        idempotency_key=f"objective:{session.id}:{objective_key}:51",
+        trigger_event_index=51,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    db_session.flush()
+
+    first_result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert first_result.claimed_count == 1
+    assert first_result.succeeded_count == 1
+    assert first_result.failed_count == 0
+    assert first_result.retried_count == 0
+
+    row_after_first_pass = (
+        db_session.execute(
+            select(SessionObjectiveModel).where(
+                SessionObjectiveModel.session_id == session.id,
+                SessionObjectiveModel.objective_key == objective_key,
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert row_after_first_pass.status == "complete"
+    assert row_after_first_pass.completed_at == first_occurred_at
+    first_updated_at = row_after_first_pass.updated_at
+
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        occurred_at=replay_occurred_at,
+        idempotency_key=f"objective:{session.id}:{objective_key}:52",
+        trigger_event_index=52,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    db_session.flush()
+
+    second_result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert second_result.claimed_count == 1
+    assert second_result.succeeded_count == 1
+    assert second_result.failed_count == 0
+    assert second_result.retried_count == 0
+
+    row_after_replay = (
+        db_session.execute(
+            select(SessionObjectiveModel).where(
+                SessionObjectiveModel.session_id == session.id,
+                SessionObjectiveModel.objective_key == objective_key,
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert row_after_replay.status == "complete"
+    assert row_after_replay.completed_at == first_occurred_at
+    assert row_after_replay.updated_at == first_updated_at
