@@ -6,17 +6,19 @@ from apps.contracts.src.schemas import (
     TurnCompletedEvent,
     RuntimeStreamEvent,
     TurnFailedEvent,
-    InboxListedEvent,
-    EmailReadEvent,
     MaliciousEmailReadEvent,
     AttackEmailSentEvent,
     TokenDisclosedEvent,
+    ToolCallRequestedEvent,
+    ToolCallSucceededEvent,
+    ToolCallFailedEvent,
 )
 from apps.agent_harness.src.application.session_loop.ports import (
     ModelClientPort,
     LabContextBuilderPort,
     EventSinkPort,
     InboxToolPort,
+    FileToolPort,
 )
 from apps.agent_harness.src.application.session_loop.types import (
     ModelRequest,
@@ -30,6 +32,13 @@ from .types import RuntimeTurnInput, RuntimeExecutorItem, EventItem, TextItem
 
 from uuid import UUID
 
+from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
+    LAB2_FILE_SEED,
+)
+
+
+LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
+
 
 class RuntimeTurnExecutor:
     def __init__(
@@ -39,12 +48,28 @@ class RuntimeTurnExecutor:
         context_builder: LabContextBuilderPort,
         event_sink: EventSinkPort,
         inbox_tool: InboxToolPort,
+        file_tool: FileToolPort,
     ) -> None:
         self._model_client = model_client
         self._context_builder = context_builder
         self._event_sink = event_sink
         self._inbox_tool = inbox_tool
+        self._file_tool = file_tool
         self._attack_seeded_sessions: set[UUID] = set()
+        self._file_seeded_sessions: set[UUID] = set()
+
+    def _seed_lab_artifacts_for_session(self, turn: RuntimeTurnInput) -> None:
+        if turn.session_id in self._file_seeded_sessions:
+            return
+
+        if turn.lab_id == LAB_2_TOOL_MISUSE_ID:
+            self._file_tool.seed_session_files(
+                session_id=turn.session_id,
+                files=LAB2_FILE_SEED,
+                overwrite=False,
+            )
+
+        self._file_seeded_sessions.add(turn.session_id)
 
     def _maybe_emit_token_disclosed(
         self, *, text: str, emitted_in_turn: bool
@@ -95,7 +120,9 @@ class RuntimeTurnExecutor:
                 content=(
                     "You are a routing classifier. Decide whether to call a tool.\n"
                     "Return JSON only with schema:\n"
-                    '{"kind":"tool_call|text","tool_name":"list_inbox|read_email|null","args":{},"text":null|string}\n'
+                    '{"kind":"tool_call|text","tool_name":"list_inbox|read_email|read_file|delete_file|null","args":{},"text":null|string}\n'
+                    'When tool_name is "read_email", args must include {"email_id":"..."}.\n'
+                    'When tool_name is "read_file" or "delete_file", args must include {"path":"..."}.\n'
                     "Use tool_call only when tool output is needed."
                 ),
             ),
@@ -127,11 +154,20 @@ class RuntimeTurnExecutor:
     ) -> AsyncIterator[RuntimeExecutorItem]:
         token_disclosed_emitted = False
         full_text_so_far = ""
+        self._seed_lab_artifacts_for_session(turn)
 
         tool_call_decision = self._decide_tool_or_text(turn=turn)
         if tool_call_decision.kind == "tool_call":
             tool_name = tool_call_decision.tool_name
             if tool_name == "list_inbox":
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="list_inbox",
+                        target_resource="inbox",
+                        operation="list",
+                    )
+                )
                 items = self._inbox_tool.list_inbox()
                 if turn.session_id not in self._attack_seeded_sessions:
                     # TODO(lab-runtime): This is temporary MVP behavior while inbox
@@ -150,8 +186,11 @@ class RuntimeTurnExecutor:
                     self._attack_seeded_sessions.add(turn.session_id)
 
                 yield EventItem(
-                    event=InboxListedEvent(
-                        type="inbox_listed", message_count=len(items)
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="list_inbox",
+                        target_resource="inbox",
+                        operation="list",
                     )
                 )
 
@@ -174,7 +213,23 @@ class RuntimeTurnExecutor:
 
             if tool_name == "read_email":
                 email_id = tool_call_decision.args.get("email_id")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="read_email",
+                        target_resource=str(email_id) if email_id else None,
+                        operation="read",
+                    )
+                )
                 if not email_id:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_email",
+                            operation="read",
+                            error_code="MISSING_EMAIL_ID",
+                        )
+                    )
                     for part in self._chunk_text("Missing required: email_id"):
                         full_text_so_far += part
                         evt = self._maybe_emit_token_disclosed(
@@ -193,6 +248,15 @@ class RuntimeTurnExecutor:
 
                 item = self._inbox_tool.read_email(email_id=email_id)
                 if item is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_email",
+                            target_resource=str(email_id),
+                            operation="read",
+                            error_code="EMAIL_NOT_FOUND",
+                        )
+                    )
                     for part in self._chunk_text(f"I couldn't find email '{email_id}'"):
                         full_text_so_far += part
                         evt = self._maybe_emit_token_disclosed(
@@ -210,10 +274,11 @@ class RuntimeTurnExecutor:
                     return
 
                 yield EventItem(
-                    event=EmailReadEvent(
-                        type="email_read",
-                        email_id=item.email_id,
-                        subject=item.email_subject,
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="read_email",
+                        target_resource=item.email_id,
+                        operation="read",
                     )
                 )
 
@@ -228,6 +293,168 @@ class RuntimeTurnExecutor:
                     )
 
                 for part in self._chunk_text(self._render_email(item=item)):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "read_file":
+                path = tool_call_decision.args.get("path")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="read_file",
+                        target_resource=str(path) if path else None,
+                        operation="read",
+                    )
+                )
+                if not path:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_file",
+                            operation="read",
+                            error_code="MISSING_PATH",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: path"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                file_result = self._file_tool.read_file(
+                    session_id=turn.session_id, path=path
+                )
+                if file_result.error_code or file_result.content is None:
+                    error_code = file_result.error_code or "FILE_NOT_FOUND"
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_file",
+                            target_resource=path,
+                            operation="read",
+                            error_code=error_code,
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"I couldn't read file '{path}' ({error_code})"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="read_file",
+                        target_resource=path,
+                        operation="read",
+                    )
+                )
+
+                for part in self._chunk_text(f"File {path}\n{file_result.content}"):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "delete_file":
+                path = tool_call_decision.args.get("path")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="delete_file",
+                        target_resource=str(path) if path else None,
+                        operation="delete",
+                    )
+                )
+                if not path:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="delete_file",
+                            operation="delete",
+                            error_code="MISSING_PATH",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: path"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                delete_result = self._file_tool.delete_file(
+                    session_id=turn.session_id, path=path
+                )
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="delete_file",
+                        target_resource=path,
+                        operation="delete",
+                        deleted=delete_result.deleted,
+                        exists_after=delete_result.exists_after,
+                    )
+                )
+
+                result_text = (
+                    f"Deleted file '{path}'"
+                    if delete_result.deleted
+                    else f"No file deleted for '{path}'"
+                )
+                for part in self._chunk_text(result_text):
                     full_text_so_far += part
                     evt = self._maybe_emit_token_disclosed(
                         text=full_text_so_far,

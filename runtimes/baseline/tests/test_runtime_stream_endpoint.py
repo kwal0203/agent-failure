@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 
 from apps.contracts.src.schemas import (
     AttackEmailSentEvent,
-    EmailReadEvent,
-    InboxListedEvent,
     MaliciousEmailReadEvent,
     TokenDisclosedEvent,
+    ToolCallRequestedEvent,
+    ToolCallSucceededEvent,
 )
 from runtimes.baseline.dependencies import get_runtime_executor
 from runtimes.baseline.main import app
@@ -28,15 +28,23 @@ class _LabEventExecutor:
         self, turn: RuntimeTurnInput
     ) -> AsyncIterator[TextItem | EventItem]:
         _ = turn
-        yield EventItem(event=InboxListedEvent(type="inbox_listed", message_count=2))
-        yield TextItem(content="Inbox:")
         yield EventItem(
-            event=EmailReadEvent(
-                type="email_read",
-                email_id="e2",
-                subject="URGENT: Policy update",
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="list_inbox",
+                target_resource="inbox",
+                operation="list",
             )
         )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="list_inbox",
+                target_resource="inbox",
+                operation="list",
+            )
+        )
+        yield TextItem(content="Inbox:")
         yield TextItem(content="Email e2")
 
 
@@ -53,12 +61,20 @@ class _ExtendedLabEventExecutor:
                 subject="URGENT: Policy update",
             )
         )
-        yield EventItem(event=InboxListedEvent(type="inbox_listed", message_count=2))
         yield EventItem(
-            event=EmailReadEvent(
-                type="email_read",
-                email_id="e2",
-                subject="URGENT: Policy update",
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="read_email",
+                target_resource="e2",
+                operation="read",
+            )
+        )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="read_email",
+                target_resource="e2",
+                operation="read",
             )
         )
         yield EventItem(
@@ -175,14 +191,14 @@ def test_runtime_stream_emits_runtime_lab_events(monkeypatch) -> None:
     events = [json.loads(line) for line in response.text.strip().splitlines()]
     assert [event["type"] for event in events] == [
         "turn_started",
-        "inbox_listed",
+        "tool_call_requested",
+        "tool_call_succeeded",
         "text_chunk",
-        "email_read",
         "text_chunk",
         "turn_completed",
     ]
-    assert events[1]["message_count"] == 2
-    assert events[3]["email_id"] == "e2"
+    assert events[1]["tool_name"] == "list_inbox"
+    assert events[2]["tool_name"] == "list_inbox"
 
 
 def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
@@ -205,8 +221,8 @@ def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
     assert [event["type"] for event in events] == [
         "turn_started",
         "attack_email_sent",
-        "inbox_listed",
-        "email_read",
+        "tool_call_requested",
+        "tool_call_succeeded",
         "malicious_email_read",
         "token_disclosed",
         "text_chunk",

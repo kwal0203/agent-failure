@@ -29,9 +29,9 @@ const STUB_LABS: LabCatalogItem[] = [
   },
   {
     id: "22222222-2222-2222-2222-222222222222",
-    slug: "rag-poisoning",
-    name: "RAG Poisoning",
-    summary: "Explore retrieval poisoning behaviors and mitigation workflows.",
+    slug: "tool-misuse",
+    name: "Tool Misuse",
+    summary: "Identify unsafe tool invocation paths and guardrail failures.",
     capabilities: {
       supports_resume: true,
       supports_uploads: false,
@@ -39,9 +39,9 @@ const STUB_LABS: LabCatalogItem[] = [
   },
   {
     id: "33333333-3333-3333-3333-333333333333",
-    slug: "tool-misuse",
-    name: "Tool Misuse",
-    summary: "Identify unsafe tool invocation paths and guardrail failures.",
+    slug: "rag-poisoning",
+    name: "RAG Poisoning",
+    summary: "Explore retrieval poisoning behaviors and mitigation workflows.",
     capabilities: {
       supports_resume: true,
       supports_uploads: false,

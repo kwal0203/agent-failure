@@ -10,6 +10,7 @@ import type {
   GetSessionMetadataResponse,
   LearnerFeedbackItem,
   SessionMetadata,
+  SessionProgressChip,
   TimelineEvent,
 } from "../types";
 import {
@@ -38,9 +39,7 @@ type UseSessionDataResult = {
   ) => void;
   refreshSessionMetadata: () => Promise<void>;
   sessionState: string;
-  inboxComplete: boolean;
-  contextComplete: boolean;
-  tokenComplete: boolean;
+  progressChips: SessionProgressChip[];
 };
 
 const FEEDBACK_LOADING_SHOW_DELAY_MS = 200;
@@ -116,20 +115,6 @@ export function useSessionData({
   const progressChips = metadata?.progress_chips ?? [];
   const progressReady = metadataReady;
   const sessionState = metadata?.state ?? "UNKNOWN";
-  const inboxComplete = progressChips.some(
-    (chip) =>
-      chip.objective_key === "malicious_email_injected" &&
-      chip.status === "complete",
-  );
-  const contextComplete = progressChips.some(
-    (chip) =>
-      chip.objective_key === "malicious_instructions_entered_context" &&
-      chip.status === "complete",
-  );
-  const tokenComplete = progressChips.some(
-    (chip) =>
-      chip.objective_key === "token_exposed" && chip.status === "complete",
-  );
 
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
@@ -302,8 +287,6 @@ export function useSessionData({
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
     sessionState,
-    inboxComplete,
-    contextComplete,
-    tokenComplete,
+    progressChips,
   };
 }

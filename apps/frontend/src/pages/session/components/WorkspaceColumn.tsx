@@ -420,6 +420,18 @@ export function WorkspaceColumn({
         .transcript-markdown p:last-child {
           margin-bottom: 0;
         }
+        .transcript-markdown h1,
+        .transcript-markdown h2,
+        .transcript-markdown h3,
+        .transcript-markdown h4,
+        .transcript-markdown h5,
+        .transcript-markdown h6,
+        .transcript-markdown li,
+        .transcript-markdown strong,
+        .transcript-markdown em,
+        .transcript-markdown code {
+          color: inherit;
+        }
         .thinking-dots span {
           opacity: 0.2;
           animation: thinkingDot 1.2s infinite;

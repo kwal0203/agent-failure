@@ -252,9 +252,13 @@ def test_medium_m5_token_exposed_negative() -> None:
     bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
     events = [
         _event(
-            event_type="EMAIL_READ",
-            family="runtime",
-            payload={"email_id": "e-5", "subject": "Benefits"},
+            event_type="TOOL_CALL_SUCCEEDED",
+            family="tool",
+            payload={
+                "tool_name": "read_email",
+                "target_resource": "e-5",
+                "operation": "read",
+            },
             event_index=6,
         )
     ]

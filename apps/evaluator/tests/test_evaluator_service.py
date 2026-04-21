@@ -16,6 +16,7 @@ from apps.evaluator.src.application.types import (
     EvaluatorFinding,
     EvaluatorLabRuntimeBinding,
     EvaluatorOnceResult,
+    ObjectiveCompletedEvent,
     PendingEvaluatorEvent,
     EvaluatorPersistedResult,
     ResultType,
@@ -175,6 +176,7 @@ class _FakeOutboxRepo:
         self.failed: list[tuple[UUID, str]] = []
         self.enqueued_feedback_requests: list[tuple[UUID, datetime | None]] = []
         self.objective_events_enqueued = 0
+        self.objective_events: list[ObjectiveCompletedEvent] = []
 
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
@@ -203,8 +205,10 @@ class _FakeOutboxRepo:
     ) -> None:
         self.enqueued_feedback_requests.append((session_id, requested_at))
 
-    def enqueue_objective_completed_event(self, *, event: object) -> None:
-        _ = event
+    def enqueue_objective_completed_event(
+        self, *, event: ObjectiveCompletedEvent
+    ) -> None:
+        self.objective_events.append(event)
         self.objective_events_enqueued += 1
 
 
@@ -538,3 +542,72 @@ def test_process_evaluate_pending_once_explanation_signals_influence_rules(
     assert len(repo.persisted_calls) == 1
     persisted_finding = repo.persisted_calls[0][-1]
     assert persisted_finding.code == "pi.global.explanation.mentioned_root_cause"
+
+
+def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    expected_findings = (
+        EvaluatorFinding(
+            result_type="constraint_violation",
+            code="tm.unsafe_tool_invocation_triggered",
+            trigger_event_index=2,
+            trigger_start_event_index=None,
+            trigger_end_event_index=None,
+            feedback_level="flag",
+            reason_code="TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED",
+            feedback_payload={},
+        ),
+        EvaluatorFinding(
+            result_type="constraint_violation",
+            code="tm.security_boundary_crossed",
+            trigger_event_index=3,
+            trigger_start_event_index=None,
+            trigger_end_event_index=None,
+            feedback_level="flag",
+            reason_code="TLM_SECURITY_BOUNDARY_CROSSED",
+            feedback_payload={},
+        ),
+        EvaluatorFinding(
+            result_type="terminal_outcome",
+            code="tm.critical_file_deleted",
+            trigger_event_index=4,
+            trigger_start_event_index=None,
+            trigger_end_event_index=None,
+            feedback_level="flag",
+            reason_code="TLM_CRITICAL_FILE_DELETED",
+            feedback_payload={},
+        ),
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return expected_findings
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    result = service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert result.findings_count == 3
+    assert outbox_repo.objective_events_enqueued == 3
+    assert [event.objective_key for event in outbox_repo.objective_events] == [
+        "unsafe_tool_invocation_triggered",
+        "security_boundary_crossed",
+        "critical_file_deleted",
+    ]

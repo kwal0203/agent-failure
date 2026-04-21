@@ -203,7 +203,7 @@ def test_append_trace_event_rejects_tool_failed_missing_required_payload_fields(
         occurred_at=datetime.now(timezone.utc),
         source="test",
         event_index=0,
-        payload={"tool_name": "http_get"},
+        payload={},
         trace_version=1,
     )
 

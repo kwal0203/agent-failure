@@ -1,4 +1,5 @@
 from typing import Protocol, Iterable
+from uuid import UUID
 from .types import (
     ModelRequest,
     HarnessChunk,
@@ -7,6 +8,8 @@ from .types import (
     HarnessFailure,
     InboxItem,
     ToolDecision,
+    DeleteFileResult,
+    ReadFileResult,
 )
 
 
@@ -33,3 +36,13 @@ class InboxToolPort(Protocol):
     def read_email(self, email_id: str) -> InboxItem | None: ...
 
     def receive_email(self, email: InboxItem) -> None: ...
+
+
+class FileToolPort(Protocol):
+    def seed_session_files(
+        self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
+    ) -> None: ...
+
+    def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult: ...
+
+    def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult: ...

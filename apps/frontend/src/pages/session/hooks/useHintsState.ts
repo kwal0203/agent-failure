@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { SessionHint, UnlockedHint } from "../types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { SessionHint, TimelineEvent, UnlockedHint } from "../types";
 import { API_BASE, AUTH_HEADER } from "../ui";
 
 type UseHintsStateParams = {
@@ -7,6 +7,7 @@ type UseHintsStateParams = {
   hints?: SessionHint[];
   unreadHintCount?: number;
   refreshSessionMetadata: () => Promise<void>;
+  appendTimelineEvent: (event: TimelineEvent) => void;
 };
 
 export function useHintsState({
@@ -14,8 +15,10 @@ export function useHintsState({
   hints,
   unreadHintCount,
   refreshSessionMetadata,
+  appendTimelineEvent,
 }: UseHintsStateParams) {
   const [hintsPanelOpen, setHintsPanelOpen] = useState(false);
+  const seenHintTimelineEventIdsRef = useRef(new Set<string>());
 
   const unlockedHints = useMemo<UnlockedHint[]>(() => {
     const unlocked = (hints ?? [])
@@ -36,6 +39,36 @@ export function useHintsState({
     }));
   }, [hints]);
   const hasUnreadHint = (unreadHintCount ?? 0) > 0;
+
+  useEffect(() => {
+    const unlocked = (hints ?? [])
+      .filter((hint) => hint.status === "unlocked")
+      .sort((a, b) => {
+        const aTime = a.unlocked_at ?? a.unlock_at;
+        const bTime = b.unlocked_at ?? b.unlock_at;
+        if (aTime !== bTime) {
+          return new Date(aTime).getTime() - new Date(bTime).getTime();
+        }
+        return a.sort_order - b.sort_order;
+      });
+
+    for (const hint of unlocked) {
+      const unlockedAt = hint.unlocked_at ?? hint.unlock_at;
+      const eventId = `hint-unlocked-${hint.hint_key}-${unlockedAt}`;
+      if (seenHintTimelineEventIdsRef.current.has(eventId)) continue;
+      seenHintTimelineEventIdsRef.current.add(eventId);
+
+      appendTimelineEvent({
+        id: eventId,
+        timestamp: unlockedAt,
+        type: "system",
+        granularity: "high",
+        title: `Hint ${hint.sort_order + 1} unlocked`,
+        description: "A new hint is available.",
+        details: hint.text,
+      });
+    }
+  }, [hints, appendTimelineEvent]);
 
   const onHintsChipClick = () => {
     setHintsPanelOpen((prev) => {
