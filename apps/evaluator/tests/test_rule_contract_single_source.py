@@ -21,6 +21,7 @@ def test_non_contract_modules_do_not_define_authoritative_symbols() -> None:
         "apps.evaluator.src.application.rules.labs.rag_poisoning_v1",
         "apps.evaluator.src.application.rules.labs.tool_misuse_v1",
         "apps.evaluator.src.application.rules.labs.code_execution_v1",
+        "apps.evaluator.src.application.rules.labs.memory_poisoning_v1",
     )
 
     for module_name in module_names:
