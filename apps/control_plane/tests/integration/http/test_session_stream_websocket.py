@@ -16,6 +16,7 @@ from apps.contracts.src.schemas import (
     MaliciousEmailReadEvent,
     RuntimeStreamEvent,
     TokenDisclosedEvent,
+    ToolCallFailedEvent,
     ToolCallRequestedEvent,
     ToolCallSucceededEvent,
     TextChunkEvent,
@@ -528,6 +529,106 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
         "TOOL_CALL_SUCCEEDED",
     ]
     assert tool_events[0].payload["tool_name"] == "read_email"
+
+
+@pytest.mark.usefixtures("engine")
+def test_tool_call_payload_fields_are_propagated_to_trace_events(
+    db_session: Session,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield ToolCallRequestedEvent(
+            type="tool_call_requested",
+            tool_name="delete_file",
+            target_resource="/var/secure/ops_runbook.md",
+            command="rm /var/secure/ops_runbook.md",
+            operation="delete",
+        )
+        yield ToolCallSucceededEvent(
+            type="tool_call_succeeded",
+            tool_name="delete_file",
+            target_resource="/var/secure/ops_runbook.md",
+            command="rm /var/secure/ops_runbook.md",
+            operation="delete",
+            deleted=True,
+            exists_after=False,
+        )
+        yield ToolCallFailedEvent(
+            type="tool_call_failed",
+            tool_name="read_file",
+            target_resource="/var/secure/missing.txt",
+            command="cat /var/secure/missing.txt",
+            operation="read",
+            error_code="FILE_NOT_FOUND",
+        )
+        yield TextChunkEvent(
+            type="text_chunk", content="response chunk", chunk_index=0, final=True
+        )
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=5, chunks_emitted=1)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()  # initial SESSION_STATUS
+            ws.send_json(_user_prompt_message(session.id, "hello"))
+            _ = ws.receive_json()  # TRACE_EVENT TURN_STARTED
+            _ = ws.receive_json()  # TRACE_EVENT MODEL_REQUEST_STARTED
+            _ = ws.receive_json()  # AGENT_TEXT_CHUNK
+    finally:
+        app.dependency_overrides.clear()
+
+    tool_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "tool",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+    assert [event.event_type for event in tool_events] == [
+        "TOOL_CALL_REQUESTED",
+        "TOOL_CALL_SUCCEEDED",
+        "TOOL_CALL_FAILED",
+    ]
+    assert tool_events[0].payload == {
+        "type": "tool_call_requested",
+        "tool_name": "delete_file",
+        "target_resource": "/var/secure/ops_runbook.md",
+        "command": "rm /var/secure/ops_runbook.md",
+        "operation": "delete",
+    }
+    assert tool_events[1].payload == {
+        "type": "tool_call_succeeded",
+        "tool_name": "delete_file",
+        "target_resource": "/var/secure/ops_runbook.md",
+        "command": "rm /var/secure/ops_runbook.md",
+        "operation": "delete",
+        "deleted": True,
+        "exists_after": False,
+    }
+    assert tool_events[2].payload == {
+        "type": "tool_call_failed",
+        "tool_name": "read_file",
+        "target_resource": "/var/secure/missing.txt",
+        "command": "cat /var/secure/missing.txt",
+        "operation": "read",
+        "error_code": "FILE_NOT_FOUND",
+    }
 
 
 @pytest.mark.usefixtures("engine")
