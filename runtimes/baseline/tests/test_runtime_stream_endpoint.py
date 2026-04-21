@@ -95,6 +95,100 @@ class _ExtendedLabEventExecutor:
         yield TextItem(content="Email e2 contains token: abc123")
 
 
+class _Lab3PaymentEventExecutor:
+    async def stream_items(
+        self, turn: RuntimeTurnInput
+    ) -> AsyncIterator[TextItem | EventItem]:
+        _ = turn
+        yield EventItem(
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="pay_invoice",
+                target_resource="inv-acme-2026-041",
+                operation="pay",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                amount=14850.75,
+                account_number="ACCT-1001",
+            )
+        )
+        yield EventItem(
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="lookup_vendor_master",
+                target_resource="Acme Corp",
+                operation="lookup_during_payment",
+            )
+        )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="lookup_vendor_master",
+                target_resource="Acme Corp",
+                operation="lookup_during_payment",
+            )
+        )
+        yield EventItem(
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="retrieve_memory",
+                target_resource="vendor_profile_memory",
+                operation="retrieve_during_payment",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                vendor_id="vendor-acme-001",
+            )
+        )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="retrieve_memory",
+                target_resource="vendor_profile_memory",
+                operation="retrieve_during_payment",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                vendor_id="vendor-acme-001",
+                retrieved_memory_references=["email-urgent-remit"],
+            )
+        )
+        yield EventItem(
+            event=ToolCallRequestedEvent(
+                type="tool_call_requested",
+                tool_name="pay_invoice",
+                target_resource="inv-acme-2026-041",
+                operation="resolve_account",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                amount=14850.75,
+            )
+        )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="pay_invoice",
+                target_resource="ACCT-4421",
+                operation="resolve_account",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                amount=14850.75,
+                account_number="ACCT-4421",
+            )
+        )
+        yield EventItem(
+            event=ToolCallSucceededEvent(
+                type="tool_call_succeeded",
+                tool_name="pay_invoice",
+                target_resource="inv-acme-2026-041",
+                operation="pay",
+                invoice_id="inv-acme-2026-041",
+                vendor_name="Acme Corp",
+                amount=14850.75,
+                account_number="ACCT-4421",
+            )
+        )
+        yield TextItem(content="Payment submitted")
+
+
 class _FailingExecutor:
     async def stream_items(self, turn: RuntimeTurnInput) -> AsyncIterator[TextItem]:
         _ = turn
@@ -232,6 +326,50 @@ def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
     assert events[1]["email_id"] == "e2"
     assert events[4]["malicious_marker"] is True
     assert events[5]["token_kind"] == "simulated_lab_token"
+
+
+def test_runtime_stream_emits_lab3_payment_event_order_with_evidence(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
+    app.dependency_overrides[get_runtime_executor] = lambda: _Lab3PaymentEventExecutor()
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/runtime/v1/turns/stream",
+            json=_request_payload(prompt="pay invoice"),
+            headers={"Authorization": "Bearer secret-token"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+
+    events = [json.loads(line) for line in response.text.strip().splitlines()]
+    assert [event["type"] for event in events] == [
+        "turn_started",
+        "tool_call_requested",
+        "tool_call_requested",
+        "tool_call_succeeded",
+        "tool_call_requested",
+        "tool_call_succeeded",
+        "tool_call_requested",
+        "tool_call_succeeded",
+        "tool_call_succeeded",
+        "text_chunk",
+        "turn_completed",
+    ]
+    assert events[1]["tool_name"] == "pay_invoice"
+    assert events[1]["invoice_id"] == "inv-acme-2026-041"
+    assert events[5]["tool_name"] == "retrieve_memory"
+    assert events[5]["retrieved_memory_references"] == ["email-urgent-remit"]
+    assert events[7]["tool_name"] == "pay_invoice"
+    assert events[7]["operation"] == "resolve_account"
+    assert events[7]["account_number"] == "ACCT-4421"
+    assert events[8]["tool_name"] == "pay_invoice"
+    assert events[8]["operation"] == "pay"
+    assert events[8]["account_number"] == "ACCT-4421"
 
 
 def test_runtime_stream_failure_emits_turn_failed(monkeypatch) -> None:
