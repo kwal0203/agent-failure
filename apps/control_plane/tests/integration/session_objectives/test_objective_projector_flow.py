@@ -22,11 +22,20 @@ from apps.control_plane.src.infrastructure.persistence.session_objectives_reposi
 )
 
 
-def _seed_session(db_session: Session) -> SessionModel:
+def _seed_session(
+    db_session: Session,
+    *,
+    lab_id=None,
+    lab_version_id=None,
+) -> SessionModel:
+    resolved_lab_id = UUID_LAB_2 if lab_id is None else lab_id
+    resolved_lab_version_id = (
+        UUID_LAB_2_VERSION if lab_version_id is None else lab_version_id
+    )
     session = SessionModel(
         id=uuid4(),
-        lab_id=UUID_LAB_2,
-        lab_version_id=UUID_LAB_2_VERSION,
+        lab_id=resolved_lab_id,
+        lab_version_id=resolved_lab_version_id,
         owner_user_id=uuid4(),
         state="ACTIVE",
         last_transition_actor="test",
@@ -66,7 +75,13 @@ def _seed_objective_completed_event(
     occurred_at: datetime,
     idempotency_key: str,
     trigger_event_index: int,
+    lab_id=None,
+    lab_version_id=None,
 ) -> None:
+    resolved_lab_id = UUID_LAB_2 if lab_id is None else lab_id
+    resolved_lab_version_id = (
+        UUID_LAB_2_VERSION if lab_version_id is None else lab_version_id
+    )
     db_session.add(
         OutboxEventModel(
             event_type="session.objective.completed.v1",
@@ -74,8 +89,8 @@ def _seed_objective_completed_event(
             status="pending",
             payload={
                 "session_id": str(session_id),
-                "lab_id": str(UUID_LAB_2),
-                "lab_version_id": str(UUID_LAB_2_VERSION),
+                "lab_id": str(resolved_lab_id),
+                "lab_version_id": str(resolved_lab_version_id),
                 "objective_key": objective_key,
                 "reason_code": "TEST_REASON",
                 "trigger_event_index": trigger_event_index,
@@ -90,6 +105,8 @@ def _seed_objective_completed_event(
 
 UUID_LAB_2 = uuid4()
 UUID_LAB_2_VERSION = uuid4()
+UUID_LAB_3 = uuid4()
+UUID_LAB_3_VERSION = uuid4()
 
 
 def test_objective_projector_completes_all_lab2_objectives(db_session: Session) -> None:
@@ -295,3 +312,109 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
     assert objective_rows[2].objective_key == "critical_file_deleted"
     assert objective_rows[2].status == "pending"
     assert objective_rows[2].completed_at is None
+
+
+def test_objective_projector_marks_lab3_objective_pending_to_complete(
+    db_session: Session,
+) -> None:
+    session = _seed_session(
+        db_session,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    objective_key = "malicious_vendor_memory_written"
+    occurred_at = datetime(2026, 4, 21, 17, 30, 0, tzinfo=timezone.utc)
+
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        label="Malicious Vendor Memory Written",
+        sort_order=0,
+    )
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        occurred_at=occurred_at,
+        idempotency_key=f"objective:{session.id}:{objective_key}:41",
+        trigger_event_index=41,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    db_session.flush()
+
+    result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert result.retried_count == 0
+
+    objective_row = (
+        db_session.execute(
+            select(SessionObjectiveModel).where(
+                SessionObjectiveModel.session_id == session.id,
+                SessionObjectiveModel.objective_key == objective_key,
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert objective_row.status == "complete"
+    assert objective_row.completed_at == occurred_at
+
+
+def test_objective_projector_lab3_completion_persists_after_reload(
+    db_session: Session,
+) -> None:
+    session = _seed_session(
+        db_session,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    objective_key = "payment_routed_to_attacker_account"
+    occurred_at = datetime(2026, 4, 21, 18, 0, 0, tzinfo=timezone.utc)
+
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        label="Payment Routed To Attacker Account",
+        sort_order=0,
+    )
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key=objective_key,
+        occurred_at=occurred_at,
+        idempotency_key=f"objective:{session.id}:{objective_key}:42",
+        trigger_event_index=42,
+        lab_id=UUID_LAB_3,
+        lab_version_id=UUID_LAB_3_VERSION,
+    )
+    db_session.flush()
+
+    process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+    )
+    db_session.commit()
+    db_session.expire_all()
+
+    reloaded_row = (
+        db_session.execute(
+            select(SessionObjectiveModel).where(
+                SessionObjectiveModel.session_id == session.id,
+                SessionObjectiveModel.objective_key == objective_key,
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert reloaded_row.status == "complete"
+    assert reloaded_row.completed_at == occurred_at
