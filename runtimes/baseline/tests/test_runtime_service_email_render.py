@@ -1,7 +1,11 @@
 import asyncio
 from collections.abc import Iterable
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
+    InMemoryFileTool,
+    OPS_RUNBOOK_PATH,
+)
 from apps.agent_harness.src.application.session_loop.types import (
     ChatMessage,
     HarnessChunk,
@@ -13,7 +17,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     DeleteFileResult,
     ReadFileResult,
 )
-from runtimes.baseline.service import RuntimeTurnExecutor
+from runtimes.baseline.service import LAB_2_TOOL_MISUSE_ID, RuntimeTurnExecutor
 from runtimes.baseline.types import RuntimeTurnInput, TextItem, EventItem
 
 
@@ -71,12 +75,17 @@ class _InboxTool:
 
 
 class _FileTool:
-    def read_file(self, path: str) -> ReadFileResult:
-        _ = path
+    def seed_session_files(
+        self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
+    ) -> None:
+        _ = (session_id, files, overwrite)
+
+    def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult:
+        _ = (session_id, path)
         return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
 
-    def delete_file(self, path: str) -> DeleteFileResult:
-        _ = path
+    def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
+        _ = (session_id, path)
         return DeleteFileResult(deleted=False, exists_after=False)
 
 
@@ -119,32 +128,47 @@ class _ModelClientDeleteFile:
 
 
 class _ReadableFileTool:
-    def read_file(self, path: str) -> ReadFileResult:
-        _ = path
+    def seed_session_files(
+        self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
+    ) -> None:
+        _ = (session_id, files, overwrite)
+
+    def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult:
+        _ = (session_id, path)
         return ReadFileResult(content="ops content", error_code=None)
 
-    def delete_file(self, path: str) -> DeleteFileResult:
-        _ = path
+    def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
+        _ = (session_id, path)
         return DeleteFileResult(deleted=False, exists_after=True)
 
 
 class _DeleteFileTool:
-    def read_file(self, path: str) -> ReadFileResult:
-        _ = path
+    def seed_session_files(
+        self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
+    ) -> None:
+        _ = (session_id, files, overwrite)
+
+    def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult:
+        _ = (session_id, path)
         return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
 
-    def delete_file(self, path: str) -> DeleteFileResult:
-        _ = path
+    def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
+        _ = (session_id, path)
         return DeleteFileResult(deleted=True, exists_after=False)
 
 
 class _MissingFileTool:
-    def read_file(self, path: str) -> ReadFileResult:
-        _ = path
+    def seed_session_files(
+        self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
+    ) -> None:
+        _ = (session_id, files, overwrite)
+
+    def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult:
+        _ = (session_id, path)
         return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
 
-    def delete_file(self, path: str) -> DeleteFileResult:
-        _ = path
+    def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
+        _ = (session_id, path)
         return DeleteFileResult(deleted=False, exists_after=False)
 
 
@@ -301,3 +325,64 @@ def test_read_file_emits_failed_with_error_code_when_missing() -> None:
     assert events[1]["operation"] == "read"
     assert events[1]["error_code"] == "FILE_NOT_FOUND"
     assert "FILE_NOT_FOUND" in text
+
+
+def test_runtime_seeds_lab2_file_artifact_per_session() -> None:
+    tool = InMemoryFileTool()
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=tool,
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=LAB_2_TOOL_MISUSE_ID,
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="read file",
+        idempotency_key="k-lab2-seed",
+    )
+
+    items = asyncio.run(_collect_items(executor=executor, turn=turn))
+    text = "".join(item.content for item in items if isinstance(item, TextItem))
+
+    assert "File /var/secure/ops_runbook.md" in text
+    seeded = tool.read_file(session_id=turn.session_id, path=OPS_RUNBOOK_PATH)
+    assert seeded.content is not None
+    assert seeded.error_code is None
+
+
+def test_runtime_does_not_seed_lab2_file_artifact_for_other_labs() -> None:
+    tool = InMemoryFileTool()
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=tool,
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=uuid4(),
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="read file",
+        idempotency_key="k-non-lab2-no-seed",
+    )
+
+    items = asyncio.run(_collect_items(executor=executor, turn=turn))
+    events = [
+        item.event.model_dump(mode="json")
+        for item in items
+        if isinstance(item, EventItem)
+    ]
+
+    assert [event["type"] for event in events] == [
+        "tool_call_requested",
+        "tool_call_failed",
+    ]
+    unseeded = tool.read_file(session_id=turn.session_id, path=OPS_RUNBOOK_PATH)
+    assert unseeded.content is None
+    assert unseeded.error_code == "FILE_NOT_FOUND"

@@ -32,6 +32,13 @@ from .types import RuntimeTurnInput, RuntimeExecutorItem, EventItem, TextItem
 
 from uuid import UUID
 
+from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
+    LAB2_FILE_SEED,
+)
+
+
+LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
+
 
 class RuntimeTurnExecutor:
     def __init__(
@@ -49,6 +56,20 @@ class RuntimeTurnExecutor:
         self._inbox_tool = inbox_tool
         self._file_tool = file_tool
         self._attack_seeded_sessions: set[UUID] = set()
+        self._file_seeded_sessions: set[UUID] = set()
+
+    def _seed_lab_artifacts_for_session(self, turn: RuntimeTurnInput) -> None:
+        if turn.session_id in self._file_seeded_sessions:
+            return
+
+        if turn.lab_id == LAB_2_TOOL_MISUSE_ID:
+            self._file_tool.seed_session_files(
+                session_id=turn.session_id,
+                files=LAB2_FILE_SEED,
+                overwrite=False,
+            )
+
+        self._file_seeded_sessions.add(turn.session_id)
 
     def _maybe_emit_token_disclosed(
         self, *, text: str, emitted_in_turn: bool
@@ -133,6 +154,7 @@ class RuntimeTurnExecutor:
     ) -> AsyncIterator[RuntimeExecutorItem]:
         token_disclosed_emitted = False
         full_text_so_far = ""
+        self._seed_lab_artifacts_for_session(turn)
 
         tool_call_decision = self._decide_tool_or_text(turn=turn)
         if tool_call_decision.kind == "tool_call":
@@ -321,7 +343,9 @@ class RuntimeTurnExecutor:
 
                     return
 
-                file_result = self._file_tool.read_file(path=path)
+                file_result = self._file_tool.read_file(
+                    session_id=turn.session_id, path=path
+                )
                 if file_result.error_code or file_result.content is None:
                     error_code = file_result.error_code or "FILE_NOT_FOUND"
                     yield EventItem(
@@ -411,7 +435,9 @@ class RuntimeTurnExecutor:
 
                     return
 
-                delete_result = self._file_tool.delete_file(path=path)
+                delete_result = self._file_tool.delete_file(
+                    session_id=turn.session_id, path=path
+                )
                 yield EventItem(
                     event=ToolCallSucceededEvent(
                         type="tool_call_succeeded",
