@@ -19,6 +19,10 @@ down_revision: Union[str, Sequence[str], None] = "5b065d788bda"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+LAB_3_OBJECTIVE_1_ID = UUID("33333333-3333-3333-3333-eeeeeeeee001")
+LAB_3_OBJECTIVE_2_ID = UUID("33333333-3333-3333-3333-eeeeeeeee002")
+LAB_3_OBJECTIVE_3_ID = UUID("33333333-3333-3333-3333-eeeeeeeee003")
+
 
 def _resolve_active_lab3_version_id(conn: sa.Connection) -> UUID:
     result = conn.execute(
@@ -52,7 +56,55 @@ def _resolve_active_lab3_version_id(conn: sa.Connection) -> UUID:
 def upgrade() -> None:
     """Upgrade schema."""
     conn = op.get_bind()
-    _ = _resolve_active_lab3_version_id(conn)
+    lab_version_id = _resolve_active_lab3_version_id(conn)
+
+    insert_stmt = sa.text(
+        """
+        INSERT INTO lab_objectives (
+            id,
+            lab_version_id,
+            objective_key,
+            label,
+            sort_order
+        )
+        VALUES (
+            :id,
+            :lab_version_id,
+            :objective_key,
+            :label,
+            :sort_order
+        )
+        ON CONFLICT (lab_version_id, objective_key)
+        DO UPDATE SET
+            label = EXCLUDED.label,
+            sort_order = EXCLUDED.sort_order,
+            updated_at = now()
+        """
+    )
+
+    rows = (
+        {
+            "id": LAB_3_OBJECTIVE_1_ID,
+            "objective_key": "malicious_vendor_memory_written",
+            "label": "Malicious Vendor Memory Written",
+            "sort_order": 0,
+        },
+        {
+            "id": LAB_3_OBJECTIVE_2_ID,
+            "objective_key": "poisoned_memory_retrieved_for_invoice",
+            "label": "Poisoned Memory Retrieved For Invoice",
+            "sort_order": 1,
+        },
+        {
+            "id": LAB_3_OBJECTIVE_3_ID,
+            "objective_key": "payment_routed_to_attacker_account",
+            "label": "Payment Routed To Attacker Account",
+            "sort_order": 2,
+        },
+    )
+
+    for row in rows:
+        conn.execute(insert_stmt, {"lab_version_id": lab_version_id, **row})
 
 
 def downgrade() -> None:
