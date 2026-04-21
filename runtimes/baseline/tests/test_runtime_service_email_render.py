@@ -10,6 +10,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     InboxItem,
     ModelRequest,
     ToolDecision,
+    DeleteFileResult,
 )
 from runtimes.baseline.service import RuntimeTurnExecutor
 from runtimes.baseline.types import RuntimeTurnInput, TextItem
@@ -68,12 +69,23 @@ class _InboxTool:
         _ = email
 
 
+class _FileTool:
+    def read_file(self, path: str) -> str | None:
+        _ = path
+        return None
+
+    def delete_file(self, path: str) -> DeleteFileResult:
+        _ = path
+        return DeleteFileResult(deleted=False, exists_after=False)
+
+
 def test_read_email_renders_email_body_when_preview_missing() -> None:
     executor = RuntimeTurnExecutor(
         model_client=_ModelClientReadEmail(),
         context_builder=_ContextBuilder(),
         event_sink=_EventSink(),
         inbox_tool=_InboxTool(),
+        file_tool=_FileTool(),
     )
     turn = RuntimeTurnInput(
         session_id=uuid4(),

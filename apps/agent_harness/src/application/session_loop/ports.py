@@ -7,6 +7,7 @@ from .types import (
     HarnessFailure,
     InboxItem,
     ToolDecision,
+    DeleteFileResult,
 )
 
 
@@ -33,3 +34,9 @@ class InboxToolPort(Protocol):
     def read_email(self, email_id: str) -> InboxItem | None: ...
 
     def receive_email(self, email: InboxItem) -> None: ...
+
+
+class FileToolPort(Protocol):
+    def read_file(self, path: str) -> str | None: ...
+
+    def delete_file(self, path: str) -> DeleteFileResult: ...

@@ -63,3 +63,9 @@ class ToolDecision:
     tool_name: ToolName | None
     args: dict[str, str]
     text: str | None
+
+
+@dataclass(frozen=True)
+class DeleteFileResult:
+    deleted: bool
+    exists_after: bool

@@ -18,6 +18,7 @@ from apps.agent_harness.src.application.session_loop.ports import (
     LabContextBuilderPort,
     EventSinkPort,
     InboxToolPort,
+    FileToolPort,
 )
 from apps.agent_harness.src.application.session_loop.types import (
     ModelRequest,
@@ -40,11 +41,13 @@ class RuntimeTurnExecutor:
         context_builder: LabContextBuilderPort,
         event_sink: EventSinkPort,
         inbox_tool: InboxToolPort,
+        file_tool: FileToolPort,
     ) -> None:
         self._model_client = model_client
         self._context_builder = context_builder
         self._event_sink = event_sink
         self._inbox_tool = inbox_tool
+        self._file_tool = file_tool
         self._attack_seeded_sessions: set[UUID] = set()
 
     def _maybe_emit_token_disclosed(
