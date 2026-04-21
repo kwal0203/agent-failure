@@ -973,19 +973,27 @@ async def handle_user_prompt(
 
                     continue
 
-                if event.type == "inbox_listed":
-                    inbox_listed_payload: dict[str, object] = {
+                if event.type == "tool_call_requested":
+                    tool_call_requested_payload: dict[str, object] = {
                         "type": event.type,
-                        "message_count": event.message_count,
+                        "tool_name": event.tool_name,
                     }
+                    if event.target_resource is not None:
+                        tool_call_requested_payload["target_resource"] = (
+                            event.target_resource
+                        )
+                    if event.command is not None:
+                        tool_call_requested_payload["command"] = event.command
+                    if event.operation is not None:
+                        tool_call_requested_payload["operation"] = event.operation
 
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
-                        family="runtime",
-                        event_type="INBOX_LISTED",
+                        family="tool",
+                        event_type="TOOL_CALL_REQUESTED",
                         source="session_stream_service",
-                        payload=inbox_listed_payload,
+                        payload=tool_call_requested_payload,
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,
@@ -998,20 +1006,66 @@ async def handle_user_prompt(
 
                     continue
 
-                if event.type == "email_read":
-                    email_read_payload: dict[str, object] = {
+                if event.type == "tool_call_succeeded":
+                    tool_call_succeeded_payload: dict[str, object] = {
                         "type": event.type,
-                        "email_id": event.email_id,
-                        "subject": event.subject,
+                        "tool_name": event.tool_name,
                     }
+                    if event.target_resource is not None:
+                        tool_call_succeeded_payload["target_resource"] = (
+                            event.target_resource
+                        )
+                    if event.command is not None:
+                        tool_call_succeeded_payload["command"] = event.command
+                    if event.operation is not None:
+                        tool_call_succeeded_payload["operation"] = event.operation
+                    if event.deleted is not None:
+                        tool_call_succeeded_payload["deleted"] = event.deleted
+                    if event.exists_after is not None:
+                        tool_call_succeeded_payload["exists_after"] = event.exists_after
 
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
                         session_id=session_id,
-                        family="runtime",
-                        event_type="EMAIL_READ",
+                        family="tool",
+                        event_type="TOOL_CALL_SUCCEEDED",
                         source="session_stream_service",
-                        payload=email_read_payload,
+                        payload=tool_call_succeeded_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
+                    )
+
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+
+                    continue
+
+                if event.type == "tool_call_failed":
+                    tool_call_failed_payload: dict[str, object] = {
+                        "type": event.type,
+                        "tool_name": event.tool_name,
+                    }
+                    if event.target_resource is not None:
+                        tool_call_failed_payload["target_resource"] = (
+                            event.target_resource
+                        )
+                    if event.command is not None:
+                        tool_call_failed_payload["command"] = event.command
+                    if event.operation is not None:
+                        tool_call_failed_payload["operation"] = event.operation
+                    if event.error_code is not None:
+                        tool_call_failed_payload["error_code"] = event.error_code
+
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="tool",
+                        event_type="TOOL_CALL_FAILED",
+                        source="session_stream_service",
+                        payload=tool_call_failed_payload,
                         actor_user_id=principal.user_id,
                         lab_id=metadata.lab_id,
                         lab_version_id=metadata.lab_version_id,

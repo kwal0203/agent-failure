@@ -1,6 +1,7 @@
 from uuid import UUID
 from typing import Literal
 from dataclasses import dataclass
+from apps.contracts.src.types import ToolName
 
 
 FailureCode = Literal["provider_failure", "invalid_request", "internal_error"]
@@ -59,6 +60,6 @@ class InboxItem:
 @dataclass(frozen=True)
 class ToolDecision:
     kind: Literal["tool_call", "text"]
-    tool_name: Literal["list_inbox", "read_email"] | None
+    tool_name: ToolName | None
     args: dict[str, str]
     text: str | None

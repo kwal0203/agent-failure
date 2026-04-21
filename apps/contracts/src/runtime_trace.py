@@ -17,8 +17,6 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
         "RUNTIME_PROVISION_FAILED",
         "RUNTIME_HEALTH_STATUS",
         "ATTACK_EMAIL_SENT",
-        "INBOX_LISTED",
-        "EMAIL_READ",
         "MALICIOUS_EMAIL_READ",
         "TOKEN_DISCLOSURE_ATTEMPTED",
         "TOKEN_DISCLOSED",
@@ -31,10 +29,6 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
         "MODEL_TURN_FAILED",
     },
 }
-
-# NOTE(P1-E6-T4): Tool trace event types are defined for schema/validation stability,
-# but emission is intentionally deferred until a concrete tool execution boundary
-# exists in the agent harness/tool adapter path.
 
 REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("runtime", "RUNTIME_PROVISION_FAILED"): {"reason_code"},
@@ -49,12 +43,12 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("learner", "ATTACK_EMAIL_SENT"): {"email_from", "subject"},
     ("learner", "LEARNER_EXPLANATION_SUBMITTED"): {"type", "explanation_id", "source"},
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
-    ("runtime", "INBOX_LISTED"): {"message_count"},
-    ("runtime", "EMAIL_READ"): {"email_id", "subject"},
     ("runtime", "MALICIOUS_EMAIL_READ"): {"email_id", "subject", "malicious_marker"},
     ("runtime", "TOKEN_DISCLOSURE_ATTEMPTED"): {"channel", "target"},
     ("runtime", "TOKEN_DISCLOSED"): {"channel", "token_kind"},
-    ("tool", "TOOL_CALL_FAILED"): {"tool_name", "error_code"},
+    ("tool", "TOOL_CALL_REQUESTED"): {"tool_name"},
+    ("tool", "TOOL_CALL_SUCCEEDED"): {"tool_name"},
+    ("tool", "TOOL_CALL_FAILED"): {"tool_name"},
     ("model", "MODEL_TURN_FAILED"): {"provider", "error_code"},
     # ("lifecycle", "SESSION_CREATED"): set(),
     # ("lifecycle", "SESSION_TRANSITIONED"): set(),
@@ -71,11 +65,12 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
 
 RuntimeTraceEventType: TypeAlias = Literal[
     "ATTACK_EMAIL_SENT",
-    "INBOX_LISTED",
-    "EMAIL_READ",
     "MALICIOUS_EMAIL_READ",
     "TOKEN_DISCLOSURE_ATTEMPTED",
     "TOKEN_DISCLOSED",
+    "TOOL_CALL_REQUESTED",
+    "TOOL_CALL_SUCCEEDED",
+    "TOOL_CALL_FAILED",
 ]
 
 
@@ -95,9 +90,10 @@ RuntimeTraceEventType: TypeAlias = Literal[
 
 REQUIRED_PAYLOAD_KEYS_BY_EVENT_TYPE: dict[RuntimeTraceEventType, tuple[str, ...]] = {
     "ATTACK_EMAIL_SENT": ("email_id", "recipient", "subject"),
-    "INBOX_LISTED": ("message_count",),
-    "EMAIL_READ": ("email_id", "subject"),
     "MALICIOUS_EMAIL_READ": ("email_id", "subject", "malicious_marker"),
     "TOKEN_DISCLOSURE_ATTEMPTED": ("channel", "target"),
     "TOKEN_DISCLOSED": ("channel", "token_kind"),
+    "TOOL_CALL_REQUESTED": ("tool_name",),
+    "TOOL_CALL_SUCCEEDED": ("tool_name",),
+    "TOOL_CALL_FAILED": ("tool_name",),
 }

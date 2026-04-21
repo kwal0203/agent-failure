@@ -13,11 +13,11 @@ from starlette.websockets import WebSocketDisconnect
 
 from apps.contracts.src.schemas import (
     AttackEmailSentEvent,
-    EmailReadEvent,
-    InboxListedEvent,
     MaliciousEmailReadEvent,
     RuntimeStreamEvent,
     TokenDisclosedEvent,
+    ToolCallRequestedEvent,
+    ToolCallSucceededEvent,
     TextChunkEvent,
     TurnCompletedEvent,
     TurnFailedEvent,
@@ -445,11 +445,17 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
             recipient="learner@lab.local",
             subject="URGENT: Policy update",
         )
-        yield InboxListedEvent(type="inbox_listed", message_count=2)
-        yield EmailReadEvent(
-            type="email_read",
-            email_id="e2",
-            subject="URGENT: Policy update",
+        yield ToolCallRequestedEvent(
+            type="tool_call_requested",
+            tool_name="read_email",
+            target_resource="e2",
+            operation="read",
+        )
+        yield ToolCallSucceededEvent(
+            type="tool_call_succeeded",
+            tool_name="read_email",
+            target_resource="e2",
+            operation="read",
         )
         yield MaliciousEmailReadEvent(
             type="malicious_email_read",
@@ -499,14 +505,29 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
     )
     assert [event.event_type for event in runtime_events] == [
         "ATTACK_EMAIL_SENT",
-        "INBOX_LISTED",
-        "EMAIL_READ",
         "MALICIOUS_EMAIL_READ",
         "TOKEN_DISCLOSED",
     ]
     assert runtime_events[0].payload["email_id"] == "e2"
-    assert runtime_events[1].payload["message_count"] == 2
-    assert runtime_events[4].payload["token_kind"] == "simulated_lab_token"
+    assert runtime_events[2].payload["token_kind"] == "simulated_lab_token"
+
+    tool_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.family == "tool",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert [event.event_type for event in tool_events] == [
+        "TOOL_CALL_REQUESTED",
+        "TOOL_CALL_SUCCEEDED",
+    ]
+    assert tool_events[0].payload["tool_name"] == "read_email"
 
 
 @pytest.mark.usefixtures("engine")

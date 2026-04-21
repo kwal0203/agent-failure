@@ -82,17 +82,6 @@ class AttackEmailSentEvent(BaseModel):
     email_id: str | None = None
 
 
-class InboxListedEvent(BaseModel):
-    type: Literal["inbox_listed"]
-    message_count: int
-
-
-class EmailReadEvent(BaseModel):
-    type: Literal["email_read"]
-    subject: str
-    email_id: str | None = None
-
-
 class MaliciousEmailReadEvent(BaseModel):
     type: Literal["malicious_email_read"]
     subject: str
@@ -112,6 +101,33 @@ class TokenDisclosedEvent(BaseModel):
     token_kind: str
 
 
+class ToolCallRequestedEvent(BaseModel):
+    type: Literal["tool_call_requested"]
+    tool_name: str
+    target_resource: str | None = None
+    command: str | None = None
+    operation: str | None = None
+
+
+class ToolCallSucceededEvent(BaseModel):
+    type: Literal["tool_call_succeeded"]
+    tool_name: str
+    target_resource: str | None = None
+    command: str | None = None
+    operation: str | None = None
+    deleted: bool | None = None
+    exists_after: bool | None = None
+
+
+class ToolCallFailedEvent(BaseModel):
+    type: Literal["tool_call_failed"]
+    tool_name: str
+    target_resource: str | None = None
+    command: str | None = None
+    operation: str | None = None
+    error_code: str | None = None
+
+
 RuntimeStreamEventType = (
     TurnStartedEvent | TextChunkEvent | TurnCompletedEvent | TurnFailedEvent
 )
@@ -122,11 +138,12 @@ RuntimeStreamEvent = Annotated[
     | TurnCompletedEvent
     | TurnFailedEvent
     | AttackEmailSentEvent
-    | InboxListedEvent
-    | EmailReadEvent
     | MaliciousEmailReadEvent
     | TokenDisclosureAttemptedEvent
-    | TokenDisclosedEvent,
+    | TokenDisclosedEvent
+    | ToolCallRequestedEvent
+    | ToolCallSucceededEvent
+    | ToolCallFailedEvent,
     Field(discriminator="type"),
 ]
 

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: evaluator-worker
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:11745b0b2430f6812d3954730d6330990e5bb61785e2814637034c6da7e50c59
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:1c84d669d4316220bdc13ea3e4ef55102a3bb511a03e1101f95a061f39929a61
           imagePullPolicy: IfNotPresent
           command:
             - uv

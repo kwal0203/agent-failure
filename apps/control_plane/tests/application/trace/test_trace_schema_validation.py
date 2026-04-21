@@ -122,8 +122,20 @@ def _event(
             ),
         ),
         (_event(family="runtime", event_type="RUNTIME_HEALTH_STATUS", payload={}),),
-        (_event(family="tool", event_type="TOOL_CALL_REQUESTED", payload={}),),
-        (_event(family="tool", event_type="TOOL_CALL_SUCCEEDED", payload={}),),
+        (
+            _event(
+                family="tool",
+                event_type="TOOL_CALL_REQUESTED",
+                payload={"tool_name": "read_email"},
+            ),
+        ),
+        (
+            _event(
+                family="tool",
+                event_type="TOOL_CALL_SUCCEEDED",
+                payload={"tool_name": "read_email"},
+            ),
+        ),
         (
             _event(
                 family="tool",
@@ -216,7 +228,7 @@ def test_trace_schema_rejects_tool_failed_missing_required_payload_fields() -> N
     trace = _event(
         family="tool",
         event_type="TOOL_CALL_FAILED",
-        payload={"tool_name": "read_file"},
+        payload={},
     )
 
     with pytest.raises(MissingTraceContextError):
