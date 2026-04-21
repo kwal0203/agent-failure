@@ -7,6 +7,9 @@ from apps.evaluator.src.application.rules.errors import UnsupportedLabBundleErro
 from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
     PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
 )
+from apps.evaluator.src.application.rules.labs.memory_poisoning_v1 import (
+    MEMORY_POISONING_V1_BUNDLE,
+)
 from apps.evaluator.src.application.rules.registry import (
     SUPPORTED_BUNDLES,
     resolve_bundle,
@@ -97,6 +100,16 @@ def test_resolve_bundle_falls_back_to_medium_for_unknown_difficulty() -> None:
 
     assert bundle is PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
     assert bundle.lab_difficulty == "medium"
+
+
+def test_resolve_bundle_selects_memory_poisoning_bundle_for_lab3() -> None:
+    binding = EvaluatorLabRuntimeBinding(lab_slug="memory-poisoning", lab_version="v1")
+    task = _task(lab_difficulty="medium", evaluator_version=1)
+
+    bundle = resolve_bundle(binding=binding, task=task)
+
+    assert bundle is MEMORY_POISONING_V1_BUNDLE
+    assert bundle.name == "memory_poisoning_v1"
 
 
 @pytest.mark.parametrize(
