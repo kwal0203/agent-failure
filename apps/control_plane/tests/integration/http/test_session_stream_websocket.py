@@ -542,27 +542,34 @@ def test_tool_call_payload_fields_are_propagated_to_trace_events(
         yield TurnStartedEvent(type="turn_started")
         yield ToolCallRequestedEvent(
             type="tool_call_requested",
-            tool_name="delete_file",
-            target_resource="/var/secure/ops_runbook.md",
-            command="rm /var/secure/ops_runbook.md",
-            operation="delete",
+            tool_name="write_memory",
+            target_resource="vendor_profile_memory",
+            operation="write",
+            memory_type="vendor_profile_memory",
+            provenance_trust="untrusted",
+            source_artifact_id="email-urgent-remit",
+            source_artifact_type="vendor_email",
         )
         yield ToolCallSucceededEvent(
             type="tool_call_succeeded",
-            tool_name="delete_file",
-            target_resource="/var/secure/ops_runbook.md",
-            command="rm /var/secure/ops_runbook.md",
-            operation="delete",
-            deleted=True,
-            exists_after=False,
+            tool_name="retrieve_memory",
+            target_resource="vendor_profile_memory",
+            operation="retrieve_during_payment",
+            invoice_id="inv-acme-2026-041",
+            vendor_name="Acme Corp",
+            vendor_id="vendor-acme-001",
+            retrieved_memory_references=["email-urgent-remit", "ticket-42"],
         )
         yield ToolCallFailedEvent(
             type="tool_call_failed",
-            tool_name="read_file",
-            target_resource="/var/secure/missing.txt",
-            command="cat /var/secure/missing.txt",
-            operation="read",
-            error_code="FILE_NOT_FOUND",
+            tool_name="pay_invoice",
+            target_resource="inv-acme-2026-041",
+            operation="pay",
+            error_code="PAYMENT_REJECTED",
+            invoice_id="inv-acme-2026-041",
+            vendor_name="Acme Corp",
+            amount=14850.75,
+            account_number="ACCT-4421",
         )
         yield TextChunkEvent(
             type="text_chunk", content="response chunk", chunk_index=0, final=True
@@ -607,27 +614,34 @@ def test_tool_call_payload_fields_are_propagated_to_trace_events(
     ]
     assert tool_events[0].payload == {
         "type": "tool_call_requested",
-        "tool_name": "delete_file",
-        "target_resource": "/var/secure/ops_runbook.md",
-        "command": "rm /var/secure/ops_runbook.md",
-        "operation": "delete",
+        "tool_name": "write_memory",
+        "target_resource": "vendor_profile_memory",
+        "operation": "write",
+        "memory_type": "vendor_profile_memory",
+        "provenance_trust": "untrusted",
+        "source_artifact_id": "email-urgent-remit",
+        "source_artifact_type": "vendor_email",
     }
     assert tool_events[1].payload == {
         "type": "tool_call_succeeded",
-        "tool_name": "delete_file",
-        "target_resource": "/var/secure/ops_runbook.md",
-        "command": "rm /var/secure/ops_runbook.md",
-        "operation": "delete",
-        "deleted": True,
-        "exists_after": False,
+        "tool_name": "retrieve_memory",
+        "target_resource": "vendor_profile_memory",
+        "operation": "retrieve_during_payment",
+        "invoice_id": "inv-acme-2026-041",
+        "vendor_name": "Acme Corp",
+        "vendor_id": "vendor-acme-001",
+        "retrieved_memory_references": ["email-urgent-remit", "ticket-42"],
     }
     assert tool_events[2].payload == {
         "type": "tool_call_failed",
-        "tool_name": "read_file",
-        "target_resource": "/var/secure/missing.txt",
-        "command": "cat /var/secure/missing.txt",
-        "operation": "read",
-        "error_code": "FILE_NOT_FOUND",
+        "tool_name": "pay_invoice",
+        "target_resource": "inv-acme-2026-041",
+        "operation": "pay",
+        "error_code": "PAYMENT_REJECTED",
+        "invoice_id": "inv-acme-2026-041",
+        "vendor_name": "Acme Corp",
+        "amount": 14850.75,
+        "account_number": "ACCT-4421",
     }
 
 

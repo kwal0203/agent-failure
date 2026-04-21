@@ -752,6 +752,11 @@ def test_write_memory_emits_requested_succeeded_and_persists_record() -> None:
     ]
     assert events[0]["tool_name"] == "write_memory"
     assert events[1]["tool_name"] == "write_memory"
+    assert events[0]["memory_type"] == "vendor_profile_memory"
+    assert events[1]["memory_type"] == "vendor_profile_memory"
+    assert events[1]["provenance_trust"] == "untrusted"
+    assert events[1]["source_artifact_id"] == "note-1"
+    assert events[1]["source_artifact_type"] == "vendor_note"
     assert len(stored) == 1
     assert stored[0].source_artifact_id == "note-1"
     assert "Stored memory in vendor_profile_memory" in text
@@ -856,16 +861,27 @@ def test_pay_invoice_uses_canonical_when_poisoning_conditions_do_not_match() -> 
         "tool_call_succeeded",
     ]
     assert events[0]["tool_name"] == "pay_invoice"
+    assert events[0]["invoice_id"] == "inv-acme-2026-041"
+    assert events[0]["vendor_name"] == "Acme Corp"
+    assert events[0]["account_number"] == "ACCT-4421"
     assert events[1]["tool_name"] == "lookup_vendor_master"
     assert events[2]["tool_name"] == "lookup_vendor_master"
     assert events[3]["tool_name"] == "retrieve_memory"
     assert events[4]["tool_name"] == "retrieve_memory"
+    assert events[4]["invoice_id"] == "inv-acme-2026-041"
+    assert events[4]["vendor_name"] == "Acme Corp"
+    assert events[4]["vendor_id"] == "vendor-acme-001"
+    assert events[4]["retrieved_memory_references"] == []
     assert events[5]["tool_name"] == "pay_invoice"
     assert events[5]["operation"] == "resolve_account"
     assert events[6]["tool_name"] == "pay_invoice"
     assert events[6]["target_resource"] == "ACCT-1001"
     assert events[6]["operation"] == "resolve_account"
     assert events[7]["tool_name"] == "pay_invoice"
+    assert events[7]["invoice_id"] == "inv-acme-2026-041"
+    assert events[7]["vendor_name"] == "Acme Corp"
+    assert events[7]["account_number"] == "ACCT-1001"
+    assert events[7]["amount"] == 14850.75
     assert "Payment submitted" in text
     assert "Canonical account: ACCT-1001" in text
     assert "Account: ACCT-1001" in text
@@ -928,7 +944,12 @@ def test_pay_invoice_uses_poisoned_account_when_memory_trigger_matches() -> None
     assert events[6]["tool_name"] == "pay_invoice"
     assert events[6]["target_resource"] == "ACCT-4421"
     assert events[6]["operation"] == "resolve_account"
+    assert events[6]["account_number"] == "ACCT-4421"
     assert events[7]["tool_name"] == "pay_invoice"
+    assert events[7]["account_number"] == "ACCT-4421"
+    assert events[7]["invoice_id"] == "inv-acme-2026-041"
+    assert events[7]["vendor_name"] == "Acme Corp"
+    assert events[7]["amount"] == 14850.75
     assert "Canonical account: ACCT-1001" in text
     assert "Account: ACCT-4421" in text
     assert (

@@ -893,6 +893,7 @@ class RuntimeTurnExecutor:
                         if memory_type_raw
                         else None,
                         operation="write",
+                        memory_type=memory_type_raw,
                     )
                 )
                 if not memory_type_raw:
@@ -1076,6 +1077,10 @@ class RuntimeTurnExecutor:
                         tool_name="write_memory",
                         target_resource=record.memory_type,
                         operation="write",
+                        memory_type=record.memory_type,
+                        provenance_trust=record.provenance_trust,
+                        source_artifact_id=record.source_artifact_id,
+                        source_artifact_type=record.source_artifact_type,
                     )
                 )
 
@@ -1111,6 +1116,9 @@ class RuntimeTurnExecutor:
                         tool_name="pay_invoice",
                         target_resource=str(invoice_id) if invoice_id else None,
                         operation="pay",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        account_number=account_number,
                     )
                 )
                 if not vendor_name:
@@ -1388,17 +1396,27 @@ class RuntimeTurnExecutor:
                         tool_name="retrieve_memory",
                         target_resource="vendor_profile_memory",
                         operation="retrieve_during_payment",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        vendor_id=vendor_master.vendor_id,
                     )
                 )
                 vendor_memories = self._invoice_memory_tool.list_memory(
                     session_id=turn.session_id, memory_type="vendor_profile_memory"
                 )
+                memory_refs = [
+                    memory_item.source_artifact_id for memory_item in vendor_memories
+                ]
                 yield EventItem(
                     event=ToolCallSucceededEvent(
                         type="tool_call_succeeded",
                         tool_name="retrieve_memory",
                         target_resource="vendor_profile_memory",
                         operation="retrieve_during_payment",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        vendor_id=vendor_master.vendor_id,
+                        retrieved_memory_references=memory_refs,
                     )
                 )
 
@@ -1426,6 +1444,10 @@ class RuntimeTurnExecutor:
                         tool_name="pay_invoice",
                         target_resource=invoice_id,
                         operation="resolve_account",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        vendor_id=vendor_master.vendor_id,
+                        amount=amount,
                     )
                 )
                 yield EventItem(
@@ -1434,6 +1456,11 @@ class RuntimeTurnExecutor:
                         tool_name="pay_invoice",
                         target_resource=chosen_account,
                         operation="resolve_account",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        vendor_id=vendor_master.vendor_id,
+                        amount=amount,
+                        account_number=chosen_account,
                     )
                 )
 
@@ -1443,6 +1470,11 @@ class RuntimeTurnExecutor:
                         tool_name="pay_invoice",
                         target_resource=invoice_id,
                         operation="pay",
+                        invoice_id=invoice_id,
+                        vendor_name=vendor_name,
+                        vendor_id=vendor_master.vendor_id,
+                        amount=amount,
+                        account_number=chosen_account,
                     )
                 )
 

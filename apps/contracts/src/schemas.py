@@ -107,6 +107,16 @@ class ToolCallRequestedEvent(BaseModel):
     target_resource: str | None = None
     command: str | None = None
     operation: str | None = None
+    memory_type: str | None = None
+    provenance_trust: str | None = None
+    source_artifact_id: str | None = None
+    source_artifact_type: str | None = None
+    invoice_id: str | None = None
+    vendor_name: str | None = None
+    vendor_id: str | None = None
+    amount: float | None = None
+    account_number: str | None = None
+    retrieved_memory_references: list[str] | None = None
 
 
 class ToolCallSucceededEvent(BaseModel):
@@ -117,6 +127,16 @@ class ToolCallSucceededEvent(BaseModel):
     operation: str | None = None
     deleted: bool | None = None
     exists_after: bool | None = None
+    memory_type: str | None = None
+    provenance_trust: str | None = None
+    source_artifact_id: str | None = None
+    source_artifact_type: str | None = None
+    invoice_id: str | None = None
+    vendor_name: str | None = None
+    vendor_id: str | None = None
+    amount: float | None = None
+    account_number: str | None = None
+    retrieved_memory_references: list[str] | None = None
 
 
 class ToolCallFailedEvent(BaseModel):
@@ -126,6 +146,16 @@ class ToolCallFailedEvent(BaseModel):
     command: str | None = None
     operation: str | None = None
     error_code: str | None = None
+    memory_type: str | None = None
+    provenance_trust: str | None = None
+    source_artifact_id: str | None = None
+    source_artifact_type: str | None = None
+    invoice_id: str | None = None
+    vendor_name: str | None = None
+    vendor_id: str | None = None
+    amount: float | None = None
+    account_number: str | None = None
+    retrieved_memory_references: list[str] | None = None
 
 
 RuntimeStreamEventType = (

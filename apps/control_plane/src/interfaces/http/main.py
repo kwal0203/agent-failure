@@ -986,6 +986,21 @@ async def handle_user_prompt(
                         tool_call_requested_payload["command"] = event.command
                     if event.operation is not None:
                         tool_call_requested_payload["operation"] = event.operation
+                    for field_name in (
+                        "memory_type",
+                        "provenance_trust",
+                        "source_artifact_id",
+                        "source_artifact_type",
+                        "invoice_id",
+                        "vendor_name",
+                        "vendor_id",
+                        "amount",
+                        "account_number",
+                        "retrieved_memory_references",
+                    ):
+                        field_value = getattr(event, field_name)
+                        if field_value is not None:
+                            tool_call_requested_payload[field_name] = field_value
 
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
@@ -1023,6 +1038,21 @@ async def handle_user_prompt(
                         tool_call_succeeded_payload["deleted"] = event.deleted
                     if event.exists_after is not None:
                         tool_call_succeeded_payload["exists_after"] = event.exists_after
+                    for field_name in (
+                        "memory_type",
+                        "provenance_trust",
+                        "source_artifact_id",
+                        "source_artifact_type",
+                        "invoice_id",
+                        "vendor_name",
+                        "vendor_id",
+                        "amount",
+                        "account_number",
+                        "retrieved_memory_references",
+                    ):
+                        field_value = getattr(event, field_name)
+                        if field_value is not None:
+                            tool_call_succeeded_payload[field_name] = field_value
 
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
@@ -1058,6 +1088,21 @@ async def handle_user_prompt(
                         tool_call_failed_payload["operation"] = event.operation
                     if event.error_code is not None:
                         tool_call_failed_payload["error_code"] = event.error_code
+                    for field_name in (
+                        "memory_type",
+                        "provenance_trust",
+                        "source_artifact_id",
+                        "source_artifact_type",
+                        "invoice_id",
+                        "vendor_name",
+                        "vendor_id",
+                        "amount",
+                        "account_number",
+                        "retrieved_memory_references",
+                    ):
+                        field_value = getattr(event, field_name)
+                        if field_value is not None:
+                            tool_call_failed_payload[field_name] = field_value
 
                     trace_event = build_trace_event(
                         trace_repo=trace_repo,
