@@ -6,13 +6,22 @@ import pytest
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
+from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
+    OutboxEventModel,
     SessionHintModel,
     SessionModel,
+    SessionObjectiveModel,
 )
 import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
+from apps.control_plane.src.interfaces.runtime.session_hint_unlock_worker import (
+    run_once as run_hint_unlock_worker_once,
+)
+from apps.control_plane.src.interfaces.runtime.session_objective_completed_worker import (
+    run_once as run_objective_worker_once,
+)
 
 
 def _override_db_session(db_session: Session):
@@ -31,6 +40,17 @@ def _owner_user_id(username: str) -> UUID:
 
 def _auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _override_db_session_factory():
+    def _dependency_override():
+        db = SessionFactory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    return _dependency_override
 
 
 def test_get_session_metadata_returns_200(db_session: Session) -> None:
@@ -347,3 +367,144 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     assert session["state"] == SessionState.PROVISIONING.value
     assert session["provisioning_stalled"] is True
     assert session["provisioning_stall_reason_code"] == "SESSION_PROVISIONING_STALLED"
+
+
+@pytest.mark.usefixtures("engine")
+def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -> None:
+    lab_3_id = UUID("33333333-3333-3333-3333-333333333333")
+    lab_3_version_id = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
+    owner_username = "lab3-smoke-owner"
+    now = datetime.now(timezone.utc)
+
+    with SessionFactory() as db:
+        session = SessionModel(
+            id=uuid4(),
+            lab_id=lab_3_id,
+            lab_version_id=lab_3_version_id,
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.ACTIVE.value,
+            runtime_substate="WAITING_FOR_INPUT",
+            resume_mode="hot_resume",
+            last_transition_actor="seed",
+            last_transition_reason=None,
+            lab_difficulty="medium",
+        )
+        db.add(session)
+        db.flush()
+        session_id = session.id
+
+        objective_keys = (
+            "malicious_vendor_memory_written",
+            "poisoned_memory_retrieved_for_invoice",
+            "payment_routed_to_attacker_account",
+        )
+        objective_labels = (
+            "Malicious Vendor Memory Written",
+            "Poisoned Memory Retrieved For Invoice",
+            "Payment Routed To Attacker Account",
+        )
+        for index, (objective_key, label) in enumerate(
+            zip(objective_keys, objective_labels, strict=True)
+        ):
+            db.add(
+                SessionObjectiveModel(
+                    session_id=session_id,
+                    objective_key=objective_key,
+                    label=label,
+                    status="pending",
+                    sort_order=index,
+                    completed_at=None,
+                )
+            )
+            db.add(
+                OutboxEventModel(
+                    event_type="session.objective.completed.v1",
+                    aggregate_id=session_id,
+                    status="pending",
+                    payload={
+                        "session_id": str(session_id),
+                        "lab_id": str(lab_3_id),
+                        "lab_version_id": str(lab_3_version_id),
+                        "objective_key": objective_key,
+                        "reason_code": "LAB3_SMOKE",
+                        "trigger_event_index": 700 + index,
+                        "occurred_at": now.isoformat(),
+                        "idempotency_key": (
+                            f"objective:{session_id}:{objective_key}:{700 + index}"
+                        ),
+                        "source": "evaluator",
+                        "evaluator_version": 1,
+                    },
+                )
+            )
+
+        db.add_all(
+            [
+                SessionHintModel(
+                    id=uuid4(),
+                    session_id=session_id,
+                    hint_key="hint_1",
+                    text="Lab 3 hint 1",
+                    sort_order=0,
+                    unlock_at=now - timedelta(seconds=5),
+                    status="pending",
+                ),
+                SessionHintModel(
+                    id=uuid4(),
+                    session_id=session_id,
+                    hint_key="hint_2",
+                    text="Lab 3 hint 2",
+                    sort_order=1,
+                    unlock_at=now + timedelta(minutes=20),
+                    status="pending",
+                ),
+            ]
+        )
+        db.commit()
+
+    run_objective_worker_once()
+    run_hint_unlock_worker_once()
+
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
+    try:
+        client = TestClient(app)
+        first_response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        assert first_response.status_code == 200
+        first_session = first_response.json()["session"]
+        assert [chip["status"] for chip in first_session["progress_chips"]] == [
+            "complete",
+            "complete",
+            "complete",
+        ]
+        assert [hint["status"] for hint in first_session["hints"]] == [
+            "unlocked",
+            "pending",
+        ]
+        assert first_session["unread_hint_count"] == 1
+
+        # Replay/reprocessing + reconnect should keep projection stable.
+        run_objective_worker_once()
+        run_hint_unlock_worker_once()
+
+        second_response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        assert second_response.status_code == 200
+        second_session = second_response.json()["session"]
+    finally:
+        app.dependency_overrides.clear()
+
+    assert [chip["status"] for chip in second_session["progress_chips"]] == [
+        "complete",
+        "complete",
+        "complete",
+    ]
+    assert [hint["status"] for hint in second_session["hints"]] == [
+        "unlocked",
+        "pending",
+    ]
+    assert second_session["unread_hint_count"] == 1
