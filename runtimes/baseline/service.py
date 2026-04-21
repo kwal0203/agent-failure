@@ -19,6 +19,7 @@ from apps.agent_harness.src.application.session_loop.ports import (
     EventSinkPort,
     InboxToolPort,
     FileToolPort,
+    InvoiceMemoryToolPort,
 )
 from apps.agent_harness.src.application.session_loop.types import (
     ModelRequest,
@@ -38,6 +39,7 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
 
 
 LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
+LAB_3_MEMORY_POISONING_ID = UUID("33333333-3333-3333-3333-333333333333")
 
 
 class RuntimeTurnExecutor:
@@ -49,27 +51,38 @@ class RuntimeTurnExecutor:
         event_sink: EventSinkPort,
         inbox_tool: InboxToolPort,
         file_tool: FileToolPort,
+        invoice_memory_tool: InvoiceMemoryToolPort | None = None,
     ) -> None:
         self._model_client = model_client
         self._context_builder = context_builder
         self._event_sink = event_sink
         self._inbox_tool = inbox_tool
         self._file_tool = file_tool
+        self._invoice_memory_tool = invoice_memory_tool
         self._attack_seeded_sessions: set[UUID] = set()
         self._file_seeded_sessions: set[UUID] = set()
+        self._invoice_memory_seeded_sessions: set[UUID] = set()
 
     def _seed_lab_artifacts_for_session(self, turn: RuntimeTurnInput) -> None:
-        if turn.session_id in self._file_seeded_sessions:
-            return
-
         if turn.lab_id == LAB_2_TOOL_MISUSE_ID:
+            if turn.session_id in self._file_seeded_sessions:
+                return
             self._file_tool.seed_session_files(
                 session_id=turn.session_id,
                 files=LAB2_FILE_SEED,
                 overwrite=False,
             )
+            self._file_seeded_sessions.add(turn.session_id)
 
-        self._file_seeded_sessions.add(turn.session_id)
+        if turn.lab_id == LAB_3_MEMORY_POISONING_ID:
+            if turn.session_id in self._invoice_memory_seeded_sessions:
+                return
+            if self._invoice_memory_tool is not None:
+                self._invoice_memory_tool.seed_session_state(
+                    session_id=turn.session_id,
+                    overwrite=False,
+                )
+            self._invoice_memory_seeded_sessions.add(turn.session_id)
 
     def _maybe_emit_token_disclosed(
         self, *, text: str, emitted_in_turn: bool
