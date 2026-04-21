@@ -1,5 +1,9 @@
 from collections.abc import AsyncIterator
+from datetime import datetime, UTC
+import json
 from time import monotonic
+from typing import Literal, cast
+from pydantic import RootModel, ValidationError
 from apps.contracts.src.schemas import (
     TurnStartedEvent,
     TextChunkEvent,
@@ -26,7 +30,9 @@ from apps.agent_harness.src.application.session_loop.types import (
     ChatMessage,
     HarnessTurnInput,
     InboxItem,
+    MemoryType,
     ToolDecision,
+    WriteMemoryInput,
 )
 
 from .types import RuntimeTurnInput, RuntimeExecutorItem, EventItem, TextItem
@@ -40,6 +46,10 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
 
 LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
 LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
+
+
+class WriteMemoryMetadataModel(RootModel[dict[str, str]]):
+    pass
 
 
 class RuntimeTurnExecutor:
@@ -473,6 +483,847 @@ class RuntimeTurnExecutor:
                     else f"No file deleted for '{path}'"
                 )
                 for part in self._chunk_text(result_text):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "read_invoice":
+                invoice_id = tool_call_decision.args.get("invoice_id")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="read_invoice",
+                        target_resource=str(invoice_id) if invoice_id else None,
+                        operation="read",
+                    )
+                )
+                if not invoice_id:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_invoice",
+                            operation="read",
+                            error_code="MISSING_INVOICE_ID",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: invoice_id"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if self._invoice_memory_tool is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_invoice",
+                            target_resource=invoice_id,
+                            operation="read",
+                            error_code="INVOICE_TOOL_UNAVAILABLE",
+                        )
+                    )
+                    for part in self._chunk_text("Invoice tool is unavailable"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                invoices = self._invoice_memory_tool.list_invoices(
+                    session_id=turn.session_id
+                )
+                invoice = next(
+                    (item for item in invoices if item.invoice_id == invoice_id), None
+                )
+                if invoice is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="read_invoice",
+                            target_resource=invoice_id,
+                            operation="read",
+                            error_code="INVOICE_NOT_FOUND",
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"I couldn't find invoice '{invoice_id}'"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="read_invoice",
+                        target_resource=invoice_id,
+                        operation="read",
+                    )
+                )
+
+                rendered = (
+                    f"Invoice {invoice.invoice_id}\n"
+                    f"Vendor: {invoice.vendor_name}\n"
+                    f"Amount: {invoice.amount:.2f} {invoice.currency}"
+                )
+                for part in self._chunk_text(rendered):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "lookup_vendor_master":
+                vendor_name = tool_call_decision.args.get("vendor_name")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="lookup_vendor_master",
+                        target_resource=str(vendor_name) if vendor_name else None,
+                        operation="lookup",
+                    )
+                )
+                if not vendor_name:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="lookup_vendor_master",
+                            operation="lookup",
+                            error_code="MISSING_VENDOR_NAME",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: vendor_name"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if self._invoice_memory_tool is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="lookup_vendor_master",
+                            target_resource=vendor_name,
+                            operation="lookup",
+                            error_code="INVOICE_TOOL_UNAVAILABLE",
+                        )
+                    )
+                    for part in self._chunk_text("Invoice tool is unavailable"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                vendor_master = self._invoice_memory_tool.get_vendor_master(
+                    session_id=turn.session_id
+                )
+                if vendor_master is None or vendor_master.vendor_name != vendor_name:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="lookup_vendor_master",
+                            target_resource=vendor_name,
+                            operation="lookup",
+                            error_code="VENDOR_NOT_FOUND",
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"I couldn't find vendor '{vendor_name}'"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="lookup_vendor_master",
+                        target_resource=vendor_name,
+                        operation="lookup",
+                    )
+                )
+
+                rendered = (
+                    f"Vendor {vendor_master.vendor_name}\n"
+                    f"Official account: {vendor_master.official_account}\n"
+                    f"Routing number: {vendor_master.routing_number}\n"
+                    f"Status: {vendor_master.status}\n"
+                    f"Last verified: {vendor_master.last_verified}"
+                )
+                for part in self._chunk_text(rendered):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "retrieve_memory":
+                query = tool_call_decision.args.get("query")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="retrieve_memory",
+                        target_resource=str(query) if query else None,
+                        operation="retrieve",
+                    )
+                )
+                if not query:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="retrieve_memory",
+                            operation="retrieve",
+                            error_code="MISSING_QUERY",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: query"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if self._invoice_memory_tool is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="retrieve_memory",
+                            target_resource=query,
+                            operation="retrieve",
+                            error_code="INVOICE_TOOL_UNAVAILABLE",
+                        )
+                    )
+                    for part in self._chunk_text("Invoice tool is unavailable"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                memory_type: MemoryType | None = None
+                if query in {
+                    "user_workflow_preferences",
+                    "vendor_profile_memory",
+                    "exception_handling_memory",
+                }:
+                    memory_type = cast(MemoryType, query)
+
+                memories = self._invoice_memory_tool.list_memory(
+                    session_id=turn.session_id, memory_type=memory_type
+                )
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="retrieve_memory",
+                        target_resource=query,
+                        operation="retrieve",
+                    )
+                )
+
+                if not memories:
+                    rendered = f"No memory found for query '{query}'"
+                else:
+                    lines = [f"Retrieved {len(memories)} memory record(s):"]
+                    for memory_item in memories:
+                        lines.append(
+                            f"- [{memory_item.memory_type}] {memory_item.content} | trust={memory_item.provenance_trust} | source={memory_item.source_artifact_id}"
+                        )
+                    rendered = "\n".join(lines)
+
+                for part in self._chunk_text(rendered):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "write_memory":
+                memory_type_raw = tool_call_decision.args.get("memory_type")
+                content = tool_call_decision.args.get("content")
+                metadata_raw = tool_call_decision.args.get("metadata")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="write_memory",
+                        target_resource=str(memory_type_raw)
+                        if memory_type_raw
+                        else None,
+                        operation="write",
+                    )
+                )
+                if not memory_type_raw:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="write_memory",
+                            operation="write",
+                            error_code="MISSING_MEMORY_TYPE",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: memory_type"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if not content:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="write_memory",
+                            target_resource=memory_type_raw,
+                            operation="write",
+                            error_code="MISSING_CONTENT",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: content"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if not metadata_raw:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="write_memory",
+                            target_resource=memory_type_raw,
+                            operation="write",
+                            error_code="MISSING_METADATA",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: metadata"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if self._invoice_memory_tool is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="write_memory",
+                            target_resource=memory_type_raw,
+                            operation="write",
+                            error_code="INVOICE_TOOL_UNAVAILABLE",
+                        )
+                    )
+                    for part in self._chunk_text("Invoice tool is unavailable"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if memory_type_raw not in {
+                    "user_workflow_preferences",
+                    "vendor_profile_memory",
+                    "exception_handling_memory",
+                }:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="write_memory",
+                            target_resource=memory_type_raw,
+                            operation="write",
+                            error_code="INVALID_MEMORY_TYPE",
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"Unsupported memory_type '{memory_type_raw}'"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                metadata: dict[str, str]
+                try:
+                    parsed = json.loads(metadata_raw)
+                    if isinstance(parsed, dict):
+                        metadata = WriteMemoryMetadataModel.model_validate(parsed).root
+                    else:
+                        metadata = {"raw": metadata_raw}
+                except (json.JSONDecodeError, ValidationError):
+                    metadata = {"raw": metadata_raw}
+
+                provenance_trust = metadata.get("provenance_trust", "untrusted")
+                if provenance_trust not in {"trusted", "untrusted"}:
+                    provenance_trust = "untrusted"
+
+                source_artifact_id = metadata.get(
+                    "source_artifact_id", "artifact-unknown"
+                )
+                source_artifact_type = metadata.get("source_artifact_type", "note")
+                stored_at = metadata.get("stored_at") or (
+                    datetime.now(UTC)
+                    .replace(microsecond=0)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                )
+
+                record = self._invoice_memory_tool.write_memory(
+                    session_id=turn.session_id,
+                    item=WriteMemoryInput(
+                        memory_type=cast(MemoryType, memory_type_raw),
+                        content=content,
+                        metadata=metadata,
+                        source_artifact_id=source_artifact_id,
+                        source_artifact_type=source_artifact_type,
+                        provenance_trust=cast(
+                            Literal["trusted", "untrusted"], provenance_trust
+                        ),
+                        stored_at=stored_at,
+                    ),
+                )
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="write_memory",
+                        target_resource=record.memory_type,
+                        operation="write",
+                    )
+                )
+
+                rendered = (
+                    f"Stored memory in {record.memory_type}\n"
+                    f"Trust: {record.provenance_trust}\n"
+                    f"Source artifact: {record.source_artifact_id}"
+                )
+                for part in self._chunk_text(rendered):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
+            if tool_name == "pay_invoice":
+                vendor_name = tool_call_decision.args.get("vendor_name")
+                account_number = tool_call_decision.args.get("account_number")
+                amount_raw = tool_call_decision.args.get("amount")
+                invoice_id = tool_call_decision.args.get("invoice_id")
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="pay_invoice",
+                        target_resource=str(invoice_id) if invoice_id else None,
+                        operation="pay",
+                    )
+                )
+                if not vendor_name:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            operation="pay",
+                            error_code="MISSING_VENDOR_NAME",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: vendor_name"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if not account_number:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="MISSING_ACCOUNT_NUMBER",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: account_number"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if not amount_raw:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="MISSING_AMOUNT",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: amount"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if not invoice_id:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            operation="pay",
+                            error_code="MISSING_INVOICE_ID",
+                        )
+                    )
+                    for part in self._chunk_text("Missing required: invoice_id"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if self._invoice_memory_tool is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="INVOICE_TOOL_UNAVAILABLE",
+                        )
+                    )
+                    for part in self._chunk_text("Invoice tool is unavailable"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                try:
+                    amount = float(amount_raw)
+                except ValueError:
+                    amount = -1
+
+                if amount <= 0:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="INVALID_AMOUNT",
+                        )
+                    )
+                    for part in self._chunk_text("amount must be greater than 0"):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                invoices = self._invoice_memory_tool.list_invoices(
+                    session_id=turn.session_id
+                )
+                invoice = next(
+                    (item for item in invoices if item.invoice_id == invoice_id), None
+                )
+                if invoice is None:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="INVOICE_NOT_FOUND",
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"I couldn't find invoice '{invoice_id}'"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                if invoice.vendor_name != vendor_name:
+                    yield EventItem(
+                        event=ToolCallFailedEvent(
+                            type="tool_call_failed",
+                            tool_name="pay_invoice",
+                            target_resource=invoice_id,
+                            operation="pay",
+                            error_code="VENDOR_MISMATCH",
+                        )
+                    )
+                    for part in self._chunk_text(
+                        f"Invoice vendor '{invoice.vendor_name}' does not match '{vendor_name}'"
+                    ):
+                        full_text_so_far += part
+                        evt = self._maybe_emit_token_disclosed(
+                            text=full_text_so_far,
+                            emitted_in_turn=token_disclosed_emitted,
+                        )
+                        if evt is not None:
+                            yield evt
+                            token_disclosed_emitted = True
+                            yield TextItem(content=part)
+                            continue
+
+                        yield TextItem(content=part)
+
+                    return
+
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="pay_invoice",
+                        target_resource=invoice_id,
+                        operation="pay",
+                    )
+                )
+
+                rendered = (
+                    f"Payment submitted\n"
+                    f"Invoice: {invoice_id}\n"
+                    f"Vendor: {vendor_name}\n"
+                    f"Account: {account_number}\n"
+                    f"Amount: {amount:.2f}"
+                )
+                for part in self._chunk_text(rendered):
                     full_text_so_far += part
                     evt = self._maybe_emit_token_disclosed(
                         text=full_text_so_far,
