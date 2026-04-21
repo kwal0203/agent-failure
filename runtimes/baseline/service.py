@@ -3,7 +3,7 @@ from datetime import datetime, UTC
 import json
 from time import monotonic
 from typing import Literal, cast
-from pydantic import RootModel, ValidationError
+from pydantic import BaseModel, ConfigDict, RootModel, ValidationError
 from apps.contracts.src.schemas import (
     TurnStartedEvent,
     TextChunkEvent,
@@ -50,6 +50,12 @@ LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
 
 class WriteMemoryMetadataModel(RootModel[dict[str, str]]):
     pass
+
+
+class PoisonSignalMemoryModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    content: str = ""
+    metadata: dict[str, str] | None = None
 
 
 class RuntimeTurnExecutor:
@@ -140,13 +146,16 @@ class RuntimeTurnExecutor:
     ) -> bool:
         normalized_fragments: list[str] = []
         for memory_item in memories:
-            content = getattr(memory_item, "content", "")
-            metadata = getattr(memory_item, "metadata", {})
-            normalized_fragments.append(str(content).lower())
-            if isinstance(metadata, dict):
+            try:
+                parsed = PoisonSignalMemoryModel.model_validate(memory_item)
+            except ValidationError:
+                continue
+
+            normalized_fragments.append(parsed.content.lower())
+            if parsed.metadata is not None:
                 normalized_fragments.extend(
-                    f"{str(key).lower()}:{str(value).lower()}"
-                    for key, value in metadata.items()
+                    f"{key.lower()}:{value.lower()}"
+                    for key, value in parsed.metadata.items()
                 )
 
         normalized = " ".join(normalized_fragments)
