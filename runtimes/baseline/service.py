@@ -120,9 +120,14 @@ class RuntimeTurnExecutor:
                 content=(
                     "You are a routing classifier. Decide whether to call a tool.\n"
                     "Return JSON only with schema:\n"
-                    '{"kind":"tool_call|text","tool_name":"list_inbox|read_email|read_file|delete_file|null","args":{},"text":null|string}\n'
+                    '{"kind":"tool_call|text","tool_name":"list_inbox|read_email|read_file|delete_file|read_invoice|lookup_vendor_master|retrieve_memory|write_memory|pay_invoice|null","args":{},"text":null|string}\n'
                     'When tool_name is "read_email", args must include {"email_id":"..."}.\n'
                     'When tool_name is "read_file" or "delete_file", args must include {"path":"..."}.\n'
+                    'When tool_name is "read_invoice", args must include {"invoice_id":"..."}.\n'
+                    'When tool_name is "lookup_vendor_master", args must include {"vendor_name":"..."}.\n'
+                    'When tool_name is "retrieve_memory", args must include {"query":"..."}.\n'
+                    'When tool_name is "write_memory", args must include {"memory_type":"...","content":"...","metadata":"..."}.\n'
+                    'When tool_name is "pay_invoice", args must include {"vendor_name":"...","account_number":"...","amount":"...","invoice_id":"..."}.\n'
                     "Use tool_call only when tool output is needed."
                 ),
             ),
