@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Literal, Annotated
 from datetime import datetime
 
-from .types import CompletionOutcome, SessionCompletedEventName
+from .types import CompletionOutcome, OutboxEventName, SessionCompletedEventName
 
 
 ErrorCode = Literal["provider_failure", "invalid_request", "internal_error"]
@@ -228,7 +228,6 @@ class ApiErrorEnvelope(BaseModel):
 class SessionCompletedEventPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    event_type: SessionCompletedEventName = "session.completed.v1"
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
@@ -237,3 +236,19 @@ class SessionCompletedEventPayload(BaseModel):
     trigger_event_index: int | None = None
     occurred_at: datetime
     idempotency_key: str = Field(min_length=1)
+
+
+class SessionCompletedOutboxEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: SessionCompletedEventName = "session.completed.v1"
+    aggregate_id: UUID
+    payload: SessionCompletedEventPayload
+
+
+OutboxEvent = Annotated[
+    SessionCompletedOutboxEvent,
+    Field(discriminator="event_type"),
+]
+
+OutboxEventType = OutboxEventName
