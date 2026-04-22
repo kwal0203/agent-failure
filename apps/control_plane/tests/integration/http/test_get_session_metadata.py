@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
+    LabObjectivesModel,
     OutboxEventModel,
     SessionHintModel,
     SessionModel,
@@ -21,6 +22,19 @@ from apps.control_plane.src.interfaces.runtime.session_hint_unlock_worker import
 )
 from apps.control_plane.src.interfaces.runtime.session_objective_completed_worker import (
     run_once as run_objective_worker_once,
+)
+from apps.control_plane.src.application.session_objectives.service import (
+    process_pending_objective_completed_once,
+)
+from apps.control_plane.src.infrastructure.persistence.outbox_session_objective_completed import (
+    SQLAlchemyOutboxSessionObjectiveCompleted,
+)
+from apps.control_plane.src.infrastructure.persistence.session_objectives_repository import (
+    SQLAlchemyLabObjectiveTemplateRepository,
+    SQLAlchemySessionObjectiveWriterRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.session_repository import (
+    SQLAlchemySessionRepository,
 )
 
 
@@ -142,7 +156,7 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:
     missing_id = uuid4()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
     try:
         client = TestClient(app)
         response = client.get(
@@ -565,3 +579,125 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         "pending",
     ]
     assert second_session["unread_hint_count"] == 1
+
+
+def test_completion_fields_persist_across_refresh_after_objective_projection(
+    db_session: Session,
+) -> None:
+    lab_id = UUID("33333333-3333-3333-3333-333333333333")
+    lab_version_id = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
+    owner_username = "completion-refresh-owner"
+    now = datetime.now(timezone.utc)
+
+    session = SessionModel(
+        id=uuid4(),
+        lab_id=lab_id,
+        lab_version_id=lab_version_id,
+        owner_user_id=_owner_user_id(owner_username),
+        state=SessionState.ACTIVE.value,
+        runtime_substate="WAITING_FOR_INPUT",
+        resume_mode="hot_resume",
+        last_transition_actor="seed",
+        last_transition_reason=None,
+        lab_difficulty="medium",
+    )
+    db_session.add(session)
+    db_session.flush()
+    session_id = session.id
+
+    objectives = (
+        (
+            "malicious_vendor_memory_written",
+            "Malicious Vendor Memory Written",
+            0,
+        ),
+        (
+            "poisoned_memory_retrieved_for_invoice",
+            "Poisoned Memory Retrieved For Invoice",
+            1,
+        ),
+        (
+            "payment_routed_to_attacker_account",
+            "Payment Routed To Attacker Account",
+            2,
+        ),
+    )
+    for objective_key, label, sort_order in objectives:
+        db_session.add(
+            LabObjectivesModel(
+                lab_version_id=lab_version_id,
+                objective_key=objective_key,
+                label=label,
+                sort_order=sort_order,
+            )
+        )
+        db_session.add(
+            SessionObjectiveModel(
+                session_id=session_id,
+                objective_key=objective_key,
+                label=label,
+                status="pending",
+                sort_order=sort_order,
+                completed_at=None,
+            )
+        )
+        db_session.add(
+            OutboxEventModel(
+                event_type="session.objective.completed.v1",
+                aggregate_id=session_id,
+                status="pending",
+                payload={
+                    "session_id": str(session_id),
+                    "lab_id": str(lab_id),
+                    "lab_version_id": str(lab_version_id),
+                    "objective_key": objective_key,
+                    "reason_code": "LAB3_COMPLETION_REFRESH",
+                    "trigger_event_index": 900 + sort_order,
+                    "occurred_at": now.isoformat(),
+                    "idempotency_key": (
+                        f"objective:{session_id}:{objective_key}:{900 + sort_order}"
+                    ),
+                    "source": "evaluator",
+                    "evaluator_version": 1,
+                },
+            )
+        )
+    db_session.flush()
+
+    projection_result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+        completion_writer=SQLAlchemySessionRepository(db=db_session),
+    )
+    db_session.flush()
+    assert projection_result.succeeded_count == 3
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        first = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        second = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_session = first.json()["session"]
+    second_session = second.json()["session"]
+    assert first_session["completion_status"] == "completed_success"
+    assert (
+        first_session["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+    )
+    assert first_session["completed_at"] is not None
+    assert second_session["completion_status"] == "completed_success"
+    assert (
+        second_session["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+    )
+    assert second_session["completed_at"] == first_session["completed_at"]
