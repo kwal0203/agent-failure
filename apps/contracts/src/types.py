@@ -3,6 +3,9 @@ from typing import Literal, TypeAlias, Mapping
 
 TraceFamily = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
+SessionCompletedEventName = Literal["session.completed.v1"]
+CompletionOutcome = Literal["completed_success", "completed_failure"]
+
 
 JSONScalar: TypeAlias = str | int | float | bool | None
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]

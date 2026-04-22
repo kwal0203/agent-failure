@@ -1,6 +1,9 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
 from typing import Literal, Annotated
+from datetime import datetime
+
+from .types import CompletionOutcome, SessionCompletedEventName
 
 
 ErrorCode = Literal["provider_failure", "invalid_request", "internal_error"]
@@ -220,3 +223,17 @@ class ApiError(BaseModel):
 
 class ApiErrorEnvelope(BaseModel):
     error: ApiError
+
+
+class SessionCompletedEventPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: SessionCompletedEventName = "session.completed.v1"
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    outcome: CompletionOutcome
+    completion_reason_code: str | None = None
+    trigger_event_index: int | None = None
+    occurred_at: datetime
+    idempotency_key: str = Field(min_length=1)
