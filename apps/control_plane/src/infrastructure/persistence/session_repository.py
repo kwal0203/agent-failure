@@ -27,6 +27,12 @@ from apps.control_plane.src.application.session_query.helpers import (
     parse_hint_status,
     parse_progress_status,
 )
+from apps.control_plane.src.application.session_completion.guard import (
+    evaluate_completion_transition,
+)
+from apps.control_plane.src.application.session_completion.types import (
+    CompletionStatus,
+)
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
@@ -120,15 +126,28 @@ class SQLAlchemySessionRepository(SessionRepository):
         self,
         *,
         session_id: UUID,
-        completion_status: str,
+        completion_status: CompletionStatus,
         completed_at: datetime,
         completion_reason_code: str | None,
     ) -> bool:
+        current_status_result = self._db.execute(
+            select(SessionModel.completion_status).where(SessionModel.id == session_id)
+        ).scalar_one_or_none()
+        if current_status_result is None:
+            return False
+        current_status = parse_completion_status(current_status_result)
+        decision = evaluate_completion_transition(
+            current_status=current_status,
+            requested_status=completion_status,
+        )
+        if not decision.should_apply:
+            return False
+
         stmt = (
             update(SessionModel)
             .where(
                 SessionModel.id == session_id,
-                SessionModel.completion_status == "in_progress",
+                SessionModel.completion_status == current_status,
             )
             .values(
                 completion_status=completion_status,

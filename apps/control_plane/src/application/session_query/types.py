@@ -3,12 +3,11 @@ from datetime import datetime
 from uuid import UUID
 from typing import cast, TypeAlias, Literal
 
+from apps.control_plane.src.application.session_completion.types import CompletionStatus
+
 
 ProgressStatus: TypeAlias = Literal["pending", "complete"]
 HintStatus: TypeAlias = Literal["pending", "unlocked"]
-CompletionStatus: TypeAlias = Literal[
-    "in_progress", "completed_success", "completed_failure"
-]
 
 
 @dataclass(frozen=True)

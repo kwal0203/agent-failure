@@ -1,5 +1,11 @@
 from typing import cast
 
+from apps.control_plane.src.application.session_completion.types import (
+    COMPLETION_STATUS_COMPLETED_FAILURE,
+    COMPLETION_STATUS_COMPLETED_SUCCESS,
+    COMPLETION_STATUS_IN_PROGRESS,
+)
+
 from .types import CompletionStatus, HintStatus, ProgressStatus
 
 
@@ -17,9 +23,9 @@ def parse_hint_status(value: str) -> HintStatus:
 
 def parse_completion_status(value: str) -> CompletionStatus:
     if (
-        value == "in_progress"
-        or value == "completed_success"
-        or value == "completed_failure"
+        value == COMPLETION_STATUS_IN_PROGRESS
+        or value == COMPLETION_STATUS_COMPLETED_SUCCESS
+        or value == COMPLETION_STATUS_COMPLETED_FAILURE
     ):
         return cast(CompletionStatus, value)
     raise ValueError(f"Invalid completion status in DB: {value}")
