@@ -320,6 +320,60 @@ def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     assert session["ended_at"] is not None
 
 
+def test_get_session_metadata_completion_fields_persist_across_refresh(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "completion-owner"
+    completed_at = datetime.now(timezone.utc)
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.COMPLETED.value,
+            runtime_substate=None,
+            resume_mode="hot_resume",
+            started_at=datetime.now(timezone.utc),
+            ended_at=completed_at,
+            last_transition_actor="seed",
+            last_transition_reason="LAB_COMPLETED",
+            completion_status="completed_success",
+            completed_at=completed_at,
+            completion_reason_code="ALL_OBJECTIVES_COMPLETED",
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        first = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        second = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_session = first.json()["session"]
+    second_session = second.json()["session"]
+
+    assert first_session["completion_status"] == "completed_success"
+    assert first_session["completion_reason_code"] == "ALL_OBJECTIVES_COMPLETED"
+    assert first_session["completed_at"] is not None
+    assert second_session["completion_status"] == "completed_success"
+    assert second_session["completion_reason_code"] == "ALL_OBJECTIVES_COMPLETED"
+    assert second_session["completed_at"] == first_session["completed_at"]
+
+
 @pytest.mark.usefixtures("engine")
 def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     db_session: Session,
