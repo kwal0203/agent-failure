@@ -26,13 +26,17 @@ from .schemas import (
     LearnerExplanationRequest,
     LearnerExplanationResponse,
     MarkSessionHintsSeenResponse,
+    StopSessionResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
+from apps.control_plane.src.infrastructure.persistence.db import (
+    SessionFactory,
+    get_db_session,
+)
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionMetadataRepository,
 )
@@ -49,6 +53,9 @@ from apps.control_plane.src.application.session_query.errors import (
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
     CreateSessionUnitOfWork,
+)
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.common.schemas import LabDifficultyParser
@@ -70,6 +77,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyTraceEventRepository,
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionRuntimeBindingRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
+    SQLAlchemyUnitOfWork,
 )
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
@@ -113,6 +123,14 @@ from apps.control_plane.src.application.session_hints.errors import (
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
 )
+from apps.control_plane.src.application.session_lifecycle.service import (
+    transition_session,
+)
+from apps.control_plane.src.application.session_lifecycle.errors import (
+    InvalidTransition,
+    SessionNotFound,
+)
+from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
 from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
     LearnerExplanationRepository,
 )
@@ -501,6 +519,100 @@ def create_session_endpoint(
 
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/stop",
+    status_code=202,
+    response_model=StopSessionResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        409: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def stop_session_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    metadata_repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
+) -> StopSessionResponse | JSONResponse:
+    try:
+        session_metadata = get_session_metadata(
+            session_id=session_id,
+            principal=principal,
+            repo=metadata_repo,
+        )
+        if session_metadata is None:
+            return build_api_error_response(
+                "SESSION_NOT_FOUND",
+                "Session not found",
+                False,
+                404,
+                {"session_id": str(session_id)},
+            )
+
+        if session_metadata.state in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}:
+            return StopSessionResponse(
+                session_id=session_id,
+                accepted=True,
+                state=session_metadata.state,
+            )
+
+        uow = SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+        transition_session(
+            session_id=session_id,
+            trigger=Trigger.ADMIN_CANCELLED,
+            actor="admin",
+            metadata={
+                "reason_code": "USER_REQUESTED_STOP",
+                "requested_by_user_id": str(principal.user_id),
+                "requested_via": "session_ui",
+            },
+            idempotency_key=f"stop-session:{session_id}:{principal.user_id}",
+            uow=uow,
+        )
+
+        return StopSessionResponse(
+            session_id=session_id,
+            accepted=True,
+            state="CANCELLED",
+        )
+
+    except ForbiddenErrorSessionQuery as exc:
+        return build_api_error_response(
+            "FORBIDDEN", exc.message, False, 403, exc.details
+        )
+    except SessionNotFound:
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id)},
+        )
+    except InvalidTransition as exc:
+        return build_api_error_response(
+            "INVALID_SESSION_STATE",
+            "Session cannot be stopped from the current state",
+            False,
+            409,
+            {
+                "session_id": str(session_id),
+                "current_state": exc.current_state.value,
+                "trigger": exc.trigger.value,
+            },
+        )
+    except Exception:
+        logger.exception("stop session failed for session=%s", str(session_id))
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
         )
 
 

@@ -1,22 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: control-plane-session-objective-completed-worker
+  name: control-plane-cleanup-worker
   namespace: runtime-pool
   labels:
-    app.kubernetes.io/name: control-plane-session-objective-completed-worker
+    app.kubernetes.io/name: control-plane-cleanup-worker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: control-plane-session-objective-completed-worker
+      app.kubernetes.io/name: control-plane-cleanup-worker
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: control-plane-session-objective-completed-worker
+        app.kubernetes.io/name: control-plane-cleanup-worker
     spec:
+      serviceAccountName: control-plane-worker
       containers:
-        - name: session-objective-completed-worker
+        - name: cleanup-worker
           image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:a17345e4be70110f2ade861f0b0297f76f5e7296f4dd6d61858f101e4a107e3a
           imagePullPolicy: IfNotPresent
           command:
@@ -24,7 +25,7 @@ spec:
             - run
             - python
             - -m
-            - apps.control_plane.src.interfaces.runtime.session_objective_completed_worker
+            - apps.control_plane.src.interfaces.runtime.cleanup_worker
           env:
             - name: DATABASE_URL
               value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"

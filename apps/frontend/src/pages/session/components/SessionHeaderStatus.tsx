@@ -21,6 +21,9 @@ type SessionStatusHeaderProps = {
   sessionState: string;
   hintsPanelOpen: boolean;
   onHintsChipClick: () => void;
+  canStopSession: boolean;
+  stoppingSession: boolean;
+  onStopSession: () => void;
 };
 
 type SessionHeaderStatusProps = {
@@ -33,6 +36,9 @@ type SessionHeaderStatusProps = {
   sessionState: string;
   hintsPanelOpen: boolean;
   onHintsChipClick: () => void;
+  canStopSession: boolean;
+  stoppingSession: boolean;
+  onStopSession: () => void;
 };
 
 export function ProgressStatusHeader({
@@ -82,6 +88,9 @@ export function SessionStatusHeader({
   sessionState,
   hintsPanelOpen,
   onHintsChipClick,
+  canStopSession,
+  stoppingSession,
+  onStopSession,
 }: SessionStatusHeaderProps) {
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
@@ -177,6 +186,23 @@ export function SessionStatusHeader({
       <div style={statusChipStyle(tone)}>
         <strong>SESSION</strong>
       </div>
+      <button
+        type="button"
+        onClick={onStopSession}
+        disabled={!canStopSession || stoppingSession}
+        style={{
+          ...statusChipStyle({
+            background: "rgba(83, 21, 31, 0.72)",
+            border: "1px solid #9b3e50",
+            color: "#ffd7df",
+          }),
+          cursor:
+            !canStopSession || stoppingSession ? "not-allowed" : "pointer",
+          opacity: !canStopSession || stoppingSession ? 0.6 : 1,
+        }}
+      >
+        <strong>{stoppingSession ? "Stopping..." : "Stop Session"}</strong>
+      </button>
       {renderHintsPopover()}
     </>
   );
@@ -193,6 +219,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     sessionState,
     hintsPanelOpen,
     onHintsChipClick,
+    canStopSession,
+    stoppingSession,
+    onStopSession,
   } = props;
 
   return (
@@ -228,6 +257,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
           sessionState={sessionState}
           hintsPanelOpen={hintsPanelOpen}
           onHintsChipClick={onHintsChipClick}
+          canStopSession={canStopSession}
+          stoppingSession={stoppingSession}
+          onStopSession={onStopSession}
         />
       </div>
       <style>{`

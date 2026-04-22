@@ -33,6 +33,12 @@ class MarkSessionHintsSeenResponse(BaseModel):
     updated_count: int
 
 
+class StopSessionResponse(BaseModel):
+    session_id: UUID
+    accepted: bool = True
+    state: str
+
+
 class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
