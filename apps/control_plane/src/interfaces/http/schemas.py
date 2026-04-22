@@ -3,6 +3,8 @@ from uuid import UUID
 from datetime import datetime
 from typing import Literal, Any
 
+from apps.control_plane.src.application.session_query.types import CompletionStatus
+
 
 EvaluatorFeedbackStatusType = Literal[
     "learned", "progress", "no_progress", "session_terminal"
@@ -52,6 +54,9 @@ class SessionMetadataResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    completion_status: CompletionStatus = "in_progress"
+    completed_at: datetime | None = None
+    completion_reason_code: str | None = None
     provisioning_stalled: bool = False
     provisioning_stall_reason_code: str | None
     progress_chips: list[SessionProgressChipResponse] = []

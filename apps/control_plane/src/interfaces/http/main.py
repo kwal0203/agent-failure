@@ -347,6 +347,9 @@ def get_metadata(
             created_at=session_metadata.created_at,
             started_at=session_metadata.started_at,
             ended_at=session_metadata.ended_at,
+            completion_status=session_metadata.completion_status,
+            completed_at=session_metadata.completed_at,
+            completion_reason_code=session_metadata.completion_reason_code,
             provisioning_stalled=stalled,
             provisioning_stall_reason_code="SESSION_PROVISIONING_STALLED"
             if stalled

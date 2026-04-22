@@ -23,6 +23,7 @@ from apps.control_plane.src.application.session_query.types import (
     SessionMetadataBundleRow,
 )
 from apps.control_plane.src.application.session_query.helpers import (
+    parse_completion_status,
     parse_hint_status,
     parse_progress_status,
 )
@@ -186,6 +187,9 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             created_at=session_model.created_at,
             started_at=session_model.started_at,
             ended_at=session_model.ended_at,
+            completion_status=parse_completion_status(session_model.completion_status),
+            completed_at=session_model.completed_at,
+            completion_reason_code=session_model.completion_reason_code,
         )
         progress_chips = [
             SessionObjectiveRow(
