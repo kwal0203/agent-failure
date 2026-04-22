@@ -53,3 +53,19 @@ Completion transitions follow these invariants:
 - Default/backfill for existing sessions: `completion_status = in_progress`.
 - `completed_at` should be set from the first accepted completion transition and remain stable afterward.
 - `completion_reason_code` should represent the canonical reason used for completion (if available) and remain stable after terminal transition.
+
+## Completion Event Idempotency (v1)
+For `session.completed.v1`, use a deterministic key built from this canonical tuple:
+
+- `session_id`
+- `outcome`
+- `completion_reason_code` (normalized: trim + lowercase; empty/null => `none`)
+- `trigger_event_index` (null => `none`)
+
+Stable key format:
+
+- `session_completed:{session_id}:{outcome}:{normalized_reason}:{normalized_trigger}`
+
+Reference helper:
+
+- `apps/contracts/src/idempotency.py::build_session_completed_event_idempotency_key`
