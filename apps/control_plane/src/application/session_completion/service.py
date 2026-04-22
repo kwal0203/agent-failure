@@ -1,6 +1,6 @@
 from pydantic import ValidationError
 
-from apps.contracts.src.schemas import SessionCompletedEventPayload
+from apps.contracts.src.schemas import SessionCompletedOutboxEvent
 
 from .ports import OutboxSessionCompletedPort, SessionCompletionWriterPort
 from .types import SessionCompletionProjectionOnceResult
@@ -19,11 +19,29 @@ def process_pending_session_completed_once(
 
     for event in events:
         try:
-            payload = SessionCompletedEventPayload.model_validate(event.payload)
+            outbox_event = SessionCompletedOutboxEvent.model_validate(
+                {
+                    "event_type": "session.completed.v1",
+                    "aggregate_id": event.session_id,
+                    "payload": event.payload,
+                }
+            )
         except ValidationError as exc:
             outbox_repo.mark_terminal_failure(
                 outbox_event_id=event.outbox_event_id,
                 error_message=f"INVALID_OUTBOX_PAYLOAD: {exc}",
+            )
+            failed_count += 1
+            continue
+        payload = outbox_event.payload
+
+        if payload.session_id != event.session_id:
+            outbox_repo.mark_terminal_failure(
+                outbox_event_id=event.outbox_event_id,
+                error_message=(
+                    "INVALID_OUTBOX_PAYLOAD: payload.session_id does not match "
+                    "event aggregate_id"
+                ),
             )
             failed_count += 1
             continue
