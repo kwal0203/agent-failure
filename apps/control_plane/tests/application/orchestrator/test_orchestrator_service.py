@@ -298,6 +298,10 @@ class _FakeSessionObjectiveWriter:
     ) -> None:
         _ = (session_id, objective_key, completed_at)
 
+    def list_objective_states(self, *, session_id: UUID) -> list[tuple[str, str]]:
+        _ = session_id
+        return []
+
 
 class _FakeHintTemplateRepo:
     def list_hint_templates(self, lab_version_id: UUID) -> list[HintTemplate]:

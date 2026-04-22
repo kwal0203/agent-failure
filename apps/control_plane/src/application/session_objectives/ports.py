@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from apps.control_plane.src.application.session_completion.types import CompletionStatus
+
 from .types import PendingSessionObjectiveCompletedEvent
 
 
@@ -37,6 +39,19 @@ class SessionObjectiveWriterPort(Protocol):
         objective_key: str,
         completed_at: datetime | None = None,
     ) -> None: ...
+
+    def list_objective_states(self, *, session_id: UUID) -> list[tuple[str, str]]: ...
+
+
+class SessionCompletionWriterPort(Protocol):
+    def mark_completion_if_in_progress(
+        self,
+        *,
+        session_id: UUID,
+        completion_status: CompletionStatus,
+        completed_at: datetime,
+        completion_reason_code: str | None,
+    ) -> bool: ...
 
 
 class OutboxSessionObjectiveCompletedPort(Protocol):

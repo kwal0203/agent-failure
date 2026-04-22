@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -5,10 +6,15 @@ from pydantic import ValidationError
 from .ports import (
     LabObjectiveTemplateReaderPort,
     OutboxSessionObjectiveCompletedPort,
+    SessionCompletionWriterPort,
     SessionObjectiveWriterPort,
 )
 from .schemas import ObjectiveCompletedEventPayload
 from .types import SessionObjectiveProjectionOnceResult
+
+LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED = (
+    "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+)
 
 
 def initialize_session_objectives(
@@ -39,7 +45,9 @@ def initialize_session_objectives(
 def process_pending_objective_completed_once(
     *,
     outbox_repo: OutboxSessionObjectiveCompletedPort,
+    template_reader: LabObjectiveTemplateReaderPort,
     objective_writer: SessionObjectiveWriterPort,
+    completion_writer: SessionCompletionWriterPort,
 ) -> SessionObjectiveProjectionOnceResult:
     events = outbox_repo.claim_pending_objective_completed()
     claimed_count = len(events)
@@ -64,6 +72,14 @@ def process_pending_objective_completed_once(
                 objective_key=payload.objective_key,
                 completed_at=payload.occurred_at,
             )
+            _apply_completion_policy_after_objective_projection(
+                session_id=payload.session_id,
+                lab_version_id=payload.lab_version_id,
+                objective_writer=objective_writer,
+                template_reader=template_reader,
+                completion_writer=completion_writer,
+                completed_at=payload.occurred_at,
+            )
             outbox_repo.mark_processed(outbox_event_id=event.outbox_event_id)
             succeeded_count += 1
         except Exception as exc:
@@ -78,4 +94,39 @@ def process_pending_objective_completed_once(
         succeeded_count=succeeded_count,
         failed_count=failed_count,
         retried_count=retried_count,
+    )
+
+
+def _apply_completion_policy_after_objective_projection(
+    *,
+    session_id: UUID,
+    lab_version_id: UUID,
+    objective_writer: SessionObjectiveWriterPort,
+    template_reader: LabObjectiveTemplateReaderPort,
+    completion_writer: SessionCompletionWriterPort,
+    completed_at: datetime,
+) -> None:
+    template_rows = template_reader.list_objective_templates(
+        lab_version_id=lab_version_id
+    )
+    required_keys = {objective_key for objective_key, _, _ in template_rows}
+    if not required_keys:
+        return
+
+    objective_states = objective_writer.list_objective_states(session_id=session_id)
+    status_by_key = {
+        objective_key: status for objective_key, status in objective_states
+    }
+    all_required_complete = all(
+        status_by_key.get(objective_key) == "complete"
+        for objective_key in required_keys
+    )
+    if not all_required_complete:
+        return
+
+    completion_writer.mark_completion_if_in_progress(
+        session_id=session_id,
+        completion_status="completed_success",
+        completed_at=completed_at,
+        completion_reason_code=LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
     )
