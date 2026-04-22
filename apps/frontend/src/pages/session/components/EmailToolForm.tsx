@@ -88,7 +88,7 @@ export function EmailToolForm({
             injectingEmail || !sessionId,
           )}
         >
-          {injectingEmail ? "Injecting..." : "Inject Email"}
+          {injectingEmail ? "Injecting..." : "Send Email"}
         </button>
         <button
           type="button"

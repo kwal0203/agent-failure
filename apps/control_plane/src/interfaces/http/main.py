@@ -1794,7 +1794,8 @@ async def inject_session_email(
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         if (
-            session_metadata.lab_id is not None
+            bool(email_input.malicious)
+            and session_metadata.lab_id is not None
             and session_metadata.lab_version_id is not None
         ):
             objective = (

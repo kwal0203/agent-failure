@@ -223,13 +223,16 @@ describe("SessionPage learner feedback panel", () => {
     });
 
     const injectButton = await screen.findByRole("button", {
-      name: "Inject Email",
+      name: "Send Email",
     });
     fireEvent.click(injectButton);
 
     expect(
       (await screen.findAllByText("Email accepted (id: evil-1).")).length,
     ).toBeGreaterThan(0);
+    expect(screen.getByLabelText("From")).toHaveValue("");
+    expect(screen.getByLabelText("Subject")).toHaveValue("");
+    expect(screen.getByLabelText("Body")).toHaveValue("");
     expect(
       fetchMock.mock.calls.some(([input, init]) => {
         const url = String(input);

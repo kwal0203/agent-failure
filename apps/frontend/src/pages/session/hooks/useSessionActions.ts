@@ -137,6 +137,10 @@ export function useSessionActions(params: UseSessionActionsParams) {
         description: `Email ${accepted}${emailId}.`,
         details: `From: ${sender}\nSubject: ${subject}`,
       });
+      setEmailFrom("");
+      setEmailSubject("");
+      setEmailBody("");
+      setEmailMalicious(true);
       await params.refreshSessionMetadata();
     } catch (err) {
       const message = err instanceof Error ? err.message : "request failed";
