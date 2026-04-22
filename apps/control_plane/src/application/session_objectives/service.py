@@ -2,11 +2,15 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
+from apps.contracts.src.idempotency import (
+    build_session_completed_event_idempotency_key,
+)
 from pydantic import ValidationError
 
 from .ports import (
     LabObjectiveTemplateReaderPort,
     OutboxSessionObjectiveCompletedPort,
+    SessionCompletionEventOutboxPort,
     SessionCompletionWriterPort,
     SessionObjectiveWriterPort,
 )
@@ -48,6 +52,7 @@ def initialize_session_objectives(
 def process_pending_objective_completed_once(
     *,
     outbox_repo: OutboxSessionObjectiveCompletedPort,
+    event_outbox_repo: SessionCompletionEventOutboxPort,
     template_reader: LabObjectiveTemplateReaderPort,
     objective_writer: SessionObjectiveWriterPort,
     completion_writer: SessionCompletionWriterPort,
@@ -77,10 +82,12 @@ def process_pending_objective_completed_once(
             )
             _apply_completion_policy_after_objective_projection(
                 session_id=payload.session_id,
+                lab_id=payload.lab_id,
                 lab_version_id=payload.lab_version_id,
                 objective_writer=objective_writer,
                 template_reader=template_reader,
                 completion_writer=completion_writer,
+                event_outbox_repo=event_outbox_repo,
                 completed_at=payload.occurred_at,
                 trigger_objective_key=payload.objective_key,
                 trigger_reason_code=payload.reason_code,
@@ -106,10 +113,12 @@ def process_pending_objective_completed_once(
 def _apply_completion_policy_after_objective_projection(
     *,
     session_id: UUID,
+    lab_id: UUID,
     lab_version_id: UUID,
     objective_writer: SessionObjectiveWriterPort,
     template_reader: LabObjectiveTemplateReaderPort,
     completion_writer: SessionCompletionWriterPort,
+    event_outbox_repo: SessionCompletionEventOutboxPort,
     completed_at: datetime,
     trigger_objective_key: str,
     trigger_reason_code: str,
@@ -144,6 +153,22 @@ def _apply_completion_policy_after_objective_projection(
         completed_at=completed_at,
         completion_reason_code=LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
     )
+    if completion_persisted:
+        event_outbox_repo.enqueue_session_completed(
+            session_id=session_id,
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            outcome="completed_success",
+            completion_reason_code=LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
+            trigger_event_index=trigger_event_index,
+            idempotency_key=build_session_completed_event_idempotency_key(
+                session_id=session_id,
+                outcome="completed_success",
+                completion_reason_code=LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
+                trigger_event_index=trigger_event_index,
+            ),
+            occurred_at=completed_at,
+        )
     logger.info(
         "session completion evaluated session_id=%s lab_version_id=%s "
         "trigger_objective_key=%s trigger_reason_code=%s trigger_event_index=%s "

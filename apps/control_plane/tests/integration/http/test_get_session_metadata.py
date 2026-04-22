@@ -26,6 +26,7 @@ from apps.control_plane.src.interfaces.runtime.session_objective_completed_worke
 from apps.control_plane.src.application.session_objectives.service import (
     process_pending_objective_completed_once,
 )
+from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.infrastructure.persistence.outbox_session_objective_completed import (
     SQLAlchemyOutboxSessionObjectiveCompleted,
 )
@@ -666,6 +667,7 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
 
     projection_result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from apps.contracts.src.types import CompletionOutcome
 from apps.control_plane.src.application.session_completion.guard import (
     evaluate_completion_transition,
 )
@@ -147,6 +148,31 @@ class _FakeOutbox:
         self.terminal_failures.append(outbox_event_id)
 
 
+class _FakeCompletionEventOutbox:
+    def enqueue_session_completed(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        outcome: CompletionOutcome,
+        completion_reason_code: str | None,
+        trigger_event_index: int | None,
+        idempotency_key: str,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        _ = (
+            session_id,
+            lab_id,
+            lab_version_id,
+            outcome,
+            completion_reason_code,
+            trigger_event_index,
+            idempotency_key,
+            occurred_at,
+        )
+
+
 def _build_event(
     *,
     outbox_event_id: UUID,
@@ -217,6 +243,7 @@ def test_completion_policy_all_required_complete_marks_completed_success() -> No
 
     result = process_pending_objective_completed_once(
         outbox_repo=outbox,
+        event_outbox_repo=_FakeCompletionEventOutbox(),
         template_reader=template_reader,
         objective_writer=objective_writer,
         completion_writer=completion_writer,
@@ -258,6 +285,7 @@ def test_completion_policy_missing_required_objective_keeps_in_progress() -> Non
 
     result = process_pending_objective_completed_once(
         outbox_repo=outbox,
+        event_outbox_repo=_FakeCompletionEventOutbox(),
         template_reader=template_reader,
         objective_writer=objective_writer,
         completion_writer=completion_writer,
@@ -297,6 +325,7 @@ def test_completion_policy_replay_is_idempotent_for_terminal_write() -> None:
     )
     first_result = process_pending_objective_completed_once(
         outbox_repo=first_outbox,
+        event_outbox_repo=_FakeCompletionEventOutbox(),
         template_reader=template_reader,
         objective_writer=objective_writer,
         completion_writer=completion_writer,
@@ -318,6 +347,7 @@ def test_completion_policy_replay_is_idempotent_for_terminal_write() -> None:
     )
     replay_result = process_pending_objective_completed_once(
         outbox_repo=replay_outbox,
+        event_outbox_repo=_FakeCompletionEventOutbox(),
         template_reader=template_reader,
         objective_writer=objective_writer,
         completion_writer=completion_writer,

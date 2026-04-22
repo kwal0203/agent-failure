@@ -15,6 +15,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
     SessionObjectiveModel,
 )
+from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.infrastructure.persistence.outbox_session_objective_completed import (
     SQLAlchemyOutboxSessionObjectiveCompleted,
 )
@@ -184,6 +185,7 @@ def test_objective_projector_completes_all_lab2_objectives(db_session: Session) 
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -240,6 +242,7 @@ def test_objective_projector_duplicate_replay_is_no_op(db_session: Session) -> N
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -313,6 +316,7 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -375,6 +379,7 @@ def test_objective_projector_marks_lab3_objective_pending_to_complete(
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -432,6 +437,7 @@ def test_objective_projector_lab3_completion_persists_after_reload(
 
     process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -486,6 +492,7 @@ def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
 
     first_result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -525,6 +532,7 @@ def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
 
     second_result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -604,6 +612,7 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -665,6 +674,7 @@ def test_objective_projector_does_not_mark_session_completed_when_any_required_o
 
     result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -735,6 +745,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
 
     first_result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),
@@ -761,6 +772,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
 
     second_result = process_pending_objective_completed_once(
         outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
         template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
         objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
         completion_writer=SQLAlchemySessionRepository(db=db_session),

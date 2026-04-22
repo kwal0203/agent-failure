@@ -5,6 +5,7 @@ from apps.control_plane.src.application.session_objectives.service import (
     process_pending_objective_completed_once,
 )
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
+from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.infrastructure.persistence.outbox_session_objective_completed import (
     SQLAlchemyOutboxSessionObjectiveCompleted,
 )
@@ -22,12 +23,14 @@ logger = logging.getLogger(__name__)
 def run_once() -> None:
     with SessionFactory() as db:
         outbox_repo = SQLAlchemyOutboxSessionObjectiveCompleted(db=db)
+        event_outbox_repo = SQLAlchemyOutbox(db=db)
         template_reader = SQLAlchemyLabObjectiveTemplateRepository(db=db)
         objective_writer = SQLAlchemySessionObjectiveWriterRepository(db=db)
         completion_writer = SQLAlchemySessionRepository(db=db)
         try:
             result = process_pending_objective_completed_once(
                 outbox_repo=outbox_repo,
+                event_outbox_repo=event_outbox_repo,
                 template_reader=template_reader,
                 objective_writer=objective_writer,
                 completion_writer=completion_writer,
