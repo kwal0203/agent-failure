@@ -4,7 +4,6 @@ import type {
   AgentStatus,
   InjectSessionEmailResponse,
   SessionWorkspaceState,
-  TimelineEvent,
   ToolKey,
   TranscriptEntry,
 } from "../types";
@@ -18,7 +17,6 @@ type UseSessionActionsParams = {
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
   resetActiveStream: () => void;
   setAgentStatus: (status: AgentStatus) => void;
-  appendTimelineEvent: (event: TimelineEvent) => void;
   refreshSessionMetadata: () => Promise<void>;
 };
 
@@ -103,38 +101,14 @@ export function useSessionActions(params: UseSessionActionsParams) {
             ? payload.error.message
             : `HTTP ${res.status}`;
         setInjectEmailError(msg);
-        params.appendTimelineEvent({
-          id: `email-inject-error-${new Date().toISOString()}-${res.status}`,
-          timestamp: new Date().toISOString(),
-          type: "system",
-          granularity: "high",
-          title: "Email injection failed",
-          description: msg,
-          important: true,
-        });
         return;
       }
 
-      const accepted =
-        "accepted" in payload && payload.accepted ? "accepted" : "submitted";
-      const emailId =
-        "email_id" in payload && payload.email_id
-          ? ` (id: ${payload.email_id})`
-          : "";
       setInjectEmailResult("success");
       injectSuccessTimeoutRef.current = window.setTimeout(() => {
         setInjectEmailResult(null);
         injectSuccessTimeoutRef.current = null;
       }, 1800);
-      params.appendTimelineEvent({
-        id: `email-inject-${new Date().toISOString()}-${sender}-${subject}`,
-        timestamp: new Date().toISOString(),
-        type: "attacker_action",
-        granularity: "high",
-        title: "Email injected to inbox",
-        description: `Email ${accepted}${emailId}.`,
-        details: `From: ${sender}\nSubject: ${subject}`,
-      });
       setEmailFrom("");
       setEmailSubject("");
       setEmailBody("");
@@ -142,15 +116,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "request failed";
       setInjectEmailError(message);
-      params.appendTimelineEvent({
-        id: `email-inject-error-${new Date().toISOString()}-exception`,
-        timestamp: new Date().toISOString(),
-        type: "system",
-        granularity: "high",
-        title: "Email injection failed",
-        description: message,
-        important: true,
-      });
     } finally {
       setInjectingEmail(false);
     }

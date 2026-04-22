@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: control-plane
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:6893e74cf10e4dc5bb51e55fb4278590794aa669100de89e0f891cb8d0dbe7a6
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:452132db8c6e3d7b1e5a4f696c438658692dbffb76416328d6e26e1794f7c9c5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

@@ -36,6 +36,21 @@ export type GetSessionMetadataResponse = {
   session: SessionMetadata;
 };
 
+export type SessionTraceEvent = {
+  id: string;
+  event_index: number;
+  family: "lifecycle" | "learner" | "runtime" | "tool" | "model";
+  event_type: string;
+  source: string;
+  occurred_at: string;
+  payload: Record<string, unknown>;
+};
+
+export type GetSessionTraceResponse = {
+  events: SessionTraceEvent[];
+  next_cursor?: string | null;
+};
+
 export type MarkSessionHintsSeenResponse = {
   session_id: string;
   updated_count: number;

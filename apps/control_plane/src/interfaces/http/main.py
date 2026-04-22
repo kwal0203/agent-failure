@@ -1799,11 +1799,15 @@ async def inject_session_email(
             "classifier_confidence": classification.confidence,
         }
 
+        learner_event_type = (
+            "ATTACK_EMAIL_SENT" if derived_malicious else "BENIGN_EMAIL_SENT"
+        )
+
         trace_event = build_trace_event(
             trace_repo=trace_repo,
             session_id=session_id,
             family="learner",
-            event_type="ATTACK_EMAIL_SENT",
+            event_type=learner_event_type,
             source="inject_session_email_service",
             payload=attack_email_sent_payload,
             correlation_id=None,

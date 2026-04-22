@@ -71,7 +71,6 @@ export default function SessionPage() {
     setIsAwaitingResponse,
     resetActiveStream,
     setAgentStatus,
-    appendTimelineEvent,
     refreshSessionMetadata,
   });
   const {

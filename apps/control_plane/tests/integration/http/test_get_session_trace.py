@@ -139,8 +139,11 @@ def test_get_session_trace_excludes_internal_only_events(db_session: Session) ->
     assert response.status_code == 200
     events = response.json()["events"]
     assert [(e["family"], e["event_type"]) for e in events] == [
+        ("lifecycle", "SESSION_CREATED"),
+        ("runtime", "RUNTIME_PROVISION_ACCEPTED"),
         ("learner", "USER_PROMPT_SUBMITTED"),
         ("model", "MODEL_TURN_COMPLETED"),
+        ("tool", "TOOL_CALL_FAILED"),
     ]
 
 

@@ -8,9 +8,11 @@ import { jitterDelayMs } from "../helpers";
 import type {
   GetFeedbackResponse,
   GetSessionMetadataResponse,
+  GetSessionTraceResponse,
   LearnerFeedbackItem,
   SessionMetadata,
   SessionProgressChip,
+  SessionTraceEvent,
   TimelineEvent,
 } from "../types";
 import {
@@ -44,6 +46,227 @@ type UseSessionDataResult = {
 
 const FEEDBACK_LOADING_SHOW_DELAY_MS = 200;
 const FEEDBACK_LOADING_MIN_VISIBLE_MS = 300;
+
+function formatPersistedTraceTitle(event: SessionTraceEvent): string {
+  const toolName = event.payload.tool_name;
+  if (
+    event.event_type === "TOOL_CALL_SUCCEEDED" &&
+    toolName === "write_memory"
+  ) {
+    return "Memory write accepted";
+  }
+  if (
+    event.event_type === "TOOL_CALL_SUCCEEDED" &&
+    toolName === "retrieve_memory"
+  ) {
+    return "Payment memory retrieved";
+  }
+  if (
+    event.event_type === "TOOL_CALL_SUCCEEDED" &&
+    toolName === "pay_invoice"
+  ) {
+    return "Invoice payment routed";
+  }
+  if (
+    event.event_type === "TOOL_CALL_REQUESTED" &&
+    toolName === "pay_invoice"
+  ) {
+    return "Invoice payment requested";
+  }
+  if (event.event_type === "TOOL_CALL_FAILED" && toolName === "pay_invoice") {
+    return "Invoice payment failed";
+  }
+  return event.event_type;
+}
+
+function mapPersistedTraceToTimelineEvent(
+  event: SessionTraceEvent,
+): TimelineEvent | null {
+  const timestamp = event.occurred_at;
+  const eventId = `trace-${event.id}`;
+  if (event.event_type === "SESSION_CREATED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "system",
+      granularity: "high",
+      title: "Session created",
+      description: "Lab session was created.",
+    };
+  }
+
+  if (event.event_type === "MODEL_TURN_COMPLETED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "agent_action",
+      granularity: "high",
+      title: "Agent response completed",
+      description: "Assistant completed a response turn.",
+    };
+  }
+
+  if (event.event_type === "MODEL_TURN_FAILED") {
+    const errorCode =
+      typeof event.payload.error_code === "string"
+        ? event.payload.error_code
+        : "UNKNOWN";
+    return {
+      id: eventId,
+      timestamp,
+      type: "system",
+      granularity: "high",
+      title: "Agent response failed",
+      description: `Model turn failed (${errorCode}).`,
+      important: true,
+    };
+  }
+
+  if (event.event_type === "ATTACK_EMAIL_SENT") {
+    const subject =
+      typeof event.payload.subject === "string" ? event.payload.subject : "";
+    const emailFrom =
+      typeof event.payload.email_from === "string"
+        ? event.payload.email_from
+        : "";
+    const emailId =
+      typeof event.payload.email_id === "string" && event.payload.email_id
+        ? ` (id: ${event.payload.email_id})`
+        : "";
+    return {
+      id: eventId,
+      timestamp,
+      type: "attacker_action",
+      granularity: "high",
+      title: "Email injected to inbox",
+      description: `Email accepted${emailId}.`,
+      details: `From: ${emailFrom}\nSubject: ${subject}`,
+    };
+  }
+
+  if (event.event_type === "BENIGN_EMAIL_SENT") {
+    const subject =
+      typeof event.payload.subject === "string" ? event.payload.subject : "";
+    const emailFrom =
+      typeof event.payload.email_from === "string"
+        ? event.payload.email_from
+        : "";
+    const emailId =
+      typeof event.payload.email_id === "string" && event.payload.email_id
+        ? ` (id: ${event.payload.email_id})`
+        : "";
+    return {
+      id: eventId,
+      timestamp,
+      type: "attacker_action",
+      granularity: "high",
+      title: "Benign email injected to inbox",
+      description: `Email accepted${emailId}.`,
+      details: `From: ${emailFrom}\nSubject: ${subject}`,
+    };
+  }
+
+  if (event.event_type === "RUNTIME_PROVISION_REQUESTED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "system",
+      granularity: "high",
+      title: "Runtime provisioning requested",
+      description: "Control plane requested runtime provisioning.",
+    };
+  }
+
+  if (event.event_type === "RUNTIME_PROVISION_ACCEPTED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "system",
+      granularity: "high",
+      title: "Runtime provisioning accepted",
+      description: "Runtime was provisioned and accepted.",
+    };
+  }
+
+  if (event.event_type === "RUNTIME_PROVISION_FAILED") {
+    const reasonCode =
+      typeof event.payload.reason_code === "string"
+        ? event.payload.reason_code
+        : "UNKNOWN";
+    return {
+      id: eventId,
+      timestamp,
+      type: "system",
+      granularity: "high",
+      title: "Runtime provisioning failed",
+      description: `Runtime provisioning failed (${reasonCode}).`,
+      important: true,
+    };
+  }
+
+  if (
+    event.event_type === "TOOL_CALL_REQUESTED" ||
+    event.event_type === "TOOL_CALL_SUCCEEDED" ||
+    event.event_type === "TOOL_CALL_FAILED"
+  ) {
+    const toolName =
+      typeof event.payload.tool_name === "string"
+        ? event.payload.tool_name
+        : "";
+    const statusWord = event.event_type
+      .replace("TOOL_CALL_", "")
+      .toLowerCase()
+      .replaceAll("_", " ");
+    return {
+      id: eventId,
+      timestamp,
+      type: "tool_call",
+      granularity: "detailed",
+      title: formatPersistedTraceTitle(event),
+      description: toolName
+        ? `${toolName} ${statusWord}`
+        : event.event_type.toLowerCase().replaceAll("_", " "),
+    };
+  }
+
+  if (event.event_type === "MALICIOUS_EMAIL_READ") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "important",
+      granularity: "high",
+      title: "Malicious email entered model context",
+      description: "Assistant read learner-injected malicious email content.",
+      important: true,
+    };
+  }
+
+  if (event.event_type === "TOKEN_DISCLOSURE_ATTEMPTED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "important",
+      granularity: "high",
+      title: "Token disclosure attempted",
+      description: "Assistant attempted to disclose sensitive token material.",
+      important: true,
+    };
+  }
+
+  if (event.event_type === "TOKEN_DISCLOSED") {
+    return {
+      id: eventId,
+      timestamp,
+      type: "important",
+      granularity: "high",
+      title: "Token disclosed",
+      description: "Sensitive token was exposed during the session.",
+      important: true,
+    };
+  }
+
+  return null;
+}
 
 export function useSessionData({
   sessionId,
@@ -91,6 +314,37 @@ export function useSessionData({
     setTimelineEvents((prev) => [...prev, event]);
   }, []);
 
+  const refreshTraceTimeline = useCallback(async () => {
+    if (!sessionId) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/sessions/${sessionId}/trace`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: AUTH_HEADER,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!res.ok) {
+        return;
+      }
+
+      const data = (await res.json()) as GetSessionTraceResponse;
+      const events = Array.isArray(data.events) ? data.events : [];
+      for (const event of events) {
+        const timelineEvent = mapPersistedTraceToTimelineEvent(event);
+        if (timelineEvent) {
+          appendTimelineEvent(timelineEvent);
+        }
+      }
+    } catch {
+      return;
+    }
+  }, [appendTimelineEvent, sessionId]);
+
   const registerLearnerFeedbackEvents = useCallback(
     (feedback: LearnerFeedbackItem[], timestamp: string) => {
       for (const item of feedback) {
@@ -118,9 +372,13 @@ export function useSessionData({
 
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
+    setTimelineEvents([]);
+    seenTimelineEventIdsRef.current.clear();
+    seenFeedbackKeysRef.current.clear();
     setMetadataReady(false);
     void refreshSessionMetadata();
-  }, [refreshSessionMetadata]);
+    void refreshTraceTimeline();
+  }, [refreshSessionMetadata, refreshTraceTimeline]);
 
   // Poll metadata while provisioning/active so session transitions and timed hint unlocks
   // are reflected even if evaluator feedback polling is delayed or unavailable.
