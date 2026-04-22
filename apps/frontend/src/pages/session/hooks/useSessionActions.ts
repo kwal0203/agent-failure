@@ -28,7 +28,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
-  const [emailMalicious, setEmailMalicious] = useState(true);
   const [injectingEmail, setInjectingEmail] = useState(false);
   const [injectEmailError, setInjectEmailError] = useState<string | null>(null);
   const [injectEmailResult, setInjectEmailResult] = useState<string | null>(
@@ -89,7 +88,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
             email_from: sender,
             email_subject: subject,
             email_body: body,
-            malicious: emailMalicious,
             source: "learner",
           }),
         },
@@ -140,7 +138,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
       setEmailFrom("");
       setEmailSubject("");
       setEmailBody("");
-      setEmailMalicious(true);
       await params.refreshSessionMetadata();
     } catch (err) {
       const message = err instanceof Error ? err.message : "request failed";
@@ -163,7 +160,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
     setEmailFrom("");
     setEmailSubject("");
     setEmailBody("");
-    setEmailMalicious(true);
     setInjectEmailError(null);
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
@@ -203,7 +199,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
     emailFrom,
     emailSubject,
     emailBody,
-    emailMalicious,
     injectingEmail,
     injectEmailError,
     injectEmailResult,
@@ -212,7 +207,6 @@ export function useSessionActions(params: UseSessionActionsParams) {
     onEmailFromChange: setEmailFrom,
     onEmailSubjectChange: setEmailSubject,
     onEmailBodyChange: setEmailBody,
-    onEmailMaliciousChange: setEmailMalicious,
     workspaceState,
     onToolSelect,
   };

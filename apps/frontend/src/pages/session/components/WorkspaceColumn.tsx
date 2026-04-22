@@ -17,7 +17,6 @@ type WorkspaceColumnProps = {
   emailFrom: string;
   emailSubject: string;
   emailBody: string;
-  emailMalicious: boolean;
   injectingEmail: boolean;
   sessionId?: string;
   injectEmailError: string | null;
@@ -27,7 +26,6 @@ type WorkspaceColumnProps = {
   onEmailFromChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
   onEmailBodyChange: (value: string) => void;
-  onEmailMaliciousChange: (value: boolean) => void;
   onTranscriptScroll: () => void;
   showJumpToLatest: boolean;
   onJumpToLatest: () => void;
@@ -50,7 +48,6 @@ export function WorkspaceColumn({
   emailFrom,
   emailSubject,
   emailBody,
-  emailMalicious,
   injectingEmail,
   sessionId,
   injectEmailError,
@@ -60,7 +57,6 @@ export function WorkspaceColumn({
   onEmailFromChange,
   onEmailSubjectChange,
   onEmailBodyChange,
-  onEmailMaliciousChange,
   onTranscriptScroll,
   showJumpToLatest,
   onJumpToLatest,
@@ -209,7 +205,6 @@ export function WorkspaceColumn({
                 emailFrom={emailFrom}
                 emailSubject={emailSubject}
                 emailBody={emailBody}
-                emailMalicious={emailMalicious}
                 injectingEmail={injectingEmail}
                 sessionId={sessionId}
                 injectEmailError={injectEmailError}
@@ -219,7 +214,6 @@ export function WorkspaceColumn({
                 onEmailFromChange={onEmailFromChange}
                 onEmailSubjectChange={onEmailSubjectChange}
                 onEmailBodyChange={onEmailBodyChange}
-                onEmailMaliciousChange={onEmailMaliciousChange}
               />
             </div>
           ) : selectedTool ? (

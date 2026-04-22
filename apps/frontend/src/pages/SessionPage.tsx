@@ -81,7 +81,6 @@ export default function SessionPage() {
     emailFrom,
     emailSubject,
     emailBody,
-    emailMalicious,
     injectingEmail,
     injectEmailError,
     injectEmailResult,
@@ -90,7 +89,6 @@ export default function SessionPage() {
     onEmailFromChange,
     onEmailSubjectChange,
     onEmailBodyChange,
-    onEmailMaliciousChange,
     workspaceState,
     onToolSelect,
   } = sessionActions;
@@ -370,7 +368,6 @@ export default function SessionPage() {
             emailFrom={emailFrom}
             emailSubject={emailSubject}
             emailBody={emailBody}
-            emailMalicious={emailMalicious}
             injectingEmail={injectingEmail}
             sessionId={sessionId}
             injectEmailError={injectEmailError}
@@ -380,7 +377,6 @@ export default function SessionPage() {
             onEmailFromChange={onEmailFromChange}
             onEmailSubjectChange={onEmailSubjectChange}
             onEmailBodyChange={onEmailBodyChange}
-            onEmailMaliciousChange={onEmailMaliciousChange}
             onTranscriptScroll={onTranscriptScroll}
             showJumpToLatest={showJumpToLatest}
             onJumpToLatest={onJumpToLatest}
