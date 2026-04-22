@@ -21,6 +21,19 @@ class CompletionPolicyObjectiveRow:
 
 
 @dataclass(frozen=True)
+class SessionObjectiveStateRow:
+    objective_key: str
+    status: ObjectiveStatus
+
+
+@dataclass(frozen=True)
+class LabObjectiveTemplateRow:
+    objective_key: str
+    sort_order: int
+    required: bool = True
+
+
+@dataclass(frozen=True)
 class CompletionPolicyInput:
     session_id: UUID
     lab_id: UUID
