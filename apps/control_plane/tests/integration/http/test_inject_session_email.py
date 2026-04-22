@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -99,6 +100,19 @@ class _FakeEmailClassifier:
         )
 
 
+class _EmailClassifier(Protocol):
+    async def classify_email(
+        self, *, input: EmailClassificationInput
+    ) -> EmailClassificationResult: ...
+
+
+class _FailingEmailClassifier:
+    async def classify_email(
+        self, *, input: EmailClassificationInput
+    ) -> EmailClassificationResult:
+        raise RuntimeError("classifier unavailable")
+
+
 def _override_runtime_client_factory(
     factory: _FakeRuntimeClientFactory,
 ) -> Callable[[], _FakeRuntimeClientFactory]:
@@ -109,9 +123,9 @@ def _override_runtime_client_factory(
 
 
 def _override_email_classifier(
-    classifier: _FakeEmailClassifier,
-) -> Callable[[], _FakeEmailClassifier]:
-    def _dependency_override() -> _FakeEmailClassifier:
+    classifier: _EmailClassifier,
+) -> Callable[[], _EmailClassifier]:
+    def _dependency_override() -> _EmailClassifier:
         return classifier
 
     return _dependency_override
@@ -366,6 +380,108 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
                     OutboxEventModel.aggregate_id == session_id,
                     OutboxEventModel.payload["objective_key"].astext
                     == "malicious_email_injected",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert objective_outbox is None
+
+
+@pytest.mark.usefixtures("engine")
+def test_inject_session_email_ignores_request_malicious_and_uses_classifier_verdict(
+    db_session: Session,
+) -> None:
+    owner_username = "owner-user"
+    with SessionFactory() as seed_db:
+        session = _seed_session(seed_db, owner_username=owner_username)
+        _seed_runtime_binding_ready(
+            seed_db, session_id=session.id, base_url="http://runtime.bound:8000"
+        )
+        session_id = session.id
+        seed_db.commit()
+
+    fake_client = _FakeRuntimeClient()
+    fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=False)
+
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
+    app.dependency_overrides[get_runtime_client_factory] = (
+        _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
+    )
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/sessions/{session_id}/inbox/email",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json=_inject_body(malicious=True),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    assert len(fake_client.inject_calls) == 1
+    assert fake_client.inject_calls[0].malicious is False
+
+
+@pytest.mark.usefixtures("engine")
+def test_inject_session_email_classifier_failure_returns_502_and_skips_side_effects(
+    db_session: Session,
+) -> None:
+    owner_username = "owner-user"
+    with SessionFactory() as seed_db:
+        session = _seed_session(seed_db, owner_username=owner_username)
+        _seed_runtime_binding_ready(seed_db, session_id=session.id)
+        session_id = session.id
+        seed_db.commit()
+
+    fake_client = _FakeRuntimeClient()
+    fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    failing_classifier = _FailingEmailClassifier()
+
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
+    app.dependency_overrides[get_runtime_client_factory] = (
+        _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(failing_classifier)
+    )
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/sessions/{session_id}/inbox/email",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json=_inject_body(),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["error"]["code"] == "EMAIL_CLASSIFICATION_FAILED"
+    assert len(fake_client.inject_calls) == 0
+
+    with SessionFactory() as verify_db:
+        attack_trace = (
+            verify_db.execute(
+                select(TraceEventModel).where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert attack_trace is None
+
+        objective_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.objective.completed.v1",
+                    OutboxEventModel.aggregate_id == session_id,
                 )
             )
             .scalars()
