@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: control-plane
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:a17345e4be70110f2ade861f0b0297f76f5e7296f4dd6d61858f101e4a107e3a
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:6893e74cf10e4dc5bb51e55fb4278590794aa669100de89e0f891cb8d0dbe7a6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -29,6 +29,17 @@ spec:
               value: "dev-secret"
             - name: RUNTIME_TIMEOUT_SECONDS
               value: "60"
+            - name: PROVIDER_ENDPOINT
+              value: "https://openrouter.ai/api/v1/chat/completions"
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: OPENROUTER_API_KEY
+            - name: MODEL_NAME
+              value: "deepseek/deepseek-v3.2"
+            - name: MODEL_TIMEOUT
+              value: "30"
             - name: AUTH_ISSUER
               value: ""
             - name: AUTH_AUDIENCE
