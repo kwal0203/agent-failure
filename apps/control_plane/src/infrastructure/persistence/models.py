@@ -81,6 +81,10 @@ class SessionModel(Base):
             "lab_difficulty in ('easy', 'medium', 'hard')",
             name="ck_sessions_lab_difficulty",
         ),
+        CheckConstraint(
+            "completion_status in ('in_progress', 'completed_success', 'completed_failure')",
+            name="ck_sessions_completion_status",
+        ),
     )
 
     id: Mapped[PyUUID] = mapped_column(
@@ -97,6 +101,15 @@ class SessionModel(Base):
     state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     runtime_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     runtime_substate: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    completion_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="in_progress", server_default="in_progress"
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completion_reason_code: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
     resume_mode: Mapped[str] = mapped_column(
         String(32), nullable=False, default="hot_resume"
     )
