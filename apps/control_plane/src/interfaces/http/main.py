@@ -106,6 +106,12 @@ from apps.control_plane.src.application.runtime.types import (
     RunTurnInput,
     InjectEmailInput,
 )
+from apps.control_plane.src.application.email_classification.ports import (
+    EmailMaliciousnessClassifierPort,
+)
+from apps.control_plane.src.application.email_classification.types import (
+    EmailClassificationInput,
+)
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.learner_explanation.service import (
     inject_learner_explanation,
@@ -139,6 +145,7 @@ from .dependencies import (
     get_admission_policy,
     get_auth_verifier_config,
     get_create_session_uow,
+    get_email_maliciousness_classifier,
     get_session_metadata_repository,
     get_runtime_client_factory,
     get_token_verifier,
@@ -1697,6 +1704,9 @@ async def inject_session_email(
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),
+    email_classifier: EmailMaliciousnessClassifierPort = Depends(
+        get_email_maliciousness_classifier
+    ),
     db: Session = Depends(get_db_session),
 ) -> InjectSessionEmailResponse | JSONResponse:
     try:
@@ -1757,6 +1767,14 @@ async def inject_session_email(
             )
 
         client = runtime_client_factory.create(base_url=runtime_binding.base_url)
+        classification = await email_classifier.classify_email(
+            input=EmailClassificationInput(
+                email_from=request.email_from,
+                email_subject=request.email_subject,
+                email_body=request.email_body,
+            )
+        )
+        derived_malicious = bool(classification.malicious)
 
         email_input = InjectEmailInput(
             session_id=session_id,
@@ -1764,7 +1782,7 @@ async def inject_session_email(
             email_subject=request.email_subject,
             email_body=request.email_body,
             email_id=request.email_id,
-            malicious=request.malicious,
+            malicious=derived_malicious,
             source=request.source,
         )
 
@@ -1775,6 +1793,10 @@ async def inject_session_email(
             "email_id": email_input.email_id,
             "email_from": email_input.email_from,
             "subject": email_input.email_subject,
+            "malicious_marker": derived_malicious,
+            "classifier_provider": classification.provider,
+            "classifier_model": classification.model,
+            "classifier_confidence": classification.confidence,
         }
 
         trace_event = build_trace_event(
@@ -1794,7 +1816,7 @@ async def inject_session_email(
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         if (
-            bool(email_input.malicious)
+            derived_malicious
             and session_metadata.lab_id is not None
             and session_metadata.lab_version_id is not None
         ):
@@ -1817,7 +1839,7 @@ async def inject_session_email(
                             email_input.email_from.strip().lower(),
                             email_input.email_subject.strip(),
                             email_input.email_body.strip(),
-                            str(bool(email_input.malicious)),
+                            str(derived_malicious),
                             (email_input.source or "learner").strip().lower(),
                             (email_input.email_id or "").strip(),
                         ]
@@ -1854,6 +1876,15 @@ async def inject_session_email(
             code=exc.code,
             message=exc.message,
             retryable=exc.retryable,
+            status_code=502,
+            details={"session_id": str(session_id)},
+        )
+    except RuntimeError as exc:
+        db.rollback()
+        return build_api_error_response(
+            code="EMAIL_CLASSIFICATION_FAILED",
+            message=str(exc),
+            retryable=True,
             status_code=502,
             details={"session_id": str(session_id)},
         )

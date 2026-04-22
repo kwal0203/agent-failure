@@ -7,6 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
+from apps.control_plane.src.application.email_classification.types import (
+    EmailClassificationInput,
+    EmailClassificationResult,
+)
 from apps.control_plane.src.application.runtime.types import InjectEmailInput
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import (
@@ -20,6 +24,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
+    get_email_maliciousness_classifier,
     get_runtime_client_factory,
 )
 from apps.control_plane.src.interfaces.http.main import app
@@ -75,11 +80,39 @@ class _FakeRuntimeClientFactory:
         return self._client
 
 
+class _FakeEmailClassifier:
+    def __init__(self, *, malicious: bool) -> None:
+        self._malicious = malicious
+        self.calls: list[EmailClassificationInput] = []
+
+    async def classify_email(
+        self, *, input: EmailClassificationInput
+    ) -> EmailClassificationResult:
+        self.calls.append(input)
+        return EmailClassificationResult(
+            malicious=self._malicious,
+            confidence=0.95,
+            reason="test fixture",
+            provider="test",
+            model="test-model",
+            verdict="malicious" if self._malicious else "benign",
+        )
+
+
 def _override_runtime_client_factory(
     factory: _FakeRuntimeClientFactory,
 ) -> Callable[[], _FakeRuntimeClientFactory]:
     def _dependency_override() -> _FakeRuntimeClientFactory:
         return factory
+
+    return _dependency_override
+
+
+def _override_email_classifier(
+    classifier: _FakeEmailClassifier,
+) -> Callable[[], _FakeEmailClassifier]:
+    def _dependency_override() -> _FakeEmailClassifier:
+        return classifier
 
     return _dependency_override
 
@@ -207,10 +240,14 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
 
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
     )
     try:
         client = TestClient(app)
@@ -278,10 +315,14 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
 
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=False)
 
     app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
     )
     try:
         client = TestClient(app)
@@ -331,10 +372,14 @@ def test_inject_session_email_maps_runtime_client_error_to_502(
         retryable=True,
     )
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
     )
     try:
         client = TestClient(app)
