@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from uuid import UUID
 
@@ -11,6 +12,8 @@ from .ports import (
 )
 from .schemas import ObjectiveCompletedEventPayload
 from .types import SessionObjectiveProjectionOnceResult
+
+logger = logging.getLogger(__name__)
 
 LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED = (
     "ALL_REQUIRED_OBJECTIVES_COMPLETED"
@@ -79,6 +82,9 @@ def process_pending_objective_completed_once(
                 template_reader=template_reader,
                 completion_writer=completion_writer,
                 completed_at=payload.occurred_at,
+                trigger_objective_key=payload.objective_key,
+                trigger_reason_code=payload.reason_code,
+                trigger_event_index=payload.trigger_event_index,
             )
             outbox_repo.mark_processed(outbox_event_id=event.outbox_event_id)
             succeeded_count += 1
@@ -105,6 +111,9 @@ def _apply_completion_policy_after_objective_projection(
     template_reader: LabObjectiveTemplateReaderPort,
     completion_writer: SessionCompletionWriterPort,
     completed_at: datetime,
+    trigger_objective_key: str,
+    trigger_reason_code: str,
+    trigger_event_index: int,
 ) -> None:
     template_rows = template_reader.list_objective_templates(
         lab_version_id=lab_version_id
@@ -117,6 +126,11 @@ def _apply_completion_policy_after_objective_projection(
     status_by_key = {
         objective_key: status for objective_key, status in objective_states
     }
+    completed_keys = {
+        objective_key
+        for objective_key, status in status_by_key.items()
+        if status == "complete"
+    }
     all_required_complete = all(
         status_by_key.get(objective_key) == "complete"
         for objective_key in required_keys
@@ -124,9 +138,24 @@ def _apply_completion_policy_after_objective_projection(
     if not all_required_complete:
         return
 
-    completion_writer.mark_completion_if_in_progress(
+    completion_persisted = completion_writer.mark_completion_if_in_progress(
         session_id=session_id,
         completion_status="completed_success",
         completed_at=completed_at,
         completion_reason_code=LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
+    )
+    logger.info(
+        "session completion evaluated session_id=%s lab_version_id=%s "
+        "trigger_objective_key=%s trigger_reason_code=%s trigger_event_index=%s "
+        "required_objective_keys=%s completed_objective_keys=%s completion_reason_code=%s "
+        "completion_persisted=%s",
+        session_id,
+        lab_version_id,
+        trigger_objective_key,
+        trigger_reason_code,
+        trigger_event_index,
+        sorted(required_keys),
+        sorted(completed_keys),
+        LAB_COMPLETION_REASON_ALL_REQUIRED_OBJECTIVES_COMPLETED,
+        completion_persisted,
     )
