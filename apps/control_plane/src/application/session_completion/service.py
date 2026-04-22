@@ -47,6 +47,33 @@ def process_pending_session_completed_once(
             continue
 
         try:
+            current_state = completion_writer.get_completion_state(
+                session_id=payload.session_id
+            )
+            if current_state is None:
+                outbox_repo.mark_terminal_failure(
+                    outbox_event_id=event.outbox_event_id,
+                    error_message="SESSION_NOT_FOUND",
+                )
+                failed_count += 1
+                continue
+
+            if current_state.completion_status != "in_progress":
+                same_projected_values = (
+                    current_state.completion_status == payload.outcome
+                    and current_state.completed_at == payload.occurred_at
+                    and current_state.completion_reason_code
+                    == payload.completion_reason_code
+                )
+                # Completion state is terminal and immutable.
+                # Same projected values => stable replay no-op.
+                # Conflicting terminal payload => immutable no-op.
+                if same_projected_values:
+                    pass
+                outbox_repo.mark_processed(outbox_event_id=event.outbox_event_id)
+                succeeded_count += 1
+                continue
+
             completion_writer.mark_completion_if_in_progress(
                 session_id=payload.session_id,
                 completion_status=payload.outcome,

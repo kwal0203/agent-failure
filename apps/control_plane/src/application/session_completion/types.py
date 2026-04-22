@@ -33,3 +33,10 @@ class SessionCompletionProjectionOnceResult:
     succeeded_count: int
     failed_count: int
     retried_count: int
+
+
+@dataclass(frozen=True)
+class SessionCompletionState:
+    completion_status: CompletionStatus
+    completed_at: datetime | None
+    completion_reason_code: str | None

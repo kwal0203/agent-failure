@@ -2,7 +2,11 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from .types import CompletionStatus, PendingSessionCompletedEvent
+from .types import (
+    CompletionStatus,
+    PendingSessionCompletedEvent,
+    SessionCompletionState,
+)
 
 
 class OutboxSessionCompletedPort(Protocol):
@@ -33,6 +37,10 @@ class OutboxSessionCompletedPort(Protocol):
 
 
 class SessionCompletionWriterPort(Protocol):
+    def get_completion_state(
+        self, *, session_id: UUID
+    ) -> SessionCompletionState | None: ...
+
     def mark_completion_if_in_progress(
         self,
         *,

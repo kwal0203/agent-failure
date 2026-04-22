@@ -32,6 +32,7 @@ from apps.control_plane.src.application.session_completion.guard import (
 )
 from apps.control_plane.src.application.session_completion.types import (
     CompletionStatus,
+    SessionCompletionState,
 )
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
@@ -157,6 +158,24 @@ class SQLAlchemySessionRepository(SessionRepository):
         )
         result = cast(CursorResult[object], self._db.execute(stmt))
         return result.rowcount == 1
+
+    def get_completion_state(
+        self, *, session_id: UUID
+    ) -> SessionCompletionState | None:
+        row = self._db.execute(
+            select(
+                SessionModel.completion_status,
+                SessionModel.completed_at,
+                SessionModel.completion_reason_code,
+            ).where(SessionModel.id == session_id)
+        ).one_or_none()
+        if row is None:
+            return None
+        return SessionCompletionState(
+            completion_status=parse_completion_status(row.completion_status),
+            completed_at=row.completed_at,
+            completion_reason_code=row.completion_reason_code,
+        )
 
     def insert_transition_event(
         self,
