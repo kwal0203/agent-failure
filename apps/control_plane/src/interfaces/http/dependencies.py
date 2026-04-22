@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 # from fastapi import Depends, HTTPException, status
 from fastapi import Depends, Request
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
@@ -17,6 +17,9 @@ from apps.control_plane.src.application.session_create.schemas import (
 from apps.control_plane.src.application.common.ports import IdempotencyStore
 from apps.control_plane.src.application.runtime.types import RuntimeClientConfig
 from apps.control_plane.src.application.auth.ports import TokenVerifierPort
+from apps.control_plane.src.application.email_classification.ports import (
+    EmailMaliciousnessClassifierPort,
+)
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
@@ -48,6 +51,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_sessi
 
 # from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
+from apps.control_plane.src.infrastructure.classification.openrouter_email_classifier import (
+    OpenRouterEmailClassifier,
+)
 
 
 import os
@@ -55,6 +61,14 @@ import os
 
 class AdmissionPolicyStub:
     pass
+
+
+@dataclass(frozen=True)
+class EmailClassifierConfig:
+    openrouter_api_key: str
+    provider_endpoint: str
+    model_name: str
+    model_timeout: float
 
 
 def get_admission_policy() -> AdmissionPolicy:
@@ -100,6 +114,39 @@ def get_runtime_client_config() -> RuntimeClientConfig:
         base_url="http://placeholder",
         timeout_seconds=timeout_seconds,
         auth_token=auth_token or None,
+    )
+
+
+def _require_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _get_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid float for {name}: {raw!r}") from exc
+
+    if value <= 0:
+        raise RuntimeError(f"{name} must be > 0")
+
+    return value
+
+
+@lru_cache(maxsize=1)
+def get_email_classifier_config() -> EmailClassifierConfig:
+    return EmailClassifierConfig(
+        openrouter_api_key=_require_env("OPENROUTER_API_KEY"),
+        provider_endpoint=_require_env("PROVIDER_ENDPOINT"),
+        model_name=_require_env("MODEL_NAME"),
+        model_timeout=_get_float_env("MODEL_TIMEOUT", 30.0),
     )
 
 
@@ -155,6 +202,16 @@ def get_runtime_client_factory() -> RuntimeClientFactory:
     )
 
     return RuntimeClientFactory(config=base_cfg)
+
+
+def get_email_maliciousness_classifier() -> EmailMaliciousnessClassifierPort:
+    config = get_email_classifier_config()
+    return OpenRouterEmailClassifier(
+        base_url=config.provider_endpoint,
+        api_key=config.openrouter_api_key,
+        model=config.model_name,
+        timeout_seconds=config.model_timeout,
+    )
 
 
 # def get_runtime_client(
