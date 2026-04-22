@@ -962,3 +962,54 @@ def test_objective_projector_replay_does_not_emit_duplicate_session_completed_ev
         == f"session_completed:{session.id}:completed_success:"
         "all_required_objectives_completed:91"
     )
+
+
+def test_completed_session_has_exactly_one_session_completed_outbox_row(
+    db_session: Session,
+) -> None:
+    session = _seed_session(db_session)
+    _seed_lab_objective_template(
+        db_session,
+        lab_version_id=session.lab_version_id,
+        objective_key="unsafe_tool_invocation_triggered",
+        label="Unsafe Tool Invocation Triggered",
+        sort_order=0,
+    )
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        label="Unsafe Tool Invocation Triggered",
+        sort_order=0,
+    )
+    completed_at = datetime(2026, 4, 22, 8, 55, 0, tzinfo=timezone.utc)
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        occurred_at=completed_at,
+        idempotency_key=f"objective:{session.id}:unsafe_tool_invocation_triggered:101",
+        trigger_event_index=101,
+    )
+    db_session.flush()
+
+    process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
+        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+        completion_writer=SQLAlchemySessionRepository(db=db_session),
+    )
+    db_session.flush()
+
+    completed_events = (
+        db_session.execute(
+            select(OutboxEventModel).where(
+                OutboxEventModel.event_type == "session.completed.v1",
+                OutboxEventModel.aggregate_id == session.id,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(completed_events) == 1
