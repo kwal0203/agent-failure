@@ -190,10 +190,14 @@ def test_inject_session_email_returns_404_when_session_missing(
     owner_username = "owner-user"
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
     )
     try:
         client = TestClient(app)
@@ -218,10 +222,14 @@ def test_inject_session_email_returns_409_when_runtime_binding_not_ready(
     session = _seed_session(db_session, owner_username=owner_username)
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
+    fake_classifier = _FakeEmailClassifier(malicious=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
         _override_runtime_client_factory(fake_factory)
+    )
+    app.dependency_overrides[get_email_maliciousness_classifier] = (
+        _override_email_classifier(fake_classifier)
     )
     try:
         client = TestClient(app)
