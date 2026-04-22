@@ -283,6 +283,10 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
             .one_or_none()
         )
         assert attack_trace is not None
+        assert attack_trace.payload["malicious_marker"] is True
+        assert attack_trace.payload["classifier_provider"] == "test"
+        assert attack_trace.payload["classifier_model"] == "test-model"
+        assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)
 
         objective_outbox = (
             verify_db.execute(
@@ -339,6 +343,22 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
     assert fake_client.inject_calls[0].malicious is False
 
     with SessionFactory() as verify_db:
+        attack_trace = (
+            verify_db.execute(
+                select(TraceEventModel).where(
+                    TraceEventModel.session_id == session_id,
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        assert attack_trace is not None
+        assert attack_trace.payload["malicious_marker"] is False
+        assert attack_trace.payload["classifier_provider"] == "test"
+        assert attack_trace.payload["classifier_model"] == "test-model"
+        assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)
+
         objective_outbox = (
             verify_db.execute(
                 select(OutboxEventModel).where(
