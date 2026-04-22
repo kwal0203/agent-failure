@@ -116,6 +116,29 @@ class SQLAlchemySessionRepository(SessionRepository):
         if result.rowcount != 1:
             raise StateMismatch(session_id=session_id, from_state=from_state)
 
+    def mark_completion_if_in_progress(
+        self,
+        *,
+        session_id: UUID,
+        completion_status: str,
+        completed_at: datetime,
+        completion_reason_code: str | None,
+    ) -> bool:
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id,
+                SessionModel.completion_status == "in_progress",
+            )
+            .values(
+                completion_status=completion_status,
+                completed_at=completed_at,
+                completion_reason_code=completion_reason_code,
+            )
+        )
+        result = cast(CursorResult[object], self._db.execute(stmt))
+        return result.rowcount == 1
+
     def insert_transition_event(
         self,
         session_id: UUID,
@@ -247,6 +270,9 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             last_transition_actor=actor_role,
             last_transition_reason=None,
             lab_difficulty=lab_difficulty,
+            completion_status="in_progress",
+            completed_at=None,
+            completion_reason_code=None,
         )
         self._db.add(session)
         self._db.flush()

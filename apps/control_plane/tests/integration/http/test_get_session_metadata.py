@@ -128,6 +128,9 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["created_at"] is not None
     assert session["started_at"] is None
     assert session["ended_at"] is None
+    assert session["completion_status"] == "in_progress"
+    assert session["completed_at"] is None
+    assert session["completion_reason_code"] is None
     assert len(session["hints"]) == 2
     assert session["hints"][0]["hint_key"] == "hint_1"
     assert session["hints"][0]["status"] == "unlocked"

@@ -12,6 +12,7 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 )
 from apps.control_plane.src.infrastructure.persistence.errors import StateMismatch
 from uuid import uuid4
+from datetime import datetime, timezone
 
 import pytest
 
@@ -149,3 +150,42 @@ def test_insert_transition_event_enforces_idempotency_uniqueness(
         )
 
     db_session.rollback()
+
+
+def test_mark_completion_if_in_progress_is_idempotent(
+    repo: SQLAlchemySessionRepository, db_session: Session
+) -> None:
+    row = _insert_session(db_session=db_session, state=SessionState.ACTIVE)
+    first_completed_at = datetime.now(timezone.utc)
+
+    changed = repo.mark_completion_if_in_progress(
+        session_id=row.id,
+        completion_status="completed_success",
+        completed_at=first_completed_at,
+        completion_reason_code="ALL_OBJECTIVES_COMPLETED",
+    )
+    db_session.flush()
+    db_session.expire_all()
+
+    first = db_session.get(SessionModel, row.id)
+    assert changed is True
+    assert first is not None
+    assert first.completion_status == "completed_success"
+    assert first.completed_at == first_completed_at
+    assert first.completion_reason_code == "ALL_OBJECTIVES_COMPLETED"
+
+    second_changed = repo.mark_completion_if_in_progress(
+        session_id=row.id,
+        completion_status="completed_failure",
+        completed_at=datetime.now(timezone.utc),
+        completion_reason_code="SHOULD_NOT_APPLY",
+    )
+    db_session.flush()
+    db_session.expire_all()
+
+    second = db_session.get(SessionModel, row.id)
+    assert second_changed is False
+    assert second is not None
+    assert second.completion_status == "completed_success"
+    assert second.completed_at == first_completed_at
+    assert second.completion_reason_code == "ALL_OBJECTIVES_COMPLETED"
