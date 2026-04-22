@@ -3,6 +3,11 @@ from typing import Mapping
 from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from apps.contracts.src.schemas import (
+    SessionCompletedEventPayload,
+    SessionCompletedOutboxEvent,
+)
+from apps.contracts.src.types import CompletionOutcome
 
 from apps.control_plane.src.application.session_hints.schemas import (
     HintUnlockedEventPayload,
@@ -204,6 +209,61 @@ class SQLAlchemyOutbox(Outbox):
         event = OutboxEventModel(
             event_type="session.hint.unlocked.v1",
             aggregate_id=session_id,
+            payload=payload,
+        )
+        self._db.add(event)
+
+    def enqueue_session_completed(
+        self,
+        *,
+        session_id: UUID,
+        lab_id: UUID,
+        lab_version_id: UUID,
+        outcome: CompletionOutcome,
+        completion_reason_code: str | None,
+        trigger_event_index: int | None,
+        idempotency_key: str,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        existing = (
+            self._db.execute(
+                select(OutboxEventModel.id).where(
+                    OutboxEventModel.event_type == "session.completed.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                    OutboxEventModel.payload["idempotency_key"].astext
+                    == idempotency_key,
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return
+
+        payload_model = SessionCompletedEventPayload(
+            session_id=session_id,
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            outcome=outcome,
+            completion_reason_code=completion_reason_code,
+            trigger_event_index=trigger_event_index,
+            occurred_at=occurred_at or datetime.now(timezone.utc),
+            idempotency_key=idempotency_key,
+        )
+        outbox_event_model = SessionCompletedOutboxEvent(
+            aggregate_id=session_id,
+            payload=payload_model,
+        )
+
+        # Keep nullable payload fields present for replay/audit fidelity.
+        payload = outbox_event_model.payload.model_dump(
+            mode="json",
+            exclude_none=False,
+        )
+
+        event = OutboxEventModel(
+            event_type=outbox_event_model.event_type,
+            aggregate_id=outbox_event_model.aggregate_id,
             payload=payload,
         )
         self._db.add(event)
