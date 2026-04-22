@@ -14,6 +14,7 @@ manifests=(
   "deploy/k8s/staging/control-plane-evaluator-worker-deployment.yaml"
   "deploy/k8s/staging/control-plane-cleanup-worker-deployment.yaml"
   "deploy/k8s/staging/control-plane-session-objective-completed-worker-deployment.yaml"
+  "deploy/k8s/staging/control-plane-session-completed-worker-deployment.yaml"
   "deploy/k8s/staging/control-plane-session-hint-unlock-worker-deployment.yaml"
 )
 

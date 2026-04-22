@@ -1,0 +1,52 @@
+import logging
+import time
+
+from apps.control_plane.src.application.session_completion.service import (
+    process_pending_session_completed_once,
+)
+from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
+from apps.control_plane.src.infrastructure.persistence.outbox_session_completed import (
+    SQLAlchemyOutboxSessionCompleted,
+)
+from apps.control_plane.src.infrastructure.persistence.session_repository import (
+    SQLAlchemySessionRepository,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def run_once() -> None:
+    with SessionFactory() as db:
+        outbox_repo = SQLAlchemyOutboxSessionCompleted(db=db)
+        completion_writer = SQLAlchemySessionRepository(db=db)
+        try:
+            result = process_pending_session_completed_once(
+                outbox_repo=outbox_repo,
+                completion_writer=completion_writer,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    logger.info(
+        "session completed worker tick claimed=%s succeeded=%s failed=%s retried=%s",
+        result.claimed_count,
+        result.succeeded_count,
+        result.failed_count,
+        result.retried_count,
+    )
+
+
+def run_forever(poll_interval_seconds: float = 10.0) -> None:
+    while True:
+        try:
+            run_once()
+        except Exception:
+            logger.exception("session completed worker tick failed")
+        time.sleep(poll_interval_seconds)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    run_forever()

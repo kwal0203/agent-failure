@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-session-completed-worker
+  namespace: runtime-pool
+  labels:
+    app.kubernetes.io/name: control-plane-session-completed-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-plane-session-completed-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-plane-session-completed-worker
+    spec:
+      containers:
+        - name: session-completed-worker
+          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:6a605e31dc235f3a17d1e267bf5caf21fec4de442ef3232683a96cbf134eb3bc
+          imagePullPolicy: IfNotPresent
+          command:
+            - uv
+            - run
+            - python
+            - -m
+            - apps.control_plane.src.interfaces.runtime.session_completed_worker
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      imagePullSecrets:
+        - name: ghcr-pull
