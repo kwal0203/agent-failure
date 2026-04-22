@@ -95,6 +95,14 @@ export function SessionStatusHeader({
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
   const tone = statusTone(sessionState);
+  const normalizedAgentStatus = agentStatus.trim().toLowerCase();
+  const agentLabel =
+    normalizedAgentStatus === "active" ? "Agent: active" : "Agent: idle";
+  const normalizedSessionState = sessionState.trim().toLowerCase();
+  const sessionLabel =
+    normalizedSessionState === "active"
+      ? "Session: active"
+      : "Session: provisioning";
 
   const renderHintsPopover = () => {
     if (!hintsPanelOpen) return null;
@@ -164,9 +172,6 @@ export function SessionStatusHeader({
 
   return (
     <>
-      <div style={statusChipStyle(agentTone)}>
-        <strong>Agent</strong>
-      </div>
       <button
         type="button"
         onClick={onHintsChipClick}
@@ -183,8 +188,11 @@ export function SessionStatusHeader({
           <span style={{ marginLeft: 6 }}>({unlockedHints.length})</span>
         ) : null}
       </button>
+      <div style={statusChipStyle(agentTone)}>
+        <strong>{agentLabel}</strong>
+      </div>
       <div style={statusChipStyle(tone)}>
-        <strong>SESSION</strong>
+        <strong>{sessionLabel}</strong>
       </div>
       <button
         type="button"
