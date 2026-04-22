@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
 import { LabGuideColumn } from "./session/components/LabGuideColumn";
@@ -12,12 +12,15 @@ import { useSessionData } from "./session/hooks/useSessionData";
 import { useSessionStreamIngestion } from "./session/hooks/useSessionStreamIngestion";
 import { useTranscriptStreamView } from "./session/hooks/useTranscriptStreamView";
 import type { AgentStatus } from "./session/types";
+import { API_BASE, AUTH_HEADER } from "./session/ui";
 
 export default function SessionPage() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [stoppingSession, setStoppingSession] = useState(false);
   const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
 
   const transcriptView = useTranscriptStreamView();
@@ -68,7 +71,6 @@ export default function SessionPage() {
     setIsAwaitingResponse,
     resetActiveStream,
     setAgentStatus,
-    appendTimelineEvent,
     refreshSessionMetadata,
   });
   const {
@@ -78,7 +80,6 @@ export default function SessionPage() {
     emailFrom,
     emailSubject,
     emailBody,
-    emailMalicious,
     injectingEmail,
     injectEmailError,
     injectEmailResult,
@@ -87,7 +88,6 @@ export default function SessionPage() {
     onEmailFromChange,
     onEmailSubjectChange,
     onEmailBodyChange,
-    onEmailMaliciousChange,
     workspaceState,
     onToolSelect,
   } = sessionActions;
@@ -119,6 +119,67 @@ export default function SessionPage() {
   const rightColumnTemplate = isRightCollapsed
     ? "38px"
     : "minmax(180px, 12.6%)";
+  const canStopSession = ["CREATED", "PROVISIONING", "ACTIVE", "IDLE"].includes(
+    sessionState.toUpperCase(),
+  );
+
+  const onStopSession = useCallback(async () => {
+    if (!sessionId || stoppingSession || !canStopSession) {
+      return;
+    }
+
+    setStoppingSession(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: AUTH_HEADER,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `stop-session:${sessionId}`,
+          },
+        },
+      );
+      if (!response.ok) {
+        appendTimelineEvent({
+          id: `stop-failed-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type: "system",
+          granularity: "high",
+          title: "Session stop failed",
+          description: `Control plane returned HTTP ${response.status}.`,
+          details:
+            "Retry stopping the session. If this persists, check backend logs.",
+          important: true,
+        });
+        return;
+      }
+      await refreshSessionMetadata();
+      navigate("/labs");
+    } catch {
+      appendTimelineEvent({
+        id: `stop-error-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "system",
+        granularity: "high",
+        title: "Session stop request failed",
+        description: "Could not reach control plane.",
+        details:
+          "Retry stopping the session. If this persists, check your network.",
+        important: true,
+      });
+    } finally {
+      setStoppingSession(false);
+    }
+  }, [
+    appendTimelineEvent,
+    canStopSession,
+    navigate,
+    refreshSessionMetadata,
+    sessionId,
+    stoppingSession,
+  ]);
 
   return (
     <main
@@ -161,6 +222,9 @@ export default function SessionPage() {
               sessionState={sessionState}
               hintsPanelOpen={hintsPanelOpen}
               onHintsChipClick={onHintsChipClick}
+              canStopSession={canStopSession}
+              stoppingSession={stoppingSession}
+              onStopSession={() => void onStopSession()}
             />
           </div>
         ) : (
@@ -303,7 +367,6 @@ export default function SessionPage() {
             emailFrom={emailFrom}
             emailSubject={emailSubject}
             emailBody={emailBody}
-            emailMalicious={emailMalicious}
             injectingEmail={injectingEmail}
             sessionId={sessionId}
             injectEmailError={injectEmailError}
@@ -313,7 +376,6 @@ export default function SessionPage() {
             onEmailFromChange={onEmailFromChange}
             onEmailSubjectChange={onEmailSubjectChange}
             onEmailBodyChange={onEmailBodyChange}
-            onEmailMaliciousChange={onEmailMaliciousChange}
             onTranscriptScroll={onTranscriptScroll}
             showJumpToLatest={showJumpToLatest}
             onJumpToLatest={onJumpToLatest}

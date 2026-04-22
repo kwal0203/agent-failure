@@ -36,13 +36,14 @@ def run_once() -> None:
 
 
 def run_forever(poll_interval_seconds: float = 1.0) -> None:
-    # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
-    # so unexpected per-tick exceptions are logged and do not kill the process.
     while True:
-        run_once()
+        try:
+            run_once()
+        except Exception:
+            logger.exception("cleanup worker tick failed")
         time.sleep(poll_interval_seconds)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    run_forever()
+    run_forever(poll_interval_seconds=10.0)

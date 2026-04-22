@@ -26,13 +26,17 @@ from .schemas import (
     LearnerExplanationRequest,
     LearnerExplanationResponse,
     MarkSessionHintsSeenResponse,
+    StopSessionResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
+from apps.control_plane.src.infrastructure.persistence.db import (
+    SessionFactory,
+    get_db_session,
+)
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemySessionMetadataRepository,
 )
@@ -49,6 +53,9 @@ from apps.control_plane.src.application.session_query.errors import (
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
     CreateSessionUnitOfWork,
+)
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.common.schemas import LabDifficultyParser
@@ -70,6 +77,9 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyTraceEventRepository,
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionRuntimeBindingRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
+    SQLAlchemyUnitOfWork,
 )
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
@@ -96,6 +106,12 @@ from apps.control_plane.src.application.runtime.types import (
     RunTurnInput,
     InjectEmailInput,
 )
+from apps.control_plane.src.application.email_classification.ports import (
+    EmailMaliciousnessClassifierPort,
+)
+from apps.control_plane.src.application.email_classification.types import (
+    EmailClassificationInput,
+)
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.learner_explanation.service import (
     inject_learner_explanation,
@@ -113,6 +129,14 @@ from apps.control_plane.src.application.session_hints.errors import (
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
 )
+from apps.control_plane.src.application.session_lifecycle.service import (
+    transition_session,
+)
+from apps.control_plane.src.application.session_lifecycle.errors import (
+    InvalidTransition,
+    SessionNotFound,
+)
+from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
 from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
     LearnerExplanationRepository,
 )
@@ -121,6 +145,7 @@ from .dependencies import (
     get_admission_policy,
     get_auth_verifier_config,
     get_create_session_uow,
+    get_email_maliciousness_classifier,
     get_session_metadata_repository,
     get_runtime_client_factory,
     get_token_verifier,
@@ -501,6 +526,100 @@ def create_session_endpoint(
 
         return build_api_error_response(
             "INTERNAL_ERROR", "unexpected server error", False, 500, None
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/stop",
+    status_code=202,
+    response_model=StopSessionResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        409: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def stop_session_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    metadata_repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
+) -> StopSessionResponse | JSONResponse:
+    try:
+        session_metadata = get_session_metadata(
+            session_id=session_id,
+            principal=principal,
+            repo=metadata_repo,
+        )
+        if session_metadata is None:
+            return build_api_error_response(
+                "SESSION_NOT_FOUND",
+                "Session not found",
+                False,
+                404,
+                {"session_id": str(session_id)},
+            )
+
+        if session_metadata.state in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}:
+            return StopSessionResponse(
+                session_id=session_id,
+                accepted=True,
+                state=session_metadata.state,
+            )
+
+        uow = SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+        transition_session(
+            session_id=session_id,
+            trigger=Trigger.ADMIN_CANCELLED,
+            actor="admin",
+            metadata={
+                "reason_code": "USER_REQUESTED_STOP",
+                "requested_by_user_id": str(principal.user_id),
+                "requested_via": "session_ui",
+            },
+            idempotency_key=f"stop-session:{session_id}:{principal.user_id}",
+            uow=uow,
+        )
+
+        return StopSessionResponse(
+            session_id=session_id,
+            accepted=True,
+            state="CANCELLED",
+        )
+
+    except ForbiddenErrorSessionQuery as exc:
+        return build_api_error_response(
+            "FORBIDDEN", exc.message, False, 403, exc.details
+        )
+    except SessionNotFound:
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id)},
+        )
+    except InvalidTransition as exc:
+        return build_api_error_response(
+            "INVALID_SESSION_STATE",
+            "Session cannot be stopped from the current state",
+            False,
+            409,
+            {
+                "session_id": str(session_id),
+                "current_state": exc.current_state.value,
+                "trigger": exc.trigger.value,
+            },
+        )
+    except Exception:
+        logger.exception("stop session failed for session=%s", str(session_id))
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
         )
 
 
@@ -1585,6 +1704,9 @@ async def inject_session_email(
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),
+    email_classifier: EmailMaliciousnessClassifierPort = Depends(
+        get_email_maliciousness_classifier
+    ),
     db: Session = Depends(get_db_session),
 ) -> InjectSessionEmailResponse | JSONResponse:
     try:
@@ -1645,6 +1767,14 @@ async def inject_session_email(
             )
 
         client = runtime_client_factory.create(base_url=runtime_binding.base_url)
+        classification = await email_classifier.classify_email(
+            input=EmailClassificationInput(
+                email_from=request.email_from,
+                email_subject=request.email_subject,
+                email_body=request.email_body,
+            )
+        )
+        derived_malicious = bool(classification.malicious)
 
         email_input = InjectEmailInput(
             session_id=session_id,
@@ -1652,7 +1782,7 @@ async def inject_session_email(
             email_subject=request.email_subject,
             email_body=request.email_body,
             email_id=request.email_id,
-            malicious=request.malicious,
+            malicious=derived_malicious,
             source=request.source,
         )
 
@@ -1663,13 +1793,21 @@ async def inject_session_email(
             "email_id": email_input.email_id,
             "email_from": email_input.email_from,
             "subject": email_input.email_subject,
+            "malicious_marker": derived_malicious,
+            "classifier_provider": classification.provider,
+            "classifier_model": classification.model,
+            "classifier_confidence": classification.confidence,
         }
+
+        learner_event_type = (
+            "ATTACK_EMAIL_SENT" if derived_malicious else "BENIGN_EMAIL_SENT"
+        )
 
         trace_event = build_trace_event(
             trace_repo=trace_repo,
             session_id=session_id,
             family="learner",
-            event_type="ATTACK_EMAIL_SENT",
+            event_type=learner_event_type,
             source="inject_session_email_service",
             payload=attack_email_sent_payload,
             correlation_id=None,
@@ -1682,7 +1820,8 @@ async def inject_session_email(
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         if (
-            session_metadata.lab_id is not None
+            derived_malicious
+            and session_metadata.lab_id is not None
             and session_metadata.lab_version_id is not None
         ):
             objective = (
@@ -1704,7 +1843,7 @@ async def inject_session_email(
                             email_input.email_from.strip().lower(),
                             email_input.email_subject.strip(),
                             email_input.email_body.strip(),
-                            str(bool(email_input.malicious)),
+                            str(derived_malicious),
                             (email_input.source or "learner").strip().lower(),
                             (email_input.email_id or "").strip(),
                         ]
@@ -1741,6 +1880,15 @@ async def inject_session_email(
             code=exc.code,
             message=exc.message,
             retryable=exc.retryable,
+            status_code=502,
+            details={"session_id": str(session_id)},
+        )
+    except RuntimeError as exc:
+        db.rollback()
+        return build_api_error_response(
+            code="EMAIL_CLASSIFICATION_FAILED",
+            message=str(exc),
+            retryable=True,
             status_code=502,
             details={"session_id": str(session_id)},
         )

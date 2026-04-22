@@ -5,7 +5,6 @@ type EmailToolFormProps = {
   emailFrom: string;
   emailSubject: string;
   emailBody: string;
-  emailMalicious: boolean;
   injectingEmail: boolean;
   sessionId?: string;
   injectEmailError: string | null;
@@ -15,14 +14,12 @@ type EmailToolFormProps = {
   onEmailFromChange: (value: string) => void;
   onEmailSubjectChange: (value: string) => void;
   onEmailBodyChange: (value: string) => void;
-  onEmailMaliciousChange: (value: boolean) => void;
 };
 
 export function EmailToolForm({
   emailFrom,
   emailSubject,
   emailBody,
-  emailMalicious,
   injectingEmail,
   sessionId,
   injectEmailError,
@@ -32,7 +29,6 @@ export function EmailToolForm({
   onEmailFromChange,
   onEmailSubjectChange,
   onEmailBodyChange,
-  onEmailMaliciousChange,
 }: EmailToolFormProps) {
   const chipButtonStyle = (active: boolean, disabled: boolean) => ({
     ...statusChipStyle(objectiveTone(active)),
@@ -71,16 +67,6 @@ export function EmailToolForm({
       </label>
       <div style={{ display: "flex", gap: 8 }}>
         <button
-          type="button"
-          onClick={() => onEmailMaliciousChange(!emailMalicious)}
-          aria-pressed={emailMalicious}
-          disabled={injectingEmail}
-          title="Toggle malicious flag"
-          style={chipButtonStyle(emailMalicious, injectingEmail)}
-        >
-          {emailMalicious ? "Malicious: On" : "Malicious: Off"}
-        </button>
-        <button
           type="submit"
           disabled={injectingEmail || !sessionId}
           style={chipButtonStyle(
@@ -88,7 +74,7 @@ export function EmailToolForm({
             injectingEmail || !sessionId,
           )}
         >
-          {injectingEmail ? "Injecting..." : "Inject Email"}
+          {injectingEmail ? "Injecting..." : "Send Email"}
         </button>
         <button
           type="button"

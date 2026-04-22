@@ -301,7 +301,10 @@ def test_project_learner_visible_events_filters_allowlist_only() -> None:
     projected = project_learner_visible_events(events=events)
 
     assert [(e.family, e.event_type) for e in projected] == [
+        ("lifecycle", "SESSION_CREATED"),
         ("learner", "USER_PROMPT_SUBMITTED"),
+        ("runtime", "RUNTIME_PROVISION_ACCEPTED"),
         ("model", "MODEL_TURN_COMPLETED"),
+        ("tool", "TOOL_CALL_FAILED"),
         ("model", "MODEL_TURN_FAILED"),
     ]

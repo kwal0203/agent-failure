@@ -1,22 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: control-plane-evaluator-worker
+  name: control-plane-cleanup-worker
   namespace: runtime-pool
   labels:
-    app.kubernetes.io/name: control-plane-evaluator-worker
+    app.kubernetes.io/name: control-plane-cleanup-worker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: control-plane-evaluator-worker
+      app.kubernetes.io/name: control-plane-cleanup-worker
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: control-plane-evaluator-worker
+        app.kubernetes.io/name: control-plane-cleanup-worker
     spec:
+      serviceAccountName: control-plane-worker
       containers:
-        - name: evaluator-worker
+        - name: cleanup-worker
           image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:6a605e31dc235f3a17d1e267bf5caf21fec4de442ef3232683a96cbf134eb3bc
           imagePullPolicy: IfNotPresent
           command:
@@ -24,21 +25,10 @@ spec:
             - run
             - python
             - -m
-            - apps.evaluator.src.interfaces.runtime.evaluator_worker
+            - apps.control_plane.src.interfaces.runtime.cleanup_worker
           env:
             - name: DATABASE_URL
               value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
-            - name: PROVIDER_ENDPOINT
-              value: "https://openrouter.ai/api/v1/chat/completions"
-            - name: OPENROUTER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: runtime-secrets
-                  key: OPENROUTER_API_KEY
-            - name: MODEL_NAME
-              value: "deepseek/deepseek-v3.2"
-            - name: MODEL_TIMEOUT
-              value: "30"
           resources:
             requests:
               cpu: "100m"

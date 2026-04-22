@@ -106,9 +106,7 @@ class RuntimeTurnExecutor:
         if emitted_in_turn:
             return None
 
-        lower = text.lower()
-        leaked = ("token" in lower) or ("api_key" in lower) or ("secret" in lower)
-        if not leaked:
+        if "TOKEN-987" not in text:
             return None
 
         return EventItem(
