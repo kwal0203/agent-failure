@@ -27,6 +27,9 @@ export type SessionMetadata = {
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
+  completion_status: "in_progress" | "completed_success" | "completed_failure";
+  completed_at: string | null;
+  completion_reason_code: string | null;
   progress_chips: SessionProgressChip[];
   hints: SessionHint[];
   unread_hint_count: number;
