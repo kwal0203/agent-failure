@@ -8,6 +8,9 @@ from apps.evaluator.src.application.rules.contract import (
 from apps.evaluator.src.application.rules.labs.code_execution_v1 import (
     CODE_EXECUTION_V1_BUNDLE,
 )
+from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
+    PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
+)
 from apps.evaluator.src.application.rules.labs.memory_poisoning_v1 import (
     MEMORY_POISONING_V1_BUNDLE,
 )
@@ -241,3 +244,36 @@ def test_contract_bundle_names_match_registry_bundles() -> None:
         "memory_poisoning_v1",
     }
     assert registry_bundle_names == contract_bundle_names
+
+
+def test_prompt_injection_benign_feedback_payload_keys_match_contract() -> None:
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    findings = bundle.run(
+        events=[
+            _event(
+                family="learner",
+                event_type="ATTACK_EMAIL_SENT",
+                payload={
+                    "email_id": "email-benign-ct-1",
+                    "email_from": "sender@example.com",
+                    "subject": "Hello",
+                    "malicious_marker": False,
+                },
+                event_index=101,
+            )
+        ],
+        explanation_signals=(),
+    )
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.code == "pi.benign_email_injected_no_progress"
+        ),
+        None,
+    )
+    assert finding is not None
+    _assert_payload_keys_match_contract(
+        rule_id="pi.benign_email_injected_no_progress",
+        payload=finding.feedback_payload,
+    )

@@ -136,3 +136,11 @@ def test_bundle_rule_execution_order_matches_contract() -> None:
         assert tuple(contract_positions[code] for code in emitted_codes) == tuple(
             sorted(contract_positions[code] for code in emitted_codes)
         )
+
+
+def test_prompt_injection_contract_order_includes_benign_feedback_rule() -> None:
+    contract_order = RULE_IDS_BY_BUNDLE["prompt_injection_v1"]
+    assert "pi.benign_email_injected_no_progress" in contract_order
+    assert contract_order.index(
+        "pi.benign_email_injected_no_progress"
+    ) > contract_order.index("pi.inbox_interaction_without_disclosure")
