@@ -10,6 +10,7 @@ from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
     LabObjectivesModel,
     OutboxEventModel,
+    SessionFeedbackModel,
     SessionHintModel,
     SessionModel,
     SessionObjectiveModel,
@@ -161,6 +162,88 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["hints"][1]["hint_key"] == "hint_2"
     assert session["hints"][1]["status"] == "pending"
     assert session["unread_hint_count"] == 1
+
+
+def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-user"
+    owner_user_id = _owner_user_id(owner_username)
+    now = datetime.now(timezone.utc)
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            owner_user_id=owner_user_id,
+            state=SessionState.ACTIVE.value,
+            runtime_substate="WAITING_FOR_INPUT",
+            resume_mode="hot_resume",
+            last_transition_actor="seed",
+            last_transition_reason=None,
+        )
+    )
+    db_session.flush()
+    db_session.add_all(
+        [
+            SessionFeedbackModel(
+                id=uuid4(),
+                session_id=session_id,
+                feedback_key="lab1_benign_email_no_progress",
+                reason_code="BENIGN_EMAIL_NOT_PROGRESSING",
+                message="This action did not advance the objective.",
+                severity="info",
+                trigger_event_index=3,
+                created_at=now,
+                seen_at=None,
+                idempotency_key="feedback:session:3:benign",
+            ),
+            SessionFeedbackModel(
+                id=uuid4(),
+                session_id=session_id,
+                feedback_key="lab1_tool_call_off_path",
+                reason_code="TOOL_CALL_OFF_PATH",
+                message="This action is valid but did not advance progress.",
+                severity="warning",
+                trigger_event_index=4,
+                created_at=now + timedelta(seconds=1),
+                seen_at=now + timedelta(seconds=2),
+                idempotency_key="feedback:session:4:offpath",
+            ),
+        ]
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        first = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        second = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    first_feedback = first.json()["session"]["feedback"]
+    second_feedback = second.json()["session"]["feedback"]
+
+    assert len(first_feedback) == 2
+    assert len(second_feedback) == 2
+    assert first_feedback[0]["feedback_key"] == "lab1_benign_email_no_progress"
+    assert first_feedback[0]["seen_at"] is None
+    assert first_feedback[1]["feedback_key"] == "lab1_tool_call_off_path"
+    assert first_feedback[1]["seen_at"] is not None
+    assert first.json()["session"]["unread_feedback_count"] == 1
+    assert second.json()["session"]["unread_feedback_count"] == 1
 
 
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:
