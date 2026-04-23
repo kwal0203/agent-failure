@@ -1795,13 +1795,14 @@ async def inject_session_email(
             )
         )
         derived_malicious = bool(classification.malicious)
+        injected_email_id = request.email_id or f"email-{uuid4().hex}"
 
         email_input = InjectEmailInput(
             session_id=session_id,
             email_from=request.email_from,
             email_subject=request.email_subject,
             email_body=request.email_body,
-            email_id=request.email_id,
+            email_id=injected_email_id,
             malicious=derived_malicious,
             source=request.source,
         )

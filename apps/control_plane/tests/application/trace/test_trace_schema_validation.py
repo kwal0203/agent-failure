@@ -102,6 +102,19 @@ def _event(
         ),
         (
             _event(
+                family="learner",
+                event_type="ATTACK_EMAIL_SENT",
+                payload={
+                    "email_id": "email-1",
+                    "email_from": "attacker@evil.local",
+                    "subject": "Urgent policy update",
+                    "malicious_marker": False,
+                },
+                actor_user_id=uuid4(),
+            ),
+        ),
+        (
+            _event(
                 family="runtime",
                 event_type="RUNTIME_PROVISION_REQUESTED",
                 payload={},
@@ -216,6 +229,26 @@ def test_trace_schema_rejects_runtime_failed_missing_reason_code() -> None:
         family="runtime",
         event_type="RUNTIME_PROVISION_FAILED",
         payload={"pod_name": "session-1234"},
+    )
+
+    with pytest.raises(MissingTraceContextError):
+        append_trace_event(trace=trace, repo=repo, outbox_repo=outbox_repo)
+
+
+def test_trace_schema_rejects_learner_attack_email_missing_required_payload_fields() -> (
+    None
+):
+    repo = _FakeTraceRepo(appended=[])
+    outbox_repo = _FakeOutboxRepo(enqueued=[])
+    trace = _event(
+        family="learner",
+        event_type="ATTACK_EMAIL_SENT",
+        payload={
+            "email_id": "email-2",
+            "email_from": "attacker@evil.local",
+            "subject": "Hello",
+        },
+        actor_user_id=uuid4(),
     )
 
     with pytest.raises(MissingTraceContextError):
