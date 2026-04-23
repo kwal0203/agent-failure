@@ -23,8 +23,16 @@ from apps.control_plane.src.application.session_query.types import (
     SessionMetadataBundleRow,
 )
 from apps.control_plane.src.application.session_query.helpers import (
+    parse_completion_status,
     parse_hint_status,
     parse_progress_status,
+)
+from apps.control_plane.src.application.session_completion.guard import (
+    evaluate_completion_transition,
+)
+from apps.control_plane.src.application.session_completion.types import (
+    CompletionStatus,
+    SessionCompletionState,
 )
 
 from apps.control_plane.src.domain.session_lifecycle.state_machine import (
@@ -115,6 +123,60 @@ class SQLAlchemySessionRepository(SessionRepository):
         if result.rowcount != 1:
             raise StateMismatch(session_id=session_id, from_state=from_state)
 
+    def mark_completion_if_in_progress(
+        self,
+        *,
+        session_id: UUID,
+        completion_status: CompletionStatus,
+        completed_at: datetime,
+        completion_reason_code: str | None,
+    ) -> bool:
+        current_status_result = self._db.execute(
+            select(SessionModel.completion_status).where(SessionModel.id == session_id)
+        ).scalar_one_or_none()
+        if current_status_result is None:
+            return False
+        current_status = parse_completion_status(current_status_result)
+        decision = evaluate_completion_transition(
+            current_status=current_status,
+            requested_status=completion_status,
+        )
+        if not decision.should_apply:
+            return False
+
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id,
+                SessionModel.completion_status == current_status,
+            )
+            .values(
+                completion_status=completion_status,
+                completed_at=completed_at,
+                completion_reason_code=completion_reason_code,
+            )
+        )
+        result = cast(CursorResult[object], self._db.execute(stmt))
+        return result.rowcount == 1
+
+    def get_completion_state(
+        self, *, session_id: UUID
+    ) -> SessionCompletionState | None:
+        row = self._db.execute(
+            select(
+                SessionModel.completion_status,
+                SessionModel.completed_at,
+                SessionModel.completion_reason_code,
+            ).where(SessionModel.id == session_id)
+        ).one_or_none()
+        if row is None:
+            return None
+        return SessionCompletionState(
+            completion_status=parse_completion_status(row.completion_status),
+            completed_at=row.completed_at,
+            completion_reason_code=row.completion_reason_code,
+        )
+
     def insert_transition_event(
         self,
         session_id: UUID,
@@ -186,6 +248,9 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             created_at=session_model.created_at,
             started_at=session_model.started_at,
             ended_at=session_model.ended_at,
+            completion_status=parse_completion_status(session_model.completion_status),
+            completed_at=session_model.completed_at,
+            completion_reason_code=session_model.completion_reason_code,
         )
         progress_chips = [
             SessionObjectiveRow(
@@ -243,6 +308,9 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             last_transition_actor=actor_role,
             last_transition_reason=None,
             lab_difficulty=lab_difficulty,
+            completion_status="in_progress",
+            completed_at=None,
+            completion_reason_code=None,
         )
         self._db.add(session)
         self._db.flush()

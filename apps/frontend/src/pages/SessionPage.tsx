@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
 import { LabGuideColumn } from "./session/components/LabGuideColumn";
 import { SessionHeaderStatus } from "./session/components/SessionHeaderStatus";
+import { SessionSuccessModal } from "./session/components/SessionSuccessModal";
 import { WorkspaceColumn } from "./session/components/WorkspaceColumn";
 import { formatTime } from "./session/helpers";
 import { useHintsState } from "./session/hooks/useHintsState";
@@ -19,6 +20,7 @@ export default function SessionPage() {
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [stoppingSession, setStoppingSession] = useState(false);
+  const [successModalDismissed, setSuccessModalDismissed] = useState(false);
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
@@ -61,11 +63,22 @@ export default function SessionPage() {
   const canSend =
     connectionState === "open" &&
     !isAwaitingResponse &&
+    metadata?.completion_status !== "completed_success" &&
     (metadata?.interactive ?? false);
+  const showSuccessModal =
+    metadata?.completion_status === "completed_success" &&
+    !successModalDismissed;
+
+  useEffect(() => {
+    if (metadata?.completion_status !== "completed_success") {
+      setSuccessModalDismissed(false);
+    }
+  }, [metadata?.completion_status]);
 
   const sessionActions = useSessionActions({
     sessionId,
     canSend,
+    interactionLocked: metadata?.completion_status === "completed_success",
     sendPrompt,
     setTranscriptEntries,
     setIsAwaitingResponse,
@@ -205,7 +218,7 @@ export default function SessionPage() {
           overflow: "visible",
         }}
       >
-        {progressReady ? (
+        {progressReady && metadata ? (
           <div
             style={{
               width: "100%",
@@ -216,6 +229,9 @@ export default function SessionPage() {
               progressReady={progressReady}
               progressChips={progressChips}
               agentStatus={agentStatus}
+              completionStatus={metadata.completion_status}
+              completedAt={metadata.completed_at}
+              completionReasonCode={metadata.completion_reason_code}
               hasUnreadHint={hasUnreadHint}
               unlockedHints={unlockedHints}
               hintsReady={progressReady}
@@ -381,6 +397,9 @@ export default function SessionPage() {
             onJumpToLatest={onJumpToLatest}
             prompt={prompt}
             canSend={canSend}
+            interactionLocked={
+              metadata?.completion_status === "completed_success"
+            }
             onPromptChange={setPrompt}
             onSubmitPrompt={onSubmitPrompt}
             formatTime={formatTime}
@@ -497,6 +516,12 @@ export default function SessionPage() {
           />
         </aside>
       </div>
+      {showSuccessModal ? (
+        <SessionSuccessModal
+          completedAt={metadata?.completed_at ?? null}
+          onClose={() => setSuccessModalDismissed(true)}
+        />
+      ) : null}
     </main>
   );
 }

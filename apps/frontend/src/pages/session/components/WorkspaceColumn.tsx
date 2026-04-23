@@ -31,6 +31,7 @@ type WorkspaceColumnProps = {
   onJumpToLatest: () => void;
   prompt: string;
   canSend: boolean;
+  interactionLocked: boolean;
   onPromptChange: (value: string) => void;
   onSubmitPrompt: (e: FormEvent<HTMLFormElement>) => void;
   formatTime: (isoTs: string) => string;
@@ -62,6 +63,7 @@ export function WorkspaceColumn({
   onJumpToLatest,
   prompt,
   canSend,
+  interactionLocked,
   onPromptChange,
   onSubmitPrompt,
   formatTime,
@@ -168,6 +170,7 @@ export function WorkspaceColumn({
                   type="button"
                   onClick={() => onToolSelect(tool.key)}
                   aria-pressed={isActive}
+                  disabled={interactionLocked}
                   title={`${tool.label} tool`}
                   style={{
                     padding: "6px 10px",
@@ -175,7 +178,8 @@ export function WorkspaceColumn({
                     border: isActive ? "1px solid #4ea4d9" : "1px solid #999",
                     background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
                     color: isActive ? "#d6f1ff" : "#1f2a33",
-                    cursor: "pointer",
+                    cursor: interactionLocked ? "not-allowed" : "pointer",
+                    opacity: interactionLocked ? 0.6 : 1,
                   }}
                 >
                   {tool.label}
@@ -214,6 +218,7 @@ export function WorkspaceColumn({
                 onEmailFromChange={onEmailFromChange}
                 onEmailSubjectChange={onEmailSubjectChange}
                 onEmailBodyChange={onEmailBodyChange}
+                interactionLocked={interactionLocked}
               />
             </div>
           ) : selectedTool ? (
@@ -471,6 +476,7 @@ export function WorkspaceColumn({
             <textarea
               rows={isTranscriptCollapsed ? 10 : 4}
               placeholder="Type your prompt..."
+              disabled={interactionLocked}
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -492,6 +498,7 @@ export function WorkspaceColumn({
             />
             <button
               type="submit"
+              disabled={!canSend}
               aria-disabled={!canSend}
               aria-label="Send prompt"
               title="Send"
@@ -510,7 +517,8 @@ export function WorkspaceColumn({
                 justifyContent: "center",
                 fontWeight: 700,
                 lineHeight: 1,
-                cursor: "pointer",
+                cursor: canSend ? "pointer" : "not-allowed",
+                opacity: canSend ? 1 : 0.6,
               }}
             >
               ↑

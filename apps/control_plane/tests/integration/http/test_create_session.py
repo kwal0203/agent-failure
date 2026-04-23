@@ -119,6 +119,13 @@ def test_create_session_returns_202() -> None:
         ).scalar_one()
         assert outbox_count == 1
 
+        session_row = verify_db.execute(
+            select(SessionModel).where(SessionModel.id == UUID(session_id))
+        ).scalar_one()
+        assert session_row.completion_status == "in_progress"
+        assert session_row.completed_at is None
+        assert session_row.completion_reason_code is None
+
         outbox_event = verify_db.execute(
             select(OutboxEventModel).where(
                 OutboxEventModel.event_type == "session.provisioning.v1",

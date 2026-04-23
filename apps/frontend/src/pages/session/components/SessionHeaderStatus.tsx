@@ -5,8 +5,14 @@ import {
   objectiveTone,
   statusChipStyle,
 } from "../helpers";
-import type { AgentStatus, SessionProgressChip, UnlockedHint } from "../types";
+import type {
+  AgentStatus,
+  SessionCompletionStatus,
+  SessionProgressChip,
+  UnlockedHint,
+} from "../types";
 import { statusTone } from "../ui";
+import { SessionCompletionIndicator } from "./SessionCompletionIndicator";
 
 type ProgressStatusHeaderProps = {
   progressReady: boolean;
@@ -15,6 +21,9 @@ type ProgressStatusHeaderProps = {
 
 type SessionStatusHeaderProps = {
   agentStatus: AgentStatus;
+  completionStatus: SessionCompletionStatus;
+  completedAt: string | null;
+  completionReasonCode: string | null;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -30,6 +39,9 @@ type SessionHeaderStatusProps = {
   progressReady: boolean;
   progressChips: SessionProgressChip[];
   agentStatus: AgentStatus;
+  completionStatus: SessionCompletionStatus;
+  completedAt: string | null;
+  completionReasonCode: string | null;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -82,6 +94,9 @@ export function ProgressStatusHeader({
 
 export function SessionStatusHeader({
   agentStatus,
+  completionStatus,
+  completedAt,
+  completionReasonCode,
   hasUnreadHint,
   unlockedHints,
   hintsReady,
@@ -94,6 +109,11 @@ export function SessionStatusHeader({
 }: SessionStatusHeaderProps) {
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
+  const feedbackTone = {
+    background: "rgba(17, 61, 89, 0.78)",
+    border: "1px solid #3e87b3",
+    color: "#cdeeff",
+  };
   const tone = statusTone(sessionState);
   const normalizedAgentStatus = agentStatus.trim().toLowerCase();
   const agentLabel =
@@ -174,6 +194,15 @@ export function SessionStatusHeader({
     <>
       <button
         type="button"
+        style={{
+          ...statusChipStyle(feedbackTone),
+          cursor: "default",
+        }}
+      >
+        <strong>Feedback</strong>
+      </button>
+      <button
+        type="button"
         onClick={onHintsChipClick}
         style={{
           ...statusChipStyle(hintsTone),
@@ -194,6 +223,13 @@ export function SessionStatusHeader({
       <div style={statusChipStyle(tone)}>
         <strong>{sessionLabel}</strong>
       </div>
+      {completionStatus === "completed_failure" ? (
+        <SessionCompletionIndicator
+          completionStatus={completionStatus}
+          completedAt={completedAt}
+          completionReasonCode={completionReasonCode}
+        />
+      ) : null}
       <button
         type="button"
         onClick={onStopSession}
@@ -221,6 +257,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     progressReady,
     progressChips,
     agentStatus,
+    completionStatus,
+    completedAt,
+    completionReasonCode,
     hasUnreadHint,
     unlockedHints,
     hintsReady,
@@ -259,6 +298,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
       >
         <SessionStatusHeader
           agentStatus={agentStatus}
+          completionStatus={completionStatus}
+          completedAt={completedAt}
+          completionReasonCode={completionReasonCode}
           hasUnreadHint={hasUnreadHint}
           unlockedHints={unlockedHints}
           hintsReady={hintsReady}

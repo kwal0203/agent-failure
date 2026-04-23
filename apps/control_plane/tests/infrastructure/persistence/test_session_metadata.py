@@ -109,3 +109,21 @@ def test_get_session_metadata_returns_hints_unlocked_oldest_first(
     assert result.hints[0].status == "unlocked"
     assert result.hints[0].seen_at is not None
     assert result.hints[2].status == "pending"
+
+
+def test_get_session_metadata_round_trips_non_default_completion_fields(
+    db_session: Session,
+) -> None:
+    row = _insert_session(db_session, state=SessionState.COMPLETED)
+    row.completion_status = "completed_success"
+    row.completed_at = datetime.now(timezone.utc)
+    row.completion_reason_code = "ALL_OBJECTIVES_COMPLETED"
+    db_session.flush()
+
+    repo = SQLAlchemySessionMetadataRepository(db=db_session)
+    result = repo.get_session_metadata(session_id=row.id)
+
+    assert result is not None
+    assert result.metadata.completion_status == "completed_success"
+    assert result.metadata.completed_at == row.completed_at
+    assert result.metadata.completion_reason_code == "ALL_OBJECTIVES_COMPLETED"

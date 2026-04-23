@@ -268,3 +268,77 @@ def test_enqueue_session_hint_unlocked_is_idempotent_by_key(
         )
     ).scalar_one()
     assert count == 1
+
+
+def test_enqueue_session_completed_happy_path_preserves_nullable_payload_fields(
+    db_session: Session,
+) -> None:
+    outbox = SQLAlchemyOutbox(db=db_session)
+    session_id = uuid4()
+    lab_id = uuid4()
+    lab_version_id = uuid4()
+
+    outbox.enqueue_session_completed(
+        session_id=session_id,
+        lab_id=lab_id,
+        lab_version_id=lab_version_id,
+        outcome="completed_success",
+        completion_reason_code=None,
+        trigger_event_index=None,
+        idempotency_key=f"session_completed:{session_id}:completed_success:none:none",
+    )
+    db_session.flush()
+
+    event = db_session.execute(
+        select(OutboxEventModel).where(
+            OutboxEventModel.aggregate_id == session_id,
+            OutboxEventModel.event_type == "session.completed.v1",
+        )
+    ).scalar_one()
+
+    assert event.status == "pending"
+    payload = event.payload
+    assert payload["session_id"] == str(session_id)
+    assert payload["lab_id"] == str(lab_id)
+    assert payload["lab_version_id"] == str(lab_version_id)
+    assert payload["outcome"] == "completed_success"
+    assert "completion_reason_code" in payload
+    assert payload["completion_reason_code"] is None
+    assert "trigger_event_index" in payload
+    assert payload["trigger_event_index"] is None
+
+
+def test_enqueue_session_completed_is_idempotent_by_key(db_session: Session) -> None:
+    outbox = SQLAlchemyOutbox(db=db_session)
+    session_id = uuid4()
+    idempotency_key = f"session_completed:{session_id}:completed_failure:timeout:17"
+
+    outbox.enqueue_session_completed(
+        session_id=session_id,
+        lab_id=uuid4(),
+        lab_version_id=uuid4(),
+        outcome="completed_failure",
+        completion_reason_code="TIMEOUT",
+        trigger_event_index=17,
+        idempotency_key=idempotency_key,
+    )
+    outbox.enqueue_session_completed(
+        session_id=session_id,
+        lab_id=uuid4(),
+        lab_version_id=uuid4(),
+        outcome="completed_failure",
+        completion_reason_code="IGNORED_DUPLICATE",
+        trigger_event_index=999,
+        idempotency_key=idempotency_key,
+    )
+    db_session.flush()
+
+    count = db_session.execute(
+        select(func.count())
+        .select_from(OutboxEventModel)
+        .where(
+            OutboxEventModel.aggregate_id == session_id,
+            OutboxEventModel.event_type == "session.completed.v1",
+        )
+    ).scalar_one()
+    assert count == 1

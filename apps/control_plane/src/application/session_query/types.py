@@ -3,6 +3,8 @@ from datetime import datetime
 from uuid import UUID
 from typing import cast, TypeAlias, Literal
 
+from apps.control_plane.src.application.session_completion.types import CompletionStatus
+
 
 ProgressStatus: TypeAlias = Literal["pending", "complete"]
 HintStatus: TypeAlias = Literal["pending", "unlocked"]
@@ -41,6 +43,9 @@ class SessionMetadataRow:
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    completion_status: CompletionStatus = "in_progress"
+    completed_at: datetime | None = None
+    completion_reason_code: str | None = None
     lab_difficulty: str = "medium"
 
 
@@ -78,6 +83,9 @@ class SessionMetadataDTO:
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
+    completion_status: CompletionStatus = "in_progress"
+    completed_at: datetime | None = None
+    completion_reason_code: str | None = None
     lab_difficulty: str = "medium"
     progress_chips: list[SessionObjectiveDTO] = field(
         default_factory=lambda: cast(list[SessionObjectiveDTO], [])

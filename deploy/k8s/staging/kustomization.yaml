@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - control-plane-deployment.yaml
+  - control-plane-provisioning-worker-deployment.yaml
+  - control-plane-evaluator-worker-deployment.yaml
+  - control-plane-cleanup-worker-deployment.yaml
+  - control-plane-session-objective-completed-worker-deployment.yaml
+  - control-plane-session-hint-unlock-worker-deployment.yaml
+  - control-plane-session-completed-worker-deployment.yaml
+
+images:
+  - name: ghcr.io/kwal0203/agent-failure-control-plane
+    digest: sha256:daf0cf5173105980bd86c36a077d1bd3162eb5e9ab4410ee9ae36c0a40fda83e

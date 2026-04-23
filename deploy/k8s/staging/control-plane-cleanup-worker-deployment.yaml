@@ -18,7 +18,7 @@ spec:
       serviceAccountName: control-plane-worker
       containers:
         - name: cleanup-worker
-          image: ghcr.io/kwal0203/agent-failure-control-plane@sha256:6a605e31dc235f3a17d1e267bf5caf21fec4de442ef3232683a96cbf134eb3bc
+          image: ghcr.io/kwal0203/agent-failure-control-plane
           imagePullPolicy: IfNotPresent
           command:
             - uv
