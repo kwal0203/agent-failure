@@ -7,8 +7,13 @@ from apps.contracts.src.schemas import (
     OutboxEventType,
     SessionCompletedEventPayload,
     SessionCompletedOutboxEvent,
+    SessionFeedbackCreatedOutboxEvent,
 )
-from apps.contracts.src.types import OutboxEventName, SessionCompletedEventName
+from apps.contracts.src.types import (
+    OutboxEventName,
+    SessionCompletedEventName,
+    SessionFeedbackCreatedEventName,
+)
 
 
 def _outbox_union_members() -> tuple[type[BaseModel], ...]:
@@ -26,13 +31,17 @@ def _event_type_literal_values() -> tuple[str, ...]:
 
 def test_completion_event_literals_are_single_source() -> None:
     assert get_args(SessionCompletedEventName) == ("session.completed.v1",)
-    assert get_args(OutboxEventName) == ("session.completed.v1",)
+    assert get_args(SessionFeedbackCreatedEventName) == ("session.feedback.created.v1",)
+    assert get_args(OutboxEventName) == (
+        "session.completed.v1",
+        "session.feedback.created.v1",
+    )
     assert get_args(OutboxEventType) == get_args(OutboxEventName)
 
 
 def test_outbox_event_union_registration_matches_event_literals_order() -> None:
     members = _outbox_union_members()
-    assert members == (SessionCompletedOutboxEvent,)
+    assert members == (SessionCompletedOutboxEvent, SessionFeedbackCreatedOutboxEvent)
 
     discriminator_values = tuple(
         member.model_fields["event_type"].default for member in members

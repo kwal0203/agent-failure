@@ -7,7 +7,7 @@ SessionCompletedEventName = Literal["session.completed.v1"]
 SessionFeedbackCreatedEventName = Literal["session.feedback.created.v1"]
 CompletionOutcome = Literal["completed_success", "completed_failure"]
 FeedbackSeverity = Literal["info", "warning", "error"]
-OutboxEventName = SessionCompletedEventName
+OutboxEventName = Literal["session.completed.v1", "session.feedback.created.v1"]
 
 
 JSONScalar: TypeAlias = str | int | float | bool | None

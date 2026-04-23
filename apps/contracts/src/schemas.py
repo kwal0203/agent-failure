@@ -8,6 +8,7 @@ from .types import (
     FeedbackSeverity,
     OutboxEventName,
     SessionCompletedEventName,
+    SessionFeedbackCreatedEventName,
 )
 
 
@@ -266,8 +267,16 @@ class SessionCompletedOutboxEvent(BaseModel):
     payload: SessionCompletedEventPayload
 
 
+class SessionFeedbackCreatedOutboxEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: SessionFeedbackCreatedEventName = "session.feedback.created.v1"
+    aggregate_id: UUID
+    payload: SessionFeedbackCreatedEventPayload
+
+
 OutboxEvent = Annotated[
-    SessionCompletedOutboxEvent,
+    SessionCompletedOutboxEvent | SessionFeedbackCreatedOutboxEvent,
     Field(discriminator="event_type"),
 ]
 
