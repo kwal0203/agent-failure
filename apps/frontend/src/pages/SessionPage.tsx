@@ -216,6 +216,9 @@ export default function SessionPage() {
               progressReady={progressReady}
               progressChips={progressChips}
               agentStatus={agentStatus}
+              completionStatus={metadata?.completion_status ?? "in_progress"}
+              completedAt={metadata?.completed_at ?? null}
+              completionReasonCode={metadata?.completion_reason_code ?? null}
               hasUnreadHint={hasUnreadHint}
               unlockedHints={unlockedHints}
               hintsReady={progressReady}

@@ -5,8 +5,14 @@ import {
   objectiveTone,
   statusChipStyle,
 } from "../helpers";
-import type { AgentStatus, SessionProgressChip, UnlockedHint } from "../types";
+import type {
+  AgentStatus,
+  SessionCompletionStatus,
+  SessionProgressChip,
+  UnlockedHint,
+} from "../types";
 import { statusTone } from "../ui";
+import { SessionCompletionIndicator } from "./SessionCompletionIndicator";
 
 type ProgressStatusHeaderProps = {
   progressReady: boolean;
@@ -15,6 +21,9 @@ type ProgressStatusHeaderProps = {
 
 type SessionStatusHeaderProps = {
   agentStatus: AgentStatus;
+  completionStatus: SessionCompletionStatus;
+  completedAt: string | null;
+  completionReasonCode: string | null;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -30,6 +39,9 @@ type SessionHeaderStatusProps = {
   progressReady: boolean;
   progressChips: SessionProgressChip[];
   agentStatus: AgentStatus;
+  completionStatus: SessionCompletionStatus;
+  completedAt: string | null;
+  completionReasonCode: string | null;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -82,6 +94,9 @@ export function ProgressStatusHeader({
 
 export function SessionStatusHeader({
   agentStatus,
+  completionStatus,
+  completedAt,
+  completionReasonCode,
   hasUnreadHint,
   unlockedHints,
   hintsReady,
@@ -194,6 +209,11 @@ export function SessionStatusHeader({
       <div style={statusChipStyle(tone)}>
         <strong>{sessionLabel}</strong>
       </div>
+      <SessionCompletionIndicator
+        completionStatus={completionStatus}
+        completedAt={completedAt}
+        completionReasonCode={completionReasonCode}
+      />
       <button
         type="button"
         onClick={onStopSession}
@@ -221,6 +241,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     progressReady,
     progressChips,
     agentStatus,
+    completionStatus,
+    completedAt,
+    completionReasonCode,
     hasUnreadHint,
     unlockedHints,
     hintsReady,
@@ -259,6 +282,9 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
       >
         <SessionStatusHeader
           agentStatus={agentStatus}
+          completionStatus={completionStatus}
+          completedAt={completedAt}
+          completionReasonCode={completionReasonCode}
           hasUnreadHint={hasUnreadHint}
           unlockedHints={unlockedHints}
           hintsReady={hintsReady}
