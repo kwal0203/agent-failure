@@ -3,7 +3,12 @@ from uuid import UUID
 from typing import Literal, Annotated
 from datetime import datetime
 
-from .types import CompletionOutcome, OutboxEventName, SessionCompletedEventName
+from .types import (
+    CompletionOutcome,
+    FeedbackSeverity,
+    OutboxEventName,
+    SessionCompletedEventName,
+)
 
 
 ErrorCode = Literal["provider_failure", "invalid_request", "internal_error"]
@@ -235,6 +240,21 @@ class SessionCompletedEventPayload(BaseModel):
     completion_reason_code: str | None = None
     trigger_event_index: int | None = None
     occurred_at: datetime
+    idempotency_key: str = Field(min_length=1)
+
+
+class SessionFeedbackCreatedEventPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    feedback_key: str = Field(min_length=1)
+    reason_code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    severity: FeedbackSeverity
+    trigger_event_index: int | None = None
+    created_at: datetime
     idempotency_key: str = Field(min_length=1)
 
 
