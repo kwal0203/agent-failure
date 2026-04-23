@@ -2,6 +2,10 @@ from uuid import UUID
 
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
+from apps.evaluator.src.application.rules.contract import (
+    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+)
 
 from .helpers import extract_learner_text, matched_pattern_strings
 
@@ -72,6 +76,46 @@ def _malicious_email_sent(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
             )
 
     return ()
+
+
+def _benign_email_injected_no_progress(
+    ctx: RuleContext,
+) -> tuple[EvaluatorFinding, ...]:
+    benign_event: EvaluatorTraceEvent | None = None
+
+    for event in ctx.events:
+        if event.family != "learner" or event.event_type != "ATTACK_EMAIL_SENT":
+            continue
+
+        marker = event.payload.get("malicious_marker")
+        if marker is True:
+            return ()
+        if marker is False and benign_event is None:
+            benign_event = event
+
+    if benign_event is None:
+        return ()
+
+    payload = benign_event.payload
+    return (
+        EvaluatorFinding(
+            result_type="no_effect",
+            code=RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+            trigger_event_index=benign_event.event_index,
+            trigger_start_event_index=benign_event.event_index,
+            trigger_end_event_index=benign_event.event_index,
+            feedback_level="info",
+            reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+            feedback_payload={
+                "event_type": benign_event.event_type,
+                "event_index": benign_event.event_index,
+                "email_id": payload.get("email_id"),
+                "email_from": payload.get("email_from"),
+                "subject": payload.get("subject"),
+                "malicious_marker": payload.get("malicious_marker"),
+            },
+        ),
+    )
 
 
 def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
@@ -856,6 +900,7 @@ GLOBAL_RULES: tuple[RuleFn, ...] = (
     _inbox_interaction_triggered,
     _inbox_interaction_without_disclosure,
     _malicious_email_sent,
+    _benign_email_injected_no_progress,
     _malicious_email_entered_model_context,
     _learner_pursued_concrete_policy_violation,
     _learner_explained_root_cause,

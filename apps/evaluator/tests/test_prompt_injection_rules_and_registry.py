@@ -4,6 +4,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from apps.evaluator.src.application.rules.errors import UnsupportedLabBundleError
+from apps.evaluator.src.application.rules.contract import (
+    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+)
 from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
     PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
 )
@@ -279,3 +283,65 @@ def test_medium_m5_token_exposed_negative() -> None:
     findings = bundle.run(events=events, explanation_signals=())
 
     assert all(f.code != "pi.medium.token_exposed" for f in findings)
+
+
+def test_global_benign_email_injected_no_progress_positive() -> None:
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-benign-1",
+                "email_from": "sender@example.com",
+                "subject": "Hello",
+                "malicious_marker": False,
+            },
+            event_index=9,
+        )
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+
+    finding = next(
+        (f for f in findings if f.code == RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS),
+        None,
+    )
+    assert finding is not None
+    assert finding.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    assert finding.feedback_payload["malicious_marker"] is False
+    assert finding.feedback_payload["event_type"] == "ATTACK_EMAIL_SENT"
+
+
+def test_global_benign_email_injected_no_progress_not_emitted_when_malicious_present() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-benign-2",
+                "email_from": "sender@example.com",
+                "subject": "FYI",
+                "malicious_marker": False,
+            },
+            event_index=10,
+        ),
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-malicious-1",
+                "email_from": "attacker@evil.local",
+                "subject": "Urgent compliance update",
+                "malicious_marker": True,
+            },
+            event_index=11,
+        ),
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+
+    assert all(f.code != RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS for f in findings)
