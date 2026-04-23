@@ -71,3 +71,28 @@ def test_session_feedback_created_payload_invalid_severity_fails() -> None:
         SessionFeedbackCreatedEventPayload.model_validate(raw)
 
     assert "severity" in str(exc.value)
+
+
+def test_session_feedback_created_payload_missing_required_field_fails() -> None:
+    raw = _valid_payload(idempotency_key="session_feedback:test")
+    raw.pop("feedback_key")
+
+    with pytest.raises(ValidationError) as exc:
+        SessionFeedbackCreatedEventPayload.model_validate(raw)
+
+    assert "feedback_key" in str(exc.value)
+
+
+def test_session_feedback_created_payload_wrong_types_fail() -> None:
+    raw = _valid_payload(idempotency_key="session_feedback:test")
+    raw["session_id"] = "not-a-uuid"
+    raw["trigger_event_index"] = "not-an-int"
+    raw["created_at"] = "not-a-datetime"
+
+    with pytest.raises(ValidationError) as exc:
+        SessionFeedbackCreatedEventPayload.model_validate(raw)
+
+    message = str(exc.value)
+    assert "session_id" in message
+    assert "trigger_event_index" in message
+    assert "created_at" in message
