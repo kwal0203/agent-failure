@@ -4,6 +4,7 @@ from typing import Literal, TypeAlias, Mapping
 TraceFamily = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
 SessionCompletedEventName = Literal["session.completed.v1"]
+SessionFeedbackCreatedEventName = Literal["session.feedback.created.v1"]
 CompletionOutcome = Literal["completed_success", "completed_failure"]
 OutboxEventName = SessionCompletedEventName
 
