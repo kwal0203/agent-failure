@@ -7,6 +7,7 @@ from apps.contracts.src.schemas import (
     OutboxEventType,
     SessionCompletedEventPayload,
     SessionCompletedOutboxEvent,
+    SessionFeedbackCreatedEventPayload,
     SessionFeedbackCreatedOutboxEvent,
 )
 from apps.contracts.src.types import (
@@ -71,4 +72,33 @@ def test_session_completed_nullable_contract_fields_are_explicit() -> None:
     assert fields["lab_version_id"].is_required()
     assert fields["outcome"].is_required()
     assert fields["occurred_at"].is_required()
+    assert fields["idempotency_key"].is_required()
+
+
+def test_session_feedback_created_payload_keys_match_contract_exactly() -> None:
+    assert tuple(SessionFeedbackCreatedEventPayload.model_fields.keys()) == (
+        "session_id",
+        "lab_id",
+        "lab_version_id",
+        "feedback_key",
+        "reason_code",
+        "message",
+        "severity",
+        "trigger_event_index",
+        "created_at",
+        "idempotency_key",
+    )
+
+
+def test_session_feedback_created_nullable_contract_fields_are_explicit() -> None:
+    fields = SessionFeedbackCreatedEventPayload.model_fields
+    assert not fields["trigger_event_index"].is_required()
+    assert fields["session_id"].is_required()
+    assert fields["lab_id"].is_required()
+    assert fields["lab_version_id"].is_required()
+    assert fields["feedback_key"].is_required()
+    assert fields["reason_code"].is_required()
+    assert fields["message"].is_required()
+    assert fields["severity"].is_required()
+    assert fields["created_at"].is_required()
     assert fields["idempotency_key"].is_required()
