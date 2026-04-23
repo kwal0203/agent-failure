@@ -6,6 +6,9 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from apps.contracts.src.idempotency import (
+    build_session_completed_event_idempotency_key,
+)
 from apps.control_plane.src.application.session_objectives.service import (
     process_pending_objective_completed_once,
 )
@@ -721,6 +724,125 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
         == f"session_completed:{session.id}:completed_success:"
         "all_required_objectives_completed:82"
     )
+
+
+def test_objective_projector_emits_completion_once_when_final_required_objective_transitions(
+    db_session: Session,
+) -> None:
+    session = _seed_session(db_session)
+    _seed_lab_objective_template(
+        db_session,
+        lab_version_id=session.lab_version_id,
+        objective_key="unsafe_tool_invocation_triggered",
+        label="Unsafe Tool Invocation Triggered",
+        sort_order=0,
+    )
+    _seed_lab_objective_template(
+        db_session,
+        lab_version_id=session.lab_version_id,
+        objective_key="security_boundary_crossed",
+        label="Security Boundary Crossed",
+        sort_order=1,
+    )
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        label="Unsafe Tool Invocation Triggered",
+        sort_order=0,
+    )
+    _seed_session_objective(
+        db_session,
+        session_id=session.id,
+        objective_key="security_boundary_crossed",
+        label="Security Boundary Crossed",
+        sort_order=1,
+    )
+
+    first_event_at = datetime(2026, 4, 22, 9, 0, 0, tzinfo=timezone.utc)
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key="unsafe_tool_invocation_triggered",
+        occurred_at=first_event_at,
+        idempotency_key=f"objective:{session.id}:unsafe_tool_invocation_triggered:111",
+        trigger_event_index=111,
+    )
+    db_session.flush()
+
+    first_result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
+        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+        completion_writer=SQLAlchemySessionRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert first_result.succeeded_count == 1
+    first_completed_events = (
+        db_session.execute(
+            select(OutboxEventModel).where(
+                OutboxEventModel.event_type == "session.completed.v1",
+                OutboxEventModel.aggregate_id == session.id,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert first_completed_events == []
+
+    final_event_at = datetime(2026, 4, 22, 9, 1, 0, tzinfo=timezone.utc)
+    _seed_objective_completed_event(
+        db_session,
+        session_id=session.id,
+        objective_key="security_boundary_crossed",
+        occurred_at=final_event_at,
+        idempotency_key=f"objective:{session.id}:security_boundary_crossed:112",
+        trigger_event_index=112,
+    )
+    db_session.flush()
+
+    second_result = process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
+        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+        completion_writer=SQLAlchemySessionRepository(db=db_session),
+    )
+    db_session.flush()
+
+    assert second_result.succeeded_count == 1
+    completed_events = (
+        db_session.execute(
+            select(OutboxEventModel)
+            .where(
+                OutboxEventModel.event_type == "session.completed.v1",
+                OutboxEventModel.aggregate_id == session.id,
+            )
+            .order_by(OutboxEventModel.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    assert len(completed_events) == 1
+    payload = completed_events[0].payload
+    assert payload["session_id"] == str(session.id)
+    assert payload["lab_id"] == str(session.lab_id)
+    assert payload["lab_version_id"] == str(session.lab_version_id)
+    assert payload["outcome"] == "completed_success"
+    assert payload["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+    assert payload["trigger_event_index"] == 112
+    assert payload["idempotency_key"] == build_session_completed_event_idempotency_key(
+        session_id=session.id,
+        outcome="completed_success",
+        completion_reason_code="ALL_REQUIRED_OBJECTIVES_COMPLETED",
+        trigger_event_index=112,
+    )
+    occurred_at = datetime.fromisoformat(
+        str(payload["occurred_at"]).replace("Z", "+00:00")
+    )
+    assert occurred_at == final_event_at
 
 
 def test_objective_projector_does_not_mark_session_completed_when_any_required_objective_pending(
