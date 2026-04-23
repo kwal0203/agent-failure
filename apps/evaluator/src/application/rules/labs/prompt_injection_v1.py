@@ -91,6 +91,15 @@ def _benign_email_injected_no_progress(
         if marker is True:
             return ()
         if marker is False and benign_event is None:
+            email_id = event.payload.get("email_id")
+            email_from = event.payload.get("email_from")
+            subject = event.payload.get("subject")
+            if not isinstance(email_id, str) or not email_id.strip():
+                continue
+            if not isinstance(email_from, str) or not email_from.strip():
+                continue
+            if not isinstance(subject, str) or not subject.strip():
+                continue
             benign_event = event
 
     if benign_event is None:

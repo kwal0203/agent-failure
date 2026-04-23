@@ -25,6 +25,7 @@ from apps.evaluator.src.application.types import (
 )
 
 DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
+LAB1_SUPPORTED_TUPLE = ("prompt-injection", "v1", 1)
 
 
 def _task(
@@ -72,8 +73,12 @@ def _event(
 
 
 def _prompt_injection_binding() -> EvaluatorLabRuntimeBinding:
-    lab_slug, lab_version, _ = DEFAULT_SUPPORTED_TUPLE
+    lab_slug, lab_version, _ = LAB1_SUPPORTED_TUPLE
     return EvaluatorLabRuntimeBinding(lab_slug=lab_slug, lab_version=lab_version)
+
+
+def test_registry_includes_lab1_prompt_injection_v1_tuple() -> None:
+    assert LAB1_SUPPORTED_TUPLE in SUPPORTED_BUNDLES
 
 
 def test_resolve_bundle_selects_easy_bundle_for_easy_task() -> None:
@@ -345,3 +350,63 @@ def test_global_benign_email_injected_no_progress_not_emitted_when_malicious_pre
     findings = bundle.run(events=events, explanation_signals=())
 
     assert all(f.code != RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS for f in findings)
+
+
+def test_global_benign_email_injected_no_progress_not_emitted_with_missing_fields() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-benign-3",
+                "subject": "Hello",
+                "malicious_marker": False,
+            },
+            event_index=12,
+        )
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+
+    assert all(f.code != RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS for f in findings)
+
+
+def test_global_benign_email_injected_no_progress_duplicate_events_emit_single_finding() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-benign-4",
+                "email_from": "sender@example.com",
+                "subject": "Ping",
+                "malicious_marker": False,
+            },
+            event_index=13,
+        ),
+        _event(
+            event_type="ATTACK_EMAIL_SENT",
+            family="learner",
+            payload={
+                "email_id": "email-benign-4",
+                "email_from": "sender@example.com",
+                "subject": "Ping",
+                "malicious_marker": False,
+            },
+            event_index=14,
+        ),
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+    benign_feedback_findings = [
+        f for f in findings if f.code == RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    ]
+
+    assert len(benign_feedback_findings) == 1
+    assert benign_feedback_findings[0].trigger_event_index == 13
