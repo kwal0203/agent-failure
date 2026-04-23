@@ -369,7 +369,7 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
             verify_db.execute(
                 select(TraceEventModel).where(
                     TraceEventModel.session_id == session_id,
-                    TraceEventModel.event_type == "BENIGN_EMAIL_SENT",
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
                 )
             )
             .scalars()

@@ -144,6 +144,23 @@ Ship a backend-driven learner feedback system that:
 ### Acceptance Criteria
 - Evaluator emits feedback finding for benign email path and does not emit it for malicious path.
 
+### Lab 1 v1 Authoritative Trace Signal (Benign-Email Feedback)
+- Use one learner event shape only:
+  - `event_type = ATTACK_EMAIL_SENT`
+- Benign vs malicious is determined exclusively by:
+  - `payload.malicious_marker` (`false` => benign path, `true` => malicious path)
+- `BENIGN_EMAIL_SENT` is not emitted by v1 inject flow.
+
+### Required Payload Fields for Lab 1 Benign-Email Feedback Rule
+- Rule reads these fields from the triggering learner trace event payload:
+  - `email_id`
+  - `email_from`
+  - `subject`
+  - `malicious_marker`
+- Rule also requires deterministic envelope evidence:
+  - `event_type`
+  - `event_index`
+
 ---
 
 ## Ticket 5: Map Feedback Findings to `session.feedback.created.v1`

@@ -144,28 +144,6 @@ function mapPersistedTraceToTimelineEvent(
     };
   }
 
-  if (event.event_type === "BENIGN_EMAIL_SENT") {
-    const subject =
-      typeof event.payload.subject === "string" ? event.payload.subject : "";
-    const emailFrom =
-      typeof event.payload.email_from === "string"
-        ? event.payload.email_from
-        : "";
-    const emailId =
-      typeof event.payload.email_id === "string" && event.payload.email_id
-        ? ` (id: ${event.payload.email_id})`
-        : "";
-    return {
-      id: eventId,
-      timestamp,
-      type: "attacker_action",
-      granularity: "high",
-      title: "Benign email injected to inbox",
-      description: `Email accepted${emailId}.`,
-      details: `From: ${emailFrom}\nSubject: ${subject}`,
-    };
-  }
-
   if (event.event_type === "RUNTIME_PROVISION_REQUESTED") {
     return {
       id: eventId,
