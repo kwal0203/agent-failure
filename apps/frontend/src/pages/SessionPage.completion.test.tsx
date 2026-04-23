@@ -80,6 +80,46 @@ describe("SessionPage completion indicator", () => {
     ).toBeInTheDocument();
   });
 
+  it("locks compose and action buttons when completion_status is completed_success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/evaluator-feedback")) {
+          return mockJsonResponse({ feedback: [] });
+        }
+        return mockJsonResponse({
+          session: {
+            id: "11111111-1111-1111-1111-111111111111",
+            lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            state: "COMPLETED",
+            runtime_substate: null,
+            resume_mode: "fresh",
+            interactive: false,
+            created_at: "2026-01-01T00:00:00Z",
+            started_at: "2026-01-01T00:00:05Z",
+            ended_at: "2026-01-01T00:05:00Z",
+            completion_status: "completed_success",
+            completed_at: "2026-01-01T00:05:00Z",
+            completion_reason_code: "ALL_REQUIRED_OBJECTIVES_COMPLETED",
+            progress_chips: [],
+            hints: [],
+            unread_hint_count: 0,
+          },
+        });
+      }),
+    );
+
+    renderSessionPage();
+    expect(
+      await screen.findByText("Outcome: completed_success"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Email" })).toBeDisabled();
+    expect(screen.getByPlaceholderText("Type your prompt...")).toBeDisabled();
+    expect(screen.getByLabelText("Send prompt")).toBeDisabled();
+  });
+
   it("renders completed_failure from metadata", async () => {
     vi.stubGlobal(
       "fetch",

@@ -9,6 +9,7 @@ type EmailToolFormProps = {
   sessionId?: string;
   injectEmailError: string | null;
   injectEmailResult: string | null;
+  interactionLocked: boolean;
   onSubmitEmail: (e: FormEvent<HTMLFormElement>) => void;
   onResetEmail: () => void;
   onEmailFromChange: (value: string) => void;
@@ -24,6 +25,7 @@ export function EmailToolForm({
   sessionId,
   injectEmailError,
   injectEmailResult,
+  interactionLocked,
   onSubmitEmail,
   onResetEmail,
   onEmailFromChange,
@@ -43,6 +45,7 @@ export function EmailToolForm({
         <input
           type="text"
           value={emailFrom}
+          disabled={interactionLocked}
           onChange={(e) => onEmailFromChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
         />
@@ -52,6 +55,7 @@ export function EmailToolForm({
         <input
           type="text"
           value={emailSubject}
+          disabled={interactionLocked}
           onChange={(e) => onEmailSubjectChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
         />
@@ -61,6 +65,7 @@ export function EmailToolForm({
         <textarea
           rows={4}
           value={emailBody}
+          disabled={interactionLocked}
           onChange={(e) => onEmailBodyChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
         />
@@ -68,10 +73,10 @@ export function EmailToolForm({
       <div style={{ display: "flex", gap: 8 }}>
         <button
           type="submit"
-          disabled={injectingEmail || !sessionId}
+          disabled={interactionLocked || injectingEmail || !sessionId}
           style={chipButtonStyle(
             Boolean(injectEmailResult),
-            injectingEmail || !sessionId,
+            interactionLocked || injectingEmail || !sessionId,
           )}
         >
           {injectingEmail ? "Injecting..." : "Send Email"}
@@ -79,8 +84,8 @@ export function EmailToolForm({
         <button
           type="button"
           onClick={onResetEmail}
-          disabled={injectingEmail}
-          style={chipButtonStyle(false, injectingEmail)}
+          disabled={interactionLocked || injectingEmail}
+          style={chipButtonStyle(false, interactionLocked || injectingEmail)}
         >
           Reset
         </button>

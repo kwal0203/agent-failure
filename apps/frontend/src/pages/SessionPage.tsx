@@ -61,11 +61,13 @@ export default function SessionPage() {
   const canSend =
     connectionState === "open" &&
     !isAwaitingResponse &&
+    metadata?.completion_status !== "completed_success" &&
     (metadata?.interactive ?? false);
 
   const sessionActions = useSessionActions({
     sessionId,
     canSend,
+    interactionLocked: metadata?.completion_status === "completed_success",
     sendPrompt,
     setTranscriptEntries,
     setIsAwaitingResponse,
@@ -384,6 +386,9 @@ export default function SessionPage() {
             onJumpToLatest={onJumpToLatest}
             prompt={prompt}
             canSend={canSend}
+            interactionLocked={
+              metadata?.completion_status === "completed_success"
+            }
             onPromptChange={setPrompt}
             onSubmitPrompt={onSubmitPrompt}
             formatTime={formatTime}

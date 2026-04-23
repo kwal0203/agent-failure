@@ -12,6 +12,7 @@ import { API_BASE, AUTH_HEADER } from "../ui";
 type UseSessionActionsParams = {
   sessionId?: string;
   canSend: boolean;
+  interactionLocked: boolean;
   sendPrompt: (text: string) => void;
   setTranscriptEntries: Dispatch<SetStateAction<TranscriptEntry[]>>;
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
@@ -55,7 +56,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
 
   const onSubmitEmail = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!params.sessionId) return;
+    if (!params.sessionId || params.interactionLocked) return;
 
     const sender = emailFrom.trim();
     const subject = emailSubject.trim();
@@ -142,6 +143,9 @@ export function useSessionActions(params: UseSessionActionsParams) {
   }, []);
 
   const onToolSelect = (tool: ToolKey) => {
+    if (params.interactionLocked) {
+      return;
+    }
     setWorkspaceState((prev) => {
       if (prev.toolPaneOpen && prev.selectedTool === tool) {
         return {
