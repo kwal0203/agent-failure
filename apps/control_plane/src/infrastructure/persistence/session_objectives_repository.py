@@ -88,6 +88,9 @@ class SQLAlchemySessionObjectiveWriterRepository(SessionObjectiveWriterPort):
         row.status = "complete"
         row.completed_at = completed_at or datetime.now(timezone.utc)
         row.updated_at = datetime.now(timezone.utc)
+        # Runtime sessions use autoflush=False; flush explicitly so same-tick
+        # completion policy reads see this transition deterministically.
+        self._db.flush()
 
     def list_objective_states(self, *, session_id: UUID) -> list[tuple[str, str]]:
         rows = self._db.execute(

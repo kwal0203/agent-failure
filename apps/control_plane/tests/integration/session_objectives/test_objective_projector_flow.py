@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from apps.contracts.src.idempotency import (
     build_session_completed_event_idempotency_key,
@@ -631,6 +632,83 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     assert session_row.completion_status == "completed_success"
     assert session_row.completion_reason_code == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
     assert session_row.completed_at == completed_at
+
+
+def test_objective_projector_marks_completion_with_autoflush_disabled(
+    engine: Engine,
+) -> None:
+    session_factory = sessionmaker(
+        bind=engine,
+        class_=Session,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+    with session_factory() as db_session:
+        session = _seed_session(db_session)
+        _seed_lab_objective_template(
+            db_session,
+            lab_version_id=session.lab_version_id,
+            objective_key="unsafe_tool_invocation_triggered",
+            label="Unsafe Tool Invocation Triggered",
+            sort_order=0,
+        )
+        _seed_lab_objective_template(
+            db_session,
+            lab_version_id=session.lab_version_id,
+            objective_key="security_boundary_crossed",
+            label="Security Boundary Crossed",
+            sort_order=1,
+        )
+        _seed_session_objective(
+            db_session,
+            session_id=session.id,
+            objective_key="unsafe_tool_invocation_triggered",
+            label="Unsafe Tool Invocation Triggered",
+            sort_order=0,
+        )
+        _seed_session_objective(
+            db_session,
+            session_id=session.id,
+            objective_key="security_boundary_crossed",
+            label="Security Boundary Crossed",
+            sort_order=1,
+        )
+        completed_at = datetime(2026, 4, 23, 3, 30, 0, tzinfo=timezone.utc)
+        _seed_objective_completed_event(
+            db_session,
+            session_id=session.id,
+            objective_key="unsafe_tool_invocation_triggered",
+            occurred_at=completed_at,
+            idempotency_key=(
+                f"objective:{session.id}:unsafe_tool_invocation_triggered:171"
+            ),
+            trigger_event_index=171,
+        )
+        _seed_objective_completed_event(
+            db_session,
+            session_id=session.id,
+            objective_key="security_boundary_crossed",
+            occurred_at=completed_at,
+            idempotency_key=f"objective:{session.id}:security_boundary_crossed:172",
+            trigger_event_index=172,
+        )
+        db_session.flush()
+
+        result = process_pending_objective_completed_once(
+            outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+            event_outbox_repo=SQLAlchemyOutbox(db=db_session),
+            template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+            objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+            completion_writer=SQLAlchemySessionRepository(db=db_session),
+        )
+        db_session.flush()
+
+        assert result.claimed_count == 2
+        assert result.succeeded_count == 2
+        session_row = db_session.get(SessionModel, session.id)
+        assert session_row is not None
+        assert session_row.completion_status == "completed_success"
 
 
 def test_objective_projector_emits_session_completed_event_when_all_required_complete(
