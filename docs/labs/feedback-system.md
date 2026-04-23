@@ -26,6 +26,71 @@ Ship a backend-driven learner feedback system that:
 ### Acceptance Criteria
 - Engineers can implement evaluator, projector, and UI without ambiguity about payload shape or semantics.
 
+### Contract Freeze (v1)
+- Event name:
+  - `session.feedback.created.v1`
+- Event payload (canonical):
+  - `session_id` (uuid, required): target session.
+  - `lab_id` (uuid, required): lab identity for the session.
+  - `lab_version_id` (uuid, required): active lab version identity.
+  - `feedback_key` (string, required): stable machine key for the specific feedback item.
+  - `reason_code` (string, required): evaluator/policy reason identifier that triggered feedback.
+  - `message` (string, required): learner-facing feedback text.
+  - `severity` (enum, required): one of `info | warning | error`.
+  - `trigger_event_index` (int | null, required): trace index that caused feedback, nullable when not trace-bound.
+  - `created_at` (RFC3339 timestamp, required): creation time for learner feedback item.
+  - `idempotency_key` (string, required): deterministic dedupe key for replay safety.
+
+### Field Semantics
+- `feedback_key`:
+  - Must be stable across retries/replays for the same semantic feedback.
+  - Not localized and not learner-facing.
+- `message`:
+  - Final learner-facing copy emitted by backend.
+  - Frontend must render directly and must not rewrite content by lab key.
+- `severity`:
+  - `info`: guidance with low urgency.
+  - `warning`: behavior is off-path and should be corrected.
+  - `error`: critical corrective feedback (reserved for higher-severity flows).
+- `reason_code`:
+  - Stable backend code used for rule mapping, analytics, and auditing.
+  - Must not depend on model free-form text.
+- `trigger_event_index`:
+  - Use trace event index when feedback derives from a specific event.
+  - Use `null` only for non-trace-derived deterministic system feedback.
+- `created_at`:
+  - Server-assigned timestamp for ordering/display.
+- `idempotency_key`:
+  - Deterministic function of semantic inputs (v1):
+    - `session_id`, `feedback_key`, `reason_code`, `trigger_event_index`.
+  - Format is implementation-defined but must be stable for identical inputs.
+
+### Invariants (v1)
+- Replay-safe:
+  - Reprocessing identical semantic feedback must not create duplicate persisted feedback.
+- Monotonic unread behavior:
+  - Unread count increments only when new feedback is first projected.
+- Backend-owned truth:
+  - Feedback rendering state comes from persisted backend metadata, not frontend heuristics.
+- Deterministic evaluation:
+  - Feedback triggers must use trace/tool evidence and fixed rule logic only.
+
+### Example Payload (Informative)
+```json
+{
+  "session_id": "11111111-1111-1111-1111-111111111111",
+  "lab_id": "22222222-2222-2222-2222-222222222222",
+  "lab_version_id": "33333333-3333-3333-3333-333333333333",
+  "feedback_key": "lab1_benign_email_not_progressing",
+  "reason_code": "FBK_BENIGN_EMAIL_NOT_PROGRESSING",
+  "message": "That email did not introduce a malicious instruction. Try crafting an email that attempts to override policy or extract protected data.",
+  "severity": "info",
+  "trigger_event_index": 42,
+  "created_at": "2026-04-23T18:15:30Z",
+  "idempotency_key": "session_feedback:11111111-1111-1111-1111-111111111111:lab1_benign_email_not_progressing:FBK_BENIGN_EMAIL_NOT_PROGRESSING:42"
+}
+```
+
 ---
 
 ## Ticket 2: Add Feedback Event Contract in `apps/contracts`
