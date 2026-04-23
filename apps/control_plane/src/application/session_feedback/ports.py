@@ -2,7 +2,11 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from .types import SessionFeedbackCreateInput, SessionFeedbackRow
+from .types import (
+    PendingSessionFeedbackCreatedEvent,
+    SessionFeedbackCreateInput,
+    SessionFeedbackRow,
+)
 
 
 class SessionFeedbackRepositoryPort(Protocol):
@@ -46,3 +50,30 @@ class SessionFeedbackRepositoryPort(Protocol):
         Returns number of rows updated.
         """
         ...
+
+
+class OutboxSessionFeedbackCreatedPort(Protocol):
+    def claim_pending_session_feedback_created(
+        self, *, limit: int = 20, now: datetime | None = None
+    ) -> list[PendingSessionFeedbackCreatedEvent]: ...
+
+    def mark_processed(
+        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
+    ) -> None: ...
+
+    def mark_retryable_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        backoff_seconds: int = 15,
+        failed_at: datetime | None = None,
+    ) -> None: ...
+
+    def mark_terminal_failure(
+        self,
+        *,
+        outbox_event_id: UUID,
+        error_message: str,
+        failed_at: datetime | None = None,
+    ) -> None: ...

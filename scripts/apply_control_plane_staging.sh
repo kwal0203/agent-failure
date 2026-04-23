@@ -16,6 +16,7 @@ manifests=(
   "deploy/k8s/staging/control-plane-session-objective-completed-worker-deployment.yaml"
   "deploy/k8s/staging/control-plane-session-completed-worker-deployment.yaml"
   "deploy/k8s/staging/control-plane-session-hint-unlock-worker-deployment.yaml"
+  "deploy/k8s/staging/control-plane-session-feedback-created-worker-deployment.yaml"
 )
 
 for manifest in "${manifests[@]}"; do

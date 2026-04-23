@@ -56,6 +56,7 @@ def test_insert_feedback_if_absent_is_idempotent(db_session: Session) -> None:
     rows = repo.list_feedback_for_session(session_id=session.id)
     assert len(rows) == 1
     assert rows[0].idempotency_key == input.idempotency_key
+    assert repo.count_unread_feedback(session_id=session.id) == 1
 
 
 def test_list_feedback_for_session_orders_by_created_at_then_event_index(

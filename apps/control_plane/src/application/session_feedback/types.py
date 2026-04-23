@@ -37,3 +37,20 @@ class SessionFeedbackRow:
 class SessionFeedbackListResult:
     rows: list[SessionFeedbackRow]
     unread_count: int
+
+
+@dataclass(frozen=True)
+class PendingSessionFeedbackCreatedEvent:
+    outbox_event_id: UUID
+    session_id: UUID
+    payload: dict[str, object]
+    attempt_count: int
+    requested_at: datetime
+
+
+@dataclass(frozen=True)
+class SessionFeedbackProjectionOnceResult:
+    claimed_count: int
+    succeeded_count: int
+    failed_count: int
+    retried_count: int
