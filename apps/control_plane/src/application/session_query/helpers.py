@@ -6,7 +6,7 @@ from apps.control_plane.src.application.session_completion.types import (
     COMPLETION_STATUS_IN_PROGRESS,
 )
 
-from .types import CompletionStatus, HintStatus, ProgressStatus
+from .types import CompletionStatus, FeedbackSeverity, HintStatus, ProgressStatus
 
 
 def parse_progress_status(value: str) -> ProgressStatus:
@@ -29,3 +29,9 @@ def parse_completion_status(value: str) -> CompletionStatus:
     ):
         return cast(CompletionStatus, value)
     raise ValueError(f"Invalid completion status in DB: {value}")
+
+
+def parse_feedback_severity(value: str) -> FeedbackSeverity:
+    if value == "info" or value == "warning" or value == "error":
+        return cast(FeedbackSeverity, value)
+    raise ValueError(f"Invalid feedback severity in DB: {value}")

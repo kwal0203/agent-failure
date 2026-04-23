@@ -8,6 +8,7 @@ from apps.control_plane.src.application.session_completion.types import Completi
 
 ProgressStatus: TypeAlias = Literal["pending", "complete"]
 HintStatus: TypeAlias = Literal["pending", "unlocked"]
+FeedbackSeverity: TypeAlias = Literal["info", "warning", "error"]
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,18 @@ class SessionHintRow:
     status: HintStatus
     unlock_at: datetime
     unlocked_at: datetime | None
+    seen_at: datetime | None
+
+
+@dataclass(frozen=True)
+class SessionFeedbackRow:
+    id: UUID
+    feedback_key: str
+    reason_code: str
+    message: str
+    severity: FeedbackSeverity
+    trigger_event_index: int | None
+    created_at: datetime
     seen_at: datetime | None
 
 
@@ -70,6 +83,18 @@ class SessionHintDTO:
 
 
 @dataclass(frozen=True)
+class SessionFeedbackDTO:
+    id: UUID
+    feedback_key: str
+    reason_code: str
+    message: str
+    severity: FeedbackSeverity
+    trigger_event_index: int | None
+    created_at: datetime
+    seen_at: datetime | None
+
+
+@dataclass(frozen=True)
 class SessionMetadataDTO:
     id: UUID
     lab_id: UUID | None
@@ -94,6 +119,10 @@ class SessionMetadataDTO:
         default_factory=lambda: cast(list[SessionHintDTO], [])
     )
     unread_hint_count: int = 0
+    feedback: list[SessionFeedbackDTO] = field(
+        default_factory=lambda: cast(list[SessionFeedbackDTO], [])
+    )
+    unread_feedback_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -101,3 +130,4 @@ class SessionMetadataBundleRow:
     metadata: SessionMetadataRow
     objectives: list[SessionObjectiveRow]
     hints: list[SessionHintRow]
+    feedback: list[SessionFeedbackRow]

@@ -17,6 +17,7 @@ from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
 )
 from apps.control_plane.src.application.session_query.types import (
+    SessionFeedbackRow,
     SessionHintRow,
     SessionMetadataRow,
     SessionObjectiveRow,
@@ -24,6 +25,7 @@ from apps.control_plane.src.application.session_query.types import (
 )
 from apps.control_plane.src.application.session_query.helpers import (
     parse_completion_status,
+    parse_feedback_severity,
     parse_hint_status,
     parse_progress_status,
 )
@@ -78,6 +80,7 @@ from .models import (
     TraceEventModel,
     SessionHintModel,
     SessionObjectiveModel,
+    SessionFeedbackModel,
 )
 from .errors import StateMismatch
 
@@ -234,6 +237,16 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             SessionHintModel.session_id == session_id
         )
         hint_models = self._db.execute(statement=hints_stmt).scalars().all()
+        feedback_stmt = (
+            select(SessionFeedbackModel)
+            .where(SessionFeedbackModel.session_id == session_id)
+            .order_by(
+                SessionFeedbackModel.created_at.asc(),
+                SessionFeedbackModel.trigger_event_index.asc().nullslast(),
+                SessionFeedbackModel.id.asc(),
+            )
+        )
+        feedback_models = self._db.execute(statement=feedback_stmt).scalars().all()
 
         session_metadata = SessionMetadataRow(
             id=session_model.id,
@@ -282,9 +295,25 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
                 hint.hint_key,
             )
         )
+        feedback = [
+            SessionFeedbackRow(
+                id=feedback_row.id,
+                feedback_key=feedback_row.feedback_key,
+                reason_code=feedback_row.reason_code,
+                message=feedback_row.message,
+                severity=parse_feedback_severity(feedback_row.severity),
+                trigger_event_index=feedback_row.trigger_event_index,
+                created_at=feedback_row.created_at,
+                seen_at=feedback_row.seen_at,
+            )
+            for feedback_row in feedback_models
+        ]
 
         return SessionMetadataBundleRow(
-            metadata=session_metadata, objectives=progress_chips, hints=hints
+            metadata=session_metadata,
+            objectives=progress_chips,
+            hints=hints,
+            feedback=feedback,
         )
 
 

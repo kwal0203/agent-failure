@@ -29,6 +29,7 @@ from .schemas import (
     StopSessionResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
+    SessionFeedbackResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -331,6 +332,20 @@ def get_metadata(
                     seen_at=hint_item.seen_at,
                 )
             )
+        feedback: list[SessionFeedbackResponse] = []
+        for feedback_item in session_metadata.feedback:
+            feedback.append(
+                SessionFeedbackResponse(
+                    id=feedback_item.id,
+                    feedback_key=feedback_item.feedback_key,
+                    reason_code=feedback_item.reason_code,
+                    message=feedback_item.message,
+                    severity=feedback_item.severity,
+                    trigger_event_index=feedback_item.trigger_event_index,
+                    created_at=feedback_item.created_at,
+                    seen_at=feedback_item.seen_at,
+                )
+            )
 
         http_obj = SessionMetadataResponse(
             id=session_metadata.id,
@@ -357,6 +372,8 @@ def get_metadata(
             progress_chips=progress_chips,
             hints=hints,
             unread_hint_count=session_metadata.unread_hint_count,
+            feedback=feedback,
+            unread_feedback_count=session_metadata.unread_feedback_count,
         )
         return GetSessionMetadataResponse(session=http_obj)
 
