@@ -83,6 +83,7 @@ from .models import (
     SessionFeedbackModel,
 )
 from .errors import StateMismatch
+from .session_feedback_ordering import session_feedback_ordering
 
 
 class SQLAlchemySessionRepository(SessionRepository):
@@ -240,11 +241,7 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
         feedback_stmt = (
             select(SessionFeedbackModel)
             .where(SessionFeedbackModel.session_id == session_id)
-            .order_by(
-                SessionFeedbackModel.created_at.asc(),
-                SessionFeedbackModel.trigger_event_index.asc().nullslast(),
-                SessionFeedbackModel.id.asc(),
-            )
+            .order_by(*session_feedback_ordering())
         )
         feedback_models = self._db.execute(statement=feedback_stmt).scalars().all()
 

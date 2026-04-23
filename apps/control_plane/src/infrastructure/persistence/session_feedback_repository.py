@@ -17,6 +17,7 @@ from apps.control_plane.src.application.session_feedback.types import (
 )
 
 from .models import SessionFeedbackModel
+from .session_feedback_ordering import session_feedback_ordering
 
 
 class SQLAlchemySessionFeedbackRepository(SessionFeedbackRepositoryPort):
@@ -49,11 +50,7 @@ class SQLAlchemySessionFeedbackRepository(SessionFeedbackRepositoryPort):
             self._db.execute(
                 select(SessionFeedbackModel)
                 .where(SessionFeedbackModel.session_id == session_id)
-                .order_by(
-                    SessionFeedbackModel.created_at.asc(),
-                    SessionFeedbackModel.trigger_event_index.asc().nullslast(),
-                    SessionFeedbackModel.id.asc(),
-                )
+                .order_by(*session_feedback_ordering())
             )
             .scalars()
             .all()

@@ -372,6 +372,7 @@ def get_metadata(
             progress_chips=progress_chips,
             hints=hints,
             unread_hint_count=session_metadata.unread_hint_count,
+            feedback_items=feedback,
             feedback=feedback,
             unread_feedback_count=session_metadata.unread_feedback_count,
         )

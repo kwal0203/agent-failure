@@ -119,6 +119,10 @@ class SessionMetadataDTO:
         default_factory=lambda: cast(list[SessionHintDTO], [])
     )
     unread_hint_count: int = 0
+    feedback_items: list[SessionFeedbackDTO] = field(
+        default_factory=lambda: cast(list[SessionFeedbackDTO], [])
+    )
+    # Backward-compat alias; new clients should use feedback_items.
     feedback: list[SessionFeedbackDTO] = field(
         default_factory=lambda: cast(list[SessionFeedbackDTO], [])
     )

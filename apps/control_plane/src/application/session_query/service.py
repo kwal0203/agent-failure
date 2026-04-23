@@ -99,6 +99,7 @@ def get_session_metadata(
         progress_chips=objectives,
         hints=hints,
         unread_hint_count=unread_hint_count,
+        feedback_items=feedback,
         feedback=feedback,
         unread_feedback_count=unread_feedback_count,
     )

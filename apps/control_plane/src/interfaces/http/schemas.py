@@ -73,6 +73,8 @@ class SessionMetadataResponse(BaseModel):
     progress_chips: list[SessionProgressChipResponse] = []
     hints: list[SessionHintResponse] = []
     unread_hint_count: int = 0
+    feedback_items: list[SessionFeedbackResponse] = []
+    # Backward-compat alias; new clients should use feedback_items.
     feedback: list[SessionFeedbackResponse] = []
     unread_feedback_count: int = 0
 
