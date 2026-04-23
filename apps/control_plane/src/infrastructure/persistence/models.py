@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
+    Index,
     func,
 )
 from uuid import uuid4, UUID as PyUUID
@@ -578,4 +579,54 @@ class SessionHintModel(Base):
         server_default=func.now(),
         onupdate=func.now(),
         index=True,
+    )
+
+
+class SessionFeedbackModel(Base):
+    __tablename__ = "session_feedback"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_session_feedback_idempotency_key"),
+        CheckConstraint(
+            "feedback_key <> ''", name="ck_session_feedback_feedback_key_not_empty"
+        ),
+        CheckConstraint(
+            "reason_code <> ''", name="ck_session_feedback_reason_code_not_empty"
+        ),
+        CheckConstraint("message <> ''", name="ck_session_feedback_message_not_empty"),
+        CheckConstraint(
+            "severity in ('info', 'warning', 'error')",
+            name="ck_session_feedback_severity",
+        ),
+        Index("ix_session_feedback_session_id_created_at", "session_id", "created_at"),
+        Index("ix_session_feedback_session_id_seen_at", "session_id", "seen_at"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    feedback_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    trigger_event_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(256), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
