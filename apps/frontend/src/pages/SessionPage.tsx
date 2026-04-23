@@ -205,7 +205,7 @@ export default function SessionPage() {
           overflow: "visible",
         }}
       >
-        {progressReady ? (
+        {progressReady && metadata ? (
           <div
             style={{
               width: "100%",
@@ -216,9 +216,9 @@ export default function SessionPage() {
               progressReady={progressReady}
               progressChips={progressChips}
               agentStatus={agentStatus}
-              completionStatus={metadata?.completion_status ?? "in_progress"}
-              completedAt={metadata?.completed_at ?? null}
-              completionReasonCode={metadata?.completion_reason_code ?? null}
+              completionStatus={metadata.completion_status}
+              completedAt={metadata.completed_at}
+              completionReasonCode={metadata.completion_reason_code}
               hasUnreadHint={hasUnreadHint}
               unlockedHints={unlockedHints}
               hintsReady={progressReady}
