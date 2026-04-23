@@ -209,11 +209,13 @@ export function SessionStatusHeader({
       <div style={statusChipStyle(tone)}>
         <strong>{sessionLabel}</strong>
       </div>
-      <SessionCompletionIndicator
-        completionStatus={completionStatus}
-        completedAt={completedAt}
-        completionReasonCode={completionReasonCode}
-      />
+      {completionStatus === "completed_failure" ? (
+        <SessionCompletionIndicator
+          completionStatus={completionStatus}
+          completedAt={completedAt}
+          completionReasonCode={completionReasonCode}
+        />
+      ) : null}
       <button
         type="button"
         onClick={onStopSession}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
@@ -76,8 +76,11 @@ describe("SessionPage completion indicator", () => {
 
     renderSessionPage();
     expect(
-      await screen.findByText("Outcome: completed_success"),
+      await screen.findByRole("dialog", { name: "Session completion success" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Outcome: completed_success"),
+    ).not.toBeInTheDocument();
   });
 
   it("locks compose and action buttons when completion_status is completed_success", async () => {
@@ -113,11 +116,54 @@ describe("SessionPage completion indicator", () => {
 
     renderSessionPage();
     expect(
-      await screen.findByText("Outcome: completed_success"),
+      await screen.findByRole("dialog", { name: "Session completion success" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Email" })).toBeDisabled();
     expect(screen.getByPlaceholderText("Type your prompt...")).toBeDisabled();
     expect(screen.getByLabelText("Send prompt")).toBeDisabled();
+  });
+
+  it("closes success modal when the close button is clicked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/evaluator-feedback")) {
+          return mockJsonResponse({ feedback: [] });
+        }
+        return mockJsonResponse({
+          session: {
+            id: "11111111-1111-1111-1111-111111111111",
+            lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            state: "COMPLETED",
+            runtime_substate: null,
+            resume_mode: "fresh",
+            interactive: false,
+            created_at: "2026-01-01T00:00:00Z",
+            started_at: "2026-01-01T00:00:05Z",
+            ended_at: "2026-01-01T00:05:00Z",
+            completion_status: "completed_success",
+            completed_at: "2026-01-01T00:05:00Z",
+            completion_reason_code: "ALL_REQUIRED_OBJECTIVES_COMPLETED",
+            progress_chips: [],
+            hints: [],
+            unread_hint_count: 0,
+          },
+        });
+      }),
+    );
+
+    renderSessionPage();
+    expect(
+      await screen.findByRole("dialog", { name: "Session completion success" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close success popup" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Session completion success" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders completed_failure from metadata", async () => {
@@ -157,7 +203,7 @@ describe("SessionPage completion indicator", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders in_progress from metadata", async () => {
+  it("does not render an outcome chip for in_progress", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -189,7 +235,8 @@ describe("SessionPage completion indicator", () => {
     );
 
     renderSessionPage();
-    expect(await screen.findByText("Outcome: in_progress")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Stop Session" });
+    expect(screen.queryByText("Outcome: in_progress")).not.toBeInTheDocument();
   });
 
   it("does not change completion indicator when objective chips change but completion_status remains in_progress", async () => {
@@ -243,9 +290,12 @@ describe("SessionPage completion indicator", () => {
 
     renderSessionPage();
 
-    expect(await screen.findByText("Outcome: in_progress")).toBeInTheDocument();
+    await screen.findByText("Malicious instructions entered context", {
+      exact: false,
+    });
+    expect(screen.queryByText("Outcome: in_progress")).not.toBeInTheDocument();
     expect(
-      await screen.findByText("Malicious instructions entered context", {
+      screen.getByText("Malicious instructions entered context", {
         exact: false,
       }),
     ).toBeInTheDocument();
@@ -257,7 +307,7 @@ describe("SessionPage completion indicator", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps in_progress indicator even when all objective chips are complete", async () => {
+  it("does not render in_progress outcome chip even when all objective chips are complete", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -312,7 +362,8 @@ describe("SessionPage completion indicator", () => {
 
     renderSessionPage();
 
-    expect(await screen.findByText("Outcome: in_progress")).toBeInTheDocument();
+    await screen.findByText("Token exposed", { exact: false });
+    expect(screen.queryByText("Outcome: in_progress")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Outcome: completed_success"),
     ).not.toBeInTheDocument();
