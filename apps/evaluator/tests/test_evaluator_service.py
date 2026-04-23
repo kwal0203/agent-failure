@@ -6,9 +6,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from apps.evaluator.src.application import service
-from apps.evaluator.src.application.rules.contract import RULE_ID_PI_SECRET_EXFIL
+from apps.evaluator.src.application.rules.contract import (
+    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_SECRET_EXFIL,
+)
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.idempotency import (
+    build_feedback_event_idempotency_key,
     build_objective_event_idempotency_key,
 )
 from apps.evaluator.src.application.service import (
@@ -20,6 +24,7 @@ from apps.evaluator.src.application.types import (
     EvaluatorLabRuntimeBinding,
     EvaluatorOnceResult,
     ObjectiveCompletedEvent,
+    SessionFeedbackCreatedEvent,
     PendingEvaluatorEvent,
     EvaluatorPersistedResult,
     ResultType,
@@ -180,6 +185,8 @@ class _FakeOutboxRepo:
         self.enqueued_feedback_requests: list[tuple[UUID, datetime | None]] = []
         self.objective_events_enqueued = 0
         self.objective_events: list[ObjectiveCompletedEvent] = []
+        self.feedback_events_enqueued = 0
+        self.feedback_events: list[SessionFeedbackCreatedEvent] = []
 
     def claim_pending_evaluate(
         self, *, limit: int = 20, now: datetime | None = None
@@ -214,6 +221,12 @@ class _FakeOutboxRepo:
         self.objective_events.append(event)
         self.objective_events_enqueued += 1
 
+    def enqueue_session_feedback_created_event(
+        self, *, event: SessionFeedbackCreatedEvent
+    ) -> None:
+        self.feedback_events.append(event)
+        self.feedback_events_enqueued += 1
+
 
 class _IdempotentObjectiveOutboxRepo(_FakeOutboxRepo):
     def __init__(self, pending: list[PendingEvaluatorEvent]) -> None:
@@ -228,6 +241,17 @@ class _IdempotentObjectiveOutboxRepo(_FakeOutboxRepo):
         self._objective_idempotency_keys_seen.add(event.idempotency_key)
         self.objective_events.append(event)
         self.objective_events_enqueued += 1
+
+    def enqueue_session_feedback_created_event(
+        self, *, event: SessionFeedbackCreatedEvent
+    ) -> None:
+        if not hasattr(self, "_feedback_idempotency_keys_seen"):
+            self._feedback_idempotency_keys_seen: set[str] = set()
+        if event.idempotency_key in self._feedback_idempotency_keys_seen:
+            return
+        self._feedback_idempotency_keys_seen.add(event.idempotency_key)
+        self.feedback_events.append(event)
+        self.feedback_events_enqueued += 1
 
 
 def _make_persisted_result(
@@ -493,6 +517,101 @@ def test_get_learner_feedback_raises_on_unknown_result_type() -> None:
         get_learner_feedback(session_id=task.session_id, repo=repo)
 
 
+def test_map_finding_to_feedback_maps_supported_reason_code() -> None:
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_injected_no_progress",
+        trigger_event_index=1,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_benign_email_not_progressing"
+    assert mapped.severity == "info"
+    assert mapped.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+
+
+def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> None:
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.some_other_rule",
+        trigger_event_index=1,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code="PI_SOME_OTHER_REASON",
+        feedback_payload={},
+    )
+
+    assert service._map_finding_to_feedback(finding) is None
+
+
+def test_build_session_feedback_created_event_populates_payload_fields() -> None:
+    task = _make_task()
+    created_at = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_injected_no_progress",
+        trigger_event_index=9,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        feedback_payload={},
+    )
+
+    event = service._build_session_feedback_created_event(
+        task=task,
+        finding=finding,
+        created_at=created_at,
+    )
+
+    assert event is not None
+    assert event.session_id == task.session_id
+    assert event.lab_id == task.lab_id
+    assert event.lab_version_id == task.lab_version_id
+    assert event.feedback_key == "lab1_benign_email_not_progressing"
+    assert event.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    assert event.severity == "info"
+    assert event.trigger_event_index == 9
+    assert event.created_at == created_at
+    assert event.idempotency_key == build_feedback_event_idempotency_key(
+        session_id=task.session_id,
+        feedback_key=event.feedback_key,
+        reason_code=event.reason_code,
+        trigger_event_index=9,
+    )
+
+
+def test_build_session_feedback_created_event_returns_none_when_unmapped() -> None:
+    task = _make_task()
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.unknown_feedback",
+        trigger_event_index=1,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code="PI_UNKNOWN_REASON",
+        feedback_payload={},
+    )
+
+    assert (
+        service._build_session_feedback_created_event(
+            task=task,
+            finding=finding,
+            created_at=datetime.now(timezone.utc),
+        )
+        is None
+    )
+
+
 def test_process_evaluate_pending_once_explanation_signals_influence_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -681,6 +800,61 @@ def test_evaluate_trace_window_once_maps_malicious_vendor_memory_written_to_obje
     )
 
 
+def test_evaluate_trace_window_once_enqueues_session_feedback_created_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_injected_no_progress",
+        trigger_event_index=11,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.session_id == task.session_id
+    assert event.lab_id == task.lab_id
+    assert event.lab_version_id == task.lab_version_id
+    assert event.feedback_key == "lab1_benign_email_not_progressing"
+    assert event.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    assert event.severity == "info"
+    assert event.trigger_event_index == 11
+    assert event.idempotency_key == build_feedback_event_idempotency_key(
+        session_id=task.session_id,
+        feedback_key=event.feedback_key,
+        reason_code=event.reason_code,
+        trigger_event_index=11,
+    )
+
+
 def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -838,3 +1012,134 @@ def test_evaluate_trace_window_once_dedupes_objective_enqueue_by_idempotency_key
             trigger_event_index=5,
         )
     )
+
+
+def test_evaluate_trace_window_once_dedupes_feedback_enqueue_by_idempotency_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _IdempotentObjectiveOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_injected_no_progress",
+        trigger_event_index=11,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 1
+    assert len(outbox_repo.feedback_events) == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.feedback_key == "lab1_benign_email_not_progressing"
+    assert event.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    assert event.idempotency_key == build_feedback_event_idempotency_key(
+        session_id=task.session_id,
+        feedback_key=event.feedback_key,
+        reason_code=event.reason_code,
+        trigger_event_index=11,
+    )
+
+
+def test_evaluate_trace_window_once_does_not_enqueue_feedback_for_unmapped_finding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task()
+    repo = _FakeRepo(events=[_make_trace_event(task, event_index=0)])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+    finding = EvaluatorFinding(
+        result_type="partial_success",
+        code="pi.some_other_rule",
+        trigger_event_index=3,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code="PI_SOME_OTHER_REASON",
+        feedback_payload={},
+    )
+
+    class _FakeBundle:
+        def run(
+            self,
+            events: list[EvaluatorTraceEvent],
+            explanation_signals: tuple[ExplanationSignal, ...],
+        ) -> tuple[EvaluatorFinding, ...]:
+            _ = (events, explanation_signals)
+            return (finding,)
+
+    monkeypatch.setattr(
+        service, "resolve_bundle", lambda *, binding, task: _FakeBundle()
+    )
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLabLookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 0
+    assert outbox_repo.feedback_events == []
+
+
+def test_build_session_feedback_created_event_idempotency_key_is_deterministic() -> (
+    None
+):
+    task = _make_task()
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_injected_no_progress",
+        trigger_event_index=11,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        feedback_payload={},
+    )
+
+    first = service._build_session_feedback_created_event(
+        task=task,
+        finding=finding,
+        created_at=datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc),
+    )
+    second = service._build_session_feedback_created_event(
+        task=task,
+        finding=finding,
+        created_at=datetime(2026, 4, 23, 12, 1, tzinfo=timezone.utc),
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.idempotency_key == second.idempotency_key

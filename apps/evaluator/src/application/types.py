@@ -168,3 +168,17 @@ class ObjectiveCompletedEvent:
     idempotency_key: str
     source: str = "evaluator"
     evaluator_version: int | None = None
+
+
+@dataclass(frozen=True)
+class SessionFeedbackCreatedEvent:
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    feedback_key: str
+    reason_code: str
+    message: str
+    severity: Literal["info", "warning", "error"]
+    trigger_event_index: int | None
+    created_at: datetime
+    idempotency_key: str

@@ -3,6 +3,7 @@ from apps.evaluator.src.application.types import (
     PendingEvaluatorEvent,
     EvaluatorTaskInput,
     ObjectiveCompletedEvent,
+    SessionFeedbackCreatedEvent,
 )
 from apps.control_plane.src.infrastructure.persistence.models import OutboxEventModel
 from apps.evaluator.src.application.schemas import EvaluatorRequestedPayload
@@ -150,6 +151,42 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
 
         outbox_event = OutboxEventModel(
             event_type="session.objective.completed.v1",
+            aggregate_id=event.session_id,
+            payload=payload,
+        )
+        self._db.add(outbox_event)
+
+    def enqueue_session_feedback_created_event(
+        self, *, event: SessionFeedbackCreatedEvent
+    ) -> None:
+        existing = self._db.execute(
+            select(OutboxEventModel.id)
+            .where(
+                OutboxEventModel.event_type == "session.feedback.created.v1",
+                OutboxEventModel.aggregate_id == event.session_id,
+                OutboxEventModel.payload["idempotency_key"].astext
+                == event.idempotency_key,
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        if existing is not None:
+            return
+
+        payload: dict[str, object] = {
+            "session_id": str(event.session_id),
+            "lab_id": str(event.lab_id),
+            "lab_version_id": str(event.lab_version_id),
+            "feedback_key": event.feedback_key,
+            "reason_code": event.reason_code,
+            "message": event.message,
+            "severity": event.severity,
+            "trigger_event_index": event.trigger_event_index,
+            "created_at": event.created_at.isoformat(),
+            "idempotency_key": event.idempotency_key,
+        }
+
+        outbox_event = OutboxEventModel(
+            event_type="session.feedback.created.v1",
             aggregate_id=event.session_id,
             payload=payload,
         )

@@ -12,6 +12,7 @@ from .types import (
     ExplanationSignal,
     LearnerExplanation,
     ObjectiveCompletedEvent,
+    SessionFeedbackCreatedEvent,
 )
 
 
@@ -70,6 +71,10 @@ class EvaluatorOutboxPort(Protocol):
 
     def enqueue_objective_completed_event(
         self, *, event: ObjectiveCompletedEvent
+    ) -> None: ...
+
+    def enqueue_session_feedback_created_event(
+        self, *, event: SessionFeedbackCreatedEvent
     ) -> None: ...
 
 

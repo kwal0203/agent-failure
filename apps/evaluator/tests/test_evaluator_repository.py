@@ -114,6 +114,9 @@ class _StubOutboxRepo:
     def enqueue_objective_completed_event(self, *, event: object) -> None:
         _ = event
 
+    def enqueue_session_feedback_created_event(self, *, event: object) -> None:
+        _ = event
+
 
 def _make_task_input() -> EvaluatorTaskInput:
     return EvaluatorTaskInput(
