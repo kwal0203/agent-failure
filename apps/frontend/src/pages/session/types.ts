@@ -1,3 +1,8 @@
+export type SessionCompletionStatus =
+  | "in_progress"
+  | "completed_success"
+  | "completed_failure";
+
 export type SessionProgressChip = {
   objective_key: string;
   label: string;
@@ -27,7 +32,7 @@ export type SessionMetadata = {
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
-  completion_status: "in_progress" | "completed_success" | "completed_failure";
+  completion_status: SessionCompletionStatus;
   completed_at: string | null;
   completion_reason_code: string | null;
   progress_chips: SessionProgressChip[];
