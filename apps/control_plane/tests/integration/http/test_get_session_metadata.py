@@ -20,6 +20,9 @@ from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.interfaces.runtime.session_hint_unlock_worker import (
     run_once as run_hint_unlock_worker_once,
 )
+from apps.control_plane.src.interfaces.runtime.session_completed_worker import (
+    run_once as run_session_completed_worker_once,
+)
 from apps.control_plane.src.interfaces.runtime.session_objective_completed_worker import (
     run_once as run_objective_worker_once,
 )
@@ -693,6 +696,86 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     assert second.status_code == 200
     first_session = first.json()["session"]
     second_session = second.json()["session"]
+    assert first_session["completion_status"] == "completed_success"
+    assert (
+        first_session["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+    )
+    assert first_session["completed_at"] is not None
+    assert second_session["completion_status"] == "completed_success"
+    assert (
+        second_session["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
+    )
+    assert second_session["completed_at"] == first_session["completed_at"]
+
+
+@pytest.mark.usefixtures("engine")
+def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
+    owner_username = "completion-worker-owner"
+    now = datetime.now(timezone.utc)
+    session_id = uuid4()
+    lab_id = uuid4()
+    lab_version_id = uuid4()
+
+    with SessionFactory() as db:
+        db.add(
+            SessionModel(
+                id=session_id,
+                lab_id=lab_id,
+                lab_version_id=lab_version_id,
+                owner_user_id=_owner_user_id(owner_username),
+                state=SessionState.ACTIVE.value,
+                runtime_substate="WAITING_FOR_INPUT",
+                resume_mode="hot_resume",
+                last_transition_actor="seed",
+                last_transition_reason=None,
+                lab_difficulty="medium",
+            )
+        )
+        db.add(
+            OutboxEventModel(
+                event_type="session.completed.v1",
+                aggregate_id=session_id,
+                status="pending",
+                payload={
+                    "session_id": str(session_id),
+                    "lab_id": str(lab_id),
+                    "lab_version_id": str(lab_version_id),
+                    "outcome": "completed_success",
+                    "completion_reason_code": "ALL_REQUIRED_OBJECTIVES_COMPLETED",
+                    "trigger_event_index": 1200,
+                    "occurred_at": now.isoformat(),
+                    "idempotency_key": (
+                        "session_completed:"
+                        f"{session_id}:completed_success:"
+                        "all_required_objectives_completed:1200"
+                    ),
+                },
+            )
+        )
+        db.commit()
+
+    run_session_completed_worker_once()
+
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
+    try:
+        client = TestClient(app)
+        first = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        run_session_completed_worker_once()
+        second = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_session = first.json()["session"]
+    second_session = second.json()["session"]
+
     assert first_session["completion_status"] == "completed_success"
     assert (
         first_session["completion_reason_code"] == "ALL_REQUIRED_OBJECTIVES_COMPLETED"
