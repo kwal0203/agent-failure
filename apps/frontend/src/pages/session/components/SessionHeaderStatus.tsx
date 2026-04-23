@@ -109,6 +109,11 @@ export function SessionStatusHeader({
 }: SessionStatusHeaderProps) {
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
+  const feedbackTone = {
+    background: "rgba(17, 61, 89, 0.78)",
+    border: "1px solid #3e87b3",
+    color: "#cdeeff",
+  };
   const tone = statusTone(sessionState);
   const normalizedAgentStatus = agentStatus.trim().toLowerCase();
   const agentLabel =
@@ -187,6 +192,15 @@ export function SessionStatusHeader({
 
   return (
     <>
+      <button
+        type="button"
+        style={{
+          ...statusChipStyle(feedbackTone),
+          cursor: "default",
+        }}
+      >
+        <strong>Feedback</strong>
+      </button>
       <button
         type="button"
         onClick={onHintsChipClick}
