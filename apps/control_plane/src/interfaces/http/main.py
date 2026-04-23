@@ -26,6 +26,7 @@ from .schemas import (
     LearnerExplanationRequest,
     LearnerExplanationResponse,
     MarkSessionHintsSeenResponse,
+    MarkSessionFeedbackSeenResponse,
     StopSessionResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
@@ -85,6 +86,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
+    SQLAlchemySessionFeedbackRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionObjectiveModel,
 )
@@ -129,6 +133,13 @@ from apps.control_plane.src.application.session_hints.errors import (
 )
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
+)
+from apps.control_plane.src.application.session_feedback.service import (
+    mark_session_feedback_seen,
+)
+from apps.control_plane.src.application.session_feedback.errors import (
+    ForbiddenErrorSessionFeedback,
+    SessionNotFoundErrorSessionFeedback,
 )
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
@@ -691,6 +702,62 @@ def mark_hints_seen_endpoint(
     except Exception:
         db.rollback()
         logger.exception("mark hints seen failed")
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/feedback/mark-seen",
+    response_model=MarkSessionFeedbackSeenResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+    },
+)
+def mark_feedback_seen_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> MarkSessionFeedbackSeenResponse | JSONResponse:
+    feedback_repo = SQLAlchemySessionFeedbackRepository(db=db)
+    try:
+        updated_count = mark_session_feedback_seen(
+            session_id=session_id,
+            principal=principal,
+            feedback_repo=feedback_repo,
+        )
+        db.commit()
+        return MarkSessionFeedbackSeenResponse(
+            session_id=session_id,
+            updated_count=updated_count,
+        )
+    except ForbiddenErrorSessionFeedback as exc:
+        db.rollback()
+        return build_api_error_response(
+            "FORBIDDEN",
+            exc.message,
+            False,
+            403,
+            exc.details,
+        )
+    except SessionNotFoundErrorSessionFeedback:
+        db.rollback()
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id), "exists": False},
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("mark feedback seen failed")
         return build_api_error_response(
             "INTERNAL_ERROR",
             "Unexpected server error",

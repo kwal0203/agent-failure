@@ -10,6 +10,12 @@ from .types import (
 
 
 class SessionFeedbackRepositoryPort(Protocol):
+    def get_session_owner_user_id(self, *, session_id: UUID) -> UUID | None:
+        """
+        Return owning user id for session, or None when session does not exist.
+        """
+        ...
+
     def insert_feedback_if_absent(self, *, input: SessionFeedbackCreateInput) -> bool:
         """
         Insert feedback once by idempotency key.

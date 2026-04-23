@@ -1,8 +1,15 @@
+from datetime import datetime, timezone
 from pydantic import ValidationError
+from uuid import UUID
 
 from apps.contracts.src.schemas import SessionFeedbackCreatedOutboxEvent
+from apps.control_plane.src.application.common.types import PrincipalContext
 
 from .ports import OutboxSessionFeedbackCreatedPort, SessionFeedbackRepositoryPort
+from .errors import (
+    ForbiddenErrorSessionFeedback,
+    SessionNotFoundErrorSessionFeedback,
+)
 from .types import (
     SessionFeedbackCreateInput,
     SessionFeedbackProjectionOnceResult,
@@ -80,3 +87,23 @@ def process_pending_session_feedback_created_once(
         failed_count=failed_count,
         retried_count=retried_count,
     )
+
+
+def mark_session_feedback_seen(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    feedback_repo: SessionFeedbackRepositoryPort,
+    now: datetime | None = None,
+) -> int:
+    owner_user_id = feedback_repo.get_session_owner_user_id(session_id=session_id)
+    if owner_user_id is None:
+        raise SessionNotFoundErrorSessionFeedback()
+
+    is_owner = owner_user_id == principal.user_id
+    is_admin = principal.role == "admin"
+    if not (is_owner or is_admin):
+        raise ForbiddenErrorSessionFeedback(role=principal.role)
+
+    seen_at = now or datetime.now(timezone.utc)
+    return feedback_repo.mark_all_feedback_read(session_id=session_id, seen_at=seen_at)

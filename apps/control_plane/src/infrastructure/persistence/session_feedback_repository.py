@@ -17,12 +17,17 @@ from apps.control_plane.src.application.session_feedback.types import (
 )
 
 from .models import SessionFeedbackModel
+from .models import SessionModel
 from .session_feedback_ordering import session_feedback_ordering
 
 
 class SQLAlchemySessionFeedbackRepository(SessionFeedbackRepositoryPort):
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    def get_session_owner_user_id(self, *, session_id: UUID) -> UUID | None:
+        stmt = select(SessionModel.owner_user_id).where(SessionModel.id == session_id)
+        return self._db.execute(stmt).scalar_one_or_none()
 
     def insert_feedback_if_absent(self, *, input: SessionFeedbackCreateInput) -> bool:
         stmt = insert(SessionFeedbackModel).values(

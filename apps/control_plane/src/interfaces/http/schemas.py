@@ -46,6 +46,11 @@ class MarkSessionHintsSeenResponse(BaseModel):
     updated_count: int
 
 
+class MarkSessionFeedbackSeenResponse(BaseModel):
+    session_id: UUID
+    updated_count: int
+
+
 class StopSessionResponse(BaseModel):
     session_id: UUID
     accepted: bool = True

@@ -68,6 +68,10 @@ class _FakeFeedbackRepo:
         self.raise_on_insert: Exception | None = None
         self._idempotency_keys: set[str] = set()
 
+    def get_session_owner_user_id(self, *, session_id: UUID) -> UUID | None:
+        _ = session_id
+        return uuid4()
+
     def insert_feedback_if_absent(self, *, input: SessionFeedbackCreateInput) -> bool:
         if self.raise_on_insert is not None:
             raise self.raise_on_insert
