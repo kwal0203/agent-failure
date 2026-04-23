@@ -216,4 +216,68 @@ describe("SessionPage completion indicator", () => {
       screen.queryByText("Outcome: completed_failure"),
     ).not.toBeInTheDocument();
   });
+
+  it("keeps in_progress indicator even when all objective chips are complete", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/evaluator-feedback")) {
+          return mockJsonResponse({ feedback: [] });
+        }
+        return mockJsonResponse({
+          session: {
+            id: "11111111-1111-1111-1111-111111111111",
+            lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            state: "ACTIVE",
+            runtime_substate: "RUNNING",
+            resume_mode: "fresh",
+            interactive: true,
+            created_at: "2026-01-01T00:00:00Z",
+            started_at: "2026-01-01T00:00:05Z",
+            ended_at: null,
+            completion_status: "in_progress",
+            completed_at: null,
+            completion_reason_code: null,
+            progress_chips: [
+              {
+                objective_key: "malicious_email_injected",
+                label: "Malicious email injected",
+                status: "complete",
+                completed_at: "2026-01-01T00:01:00Z",
+                updated_at: "2026-01-01T00:01:00Z",
+              },
+              {
+                objective_key: "malicious_instructions_entered_context",
+                label: "Malicious instructions entered context",
+                status: "complete",
+                completed_at: "2026-01-01T00:02:00Z",
+                updated_at: "2026-01-01T00:02:00Z",
+              },
+              {
+                objective_key: "token_exposed",
+                label: "Token exposed",
+                status: "complete",
+                completed_at: "2026-01-01T00:03:00Z",
+                updated_at: "2026-01-01T00:03:00Z",
+              },
+            ],
+            hints: [],
+            unread_hint_count: 0,
+          },
+        });
+      }),
+    );
+
+    renderSessionPage();
+
+    expect(await screen.findByText("Outcome: in_progress")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Outcome: completed_success"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Outcome: completed_failure"),
+    ).not.toBeInTheDocument();
+  });
 });
