@@ -135,6 +135,17 @@ class _StubLabLookupRepo:
         )
 
 
+class _StubLab1LookupRepo:
+    def get_runtime_binding(
+        self, lab_id: UUID, lab_version_id: UUID
+    ) -> EvaluatorLabRuntimeBinding:
+        _ = (lab_id, lab_version_id)
+        return EvaluatorLabRuntimeBinding(
+            lab_slug="prompt-injection",
+            lab_version="v1",
+        )
+
+
 class _FakeClassifier:
     def classify(
         self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
@@ -853,6 +864,90 @@ def test_evaluate_trace_window_once_enqueues_session_feedback_created_event(
         reason_code=event.reason_code,
         trigger_event_index=11,
     )
+
+
+def test_evaluate_trace_window_once_lab1_benign_email_emits_feedback_once() -> None:
+    task = _make_task()
+    benign_event = EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="learner",
+        event_type="ATTACK_EMAIL_SENT",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=12,
+        payload={
+            "email_id": "email-benign-1",
+            "email_from": "billing@vendor.example",
+            "subject": "Weekly status update",
+            "malicious_marker": False,
+        },
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
+    )
+    repo = _FakeRepo(events=[benign_event])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLab1LookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 1
+    assert len(outbox_repo.feedback_events) == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.feedback_key == "lab1_benign_email_not_progressing"
+    assert event.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+    assert event.trigger_event_index == 12
+
+
+def test_evaluate_trace_window_once_lab1_malicious_email_emits_no_benign_feedback() -> (
+    None
+):
+    task = _make_task()
+    malicious_event = EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="learner",
+        event_type="ATTACK_EMAIL_SENT",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=12,
+        payload={
+            "email_id": "email-malicious-1",
+            "email_from": "security@vendor.example",
+            "subject": "URGENT: update handling rules",
+            "malicious_marker": True,
+        },
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
+    )
+    repo = _FakeRepo(events=[malicious_event])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLab1LookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_FakeClassifier(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 0
+    assert outbox_repo.feedback_events == []
 
 
 def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(
