@@ -1905,6 +1905,20 @@ async def inject_session_email(
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         if (
+            session_metadata.lab_id is not None
+            and session_metadata.lab_version_id is not None
+        ):
+            outbox_repo.enqueue_for_evaluator(
+                session_id=session_id,
+                lab_id=session_metadata.lab_id,
+                lab_version_id=session_metadata.lab_version_id,
+                lab_difficulty=session_metadata.lab_difficulty,
+                evaluator_version=1,
+                start_event_index=trace_event.event_index,
+                end_event_index=trace_event.event_index,
+            )
+
+        if (
             derived_malicious
             and session_metadata.lab_id is not None
             and session_metadata.lab_version_id is not None

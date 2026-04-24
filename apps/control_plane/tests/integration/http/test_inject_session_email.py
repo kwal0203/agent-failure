@@ -324,6 +324,21 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
         assert objective_outbox.payload["objective_key"] == "malicious_email_injected"
         assert objective_outbox.payload["reason_code"] == "EMAIL_INJECT_ACCEPTED"
         assert objective_outbox.payload["source"] == "control_plane"
+        evaluate_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.evaluate.requested.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(evaluate_outbox) == 1
+        assert (
+            evaluate_outbox[0].payload["start_event_index"] == attack_trace.event_index
+        )
+        assert evaluate_outbox[0].payload["end_event_index"] == attack_trace.event_index
 
 
 @pytest.mark.usefixtures("engine")
@@ -394,6 +409,21 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
             .one_or_none()
         )
         assert objective_outbox is None
+        evaluate_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.evaluate.requested.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(evaluate_outbox) == 1
+        assert (
+            evaluate_outbox[0].payload["start_event_index"] == benign_trace.event_index
+        )
+        assert evaluate_outbox[0].payload["end_event_index"] == benign_trace.event_index
 
 
 @pytest.mark.usefixtures("engine")
