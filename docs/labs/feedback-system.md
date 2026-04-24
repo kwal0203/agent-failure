@@ -237,6 +237,24 @@ Ship a backend-driven learner feedback system that:
 ### Acceptance Criteria
 - Unread counts are monotonic/accurate and do not double increment on replay.
 
+### V1 Unread Policy (Locked)
+- Policy choice:
+  - `mark_as_read_on_open` (authoritative v1 behavior).
+- Source of truth:
+  - Backend persisted `session_feedback` read state (`is_read`, `read_at`) is authoritative.
+  - Frontend does not derive or cache unread truth beyond transient UI state (open/closed panel).
+- Read transition trigger:
+  - Opening the Feedback panel triggers explicit backend mark-read action for the session.
+  - Backend updates unread rows only; already-read rows are a no-op.
+- Unread increment semantics:
+  - Unread increases only when a new feedback item is first projected (first insert by unique `idempotency_key`).
+  - Replay/duplicate `session.feedback.created.v1` events do not increment unread.
+- Idempotency expectations:
+  - Repeating mark-read requests is idempotent and produces no additional mutation.
+  - Reprocessing duplicate feedback events is idempotent and produces no duplicate rows or unread changes.
+- Refresh/reconnect semantics:
+  - `unread_feedback_count` and `feedback_items` must always be rehydrated from DB-backed metadata reads.
+
 ---
 
 ## Ticket 10: End-to-End and Idempotency Coverage
