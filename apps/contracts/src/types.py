@@ -17,6 +17,7 @@ RuntimePayload: TypeAlias = Mapping[str, JSONValue]
 
 # Canonical runtime tool contract shared across runtime/control-plane/evaluator.
 ToolName = Literal[
+    "list_tools",
     "list_inbox",
     "read_email",
     "read_file",
@@ -29,6 +30,7 @@ ToolName = Literal[
 ]
 
 CANONICAL_TOOL_ARGS_REQUIRED: Mapping[ToolName, tuple[str, ...]] = {
+    "list_tools": (),
     "list_inbox": (),
     "read_email": ("email_id",),
     "read_file": ("path",),

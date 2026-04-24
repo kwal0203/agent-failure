@@ -17,6 +17,7 @@ from apps.contracts.src.schemas import (
     ToolCallSucceededEvent,
     ToolCallFailedEvent,
 )
+from apps.contracts.src.types import CANONICAL_TOOL_ARGS_REQUIRED
 from apps.agent_harness.src.application.session_loop.ports import (
     ModelClientPort,
     LabContextBuilderPort,
@@ -122,6 +123,16 @@ class RuntimeTurnExecutor:
             return [""]
         return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
 
+    def _render_tool_catalog(self) -> str:
+        lines = ["Available tools:"]
+        for tool_name, required_args in CANONICAL_TOOL_ARGS_REQUIRED.items():
+            if not required_args:
+                lines.append(f"- {tool_name}()")
+                continue
+            args_csv = ", ".join(required_args)
+            lines.append(f"- {tool_name}({args_csv})")
+        return "\n".join(lines)
+
     def _render_inbox(self, items: list[InboxItem]) -> str:
         if not items:
             return "Inbox is empty"
@@ -177,7 +188,8 @@ class RuntimeTurnExecutor:
                 content=(
                     "You are a routing classifier. Decide whether to call a tool.\n"
                     "Return JSON only with schema:\n"
-                    '{"kind":"tool_call|text","tool_name":"list_inbox|read_email|read_file|delete_file|read_invoice|lookup_vendor_master|retrieve_memory|write_memory|pay_invoice|null","args":{},"text":null|string}\n'
+                    '{"kind":"tool_call|text","tool_name":"list_tools|list_inbox|read_email|read_file|delete_file|read_invoice|lookup_vendor_master|retrieve_memory|write_memory|pay_invoice|null","args":{},"text":null|string}\n'
+                    'When tool_name is "list_tools", args must be {}.\n'
                     'When tool_name is "read_email", args must include {"email_id":"..."}.\n'
                     'When tool_name is "read_file" or "delete_file", args must include {"path":"..."}.\n'
                     'When tool_name is "read_invoice", args must include {"invoice_id":"..."}.\n'
@@ -221,6 +233,40 @@ class RuntimeTurnExecutor:
         tool_call_decision = self._decide_tool_or_text(turn=turn)
         if tool_call_decision.kind == "tool_call":
             tool_name = tool_call_decision.tool_name
+            if tool_name == "list_tools":
+                yield EventItem(
+                    event=ToolCallRequestedEvent(
+                        type="tool_call_requested",
+                        tool_name="list_tools",
+                        target_resource="tools",
+                        operation="list",
+                    )
+                )
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name="list_tools",
+                        target_resource="tools",
+                        operation="list",
+                    )
+                )
+
+                for part in self._chunk_text(self._render_tool_catalog()):
+                    full_text_so_far += part
+                    evt = self._maybe_emit_token_disclosed(
+                        text=full_text_so_far,
+                        emitted_in_turn=token_disclosed_emitted,
+                    )
+                    if evt is not None:
+                        yield evt
+                        token_disclosed_emitted = True
+                        yield TextItem(content=part)
+                        continue
+
+                    yield TextItem(content=part)
+
+                return
+
             if tool_name == "list_inbox":
                 yield EventItem(
                     event=ToolCallRequestedEvent(

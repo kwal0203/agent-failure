@@ -355,6 +355,47 @@ def test_read_email_renders_email_body_when_preview_missing() -> None:
     assert "Body: token: abc123" in rendered
 
 
+def test_list_tools_emits_requested_succeeded_and_renders_catalog() -> None:
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientToolCall(tool_name="list_tools", args={}),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=_MissingFileTool(),
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=uuid4(),
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="list tools",
+        idempotency_key="k-list-tools",
+    )
+
+    items = asyncio.run(_collect_items(executor=executor, turn=turn))
+    events = [
+        item.event.model_dump(mode="json")
+        for item in items
+        if isinstance(item, EventItem)
+    ]
+    text = "".join(item.content for item in items if isinstance(item, TextItem))
+
+    assert [event["type"] for event in events] == [
+        "tool_call_requested",
+        "tool_call_succeeded",
+    ]
+    assert events[0]["tool_name"] == "list_tools"
+    assert events[0]["target_resource"] == "tools"
+    assert events[0]["operation"] == "list"
+    assert events[1]["tool_name"] == "list_tools"
+    assert events[1]["target_resource"] == "tools"
+    assert events[1]["operation"] == "list"
+    assert "Available tools:" in text
+    assert "- list_tools()" in text
+    assert "- list_inbox()" in text
+    assert "- pay_invoice(vendor_name, account_number, amount, invoice_id)" in text
+
+
 def test_read_file_emits_requested_succeeded_and_renders_content() -> None:
     executor = RuntimeTurnExecutor(
         model_client=_ModelClientReadFile(),

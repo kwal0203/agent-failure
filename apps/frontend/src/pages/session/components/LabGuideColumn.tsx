@@ -37,12 +37,8 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
           {content.difficultyAndTime}
         </p>
         <div style={{ marginTop: 20 }}>
-          <h3 style={{ margin: "0 0 8px" }}>Mission</h3>
-          <p style={{ margin: 0 }}>{content.mission}</p>
-        </div>
-        <div style={{ marginTop: 20 }}>
           <h3 style={{ margin: "0 0 8px" }}>Scenario</h3>
-          <p style={{ margin: 0 }}>{content.scenario}</p>
+          <p style={{ margin: 0 }}>{content.mission}</p>
         </div>
         <div style={{ marginTop: 20 }}>
           <h3 style={{ margin: "0 0 8px" }}>Success Criteria</h3>

@@ -54,3 +54,24 @@ def test_tool_call_pay_invoice_rejects_unexpected_args() -> None:
         adapter.validate_json(
             '{"kind":"tool_call","tool_name":"pay_invoice","args":{"vendor_name":"Acme Corp","account_number":"ACCT-4421","amount":"14850.75","invoice_id":"inv-acme-2026-041","currency":"USD"}}'
         )
+
+
+def test_tool_call_list_tools_accepts_empty_args() -> None:
+    adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
+
+    parsed = adapter.validate_json(
+        '{"kind":"tool_call","tool_name":"list_tools","args":{}}'
+    )
+
+    assert parsed.kind == "tool_call"
+    assert parsed.tool_name == "list_tools"
+    assert parsed.args == {}
+
+
+def test_tool_call_list_tools_rejects_unexpected_args() -> None:
+    adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_json(
+            '{"kind":"tool_call","tool_name":"list_tools","args":{"verbose":"true"}}'
+        )
