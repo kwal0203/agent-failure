@@ -123,11 +123,9 @@ export function SessionStatusHeader({
 }: SessionStatusHeaderProps) {
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
-  const feedbackTone = {
-    background: "rgba(17, 61, 89, 0.78)",
-    border: "1px solid #3e87b3",
-    color: "#cdeeff",
-  };
+  const hasUnreadFeedback = unreadFeedbackCount > 0;
+  const feedbackCount = feedbackItems.length;
+  const feedbackTone = hintTone(hasUnreadFeedback, feedbackItems.length > 0);
   const tone = statusTone(sessionState);
   const normalizedAgentStatus = agentStatus.trim().toLowerCase();
   const agentLabel =
@@ -212,15 +210,14 @@ export function SessionStatusHeader({
         style={{
           ...statusChipStyle(feedbackTone),
           cursor: "pointer",
-          boxShadow:
-            unreadFeedbackCount > 0
-              ? "0 0 0 1px rgba(205, 238, 255, 0.2), 0 0 12px rgba(62, 135, 179, 0.24)"
-              : undefined,
+          boxShadow: hasUnreadFeedback
+            ? "0 0 0 1px rgba(255, 230, 166, 0.2), 0 0 12px rgba(255, 230, 166, 0.24)"
+            : undefined,
         }}
       >
         <strong>Feedback</strong>
-        {unreadFeedbackCount > 0 ? (
-          <span style={{ marginLeft: 6 }}>({unreadFeedbackCount})</span>
+        {feedbackCount > 0 ? (
+          <span style={{ marginLeft: 6 }}>({feedbackCount})</span>
         ) : null}
       </button>
       <button

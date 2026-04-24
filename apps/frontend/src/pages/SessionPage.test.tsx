@@ -166,9 +166,12 @@ describe("SessionPage metadata-driven feedback", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /^feedback$/i }),
+        screen.getByRole("button", { name: /feedback/i }),
       ).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: /feedback/i })).toHaveTextContent(
+      "(1)",
+    );
   });
 
   it("keeps feedback state stable across refresh/reconnect", async () => {

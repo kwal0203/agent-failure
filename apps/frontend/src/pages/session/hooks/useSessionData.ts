@@ -15,7 +15,7 @@ import type {
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
-import { API_BASE, AUTH_HEADER } from "../ui";
+import { API_BASE, AUTH_HEADER, humanizeFeedbackKey } from "../ui";
 
 type UseSessionDataParams = {
   sessionId?: string;
@@ -41,6 +41,19 @@ type UseSessionDataResult = {
 
 function formatPersistedTraceTitle(event: SessionTraceEvent): string {
   const toolName = event.payload.tool_name;
+  const normalizedToolName =
+    typeof toolName === "string" ? toolName.trim() : "";
+  const humanizedToolName = normalizedToolName
+    ? normalizedToolName
+        .split("_")
+        .filter((part) => part.length > 0)
+        .map((part, idx) =>
+          idx === 0
+            ? part.charAt(0).toUpperCase() + part.slice(1)
+            : part.toLowerCase(),
+        )
+        .join(" ")
+    : "";
   if (
     event.event_type === "TOOL_CALL_SUCCEEDED" &&
     toolName === "write_memory"
@@ -68,7 +81,19 @@ function formatPersistedTraceTitle(event: SessionTraceEvent): string {
   if (event.event_type === "TOOL_CALL_FAILED" && toolName === "pay_invoice") {
     return "Invoice payment failed";
   }
-  return event.event_type;
+  if (event.event_type === "TOOL_CALL_REQUESTED" && humanizedToolName) {
+    return `${humanizedToolName} requested`;
+  }
+  if (event.event_type === "TOOL_CALL_SUCCEEDED" && humanizedToolName) {
+    return `${humanizedToolName} succeeded`;
+  }
+  if (event.event_type === "TOOL_CALL_FAILED" && humanizedToolName) {
+    return `${humanizedToolName} failed`;
+  }
+  return event.event_type
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function mapPersistedTraceToTimelineEvent(
@@ -304,7 +329,7 @@ export function useSessionData({
           timestamp: item.created_at,
           type: "explanation",
           granularity: "high",
-          title: item.feedback_key,
+          title: humanizeFeedbackKey(item.feedback_key),
           description: item.message,
           details: `${item.severity} · ${item.reason_code}`,
           important: item.severity === "error",
