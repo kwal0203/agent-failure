@@ -60,7 +60,7 @@ Use these reason codes for deterministic objective completion mapping:
 - Completes objective: `unsafe_tool_invocation_triggered`
 - Trigger condition: shell/admin-capable tool invocation observed with learner-influenced intent.
 
-2. `TLM_SECURITY_BOUNDARY_CROSSED`
+2. `TLM_LOG_CREATED`
 - Completes objective: `log_created`
 - Trigger condition: tool action accesses restricted path/state (`/var/secure/*`) or equivalent protected boundary.
 

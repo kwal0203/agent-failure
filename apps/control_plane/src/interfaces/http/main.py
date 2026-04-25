@@ -1263,6 +1263,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:
@@ -1315,6 +1317,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:
@@ -1365,6 +1369,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:

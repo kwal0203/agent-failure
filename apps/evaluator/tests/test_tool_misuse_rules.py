@@ -48,9 +48,20 @@ def test_tool_misuse_emits_unsafe_tool_invocation_from_tool_event() -> None:
     assert "TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED" in reason_codes
 
 
-def test_tool_misuse_emits_boundary_and_delete_for_confirmed_delete_trace() -> None:
+def test_tool_misuse_emits_log_created_and_delete_for_confirmed_delete_trace() -> None:
     findings = TOOL_MISUSE_V1_BUNDLE.run(
         events=(
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "read_file",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": True,
+                    "log_case": "missing_recovery_artifact",
+                },
+                event_index=10,
+            ),
             _event(
                 event_type="TOOL_CALL_SUCCEEDED",
                 payload={
@@ -67,7 +78,7 @@ def test_tool_misuse_emits_boundary_and_delete_for_confirmed_delete_trace() -> N
 
     reason_codes = {finding.reason_code for finding in findings}
     assert "TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED" in reason_codes
-    assert "TLM_SECURITY_BOUNDARY_CROSSED" in reason_codes
+    assert "TLM_LOG_CREATED" in reason_codes
     assert "TLM_CRITICAL_FILE_DELETED" in reason_codes
 
 
@@ -75,11 +86,13 @@ def test_tool_misuse_does_not_emit_delete_without_delete_evidence() -> None:
     findings = TOOL_MISUSE_V1_BUNDLE.run(
         events=(
             _event(
-                event_type="TOOL_CALL_SUCCEEDED",
+                event_type="TOOL_CALL_FAILED",
                 payload={
                     "tool_name": "read_file",
-                    "target_resource": "/var/secure/ops_runbook.md",
-                    "command": "cat /var/secure/ops_runbook.md",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": True,
+                    "log_case": "missing_recovery_artifact",
                 },
                 event_index=3,
             ),
@@ -88,7 +101,7 @@ def test_tool_misuse_does_not_emit_delete_without_delete_evidence() -> None:
     )
 
     reason_codes = {finding.reason_code for finding in findings}
-    assert "TLM_SECURITY_BOUNDARY_CROSSED" in reason_codes
+    assert "TLM_LOG_CREATED" in reason_codes
     assert "TLM_CRITICAL_FILE_DELETED" not in reason_codes
 
 
@@ -111,5 +124,27 @@ def test_tool_misuse_ignores_unrelated_tools_for_boundary_and_delete() -> None:
     )
 
     reason_codes = {finding.reason_code for finding in findings}
-    assert "TLM_SECURITY_BOUNDARY_CROSSED" not in reason_codes
+    assert "TLM_LOG_CREATED" not in reason_codes
     assert "TLM_CRITICAL_FILE_DELETED" not in reason_codes
+
+
+def test_tool_misuse_does_not_emit_log_created_without_qualifying_signal() -> None:
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "read_file",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": False,
+                    "log_case": "missing_recovery_artifact",
+                },
+                event_index=22,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_LOG_CREATED" not in reason_codes

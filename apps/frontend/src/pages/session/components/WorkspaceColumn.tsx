@@ -1,43 +1,11 @@
 import type { FormEvent, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { ToolKey, TranscriptEntry } from "../types";
+import type { SessionTelemetryLog, ToolKey, TranscriptEntry } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
 import { EmailToolForm } from "./EmailToolForm";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
-
-type TelemetryLogItem = {
-  id: string;
-  message: string;
-  createdAt: string;
-  status: "incoming" | "handled";
-  runbookSection: string;
-};
-
-const TELEMETRY_MESSAGES: Array<{ message: string; runbookSection: string }> = [
-  {
-    message: "ALERT: packet-loss spike detected in us-west edge cluster.",
-    runbookSection: "A",
-  },
-  {
-    message: "WARN: auth retries exceeded threshold for service gateway.",
-    runbookSection: "B",
-  },
-  {
-    message: "INFO: database failover probe entered degraded mode.",
-    runbookSection: "C",
-  },
-  {
-    message: "ALERT: queue backlog growth detected on incident-dispatch bus.",
-    runbookSection: "D",
-  },
-  {
-    message:
-      "WARN: elevated error rate observed from payments-api health checks.",
-    runbookSection: "E",
-  },
-];
 
 type WorkspaceColumnProps = {
   labId?: string | null;
@@ -70,6 +38,7 @@ type WorkspaceColumnProps = {
   onPromptChange: (value: string) => void;
   onSubmitPrompt: (e: FormEvent<HTMLFormElement>) => void;
   formatTime: (isoTs: string) => string;
+  telemetryLogs: SessionTelemetryLog[];
 };
 
 export function WorkspaceColumn({
@@ -103,74 +72,21 @@ export function WorkspaceColumn({
   onPromptChange,
   onSubmitPrompt,
   formatTime,
+  telemetryLogs,
 }: WorkspaceColumnProps) {
   const [isAttackToolsCollapsed, setIsAttackToolsCollapsed] = useState(false);
   const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
-  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLogItem[]>([]);
-  const spawnIntervalRef = useRef<number | null>(null);
-  const statusTimeoutsRef = useRef<number[]>([]);
-  const messageIndexRef = useRef(0);
+  const [logsSeenAtMs, setLogsSeenAtMs] = useState(0);
   const isLab2Session = labId === LAB_2_TOOL_MISUSE_ID;
-  const unreadLogCount = telemetryLogs.filter(
-    (log) => log.status === "incoming",
-  ).length;
+
+  const unreadLogCount = useMemo(
+    () =>
+      telemetryLogs.filter(
+        (log) => new Date(log.created_at).getTime() > logsSeenAtMs,
+      ).length,
+    [logsSeenAtMs, telemetryLogs],
+  );
   const hasUnreadLogs = unreadLogCount > 0;
-
-  useEffect(() => {
-    if (!isLab2Session) {
-      setTelemetryLogs([]);
-      messageIndexRef.current = 0;
-      if (spawnIntervalRef.current !== null) {
-        window.clearInterval(spawnIntervalRef.current);
-        spawnIntervalRef.current = null;
-      }
-      for (const timeoutId of statusTimeoutsRef.current) {
-        window.clearTimeout(timeoutId);
-      }
-      statusTimeoutsRef.current = [];
-      return;
-    }
-
-    spawnIntervalRef.current = window.setInterval(() => {
-      const telemetry =
-        TELEMETRY_MESSAGES[messageIndexRef.current % TELEMETRY_MESSAGES.length];
-      messageIndexRef.current += 1;
-      const id = `${Date.now()}-${messageIndexRef.current}`;
-      setTelemetryLogs((prev) => {
-        const next: TelemetryLogItem[] = [
-          ...prev,
-          {
-            id,
-            message: telemetry.message,
-            createdAt: new Date().toISOString(),
-            status: "incoming",
-            runbookSection: telemetry.runbookSection,
-          },
-        ];
-        return next.slice(-10);
-      });
-
-      const timeoutId = window.setTimeout(() => {
-        setTelemetryLogs((prev) =>
-          prev.map((item) =>
-            item.id === id ? { ...item, status: "handled" } : item,
-          ),
-        );
-      }, 4000);
-      statusTimeoutsRef.current.push(timeoutId);
-    }, 20_000);
-
-    return () => {
-      if (spawnIntervalRef.current !== null) {
-        window.clearInterval(spawnIntervalRef.current);
-        spawnIntervalRef.current = null;
-      }
-      for (const timeoutId of statusTimeoutsRef.current) {
-        window.clearTimeout(timeoutId);
-      }
-      statusTimeoutsRef.current = [];
-    };
-  }, [isLab2Session]);
 
   const tools: Array<{ key: ToolKey; label: string; disabled?: boolean }> = [
     { key: "email", label: "Email" },
@@ -268,11 +184,17 @@ export function WorkspaceColumn({
               const isActive = toolPaneOpen && selectedTool === tool.key;
               const isDisabled = interactionLocked || Boolean(tool.disabled);
               const logsHighlighted = tool.key === "logs" && hasUnreadLogs;
+
               return (
                 <button
                   key={tool.key}
                   type="button"
-                  onClick={() => onToolSelect(tool.key)}
+                  onClick={() => {
+                    onToolSelect(tool.key);
+                    if (tool.key === "logs") {
+                      setLogsSeenAtMs(Date.now());
+                    }
+                  }}
                   aria-pressed={isActive}
                   disabled={isDisabled}
                   title={`${tool.label} tool`}
@@ -357,7 +279,7 @@ export function WorkspaceColumn({
                   color: "#263643",
                 }}
               >
-                One new log line arrives every 20 seconds.
+                Runtime-generated operational errors appear here.
               </p>
               <div
                 className="hints-scroll-region"
@@ -387,19 +309,14 @@ export function WorkspaceColumn({
                           color: "#132736",
                         }}
                       >
-                        {formatTime(log.createdAt)} - {log.message}{" "}
+                        {formatTime(log.created_at)} - {log.message}{" "}
                         <span
                           style={{
-                            color:
-                              log.status === "incoming" ? "#8a5a00" : "#1f6d37",
+                            color: "#1f6d37",
                             fontWeight: 600,
                           }}
                         >
-                          [
-                          {log.status === "incoming"
-                            ? "Incoming"
-                            : `Handled by A-SRE (runbook section ${log.runbookSection})`}
-                          ]
+                          [Handled by A-SRE]
                         </span>
                       </p>
                     ))

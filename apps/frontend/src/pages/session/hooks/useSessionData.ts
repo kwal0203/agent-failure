@@ -12,6 +12,7 @@ import type {
   SessionFeedbackItem,
   SessionMetadata,
   SessionProgressChip,
+  SessionTelemetryLog,
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
@@ -37,6 +38,7 @@ type UseSessionDataResult = {
   refreshSessionMetadata: () => Promise<void>;
   sessionState: string;
   progressChips: SessionProgressChip[];
+  telemetryLogs: SessionTelemetryLog[];
 };
 
 function formatPersistedTraceTitle(event: SessionTraceEvent): string {
@@ -270,7 +272,28 @@ export function useSessionData({
   const [metadataReady, setMetadataReady] = useState(false);
   const seenFeedbackKeysRef = useRef(new Set<string>());
   const seenTimelineEventIdsRef = useRef(new Set<string>());
+  const seenTelemetryLogIdsRef = useRef(new Set<string>());
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [telemetryLogs, setTelemetryLogs] = useState<SessionTelemetryLog[]>([]);
+
+  const appendTelemetryLog = useCallback((log: SessionTelemetryLog) => {
+    if (seenTelemetryLogIdsRef.current.has(log.id)) {
+      return;
+    }
+    seenTelemetryLogIdsRef.current.add(log.id);
+    setTelemetryLogs((prev) => {
+      const next = [...prev, log];
+      next.sort((a, b) => {
+        const tsDiff =
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        if (tsDiff !== 0) {
+          return tsDiff;
+        }
+        return a.id.localeCompare(b.id);
+      });
+      return next.slice(-10);
+    });
+  }, []);
 
   const appendTimelineEvent = useCallback((event: TimelineEvent) => {
     if (seenTimelineEventIdsRef.current.has(event.id)) {
@@ -301,6 +324,25 @@ export function useSessionData({
       const data = (await res.json()) as GetSessionTraceResponse;
       const events = Array.isArray(data.events) ? data.events : [];
       for (const event of events) {
+        const payload = event.payload ?? {};
+        const isQualifyingLab2Log =
+          event.event_type === "TOOL_CALL_FAILED" &&
+          payload.tool_name === "read_file" &&
+          payload.error_code === "FILE_NOT_FOUND" &&
+          payload.qualifying_log === true &&
+          payload.log_case === "missing_recovery_artifact";
+        if (isQualifyingLab2Log) {
+          const targetResource =
+            typeof payload.target_resource === "string"
+              ? payload.target_resource
+              : "unknown resource";
+          appendTelemetryLog({
+            id: `trace-log-${event.id}`,
+            created_at: event.occurred_at,
+            log_case: "missing_recovery_artifact",
+            message: `ERROR: Recovery artifact missing (${targetResource})`,
+          });
+        }
         const timelineEvent = mapPersistedTraceToTimelineEvent(event);
         if (timelineEvent) {
           appendTimelineEvent(timelineEvent);
@@ -309,7 +351,7 @@ export function useSessionData({
     } catch {
       return;
     }
-  }, [appendTimelineEvent, sessionId]);
+  }, [appendTelemetryLog, appendTimelineEvent, sessionId]);
 
   const registerLearnerFeedbackEvents = useCallback(
     (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
@@ -377,7 +419,9 @@ export function useSessionData({
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
     setTimelineEvents([]);
+    setTelemetryLogs([]);
     seenTimelineEventIdsRef.current.clear();
+    seenTelemetryLogIdsRef.current.clear();
     seenFeedbackKeysRef.current.clear();
     setMetadataReady(false);
     void refreshSessionMetadata();
@@ -397,6 +441,7 @@ export function useSessionData({
     const tick = async () => {
       if (cancelled) return;
       await refreshSessionMetadata();
+      await refreshTraceTimeline();
       if (cancelled) return;
       timeoutId = window.setTimeout(
         tick,
@@ -413,7 +458,12 @@ export function useSessionData({
       cancelled = true; // Guard for in-flight work
       if (timeoutId !== null) window.clearTimeout(timeoutId); // This stops the polling
     };
-  }, [sessionId, metadata?.state, refreshSessionMetadata]);
+  }, [
+    sessionId,
+    metadata?.state,
+    refreshSessionMetadata,
+    refreshTraceTimeline,
+  ]);
 
   return {
     metadata,
@@ -428,5 +478,6 @@ export function useSessionData({
     refreshSessionMetadata,
     sessionState,
     progressChips,
+    telemetryLogs,
   };
 }

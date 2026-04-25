@@ -59,6 +59,7 @@ export default function SessionPage() {
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
     sessionState,
+    telemetryLogs,
   } = sessionData;
 
   const canSend =
@@ -416,6 +417,7 @@ export default function SessionPage() {
             onPromptChange={setPrompt}
             onSubmitPrompt={onSubmitPrompt}
             formatTime={formatTime}
+            telemetryLogs={telemetryLogs}
           />
         </section>
 

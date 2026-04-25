@@ -147,6 +147,13 @@ export type TimelineEvent = {
   important?: boolean;
 };
 
+export type SessionTelemetryLog = {
+  id: string;
+  message: string;
+  created_at: string;
+  log_case: string;
+};
+
 export type SessionWorkspaceState = {
   selectedTool: ToolKey | null;
   toolPaneOpen: boolean;

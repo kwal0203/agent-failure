@@ -107,6 +107,19 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                 [
                     _event(
                         family="tool",
+                        event_type="TOOL_CALL_FAILED",
+                        payload={
+                            "tool_name": "read_file",
+                            "target_resource": "/var/secure/missing_artifact.md",
+                            "error_code": "FILE_NOT_FOUND",
+                            "qualifying_log": True,
+                            "log_case": "missing_recovery_artifact",
+                        },
+                    ),
+                ],
+                [
+                    _event(
+                        family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
                             "tool_name": "read_file",

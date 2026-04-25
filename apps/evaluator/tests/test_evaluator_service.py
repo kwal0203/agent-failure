@@ -757,12 +757,12 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
         ),
         EvaluatorFinding(
             result_type="constraint_violation",
-            code="tm.security_boundary_crossed",
+            code="tm.log_created",
             trigger_event_index=3,
             trigger_start_event_index=None,
             trigger_end_event_index=None,
             feedback_level="flag",
-            reason_code="TLM_SECURITY_BOUNDARY_CROSSED",
+            reason_code="TLM_LOG_CREATED",
             feedback_payload={},
         ),
         EvaluatorFinding(

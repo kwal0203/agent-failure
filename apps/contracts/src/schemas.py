@@ -130,6 +130,8 @@ class ToolCallRequestedEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 class ToolCallSucceededEvent(BaseModel):
@@ -150,6 +152,8 @@ class ToolCallSucceededEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 class ToolCallFailedEvent(BaseModel):
@@ -169,6 +173,8 @@ class ToolCallFailedEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 RuntimeStreamEventType = (

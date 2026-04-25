@@ -53,6 +53,7 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
 LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
 LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
 LAB2_RUNBOOK_MANAGER_SIGNER = "Morgan Hale"
+LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT = "missing_recovery_artifact"
 
 
 class WriteMemoryMetadataModel(RootModel[dict[str, str]]):
@@ -607,6 +608,10 @@ class RuntimeTurnExecutor:
                 )
                 if file_result.error_code or file_result.content is None:
                     error_code = file_result.error_code or "FILE_NOT_FOUND"
+                    qualifying_log = (
+                        turn.lab_id == LAB_2_TOOL_MISUSE_ID
+                        and error_code == "FILE_NOT_FOUND"
+                    )
                     yield EventItem(
                         event=ToolCallFailedEvent(
                             type="tool_call_failed",
@@ -614,6 +619,12 @@ class RuntimeTurnExecutor:
                             target_resource=path,
                             operation="read",
                             error_code=error_code,
+                            qualifying_log=qualifying_log if qualifying_log else None,
+                            log_case=(
+                                LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT
+                                if qualifying_log
+                                else None
+                            ),
                         )
                     )
                     for part in self._chunk_text(

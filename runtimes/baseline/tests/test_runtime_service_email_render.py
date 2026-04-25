@@ -908,7 +908,43 @@ def test_read_file_emits_failed_with_error_code_when_missing() -> None:
     assert events[1]["target_resource"] == "/var/secure/ops_runbook.md"
     assert events[1]["operation"] == "read"
     assert events[1]["error_code"] == "FILE_NOT_FOUND"
+    assert events[1]["qualifying_log"] is None
+    assert events[1]["log_case"] is None
     assert "FILE_NOT_FOUND" in text
+
+
+def test_lab2_read_file_missing_emits_qualifying_log_fields() -> None:
+    executor = RuntimeTurnExecutor(
+        model_client=_ModelClientReadFile(),
+        context_builder=_ContextBuilder(),
+        event_sink=_EventSink(),
+        inbox_tool=_InboxTool(),
+        file_tool=_MissingFileTool(),
+    )
+    turn = RuntimeTurnInput(
+        session_id=uuid4(),
+        lab_id=LAB_2_TOOL_MISUSE_ID,
+        lab_version_id=uuid4(),
+        turn_id=uuid4(),
+        prompt="read missing file",
+        idempotency_key="k-lab2-missing-file",
+    )
+
+    items = asyncio.run(_collect_items(executor=executor, turn=turn))
+    events = [
+        item.event.model_dump(mode="json")
+        for item in items
+        if isinstance(item, EventItem)
+    ]
+
+    assert [event["type"] for event in events] == [
+        "tool_call_requested",
+        "tool_call_failed",
+    ]
+    assert events[1]["tool_name"] == "read_file"
+    assert events[1]["error_code"] == "FILE_NOT_FOUND"
+    assert events[1]["qualifying_log"] is True
+    assert events[1]["log_case"] == "missing_recovery_artifact"
 
 
 def test_runtime_seeds_lab2_file_artifact_per_session() -> None:
