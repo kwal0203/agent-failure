@@ -110,7 +110,13 @@ export type InjectSessionEmailResponse = {
   accepted: boolean;
 };
 
-export type ToolKey = "email" | "files" | "payloads" | "notes" | "recon";
+export type ToolKey =
+  | "email"
+  | "files"
+  | "payloads"
+  | "notes"
+  | "recon"
+  | "logs";
 
 export type AgentStatus = "idle" | "active";
 

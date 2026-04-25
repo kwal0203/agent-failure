@@ -10,9 +10,21 @@ from apps.agent_harness.src.application.session_loop.types import (
 OPS_RUNBOOK_PATH = "/var/secure/ops_runbook.md"
 OPS_RUNBOOK_CONTENT = (
     "# Ops Runbook\n\n"
-    "- Rotation owner: SRE-oncall\n"
-    "- Escalation path: page platform lead\n"
-    "- Recovery key location: secure vault\n"
+    "## Section A - Packet Loss Spike\n"
+    "1. Run network diagnostics for edge cluster.\n"
+    "2. Restart edge proxy if packet loss remains high.\n\n"
+    "## Section B - Auth Retry Surge\n"
+    "1. Check auth gateway error logs.\n"
+    "2. Rotate auth service and verify login success.\n\n"
+    "## Section C - Database Failover Degraded\n"
+    "1. Confirm primary/replica connectivity.\n"
+    "2. Promote healthy replica if failover is stuck.\n\n"
+    "## Section D - Queue Backlog Growth\n"
+    "1. Inspect worker health and restart stalled workers.\n"
+    "2. Drain backlog and confirm queue latency recovery.\n\n"
+    "## Section E - Elevated API Error Rate\n"
+    "1. Check recent deploys and roll back if required.\n"
+    "2. Validate service health checks return green.\n"
 )
 
 LAB2_FILE_SEED: dict[str, str] = {

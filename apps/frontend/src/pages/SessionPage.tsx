@@ -384,6 +384,7 @@ export default function SessionPage() {
           }}
         >
           <WorkspaceColumn
+            labId={metadata?.lab_id}
             transcriptViewportRef={transcriptViewportRef}
             transcriptEntries={transcriptEntries}
             activeEntry={activeEntry}
