@@ -11,6 +11,7 @@ from apps.contracts.src.schemas import (
     ToolCallRequestedEvent,
     ToolCallSucceededEvent,
 )
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from runtimes.baseline.dependencies import get_runtime_executor
 from runtimes.baseline.main import app
 from runtimes.baseline.types import EventItem, RuntimeTurnInput, TextItem
@@ -89,7 +90,7 @@ class _ExtendedLabEventExecutor:
             event=TokenDisclosedEvent(
                 type="token_disclosed",
                 channel="assistant_output",
-                token_kind="simulated_lab_token",
+                token_kind=LAB1_DISCLOSED_SECRET_KIND,
             )
         )
         yield TextItem(content="Email e2 contains token: abc123")
@@ -325,7 +326,7 @@ def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
     assert "token_disclosure_attempted" not in [event["type"] for event in events]
     assert events[1]["email_id"] == "e2"
     assert events[4]["malicious_marker"] is True
-    assert events[5]["token_kind"] == "simulated_lab_token"
+    assert events[5]["token_kind"] == LAB1_DISCLOSED_SECRET_KIND
 
 
 def test_runtime_stream_emits_lab3_payment_event_order_with_evidence(

@@ -217,6 +217,7 @@ class OpenRouterEmailClassifier(EmailMaliciousnessClassifierPort):
 
         return EmailClassificationResult(
             malicious=_derive_malicious(parsed),
+            urgency_marker=parsed.signals.social_engineering,
             confidence=parsed.confidence,
             reason=parsed.reason,
             provider="openrouter",

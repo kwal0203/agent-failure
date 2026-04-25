@@ -8,10 +8,12 @@ import {
 import type {
   AgentStatus,
   SessionCompletionStatus,
+  SessionFeedbackItem,
   SessionProgressChip,
   UnlockedHint,
 } from "../types";
 import { statusTone } from "../ui";
+import { FeedbackPopover } from "./FeedbackPopover";
 import { SessionCompletionIndicator } from "./SessionCompletionIndicator";
 
 type ProgressStatusHeaderProps = {
@@ -24,6 +26,10 @@ type SessionStatusHeaderProps = {
   completionStatus: SessionCompletionStatus;
   completedAt: string | null;
   completionReasonCode: string | null;
+  unreadFeedbackCount: number;
+  feedbackItems: SessionFeedbackItem[];
+  feedbackPanelOpen: boolean;
+  onFeedbackChipClick: () => void;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -42,6 +48,10 @@ type SessionHeaderStatusProps = {
   completionStatus: SessionCompletionStatus;
   completedAt: string | null;
   completionReasonCode: string | null;
+  unreadFeedbackCount: number;
+  feedbackItems: SessionFeedbackItem[];
+  feedbackPanelOpen: boolean;
+  onFeedbackChipClick: () => void;
   hasUnreadHint: boolean;
   unlockedHints: UnlockedHint[];
   hintsReady: boolean;
@@ -97,6 +107,10 @@ export function SessionStatusHeader({
   completionStatus,
   completedAt,
   completionReasonCode,
+  unreadFeedbackCount,
+  feedbackItems,
+  feedbackPanelOpen,
+  onFeedbackChipClick,
   hasUnreadHint,
   unlockedHints,
   hintsReady,
@@ -109,11 +123,9 @@ export function SessionStatusHeader({
 }: SessionStatusHeaderProps) {
   const agentTone = agentStatusTone(agentStatus);
   const hintsTone = hintTone(hasUnreadHint, unlockedHints.length > 0);
-  const feedbackTone = {
-    background: "rgba(17, 61, 89, 0.78)",
-    border: "1px solid #3e87b3",
-    color: "#cdeeff",
-  };
+  const hasUnreadFeedback = unreadFeedbackCount > 0;
+  const feedbackCount = feedbackItems.length;
+  const feedbackTone = hintTone(hasUnreadFeedback, feedbackItems.length > 0);
   const tone = statusTone(sessionState);
   const normalizedAgentStatus = agentStatus.trim().toLowerCase();
   const agentLabel =
@@ -194,12 +206,19 @@ export function SessionStatusHeader({
     <>
       <button
         type="button"
+        onClick={onFeedbackChipClick}
         style={{
           ...statusChipStyle(feedbackTone),
-          cursor: "default",
+          cursor: "pointer",
+          boxShadow: hasUnreadFeedback
+            ? "0 0 0 1px rgba(255, 230, 166, 0.2), 0 0 12px rgba(255, 230, 166, 0.24)"
+            : undefined,
         }}
       >
         <strong>Feedback</strong>
+        {feedbackCount > 0 ? (
+          <span style={{ marginLeft: 6 }}>({feedbackCount})</span>
+        ) : null}
       </button>
       <button
         type="button"
@@ -247,6 +266,9 @@ export function SessionStatusHeader({
       >
         <strong>{stoppingSession ? "Stopping..." : "Stop Session"}</strong>
       </button>
+      {feedbackPanelOpen ? (
+        <FeedbackPopover feedbackItems={feedbackItems} />
+      ) : null}
       {renderHintsPopover()}
     </>
   );
@@ -260,6 +282,10 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
     completionStatus,
     completedAt,
     completionReasonCode,
+    unreadFeedbackCount,
+    feedbackItems,
+    feedbackPanelOpen,
+    onFeedbackChipClick,
     hasUnreadHint,
     unlockedHints,
     hintsReady,
@@ -301,6 +327,10 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
           completionStatus={completionStatus}
           completedAt={completedAt}
           completionReasonCode={completionReasonCode}
+          unreadFeedbackCount={unreadFeedbackCount}
+          feedbackItems={feedbackItems}
+          feedbackPanelOpen={feedbackPanelOpen}
+          onFeedbackChipClick={onFeedbackChipClick}
           hasUnreadHint={hasUnreadHint}
           unlockedHints={unlockedHints}
           hintsReady={hintsReady}

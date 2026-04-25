@@ -7,8 +7,14 @@ from apps.contracts.src.schemas import (
     OutboxEventType,
     SessionCompletedEventPayload,
     SessionCompletedOutboxEvent,
+    SessionFeedbackCreatedEventPayload,
+    SessionFeedbackCreatedOutboxEvent,
 )
-from apps.contracts.src.types import OutboxEventName, SessionCompletedEventName
+from apps.contracts.src.types import (
+    OutboxEventName,
+    SessionCompletedEventName,
+    SessionFeedbackCreatedEventName,
+)
 
 
 def _outbox_union_members() -> tuple[type[BaseModel], ...]:
@@ -26,13 +32,17 @@ def _event_type_literal_values() -> tuple[str, ...]:
 
 def test_completion_event_literals_are_single_source() -> None:
     assert get_args(SessionCompletedEventName) == ("session.completed.v1",)
-    assert get_args(OutboxEventName) == ("session.completed.v1",)
+    assert get_args(SessionFeedbackCreatedEventName) == ("session.feedback.created.v1",)
+    assert get_args(OutboxEventName) == (
+        "session.completed.v1",
+        "session.feedback.created.v1",
+    )
     assert get_args(OutboxEventType) == get_args(OutboxEventName)
 
 
 def test_outbox_event_union_registration_matches_event_literals_order() -> None:
     members = _outbox_union_members()
-    assert members == (SessionCompletedOutboxEvent,)
+    assert members == (SessionCompletedOutboxEvent, SessionFeedbackCreatedOutboxEvent)
 
     discriminator_values = tuple(
         member.model_fields["event_type"].default for member in members
@@ -62,4 +72,33 @@ def test_session_completed_nullable_contract_fields_are_explicit() -> None:
     assert fields["lab_version_id"].is_required()
     assert fields["outcome"].is_required()
     assert fields["occurred_at"].is_required()
+    assert fields["idempotency_key"].is_required()
+
+
+def test_session_feedback_created_payload_keys_match_contract_exactly() -> None:
+    assert tuple(SessionFeedbackCreatedEventPayload.model_fields.keys()) == (
+        "session_id",
+        "lab_id",
+        "lab_version_id",
+        "feedback_key",
+        "reason_code",
+        "message",
+        "severity",
+        "trigger_event_index",
+        "created_at",
+        "idempotency_key",
+    )
+
+
+def test_session_feedback_created_nullable_contract_fields_are_explicit() -> None:
+    fields = SessionFeedbackCreatedEventPayload.model_fields
+    assert not fields["trigger_event_index"].is_required()
+    assert fields["session_id"].is_required()
+    assert fields["lab_id"].is_required()
+    assert fields["lab_version_id"].is_required()
+    assert fields["feedback_key"].is_required()
+    assert fields["reason_code"].is_required()
+    assert fields["message"].is_required()
+    assert fields["severity"].is_required()
+    assert fields["created_at"].is_required()
     assert fields["idempotency_key"].is_required()

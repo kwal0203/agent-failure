@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.control_plane.src.infrastructure.persistence.models import (
     Base,
     EvaluatorResultModel,
@@ -79,6 +80,9 @@ class _StubOutboxRepo:
         _ = (session_id, requested_at)
 
     def enqueue_objective_completed_event(self, *, event: object) -> None:
+        _ = event
+
+    def enqueue_session_feedback_created_event(self, *, event: object) -> None:
         _ = event
 
 
@@ -160,7 +164,7 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
                     event_index=1,
                     payload={
                         "channel": "assistant_output",
-                        "token_kind": "simulated_lab_token",
+                        "token_kind": LAB1_DISCLOSED_SECRET_KIND,
                     },
                     trace_version=1,
                     lab_id=lab_id,

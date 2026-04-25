@@ -21,6 +21,19 @@ export type SessionHint = {
   seen_at: string | null;
 };
 
+export type SessionFeedbackSeverity = "info" | "warning" | "error";
+
+export type SessionFeedbackItem = {
+  id: string;
+  feedback_key: string;
+  reason_code: string;
+  message: string;
+  severity: SessionFeedbackSeverity;
+  trigger_event_index: number | null;
+  created_at: string;
+  seen_at: string | null;
+};
+
 export type SessionMetadata = {
   id: string;
   lab_id: string | null;
@@ -38,6 +51,9 @@ export type SessionMetadata = {
   progress_chips: SessionProgressChip[];
   hints: SessionHint[];
   unread_hint_count: number;
+  feedback_items: SessionFeedbackItem[];
+  feedback: SessionFeedbackItem[];
+  unread_feedback_count: number;
 };
 
 export type GetSessionMetadataResponse = {

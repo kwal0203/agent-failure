@@ -40,7 +40,9 @@ def _sample_row(state: str = "ACTIVE") -> SessionMetadataBundleRow:
         started_at=None,
         ended_at=None,
     )
-    return SessionMetadataBundleRow(metadata=metadata, objectives=[], hints=[])
+    return SessionMetadataBundleRow(
+        metadata=metadata, objectives=[], hints=[], feedback=[]
+    )
 
 
 def test_get_session_metadata_owner_is_allowed() -> None:
@@ -151,6 +153,7 @@ def test_get_session_metadata_maps_hints_and_derives_unread_count() -> None:
                 seen_at=None,
             ),
         ],
+        feedback=[],
     )
     repo = FakeSessionMetadataRepository(row=row)
 

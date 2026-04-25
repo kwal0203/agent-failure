@@ -149,6 +149,7 @@ class RuntimeHttpClient(RuntimeClientPort):
             email_preview=input.email_preview,
             email_id=input.email_id,
             malicious=input.malicious,
+            urgency_marker=input.urgency_marker,
             source=input.source,
         )
 

@@ -72,6 +72,7 @@ def inject_inbox_email(
         email_body=request.email_body,
         email_preview=request.email_preview,
         malicious=bool(request.malicious),
+        urgency_marker=bool(request.urgency_marker),
         source=request.source,
     )
 

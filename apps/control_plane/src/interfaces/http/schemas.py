@@ -30,7 +30,23 @@ class SessionHintResponse(BaseModel):
     seen_at: datetime | None
 
 
+class SessionFeedbackResponse(BaseModel):
+    id: UUID
+    feedback_key: str
+    reason_code: str
+    message: str
+    severity: Literal["info", "warning", "error"]
+    trigger_event_index: int | None
+    created_at: datetime
+    seen_at: datetime | None
+
+
 class MarkSessionHintsSeenResponse(BaseModel):
+    session_id: UUID
+    updated_count: int
+
+
+class MarkSessionFeedbackSeenResponse(BaseModel):
     session_id: UUID
     updated_count: int
 
@@ -62,6 +78,10 @@ class SessionMetadataResponse(BaseModel):
     progress_chips: list[SessionProgressChipResponse] = []
     hints: list[SessionHintResponse] = []
     unread_hint_count: int = 0
+    feedback_items: list[SessionFeedbackResponse] = []
+    # Backward-compat alias; new clients should use feedback_items.
+    feedback: list[SessionFeedbackResponse] = []
+    unread_feedback_count: int = 0
 
 
 class GetSessionMetadataResponse(BaseModel):

@@ -5,7 +5,6 @@ LEARNER_VISIBLE_ALLOWLIST: set[tuple[TraceFamily, str]] = {
     ("lifecycle", "SESSION_CREATED"),
     ("learner", "USER_PROMPT_SUBMITTED"),
     ("learner", "ATTACK_EMAIL_SENT"),
-    ("learner", "BENIGN_EMAIL_SENT"),
     ("runtime", "RUNTIME_PROVISION_REQUESTED"),
     ("runtime", "RUNTIME_PROVISION_ACCEPTED"),
     ("runtime", "RUNTIME_PROVISION_FAILED"),

@@ -12,6 +12,7 @@ class EmailClassificationInput:
 @dataclass(frozen=True)
 class EmailClassificationResult:
     malicious: bool
+    urgency_marker: bool = False
     confidence: float | None = None
     reason: str | None = None
     provider: str | None = None

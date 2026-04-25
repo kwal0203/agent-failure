@@ -7,7 +7,10 @@ import {
 describe("getLabGuideContent", () => {
   it("returns lab 1 default copy for prompt injection id", () => {
     const content = getLabGuideContent("11111111-1111-1111-1111-111111111111");
-    expect(content.title).toBe("Prompt Injection: Poisoned Inbox");
+    expect(content.title).toBe("Indirect Prompt Injection: Poisoned Inbox");
+    expect(content.mission).toContain(
+      "A good first step is to ask the agent to list its available tools",
+    );
   });
 
   it("returns lab 2 tool misuse copy for lab 2 id", () => {
@@ -38,6 +41,6 @@ describe("getLabGuideContent", () => {
 
   it("falls back to default copy for unknown lab ids", () => {
     const content = getLabGuideContent("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    expect(content.title).toBe("Prompt Injection: Poisoned Inbox");
+    expect(content.title).toBe("Indirect Prompt Injection: Poisoned Inbox");
   });
 });

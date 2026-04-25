@@ -26,9 +26,11 @@ from .schemas import (
     LearnerExplanationRequest,
     LearnerExplanationResponse,
     MarkSessionHintsSeenResponse,
+    MarkSessionFeedbackSeenResponse,
     StopSessionResponse,
     SessionProgressChipResponse,
     SessionHintResponse,
+    SessionFeedbackResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -84,6 +86,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
+    SQLAlchemySessionFeedbackRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionObjectiveModel,
 )
@@ -128,6 +133,13 @@ from apps.control_plane.src.application.session_hints.errors import (
 )
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
+)
+from apps.control_plane.src.application.session_feedback.service import (
+    mark_session_feedback_seen,
+)
+from apps.control_plane.src.application.session_feedback.errors import (
+    ForbiddenErrorSessionFeedback,
+    SessionNotFoundErrorSessionFeedback,
 )
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
@@ -331,6 +343,20 @@ def get_metadata(
                     seen_at=hint_item.seen_at,
                 )
             )
+        feedback: list[SessionFeedbackResponse] = []
+        for feedback_item in session_metadata.feedback:
+            feedback.append(
+                SessionFeedbackResponse(
+                    id=feedback_item.id,
+                    feedback_key=feedback_item.feedback_key,
+                    reason_code=feedback_item.reason_code,
+                    message=feedback_item.message,
+                    severity=feedback_item.severity,
+                    trigger_event_index=feedback_item.trigger_event_index,
+                    created_at=feedback_item.created_at,
+                    seen_at=feedback_item.seen_at,
+                )
+            )
 
         http_obj = SessionMetadataResponse(
             id=session_metadata.id,
@@ -357,6 +383,9 @@ def get_metadata(
             progress_chips=progress_chips,
             hints=hints,
             unread_hint_count=session_metadata.unread_hint_count,
+            feedback_items=feedback,
+            feedback=feedback,
+            unread_feedback_count=session_metadata.unread_feedback_count,
         )
         return GetSessionMetadataResponse(session=http_obj)
 
@@ -673,6 +702,62 @@ def mark_hints_seen_endpoint(
     except Exception:
         db.rollback()
         logger.exception("mark hints seen failed")
+        return build_api_error_response(
+            "INTERNAL_ERROR",
+            "Unexpected server error",
+            False,
+            500,
+            {"session_id": str(session_id)},
+        )
+
+
+@app.post(
+    "/api/v1/sessions/{session_id}/feedback/mark-seen",
+    response_model=MarkSessionFeedbackSeenResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+    },
+)
+def mark_feedback_seen_endpoint(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    db: Session = Depends(get_db_session),
+) -> MarkSessionFeedbackSeenResponse | JSONResponse:
+    feedback_repo = SQLAlchemySessionFeedbackRepository(db=db)
+    try:
+        updated_count = mark_session_feedback_seen(
+            session_id=session_id,
+            principal=principal,
+            feedback_repo=feedback_repo,
+        )
+        db.commit()
+        return MarkSessionFeedbackSeenResponse(
+            session_id=session_id,
+            updated_count=updated_count,
+        )
+    except ForbiddenErrorSessionFeedback as exc:
+        db.rollback()
+        return build_api_error_response(
+            "FORBIDDEN",
+            exc.message,
+            False,
+            403,
+            exc.details,
+        )
+    except SessionNotFoundErrorSessionFeedback:
+        db.rollback()
+        return build_api_error_response(
+            "SESSION_NOT_FOUND",
+            "Session not found",
+            False,
+            404,
+            {"session_id": str(session_id), "exists": False},
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("mark feedback seen failed")
         return build_api_error_response(
             "INTERNAL_ERROR",
             "Unexpected server error",
@@ -1778,14 +1863,16 @@ async def inject_session_email(
             )
         )
         derived_malicious = bool(classification.malicious)
+        injected_email_id = request.email_id or f"email-{uuid4().hex}"
 
         email_input = InjectEmailInput(
             session_id=session_id,
             email_from=request.email_from,
             email_subject=request.email_subject,
             email_body=request.email_body,
-            email_id=request.email_id,
+            email_id=injected_email_id,
             malicious=derived_malicious,
+            urgency_marker=classification.urgency_marker,
             source=request.source,
         )
 
@@ -1797,20 +1884,17 @@ async def inject_session_email(
             "email_from": email_input.email_from,
             "subject": email_input.email_subject,
             "malicious_marker": derived_malicious,
+            "urgency_marker": classification.urgency_marker,
             "classifier_provider": classification.provider,
             "classifier_model": classification.model,
             "classifier_confidence": classification.confidence,
         }
 
-        learner_event_type = (
-            "ATTACK_EMAIL_SENT" if derived_malicious else "BENIGN_EMAIL_SENT"
-        )
-
         trace_event = build_trace_event(
             trace_repo=trace_repo,
             session_id=session_id,
             family="learner",
-            event_type=learner_event_type,
+            event_type="ATTACK_EMAIL_SENT",
             source="inject_session_email_service",
             payload=attack_email_sent_payload,
             correlation_id=None,
@@ -1821,6 +1905,20 @@ async def inject_session_email(
             lab_difficulty=session_metadata.lab_difficulty,
         )
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
+
+        if (
+            session_metadata.lab_id is not None
+            and session_metadata.lab_version_id is not None
+        ):
+            outbox_repo.enqueue_for_evaluator(
+                session_id=session_id,
+                lab_id=session_metadata.lab_id,
+                lab_version_id=session_metadata.lab_version_id,
+                lab_difficulty=session_metadata.lab_difficulty,
+                evaluator_version=1,
+                start_event_index=trace_event.event_index,
+                end_event_index=trace_event.event_index,
+            )
 
         if (
             derived_malicious

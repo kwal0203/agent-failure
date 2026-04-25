@@ -82,8 +82,9 @@ class _FakeRuntimeClientFactory:
 
 
 class _FakeEmailClassifier:
-    def __init__(self, *, malicious: bool) -> None:
+    def __init__(self, *, malicious: bool, urgency_marker: bool = False) -> None:
         self._malicious = malicious
+        self._urgency_marker = urgency_marker
         self.calls: list[EmailClassificationInput] = []
 
     async def classify_email(
@@ -92,6 +93,7 @@ class _FakeEmailClassifier:
         self.calls.append(input)
         return EmailClassificationResult(
             malicious=self._malicious,
+            urgency_marker=self._urgency_marker,
             confidence=0.95,
             reason="test fixture",
             provider="test",
@@ -190,7 +192,7 @@ def test_inject_session_email_returns_404_when_session_missing(
     owner_username = "owner-user"
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -222,7 +224,7 @@ def test_inject_session_email_returns_409_when_runtime_binding_not_ready(
     session = _seed_session(db_session, owner_username=owner_username)
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -262,7 +264,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
 
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -292,6 +294,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
     assert injected.email_from == "attacker@evil.local"
     assert injected.email_subject == "URGENT: Policy update"
     assert injected.malicious is True
+    assert injected.urgency_marker is True
 
     with SessionFactory() as verify_db:
         attack_trace = (
@@ -306,6 +309,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
         )
         assert attack_trace is not None
         assert attack_trace.payload["malicious_marker"] is True
+        assert attack_trace.payload["urgency_marker"] is True
         assert attack_trace.payload["classifier_provider"] == "test"
         assert attack_trace.payload["classifier_model"] == "test-model"
         assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)
@@ -324,6 +328,21 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
         assert objective_outbox.payload["objective_key"] == "malicious_email_injected"
         assert objective_outbox.payload["reason_code"] == "EMAIL_INJECT_ACCEPTED"
         assert objective_outbox.payload["source"] == "control_plane"
+        evaluate_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.evaluate.requested.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(evaluate_outbox) == 1
+        assert (
+            evaluate_outbox[0].payload["start_event_index"] == attack_trace.event_index
+        )
+        assert evaluate_outbox[0].payload["end_event_index"] == attack_trace.event_index
 
 
 @pytest.mark.usefixtures("engine")
@@ -369,7 +388,7 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
             verify_db.execute(
                 select(TraceEventModel).where(
                     TraceEventModel.session_id == session_id,
-                    TraceEventModel.event_type == "BENIGN_EMAIL_SENT",
+                    TraceEventModel.event_type == "ATTACK_EMAIL_SENT",
                 )
             )
             .scalars()
@@ -394,6 +413,21 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
             .one_or_none()
         )
         assert objective_outbox is None
+        evaluate_outbox = (
+            verify_db.execute(
+                select(OutboxEventModel).where(
+                    OutboxEventModel.event_type == "session.evaluate.requested.v1",
+                    OutboxEventModel.aggregate_id == session_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(evaluate_outbox) == 1
+        assert (
+            evaluate_outbox[0].payload["start_event_index"] == benign_trace.event_index
+        )
+        assert evaluate_outbox[0].payload["end_event_index"] == benign_trace.event_index
 
 
 @pytest.mark.usefixtures("engine")

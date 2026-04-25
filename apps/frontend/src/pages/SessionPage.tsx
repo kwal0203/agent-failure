@@ -7,6 +7,7 @@ import { SessionHeaderStatus } from "./session/components/SessionHeaderStatus";
 import { SessionSuccessModal } from "./session/components/SessionSuccessModal";
 import { WorkspaceColumn } from "./session/components/WorkspaceColumn";
 import { formatTime } from "./session/helpers";
+import { useFeedbackState } from "./session/hooks/useFeedbackState";
 import { useHintsState } from "./session/hooks/useHintsState";
 import { useSessionActions } from "./session/hooks/useSessionActions";
 import { useSessionData } from "./session/hooks/useSessionData";
@@ -127,6 +128,13 @@ export default function SessionPage() {
       refreshSessionMetadata,
       appendTimelineEvent,
     });
+  const { feedbackItems, feedbackPanelOpen, onFeedbackChipClick } =
+    useFeedbackState({
+      sessionId,
+      feedbackItems: metadata?.feedback_items,
+      unreadFeedbackCount: metadata?.unread_feedback_count,
+      refreshSessionMetadata,
+    });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
   const rightColumnTemplate = isRightCollapsed
@@ -232,6 +240,10 @@ export default function SessionPage() {
               completionStatus={metadata.completion_status}
               completedAt={metadata.completed_at}
               completionReasonCode={metadata.completion_reason_code}
+              unreadFeedbackCount={metadata.unread_feedback_count}
+              feedbackItems={feedbackItems}
+              feedbackPanelOpen={feedbackPanelOpen}
+              onFeedbackChipClick={onFeedbackChipClick}
               hasUnreadHint={hasUnreadHint}
               unlockedHints={unlockedHints}
               hintsReady={progressReady}

@@ -8,7 +8,6 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
     "learner": {
         "USER_PROMPT_SUBMITTED",
         "ATTACK_EMAIL_SENT",
-        "BENIGN_EMAIL_SENT",
         "LEARNER_EXPLANATION_SUBMITTED",
     },
     "runtime": {
@@ -41,8 +40,12 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
         "outbox_event_id",
         "attempt_count",
     },
-    ("learner", "ATTACK_EMAIL_SENT"): {"email_from", "subject"},
-    ("learner", "BENIGN_EMAIL_SENT"): {"email_from", "subject"},
+    ("learner", "ATTACK_EMAIL_SENT"): {
+        "email_id",
+        "email_from",
+        "subject",
+        "malicious_marker",
+    },
     ("learner", "LEARNER_EXPLANATION_SUBMITTED"): {"type", "explanation_id", "source"},
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
     ("runtime", "MALICIOUS_EMAIL_READ"): {"email_id", "subject", "malicious_marker"},

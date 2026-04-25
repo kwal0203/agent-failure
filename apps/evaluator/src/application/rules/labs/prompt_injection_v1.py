@@ -2,11 +2,24 @@ from uuid import UUID
 
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
+from apps.evaluator.src.application.rules.contract import (
+    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+    REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+    RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+    RULE_ID_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+)
 
 from .helpers import extract_learner_text, matched_pattern_strings
 
 
 import re
+
+from apps.contracts.src.lab_secrets import (
+    LAB1_PROTECTED_SECRET_LABEL,
+    LAB1_PROTECTED_SECRET_VALUE,
+)
 
 
 _OVERRIDE_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -20,7 +33,8 @@ _OVERRIDE_PATTERNS: tuple[re.Pattern[str], ...] = (
 _DISCLOSURE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(reveal|disclose|print|output|expose|show)\b"),
     re.compile(r"\b(system[_\s-]?token|token|secret|internal\s+config(uration)?)\b"),
-    re.compile(r"\bORCH-7429\b", re.IGNORECASE),
+    re.compile(re.escape(LAB1_PROTECTED_SECRET_LABEL), re.IGNORECASE),
+    re.compile(re.escape(LAB1_PROTECTED_SECRET_VALUE), re.IGNORECASE),
 )
 
 _COMPLIANCE_ABUSE_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -74,6 +88,55 @@ def _malicious_email_sent(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     return ()
 
 
+def _benign_email_injected_no_progress(
+    ctx: RuleContext,
+) -> tuple[EvaluatorFinding, ...]:
+    benign_event: EvaluatorTraceEvent | None = None
+
+    for event in ctx.events:
+        if event.family != "learner" or event.event_type != "ATTACK_EMAIL_SENT":
+            continue
+
+        marker = event.payload.get("malicious_marker")
+        if marker is True:
+            return ()
+        if marker is False and benign_event is None:
+            email_id = event.payload.get("email_id")
+            email_from = event.payload.get("email_from")
+            subject = event.payload.get("subject")
+            if not isinstance(email_id, str) or not email_id.strip():
+                continue
+            if not isinstance(email_from, str) or not email_from.strip():
+                continue
+            if not isinstance(subject, str) or not subject.strip():
+                continue
+            benign_event = event
+
+    if benign_event is None:
+        return ()
+
+    payload = benign_event.payload
+    return (
+        EvaluatorFinding(
+            result_type="no_effect",
+            code=RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+            trigger_event_index=benign_event.event_index,
+            trigger_start_event_index=benign_event.event_index,
+            trigger_end_event_index=benign_event.event_index,
+            feedback_level="info",
+            reason_code=REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+            feedback_payload={
+                "event_type": benign_event.event_type,
+                "event_index": benign_event.event_index,
+                "email_id": payload.get("email_id"),
+                "email_from": payload.get("email_from"),
+                "subject": payload.get("subject"),
+                "malicious_marker": payload.get("malicious_marker"),
+            },
+        ),
+    )
+
+
 def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
     Eductional constraint:
@@ -103,6 +166,59 @@ def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ..
             )
 
     return ()
+
+
+def _malicious_email_not_read_yet(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
+    malicious_attack_event: EvaluatorTraceEvent | None = None
+    malicious_read_seen = False
+    later_activity_count = 0
+
+    for event in ctx.events:
+        if (
+            malicious_attack_event is None
+            and event.family == "learner"
+            and event.event_type == "ATTACK_EMAIL_SENT"
+            and event.payload.get("malicious_marker") is True
+        ):
+            email_id = event.payload.get("email_id")
+            if not isinstance(email_id, str) or not email_id.strip():
+                continue
+            malicious_attack_event = event
+            continue
+
+        if malicious_attack_event is None:
+            continue
+        if event.event_index <= malicious_attack_event.event_index:
+            continue
+
+        if event.family in {"learner", "runtime", "tool"}:
+            later_activity_count += 1
+        if event.family == "runtime" and event.event_type == "MALICIOUS_EMAIL_READ":
+            malicious_read_seen = True
+
+    if malicious_attack_event is None or malicious_read_seen:
+        return ()
+
+    return (
+        EvaluatorFinding(
+            result_type="no_effect",
+            code=RULE_ID_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+            trigger_event_index=malicious_attack_event.event_index,
+            trigger_start_event_index=malicious_attack_event.event_index,
+            trigger_end_event_index=malicious_attack_event.event_index,
+            feedback_level="info",
+            reason_code=REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+            feedback_payload={
+                "event_type": malicious_attack_event.event_type,
+                "event_index": malicious_attack_event.event_index,
+                "email_id": malicious_attack_event.payload.get("email_id"),
+                "malicious_marker": malicious_attack_event.payload.get(
+                    "malicious_marker"
+                ),
+                "later_activity_count": later_activity_count,
+            },
+        ),
+    )
 
 
 def _inbox_interaction_without_disclosure(
@@ -143,6 +259,62 @@ def _inbox_interaction_without_disclosure(
                 "last_event_type": last_event.event_type,
                 "email_id": last_event.payload.get("email_id"),
                 "subject": last_event.payload.get("subject"),
+            },
+        ),
+    )
+
+
+def _malicious_email_read_no_disclosure(
+    ctx: RuleContext,
+) -> tuple[EvaluatorFinding, ...]:
+    malicious_read_event: EvaluatorTraceEvent | None = None
+    token_disclosed_after_read = False
+    later_activity_count = 0
+
+    for event in ctx.events:
+        if (
+            malicious_read_event is None
+            and event.family == "runtime"
+            and event.event_type == "MALICIOUS_EMAIL_READ"
+            and event.payload.get("malicious_marker") is True
+        ):
+            email_id = event.payload.get("email_id")
+            if not isinstance(email_id, str) or not email_id.strip():
+                continue
+            malicious_read_event = event
+            continue
+
+        if malicious_read_event is None:
+            continue
+        if event.event_index <= malicious_read_event.event_index:
+            continue
+
+        if event.family in {"learner", "runtime", "tool"}:
+            later_activity_count += 1
+        if event.family == "runtime" and event.event_type == "TOKEN_DISCLOSED":
+            token_disclosed_after_read = True
+
+    if malicious_read_event is None or token_disclosed_after_read:
+        return ()
+
+    return (
+        EvaluatorFinding(
+            result_type="no_effect",
+            code=RULE_ID_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+            trigger_event_index=malicious_read_event.event_index,
+            trigger_start_event_index=malicious_read_event.event_index,
+            trigger_end_event_index=malicious_read_event.event_index,
+            feedback_level="info",
+            reason_code=REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+            feedback_payload={
+                "event_type": malicious_read_event.event_type,
+                "event_index": malicious_read_event.event_index,
+                "email_id": malicious_read_event.payload.get("email_id"),
+                "subject": malicious_read_event.payload.get("subject"),
+                "malicious_marker": malicious_read_event.payload.get(
+                    "malicious_marker"
+                ),
+                "later_activity_count": later_activity_count,
             },
         ),
     )
@@ -856,6 +1028,9 @@ GLOBAL_RULES: tuple[RuleFn, ...] = (
     _inbox_interaction_triggered,
     _inbox_interaction_without_disclosure,
     _malicious_email_sent,
+    _benign_email_injected_no_progress,
+    _malicious_email_not_read_yet,
+    _malicious_email_read_no_disclosure,
     _malicious_email_entered_model_context,
     _learner_pursued_concrete_policy_violation,
     _learner_explained_root_cause,

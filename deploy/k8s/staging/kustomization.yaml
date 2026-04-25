@@ -9,7 +9,8 @@ resources:
   - control-plane-session-objective-completed-worker-deployment.yaml
   - control-plane-session-hint-unlock-worker-deployment.yaml
   - control-plane-session-completed-worker-deployment.yaml
+  - control-plane-session-feedback-created-worker-deployment.yaml
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:daf0cf5173105980bd86c36a077d1bd3162eb5e9ab4410ee9ae36c0a40fda83e
+    digest: sha256:8fc511fbcf72c16815597161b1796a0efe56263828230a9361cbe0d8d5c96276

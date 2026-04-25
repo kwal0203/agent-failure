@@ -3,7 +3,13 @@ from uuid import UUID
 from typing import Literal, Annotated
 from datetime import datetime
 
-from .types import CompletionOutcome, OutboxEventName, SessionCompletedEventName
+from .types import (
+    CompletionOutcome,
+    FeedbackSeverity,
+    OutboxEventName,
+    SessionCompletedEventName,
+    SessionFeedbackCreatedEventName,
+)
 
 
 ErrorCode = Literal["provider_failure", "invalid_request", "internal_error"]
@@ -189,6 +195,7 @@ class EmailArtifact(BaseModel):
     email_preview: str | None = None
     email_id: str | None = None
     malicious: bool | None = None
+    urgency_marker: bool | None = None
     source: Literal["learner"] = "learner"
 
     @field_validator(
@@ -238,6 +245,21 @@ class SessionCompletedEventPayload(BaseModel):
     idempotency_key: str = Field(min_length=1)
 
 
+class SessionFeedbackCreatedEventPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
+    lab_id: UUID
+    lab_version_id: UUID
+    feedback_key: str = Field(min_length=1)
+    reason_code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    severity: FeedbackSeverity
+    trigger_event_index: int | None = None
+    created_at: datetime
+    idempotency_key: str = Field(min_length=1)
+
+
 class SessionCompletedOutboxEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -246,8 +268,16 @@ class SessionCompletedOutboxEvent(BaseModel):
     payload: SessionCompletedEventPayload
 
 
+class SessionFeedbackCreatedOutboxEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: SessionFeedbackCreatedEventName = "session.feedback.created.v1"
+    aggregate_id: UUID
+    payload: SessionFeedbackCreatedEventPayload
+
+
 OutboxEvent = Annotated[
-    SessionCompletedOutboxEvent,
+    SessionCompletedOutboxEvent | SessionFeedbackCreatedOutboxEvent,
     Field(discriminator="event_type"),
 ]
 

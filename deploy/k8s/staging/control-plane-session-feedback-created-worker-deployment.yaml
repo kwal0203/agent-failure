@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-session-feedback-created-worker
+  namespace: runtime-pool
+  labels:
+    app.kubernetes.io/name: control-plane-session-feedback-created-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: control-plane-session-feedback-created-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: control-plane-session-feedback-created-worker
+    spec:
+      containers:
+        - name: session-feedback-created-worker
+          image: ghcr.io/kwal0203/agent-failure-control-plane
+          imagePullPolicy: IfNotPresent
+          command:
+            - uv
+            - run
+            - python
+            - -m
+            - apps.control_plane.src.interfaces.runtime.session_feedback_created_worker
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      imagePullSecrets:
+        - name: ghcr-pull

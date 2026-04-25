@@ -10,6 +10,7 @@ from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.infrastructure.persistence.models import (
     LabObjectivesModel,
     OutboxEventModel,
+    SessionFeedbackModel,
     SessionHintModel,
     SessionModel,
     SessionObjectiveModel,
@@ -161,6 +162,228 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["hints"][1]["hint_key"] == "hint_2"
     assert session["hints"][1]["status"] == "pending"
     assert session["unread_hint_count"] == 1
+    assert session["feedback_items"] == []
+    assert session["feedback"] == []
+    assert session["unread_feedback_count"] == 0
+
+
+def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-user"
+    owner_user_id = _owner_user_id(owner_username)
+    now = datetime.now(timezone.utc)
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            owner_user_id=owner_user_id,
+            state=SessionState.ACTIVE.value,
+            runtime_substate="WAITING_FOR_INPUT",
+            resume_mode="hot_resume",
+            last_transition_actor="seed",
+            last_transition_reason=None,
+        )
+    )
+    db_session.flush()
+    db_session.add_all(
+        [
+            SessionFeedbackModel(
+                id=uuid4(),
+                session_id=session_id,
+                feedback_key="lab1_benign_email_no_progress",
+                reason_code="BENIGN_EMAIL_NOT_PROGRESSING",
+                message="This action did not advance the objective.",
+                severity="info",
+                trigger_event_index=3,
+                created_at=now,
+                seen_at=None,
+                idempotency_key="feedback:session:3:benign",
+            ),
+            SessionFeedbackModel(
+                id=uuid4(),
+                session_id=session_id,
+                feedback_key="lab1_tool_call_off_path",
+                reason_code="TOOL_CALL_OFF_PATH",
+                message="This action is valid but did not advance progress.",
+                severity="warning",
+                trigger_event_index=4,
+                created_at=now + timedelta(seconds=1),
+                seen_at=now + timedelta(seconds=2),
+                idempotency_key="feedback:session:4:offpath",
+            ),
+        ]
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        first = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        second = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    first_feedback = first.json()["session"]["feedback"]
+    second_feedback = second.json()["session"]["feedback"]
+    first_feedback_items = first.json()["session"]["feedback_items"]
+    second_feedback_items = second.json()["session"]["feedback_items"]
+
+    assert len(first_feedback) == 2
+    assert len(second_feedback) == 2
+    assert len(first_feedback_items) == 2
+    assert len(second_feedback_items) == 2
+    assert first_feedback_items == first_feedback
+    assert second_feedback_items == second_feedback
+    assert first_feedback[0]["feedback_key"] == "lab1_benign_email_no_progress"
+    assert first_feedback[0]["reason_code"] == "BENIGN_EMAIL_NOT_PROGRESSING"
+    assert first_feedback[0]["message"] == "This action did not advance the objective."
+    assert first_feedback[0]["severity"] == "info"
+    assert first_feedback[0]["trigger_event_index"] == 3
+    assert first_feedback[0]["seen_at"] is None
+    assert first_feedback[1]["feedback_key"] == "lab1_tool_call_off_path"
+    assert first_feedback[1]["reason_code"] == "TOOL_CALL_OFF_PATH"
+    assert (
+        first_feedback[1]["message"]
+        == "This action is valid but did not advance progress."
+    )
+    assert first_feedback[1]["severity"] == "warning"
+    assert first_feedback[1]["trigger_event_index"] == 4
+    assert first_feedback[1]["seen_at"] is not None
+    assert first.json()["session"]["unread_feedback_count"] == 1
+    assert second.json()["session"]["unread_feedback_count"] == 1
+
+
+def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "zero-feedback-owner"
+
+    db_session.add(
+        SessionModel(
+            id=session_id,
+            lab_id=uuid4(),
+            lab_version_id=uuid4(),
+            owner_user_id=_owner_user_id(owner_username),
+            state=SessionState.ACTIVE.value,
+            runtime_substate="WAITING_FOR_INPUT",
+            resume_mode="hot_resume",
+            last_transition_actor="seed",
+            last_transition_reason=None,
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    session = response.json()["session"]
+    assert session["feedback_items"] == []
+    assert session["feedback"] == []
+    assert session["unread_feedback_count"] == 0
+
+
+@pytest.mark.usefixtures("engine")
+def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> None:
+    session_id = uuid4()
+    owner_username = "feedback-reconnect-owner"
+    owner_user_id = _owner_user_id(owner_username)
+    now = datetime.now(timezone.utc)
+
+    with SessionFactory() as db:
+        db.add(
+            SessionModel(
+                id=session_id,
+                lab_id=uuid4(),
+                lab_version_id=uuid4(),
+                owner_user_id=owner_user_id,
+                state=SessionState.ACTIVE.value,
+                runtime_substate="WAITING_FOR_INPUT",
+                resume_mode="hot_resume",
+                last_transition_actor="seed",
+                last_transition_reason=None,
+            )
+        )
+        db.flush()
+        db.add_all(
+            [
+                SessionFeedbackModel(
+                    id=uuid4(),
+                    session_id=session_id,
+                    feedback_key="lab1_benign_email_no_progress",
+                    reason_code="BENIGN_EMAIL_NOT_PROGRESSING",
+                    message="This action did not advance the objective.",
+                    severity="info",
+                    trigger_event_index=11,
+                    created_at=now,
+                    seen_at=None,
+                    idempotency_key="feedback:reconnect:11:benign",
+                ),
+                SessionFeedbackModel(
+                    id=uuid4(),
+                    session_id=session_id,
+                    feedback_key="lab1_tool_call_off_path",
+                    reason_code="TOOL_CALL_OFF_PATH",
+                    message="This action is valid but did not advance progress.",
+                    severity="warning",
+                    trigger_event_index=12,
+                    created_at=now + timedelta(seconds=1),
+                    seen_at=now + timedelta(seconds=3),
+                    idempotency_key="feedback:reconnect:12:offpath",
+                ),
+            ]
+        )
+        db.commit()
+
+    app.dependency_overrides[get_db_session] = _override_db_session_factory()
+    try:
+        first_client = TestClient(app)
+        first_response = first_client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        first_client.close()
+
+        second_client = TestClient(app)
+        second_response = second_client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        second_client.close()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    first_session = first_response.json()["session"]
+    second_session = second_response.json()["session"]
+
+    assert first_session["feedback_items"] == second_session["feedback_items"]
+    assert first_session["feedback"] == second_session["feedback"]
+    assert first_session["unread_feedback_count"] == 1
+    assert second_session["unread_feedback_count"] == 1
 
 
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:

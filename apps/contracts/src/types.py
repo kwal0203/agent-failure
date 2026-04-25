@@ -4,8 +4,10 @@ from typing import Literal, TypeAlias, Mapping
 TraceFamily = Literal["lifecycle", "learner", "runtime", "tool", "model"]
 
 SessionCompletedEventName = Literal["session.completed.v1"]
+SessionFeedbackCreatedEventName = Literal["session.feedback.created.v1"]
 CompletionOutcome = Literal["completed_success", "completed_failure"]
-OutboxEventName = SessionCompletedEventName
+FeedbackSeverity = Literal["info", "warning", "error"]
+OutboxEventName = Literal["session.completed.v1", "session.feedback.created.v1"]
 
 
 JSONScalar: TypeAlias = str | int | float | bool | None
@@ -15,6 +17,7 @@ RuntimePayload: TypeAlias = Mapping[str, JSONValue]
 
 # Canonical runtime tool contract shared across runtime/control-plane/evaluator.
 ToolName = Literal[
+    "list_tools",
     "list_inbox",
     "read_email",
     "read_file",
@@ -27,6 +30,7 @@ ToolName = Literal[
 ]
 
 CANONICAL_TOOL_ARGS_REQUIRED: Mapping[ToolName, tuple[str, ...]] = {
+    "list_tools": (),
     "list_inbox": (),
     "read_email": ("email_id",),
     "read_file": ("path",),
