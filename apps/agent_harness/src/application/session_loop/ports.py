@@ -10,6 +10,7 @@ from .types import (
     ToolDecision,
     DeleteFileResult,
     ReadFileResult,
+    WriteFileResult,
     VendorMasterRecord,
     AttackerTargetRecord,
     InvoiceRecord,
@@ -50,6 +51,10 @@ class FileToolPort(Protocol):
     ) -> None: ...
 
     def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult: ...
+
+    def write_file(
+        self, *, session_id: UUID, path: str, content: str
+    ) -> WriteFileResult: ...
 
     def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult: ...
 

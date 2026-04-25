@@ -802,7 +802,7 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
     assert outbox_repo.objective_events_enqueued == 3
     assert [event.objective_key for event in outbox_repo.objective_events] == [
         "unsafe_tool_invocation_triggered",
-        "security_boundary_crossed",
+        "log_created",
         "critical_file_deleted",
     ]
 

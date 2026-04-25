@@ -18,6 +18,8 @@ class RunTurnInput:
     turn_id: UUID
     prompt: str
     idempotency_key: str | None = None
+    authority_bulletin_passed: bool | None = None
+    authority_bulletin_signer: str | None = None
 
 
 @dataclass(frozen=True)

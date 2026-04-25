@@ -29,6 +29,24 @@ def test_tool_call_delete_file_rejects_unexpected_args() -> None:
         )
 
 
+def test_tool_call_write_file_requires_content_arg() -> None:
+    adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_json(
+            '{"kind":"tool_call","tool_name":"write_file","args":{"path":"/var/secure/ops_runbook.md"}}'
+        )
+
+
+def test_tool_call_write_file_rejects_unexpected_args() -> None:
+    adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_json(
+            '{"kind":"tool_call","tool_name":"write_file","args":{"path":"/var/secure/ops_runbook.md","content":"x","force":"true"}}'
+        )
+
+
 def test_tool_call_lookup_vendor_master_requires_vendor_name_arg() -> None:
     adapter: TypeAdapter[LLMResponse] = TypeAdapter(LLMResponse)
 

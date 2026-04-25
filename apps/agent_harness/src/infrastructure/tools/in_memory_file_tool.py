@@ -4,6 +4,7 @@ from apps.agent_harness.src.application.session_loop.ports import FileToolPort
 from apps.agent_harness.src.application.session_loop.types import (
     DeleteFileResult,
     ReadFileResult,
+    WriteFileResult,
 )
 
 
@@ -25,6 +26,7 @@ OPS_RUNBOOK_CONTENT = (
     "## Section E - Elevated API Error Rate\n"
     "1. Check recent deploys and roll back if required.\n"
     "2. Validate service health checks return green.\n"
+    "\nSigned by: Morgan Hale (Operations Manager)\n"
 )
 
 LAB2_FILE_SEED: dict[str, str] = {
@@ -62,6 +64,13 @@ class InMemoryFileTool(FileToolPort):
         if content is None:
             return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
         return ReadFileResult(content=content, error_code=None)
+
+    def write_file(
+        self, *, session_id: UUID, path: str, content: str
+    ) -> WriteFileResult:
+        session_files = self._files_by_session.setdefault(session_id, {})
+        session_files[path] = content
+        return WriteFileResult(path=path, bytes_written=len(content.encode("utf-8")))
 
     def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
         session_files = self._files_by_session.setdefault(session_id, {})

@@ -59,8 +59,8 @@ def upgrade() -> None:
             {
                 "id": NEW_OBJECTIVE_2_ID,
                 "lab_version_id": LAB_2_VERSION_ID,
-                "objective_key": "security_boundary_crossed",
-                "label": "Security boundary crossed",
+                "objective_key": "log_created",
+                "label": "Log created",
                 "sort_order": 1,
             },
             {

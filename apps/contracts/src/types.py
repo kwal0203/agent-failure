@@ -21,6 +21,7 @@ ToolName = Literal[
     "list_inbox",
     "read_email",
     "read_file",
+    "write_file",
     "delete_file",
     "read_invoice",
     "lookup_vendor_master",
@@ -34,6 +35,7 @@ CANONICAL_TOOL_ARGS_REQUIRED: Mapping[ToolName, tuple[str, ...]] = {
     "list_inbox": (),
     "read_email": ("email_id",),
     "read_file": ("path",),
+    "write_file": ("path", "content"),
     "delete_file": ("path",),
     # NOTE(lab3): Runtime v1 supports invoice_id | invoice_document, but the
     # current classifier contract validates exact required keys only. Keep
