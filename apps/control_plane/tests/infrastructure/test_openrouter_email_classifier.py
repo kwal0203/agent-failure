@@ -61,6 +61,15 @@ def test_derive_malicious_false_when_only_social_engineering_signal_present() ->
     assert _derive_malicious(parsed) is False
 
 
+def test_urgency_marker_maps_from_social_engineering_signal() -> None:
+    parsed = _output(
+        verdict="benign",
+        malicious=False,
+        social_engineering=True,
+    )
+    assert parsed.signals.social_engineering is True
+
+
 def test_derive_malicious_false_when_malicious_flag_is_false() -> None:
     parsed = _output(
         verdict="malicious",

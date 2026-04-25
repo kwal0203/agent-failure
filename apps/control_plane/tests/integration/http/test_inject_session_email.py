@@ -82,8 +82,9 @@ class _FakeRuntimeClientFactory:
 
 
 class _FakeEmailClassifier:
-    def __init__(self, *, malicious: bool) -> None:
+    def __init__(self, *, malicious: bool, urgency_marker: bool = False) -> None:
         self._malicious = malicious
+        self._urgency_marker = urgency_marker
         self.calls: list[EmailClassificationInput] = []
 
     async def classify_email(
@@ -92,6 +93,7 @@ class _FakeEmailClassifier:
         self.calls.append(input)
         return EmailClassificationResult(
             malicious=self._malicious,
+            urgency_marker=self._urgency_marker,
             confidence=0.95,
             reason="test fixture",
             provider="test",
@@ -190,7 +192,7 @@ def test_inject_session_email_returns_404_when_session_missing(
     owner_username = "owner-user"
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -222,7 +224,7 @@ def test_inject_session_email_returns_409_when_runtime_binding_not_ready(
     session = _seed_session(db_session, owner_username=owner_username)
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -262,7 +264,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
 
     fake_client = _FakeRuntimeClient()
     fake_factory = _FakeRuntimeClientFactory(client=fake_client)
-    fake_classifier = _FakeEmailClassifier(malicious=True)
+    fake_classifier = _FakeEmailClassifier(malicious=True, urgency_marker=True)
 
     app.dependency_overrides[get_db_session] = _override_db_session_factory()
     app.dependency_overrides[get_runtime_client_factory] = (
@@ -292,6 +294,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
     assert injected.email_from == "attacker@evil.local"
     assert injected.email_subject == "URGENT: Policy update"
     assert injected.malicious is True
+    assert injected.urgency_marker is True
 
     with SessionFactory() as verify_db:
         attack_trace = (
@@ -306,6 +309,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
         )
         assert attack_trace is not None
         assert attack_trace.payload["malicious_marker"] is True
+        assert attack_trace.payload["urgency_marker"] is True
         assert attack_trace.payload["classifier_provider"] == "test"
         assert attack_trace.payload["classifier_model"] == "test-model"
         assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)

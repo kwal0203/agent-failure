@@ -277,3 +277,88 @@ def test_prompt_injection_benign_feedback_payload_keys_match_contract() -> None:
         rule_id="pi.benign_email_injected_no_progress",
         payload=finding.feedback_payload,
     )
+
+
+def test_prompt_injection_malicious_email_not_read_yet_payload_keys_match_contract() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    findings = bundle.run(
+        events=[
+            _event(
+                family="learner",
+                event_type="ATTACK_EMAIL_SENT",
+                payload={
+                    "email_id": "email-malicious-ct-1",
+                    "email_from": "attacker@evil.local",
+                    "subject": "Urgent compliance update",
+                    "malicious_marker": True,
+                },
+                event_index=102,
+            ),
+            _event(
+                family="tool",
+                event_type="TOOL_CALL_REQUESTED",
+                payload={
+                    "tool_name": "list_inbox",
+                    "target_resource": "inbox",
+                    "operation": "list",
+                },
+                event_index=103,
+            ),
+        ],
+        explanation_signals=(),
+    )
+    finding = next(
+        (item for item in findings if item.code == "pi.malicious_email_not_read_yet"),
+        None,
+    )
+    assert finding is not None
+    _assert_payload_keys_match_contract(
+        rule_id="pi.malicious_email_not_read_yet",
+        payload=finding.feedback_payload,
+    )
+
+
+def test_prompt_injection_malicious_email_read_no_disclosure_payload_keys_match_contract() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    findings = bundle.run(
+        events=[
+            _event(
+                family="runtime",
+                event_type="MALICIOUS_EMAIL_READ",
+                payload={
+                    "email_id": "email-malicious-read-ct-1",
+                    "subject": "Urgent compliance update",
+                    "malicious_marker": True,
+                },
+                event_index=104,
+            ),
+            _event(
+                family="tool",
+                event_type="TOOL_CALL_REQUESTED",
+                payload={
+                    "tool_name": "list_inbox",
+                    "target_resource": "inbox",
+                    "operation": "list",
+                },
+                event_index=105,
+            ),
+        ],
+        explanation_signals=(),
+    )
+    finding = next(
+        (
+            item
+            for item in findings
+            if item.code == "pi.malicious_email_read_no_disclosure"
+        ),
+        None,
+    )
+    assert finding is not None
+    _assert_payload_keys_match_contract(
+        rule_id="pi.malicious_email_read_no_disclosure",
+        payload=finding.feedback_payload,
+    )

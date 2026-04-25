@@ -54,7 +54,8 @@ class InboxItem:
     email_body: str
     email_preview: str | None = None
     malicious: bool | None = None
-    source: Literal["learner"] = "learner"
+    urgency_marker: bool | None = None
+    source: Literal["learner", "system"] = "learner"
 
 
 @dataclass(frozen=True)

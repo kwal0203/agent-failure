@@ -1872,6 +1872,7 @@ async def inject_session_email(
             email_body=request.email_body,
             email_id=injected_email_id,
             malicious=derived_malicious,
+            urgency_marker=classification.urgency_marker,
             source=request.source,
         )
 
@@ -1883,6 +1884,7 @@ async def inject_session_email(
             "email_from": email_input.email_from,
             "subject": email_input.email_subject,
             "malicious_marker": derived_malicious,
+            "urgency_marker": classification.urgency_marker,
             "classifier_provider": classification.provider,
             "classifier_model": classification.model,
             "classifier_confidence": classification.confidence,

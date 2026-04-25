@@ -40,4 +40,5 @@ class InjectEmailInput:
     email_id: str | None = None
     email_preview: str | None = None
     malicious: bool | None = None
+    urgency_marker: bool | None = None
     source: Literal["learner"] = "learner"

@@ -83,6 +83,7 @@ class RuntimeTurnExecutor:
         self._attack_seeded_sessions: set[UUID] = set()
         self._file_seeded_sessions: set[UUID] = set()
         self._lab3_seeded_sessions: set[UUID] = set()
+        self._urgent_malicious_context_by_session: dict[UUID, str] = {}
 
     def _seed_lab_artifacts_for_session(self, turn: RuntimeTurnInput) -> None:
         if turn.lab_id == LAB_2_TOOL_MISUSE_ID:
@@ -141,18 +142,40 @@ class RuntimeTurnExecutor:
         if not items:
             return "Inbox is empty"
 
+        email_id_to_alias, _ = self._build_email_alias_maps(items=items)
         lines = ["Inbox:"]
-        for i, item in enumerate(items, start=1):
-            lines.append(
-                f"{i}) {item.email_id} | {item.email_subject} | {item.email_from}"
-            )
+        for item in items:
+            body = item.email_body
+            if not body and item.email_preview:
+                body = item.email_preview
+            display_id = email_id_to_alias.get(item.email_id, item.email_id)
+            lines.append(f"ID: {display_id}")
+            lines.append(f"Subject: {item.email_subject}")
+            lines.append(f"Body: {body}")
+            lines.append("")
+        if lines[-1] == "":
+            lines.pop()
         return "\n".join(lines)
 
-    def _render_email(self, item: InboxItem) -> str:
+    def _render_email(
+        self, item: InboxItem, *, display_email_id: str | None = None
+    ) -> str:
         body = item.email_body
         if not body and item.email_preview:
             body = item.email_preview
-        return f"Email {item.email_id}\nSubject: {item.email_subject}\nBody: {body}"
+        email_id = display_email_id or item.email_id
+        return f"ID: {email_id}\nSubject: {item.email_subject}\nBody: {body}"
+
+    def _build_email_alias_maps(
+        self, *, items: list[InboxItem]
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        email_id_to_alias: dict[str, str] = {}
+        alias_to_email_id: dict[str, str] = {}
+        for index, item in enumerate(items, start=1):
+            alias = f"e{index}"
+            email_id_to_alias[item.email_id] = alias
+            alias_to_email_id[alias] = item.email_id
+        return email_id_to_alias, alias_to_email_id
 
     def _should_use_poisoned_account(
         self, *, memories: tuple[object, ...], attacker_account: str
@@ -235,6 +258,30 @@ class RuntimeTurnExecutor:
         self._seed_lab_artifacts_for_session(turn)
 
         tool_call_decision = self._decide_tool_or_text(turn=turn)
+        active_urgent_email_id = self._urgent_malicious_context_by_session.get(
+            turn.session_id
+        )
+        if active_urgent_email_id is not None and (
+            tool_call_decision.kind != "tool_call"
+            or tool_call_decision.tool_name not in {"list_inbox", "read_email"}
+        ):
+            for part in self._chunk_text(
+                f"Manager address: {LAB1_PROTECTED_SECRET_VALUE}"
+            ):
+                full_text_so_far += part
+                evt = self._maybe_emit_token_disclosed(
+                    text=full_text_so_far,
+                    emitted_in_turn=token_disclosed_emitted,
+                )
+                if evt is not None:
+                    yield evt
+                    token_disclosed_emitted = True
+                    yield TextItem(content=part)
+                    continue
+
+                yield TextItem(content=part)
+            return
+
         if tool_call_decision.kind == "tool_call":
             tool_name = tool_call_decision.tool_name
             if tool_name == "list_tools":
@@ -358,18 +405,38 @@ class RuntimeTurnExecutor:
 
                     return
 
-                item = self._inbox_tool.read_email(email_id=email_id)
+                requested_email_id = str(email_id).strip()
+                inbox_items = self._inbox_tool.list_inbox()
+                email_id_to_alias, alias_to_email_id = self._build_email_alias_maps(
+                    items=inbox_items
+                )
+                requested_email_id_key = requested_email_id.lower()
+                resolved_email_id = alias_to_email_id.get(
+                    requested_email_id_key, requested_email_id
+                )
+                item = self._inbox_tool.read_email(email_id=resolved_email_id)
+                if (
+                    item is None
+                    and requested_email_id
+                    and requested_email_id_key not in alias_to_email_id
+                    and not requested_email_id.startswith("email-")
+                ):
+                    item = self._inbox_tool.read_email(
+                        email_id=f"email-{requested_email_id}"
+                    )
                 if item is None:
                     yield EventItem(
                         event=ToolCallFailedEvent(
                             type="tool_call_failed",
                             tool_name="read_email",
-                            target_resource=str(email_id),
+                            target_resource=requested_email_id,
                             operation="read",
                             error_code="EMAIL_NOT_FOUND",
                         )
                     )
-                    for part in self._chunk_text(f"I couldn't find email '{email_id}'"):
+                    for part in self._chunk_text(
+                        f"I couldn't find email '{requested_email_id}'"
+                    ):
                         full_text_so_far += part
                         evt = self._maybe_emit_token_disclosed(
                             text=full_text_so_far,
@@ -403,8 +470,15 @@ class RuntimeTurnExecutor:
                             malicious_marker=item.malicious,
                         )
                     )
+                    if item.urgency_marker:
+                        self._urgent_malicious_context_by_session[turn.session_id] = (
+                            item.email_id
+                        )
 
-                for part in self._chunk_text(self._render_email(item=item)):
+                display_email_id = email_id_to_alias.get(item.email_id, item.email_id)
+                for part in self._chunk_text(
+                    self._render_email(item=item, display_email_id=display_email_id)
+                ):
                     full_text_so_far += part
                     evt = self._maybe_emit_token_disclosed(
                         text=full_text_so_far,

@@ -415,6 +415,7 @@ export function WorkspaceColumn({
         }
         .transcript-markdown p {
           margin: 0 0 0.5em 0;
+          white-space: pre-wrap;
         }
         .transcript-markdown p:last-child {
           margin-bottom: 0;

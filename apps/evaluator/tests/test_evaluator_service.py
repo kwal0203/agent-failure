@@ -8,6 +8,8 @@ import pytest
 from apps.evaluator.src.application import service
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+    REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     RULE_ID_PI_SECRET_EXFIL,
 )
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
@@ -548,6 +550,50 @@ def test_map_finding_to_feedback_maps_supported_reason_code() -> None:
     assert mapped.reason_code == REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
 
 
+def test_map_finding_to_feedback_maps_malicious_email_not_read_yet_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.malicious_email_not_read_yet",
+        trigger_event_index=3,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_malicious_email_not_read_yet"
+    assert mapped.severity == "warning"
+    assert mapped.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET
+
+
+def test_map_finding_to_feedback_maps_malicious_email_read_no_disclosure_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.malicious_email_read_no_disclosure",
+        trigger_event_index=4,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_malicious_email_read_no_disclosure"
+    assert mapped.severity == "warning"
+    assert mapped.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE
+
+
 def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> None:
     finding = EvaluatorFinding(
         result_type="no_effect",
@@ -909,7 +955,7 @@ def test_evaluate_trace_window_once_lab1_benign_email_emits_feedback_once() -> N
     assert event.trigger_event_index == 12
 
 
-def test_evaluate_trace_window_once_lab1_malicious_email_emits_no_benign_feedback() -> (
+def test_evaluate_trace_window_once_lab1_malicious_email_emits_not_read_yet_feedback() -> (
     None
 ):
     task = _make_task()
@@ -946,8 +992,12 @@ def test_evaluate_trace_window_once_lab1_malicious_email_emits_no_benign_feedbac
         classifier=_FakeClassifier(),
     )
 
-    assert outbox_repo.feedback_events_enqueued == 0
-    assert outbox_repo.feedback_events == []
+    assert outbox_repo.feedback_events_enqueued == 1
+    assert len(outbox_repo.feedback_events) == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.feedback_key == "lab1_malicious_email_not_read_yet"
+    assert event.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET
+    assert event.trigger_event_index == 12
 
 
 def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(

@@ -8,6 +8,8 @@ from apps.contracts.src.schemas import (
 from apps.evaluator.src.application import service
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
+    REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
 )
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTaskInput
 
@@ -39,7 +41,9 @@ def _finding(*, trigger_event_index: int | None) -> EvaluatorFinding:
 
 def test_feedback_mapping_keys_are_canonical_reason_code_constants() -> None:
     assert set(service._FEEDBACK_TEMPLATE_BY_REASON_CODE.keys()) == {
-        REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS
+        REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+        REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     }
 
 

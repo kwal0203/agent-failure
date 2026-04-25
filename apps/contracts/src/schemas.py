@@ -195,6 +195,7 @@ class EmailArtifact(BaseModel):
     email_preview: str | None = None
     email_id: str | None = None
     malicious: bool | None = None
+    urgency_marker: bool | None = None
     source: Literal["learner"] = "learner"
 
     @field_validator(
