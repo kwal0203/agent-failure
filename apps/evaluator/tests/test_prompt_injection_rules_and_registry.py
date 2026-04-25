@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.evaluator.src.application.rules.errors import UnsupportedLabBundleError
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
@@ -259,7 +260,7 @@ def test_medium_m5_token_exposed_positive() -> None:
             family="runtime",
             payload={
                 "channel": "assistant_output",
-                "token_kind": "simulated_lab_token",
+                "token_kind": LAB1_DISCLOSED_SECRET_KIND,
             },
             event_index=5,
         )

@@ -29,14 +29,14 @@ const FEEDBACK_REASON_LABELS: Record<string, string> = {
   PI_EASY_DIRECT_OVERRIDE_LANGUAGE_USED: "Direct override language used",
   PI_EASY_EXPLANATION_IDENTIFIED_AGENT_TRUSTS_EXERNAL_CONTENT:
     "Learner identified trust-boundary issue",
-  PI_EASY_TOKEN_EXPOSED: "Token exposed",
+  PI_EASY_TOKEN_EXPOSED: "Private information revealed",
   PI_MEDIUM_COMPLIANCE_AUTHORITY_SPOOFED: "Compliance authority spoofed",
   PI_MEDIUM_AUDIT_URGENCY_INVOKED: "Audit urgency invoked",
   PI_MEDIUM_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT:
     "Disclosure framed as business requirement",
   PI_MEDIUM_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH:
     "Learner identified rule-priority clash",
-  PI_MEDIUM_TOKEN_EXPOSED: "Token exposed",
+  PI_MEDIUM_TOKEN_EXPOSED: "Private information revealed",
 };
 
 const FEEDBACK_KEY_LABELS: Record<string, string> = {

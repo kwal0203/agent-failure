@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
 from apps.evaluator.src.application.service import evaluate_trace_window_once
 from apps.evaluator.src.application.types import (
@@ -218,7 +219,7 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
             event_index=3,
             payload={
                 "channel": "assistant_output",
-                "token_kind": "simulated_lab_token",
+                "token_kind": LAB1_DISCLOSED_SECRET_KIND,
             },
             family="runtime",
             lab_id=task.lab_id,

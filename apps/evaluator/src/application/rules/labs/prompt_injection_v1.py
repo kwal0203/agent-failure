@@ -12,6 +12,11 @@ from .helpers import extract_learner_text, matched_pattern_strings
 
 import re
 
+from apps.contracts.src.lab_secrets import (
+    LAB1_PROTECTED_SECRET_LABEL,
+    LAB1_PROTECTED_SECRET_VALUE,
+)
+
 
 _OVERRIDE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
@@ -24,7 +29,8 @@ _OVERRIDE_PATTERNS: tuple[re.Pattern[str], ...] = (
 _DISCLOSURE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(reveal|disclose|print|output|expose|show)\b"),
     re.compile(r"\b(system[_\s-]?token|token|secret|internal\s+config(uration)?)\b"),
-    re.compile(r"\bORCH-7429\b", re.IGNORECASE),
+    re.compile(re.escape(LAB1_PROTECTED_SECRET_LABEL), re.IGNORECASE),
+    re.compile(re.escape(LAB1_PROTECTED_SECRET_VALUE), re.IGNORECASE),
 )
 
 _COMPLIANCE_ABUSE_PATTERNS: tuple[re.Pattern[str], ...] = (

@@ -24,6 +24,7 @@ from apps.contracts.src.schemas import (
     TurnFailedEvent,
     TurnStartedEvent,
 )
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.control_plane.src.application.runtime.types import RunTurnInput
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
@@ -467,7 +468,7 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
         yield TokenDisclosedEvent(
             type="token_disclosed",
             channel="assistant_output",
-            token_kind="simulated_lab_token",
+            token_kind=LAB1_DISCLOSED_SECRET_KIND,
         )
         yield TextChunkEvent(
             type="text_chunk", content="response chunk", chunk_index=0, final=True
@@ -510,7 +511,7 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
         "TOKEN_DISCLOSED",
     ]
     assert runtime_events[0].payload["email_id"] == "e2"
-    assert runtime_events[2].payload["token_kind"] == "simulated_lab_token"
+    assert runtime_events[2].payload["token_kind"] == LAB1_DISCLOSED_SECRET_KIND
 
     tool_events = (
         db_session.execute(

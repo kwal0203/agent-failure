@@ -347,7 +347,7 @@ describe("SessionPage completion indicator", () => {
               },
               {
                 objective_key: "token_exposed",
-                label: "Token exposed",
+                label: "Private information revealed",
                 status: "complete",
                 completed_at: "2026-01-01T00:03:00Z",
                 updated_at: "2026-01-01T00:03:00Z",
@@ -362,7 +362,7 @@ describe("SessionPage completion indicator", () => {
 
     renderSessionPage();
 
-    await screen.findByText("Token exposed", { exact: false });
+    await screen.findByText("Private information revealed", { exact: false });
     expect(screen.queryByText("Outcome: in_progress")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Outcome: completed_success"),

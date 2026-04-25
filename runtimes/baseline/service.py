@@ -18,6 +18,10 @@ from apps.contracts.src.schemas import (
     ToolCallFailedEvent,
 )
 from apps.contracts.src.types import CANONICAL_TOOL_ARGS_REQUIRED
+from apps.contracts.src.lab_secrets import (
+    LAB1_DISCLOSED_SECRET_KIND,
+    LAB1_PROTECTED_SECRET_VALUE,
+)
 from apps.agent_harness.src.application.session_loop.ports import (
     ModelClientPort,
     LabContextBuilderPort,
@@ -107,14 +111,14 @@ class RuntimeTurnExecutor:
         if emitted_in_turn:
             return None
 
-        if "TOKEN-987" not in text:
+        if LAB1_PROTECTED_SECRET_VALUE not in text:
             return None
 
         return EventItem(
             event=TokenDisclosedEvent(
                 type="token_disclosed",
                 channel="assistant_output",
-                token_kind="simulated_lab_token",
+                token_kind=LAB1_DISCLOSED_SECRET_KIND,
             )
         )
 

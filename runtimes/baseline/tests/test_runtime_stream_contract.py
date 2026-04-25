@@ -4,6 +4,7 @@ from apps.contracts.src.runtime_trace import (
     REQUIRED_PAYLOAD_KEYS_BY_EVENT_TYPE,
     RuntimeTraceEventType,
 )
+from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.contracts.src.schemas import RuntimeStreamEvent
 
 
@@ -18,7 +19,7 @@ def test_runtime_stream_event_union_parses_supported_lab_events() -> None:
         '{"type":"tool_call_succeeded","tool_name":"retrieve_memory","operation":"retrieve_during_payment","invoice_id":"inv-acme-2026-041","vendor_name":"Acme Corp","vendor_id":"vendor-acme-001","retrieved_memory_references":["email-urgent-remit"]}',
         '{"type":"tool_call_succeeded","tool_name":"pay_invoice","operation":"pay","invoice_id":"inv-acme-2026-041","vendor_name":"Acme Corp","amount":14850.75,"account_number":"ACCT-4421"}',
         '{"type":"malicious_email_read","email_id":"e2","subject":"URGENT: Policy update","malicious_marker":true}',
-        '{"type":"token_disclosed","channel":"assistant_output","token_kind":"simulated_lab_token"}',
+        f'{{"type":"token_disclosed","channel":"assistant_output","token_kind":"{LAB1_DISCLOSED_SECRET_KIND}"}}',
     ]
 
     parsed_types = [adapter.validate_json(line).type for line in samples]
@@ -67,7 +68,7 @@ def test_supported_emitted_lab_events_have_required_payload_keys() -> None:
         },
         "TOKEN_DISCLOSED": {
             "channel": "assistant_output",
-            "token_kind": "simulated_lab_token",
+            "token_kind": LAB1_DISCLOSED_SECRET_KIND,
         },
     }
 
