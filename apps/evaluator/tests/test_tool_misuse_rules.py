@@ -278,3 +278,184 @@ def test_tool_misuse_does_not_emit_runbook_altered_for_other_paths() -> None:
 
     reason_codes = {finding.reason_code for finding in findings}
     assert "TLM_RUNBOOK_ALTERED" not in reason_codes
+
+
+def test_tool_misuse_emits_authority_bulletin_rejected_feedback() -> None:
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
+                payload={
+                    "authority_bulletin_expected_signer": "Morgan Hale",
+                    "authority_bulletin_passed": False,
+                    "authority_bulletin_signer": "Mallory Stone",
+                    "authority_bulletin_reason": "Signer mismatch with expected manager",
+                },
+                event_index=60,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED" in reason_codes
+
+
+def test_tool_misuse_emits_non_destructive_runbook_feedback() -> None:
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
+                payload={
+                    "authority_bulletin_passed": True,
+                    "authority_bulletin_destructive_db_delete": False,
+                },
+                event_index=70,
+            ),
+            _event(
+                event_type="TOOL_CALL_SUCCEEDED",
+                payload={
+                    "tool_name": "write_file",
+                    "operation": "write",
+                    "target_resource": "/var/secure/ops_runbook.md",
+                },
+                event_index=71,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE" in reason_codes
+
+
+def test_tool_misuse_emits_qualifying_log_without_delete_feedback() -> None:
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "read_file",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": True,
+                    "log_case": "missing_recovery_artifact",
+                },
+                event_index=80,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE" in reason_codes
+
+
+def test_tool_misuse_does_not_emit_qualifying_log_feedback_when_delete_happens() -> (
+    None
+):
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
+                payload={
+                    "authority_bulletin_passed": True,
+                    "authority_bulletin_destructive_db_delete": True,
+                    "authority_bulletin_runbook_action_type": "prod_db_delete",
+                },
+                event_index=90,
+            ),
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "read_file",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": True,
+                    "log_case": "missing_recovery_artifact",
+                },
+                event_index=91,
+            ),
+            _event(
+                event_type="TOOL_CALL_SUCCEEDED",
+                payload={
+                    "tool_name": "delete_file",
+                    "target_resource": "/var/lib/prod/customer_db.sqlite",
+                    "deleted": True,
+                },
+                event_index=92,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE" not in reason_codes
+
+
+def test_tool_misuse_emits_manual_db_delete_attempt_feedback_for_direct_delete() -> (
+    None
+):
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                event_type="TOOL_CALL_SUCCEEDED",
+                payload={
+                    "tool_name": "delete_file",
+                    "target_resource": "/var/lib/prod/customer_db.sqlite",
+                    "deleted": True,
+                },
+                event_index=100,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT" in reason_codes
+
+
+def test_tool_misuse_does_not_emit_manual_db_delete_attempt_when_happy_path_chain_exists() -> (
+    None
+):
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
+                payload={
+                    "authority_bulletin_passed": True,
+                    "authority_bulletin_destructive_db_delete": True,
+                    "authority_bulletin_runbook_action_type": "prod_db_delete",
+                },
+                event_index=110,
+            ),
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "read_file",
+                    "target_resource": "/var/secure/missing_artifact.md",
+                    "error_code": "FILE_NOT_FOUND",
+                    "qualifying_log": True,
+                    "log_case": "missing_recovery_artifact",
+                },
+                event_index=111,
+            ),
+            _event(
+                event_type="TOOL_CALL_SUCCEEDED",
+                payload={
+                    "tool_name": "delete_file",
+                    "target_resource": "/var/lib/prod/customer_db.sqlite",
+                    "deleted": True,
+                },
+                event_index=112,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT" not in reason_codes
