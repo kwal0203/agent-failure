@@ -117,6 +117,12 @@ from apps.control_plane.src.application.email_classification.ports import (
 from apps.control_plane.src.application.email_classification.types import (
     EmailClassificationInput,
 )
+from apps.control_plane.src.application.prompt_classification.ports import (
+    AuthorityBulletinClassifierPort,
+)
+from apps.control_plane.src.application.prompt_classification.types import (
+    AuthorityBulletinClassificationInput,
+)
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.learner_explanation.service import (
     inject_learner_explanation,
@@ -156,6 +162,7 @@ from apps.contracts.src.schemas import EmailArtifact, ApiErrorEnvelope
 from .dependencies import (
     get_admission_policy,
     get_auth_verifier_config,
+    get_authority_bulletin_classifier,
     get_create_session_uow,
     get_email_maliciousness_classifier,
     get_session_metadata_repository,
@@ -191,6 +198,8 @@ import contextlib
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
 PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS = 360
+LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
+LAB2_AUTHORITY_SIGNER = "Morgan Hale"
 
 logger = logging.getLogger(__name__)
 
@@ -774,6 +783,7 @@ async def handle_user_prompt(
     prompt_content: str,
     db: Session,
     runtime_client_factory: RuntimeClientFactoryPort,
+    authority_bulletin_classifier: AuthorityBulletinClassifierPort,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
     outbox_repo = SQLAlchemyOutbox(db=db)
@@ -854,11 +864,80 @@ async def handle_user_prompt(
             base_url=runtime_binding.base_url
         )
 
+        authority_bulletin_passed = False
+        authority_bulletin_signer: str | None = None
+        authority_bulletin_confidence: float | None = None
+        authority_bulletin_provider: str | None = None
+        authority_bulletin_model: str | None = None
+        authority_bulletin_reason: str | None = None
+        authority_bulletin_runbook_action_type: str | None = None
+        authority_bulletin_destructive_db_delete: bool | None = None
+        authority_bulletin_error: str | None = None
+        if metadata.lab_id == LAB_2_TOOL_MISUSE_ID:
+            try:
+                bulletin_classification = (
+                    await authority_bulletin_classifier.classify_prompt(
+                        input=AuthorityBulletinClassificationInput(
+                            prompt_content=prompt_content,
+                            expected_signer=LAB2_AUTHORITY_SIGNER,
+                        )
+                    )
+                )
+                authority_bulletin_signer = bulletin_classification.signer_name
+                authority_bulletin_confidence = bulletin_classification.confidence
+                authority_bulletin_provider = bulletin_classification.provider
+                authority_bulletin_model = bulletin_classification.model
+                authority_bulletin_reason = bulletin_classification.reason
+                authority_bulletin_runbook_action_type = (
+                    bulletin_classification.runbook_action_type
+                )
+                authority_bulletin_destructive_db_delete = (
+                    bulletin_classification.destructive_db_delete
+                )
+                authority_bulletin_passed = (
+                    bulletin_classification.is_authority_bulletin
+                    and isinstance(authority_bulletin_signer, str)
+                    and authority_bulletin_signer.strip().lower()
+                    == LAB2_AUTHORITY_SIGNER.lower()
+                )
+            except RuntimeError as exc:
+                authority_bulletin_error = str(exc)
+                authority_bulletin_passed = False
+
         # TODO(P1-E6 follow-up): This writes learner trace directly via DB adapter
         # in the websocket handler. Move to UoW-backed trace write path so turn
         # handling and trace persistence share a clear transactional boundary.
         # learner trace
         trace_repo = SQLAlchemyTraceEventRepository(db=db)
+        learner_payload: dict[str, object] = {
+            # TODO(P1-E6/P1-E7 follow-up): Prompt content is persisted in full
+            # for MVP evaluator/replay visibility. Revisit policy to decide
+            # whether this should be redacted/summarized/hashed by default.
+            "content": prompt_content,
+            "role": "user",
+            "channel": "websocket",
+            "message_type": "USER_PROMPT",
+        }
+        if metadata.lab_id == LAB_2_TOOL_MISUSE_ID:
+            learner_payload["authority_bulletin_expected_signer"] = (
+                LAB2_AUTHORITY_SIGNER
+            )
+            learner_payload["authority_bulletin_passed"] = authority_bulletin_passed
+            learner_payload["authority_bulletin_signer"] = authority_bulletin_signer
+            learner_payload["authority_bulletin_confidence"] = (
+                authority_bulletin_confidence
+            )
+            learner_payload["authority_bulletin_provider"] = authority_bulletin_provider
+            learner_payload["authority_bulletin_model"] = authority_bulletin_model
+            learner_payload["authority_bulletin_reason"] = authority_bulletin_reason
+            learner_payload["authority_bulletin_runbook_action_type"] = (
+                authority_bulletin_runbook_action_type
+            )
+            learner_payload["authority_bulletin_destructive_db_delete"] = (
+                authority_bulletin_destructive_db_delete
+            )
+            learner_payload["authority_bulletin_error"] = authority_bulletin_error
+
         trace_event = TraceEvent(
             event_id=uuid4(),
             session_id=session_id,
@@ -867,15 +946,7 @@ async def handle_user_prompt(
             occurred_at=datetime.now(timezone.utc),
             source="session_stream_service",
             event_index=trace_repo.get_next_event_index(session_id=session_id),
-            payload={
-                # TODO(P1-E6/P1-E7 follow-up): Prompt content is persisted in full
-                # for MVP evaluator/replay visibility. Revisit policy to decide
-                # whether this should be redacted/summarized/hashed by default.
-                "content": prompt_content,
-                "role": "user",
-                "channel": "websocket",
-                "message_type": "USER_PROMPT",
-            },
+            payload=learner_payload,
             trace_version=1,
             correlation_id=None,
             request_id=None,
@@ -930,6 +1001,9 @@ async def handle_user_prompt(
                 turn_id=turn_id,
                 prompt=prompt_content,
                 idempotency_key=f"turn:{metadata.id}:{turn_id}",
+                authority_bulletin_passed=authority_bulletin_passed,
+                authority_bulletin_signer=authority_bulletin_signer,
+                authority_bulletin_destructive_db_delete=authority_bulletin_destructive_db_delete,
             )
 
             turn_start = datetime.now(timezone.utc)
@@ -1204,6 +1278,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:
@@ -1256,6 +1332,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:
@@ -1306,6 +1384,8 @@ async def handle_user_prompt(
                         "amount",
                         "account_number",
                         "retrieved_memory_references",
+                        "qualifying_log",
+                        "log_case",
                     ):
                         field_value = getattr(event, field_name)
                         if field_value is not None:
@@ -1499,6 +1579,9 @@ async def session_stream_ws(
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),
+    authority_bulletin_classifier: AuthorityBulletinClassifierPort = Depends(
+        get_authority_bulletin_classifier
+    ),
 ):
     # - Authz rules:
     #   - missing/invalid auth => deny.
@@ -1583,6 +1666,7 @@ async def session_stream_ws(
                 prompt_content=prompt_msg.payload.content,
                 db=db,
                 runtime_client_factory=runtime_client_factory,
+                authority_bulletin_classifier=authority_bulletin_classifier,
             )
 
     except WebSocketDisconnect:

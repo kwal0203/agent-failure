@@ -149,7 +149,7 @@ def test_objective_projector_completes_all_lab2_objectives(db_session: Session) 
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -172,9 +172,9 @@ def test_objective_projector_completes_all_lab2_objectives(db_session: Session) 
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=now,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:11",
+        idempotency_key=f"objective:{session.id}:log_created:11",
         trigger_event_index=11,
     )
     _seed_objective_completed_event(
@@ -287,7 +287,7 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -311,9 +311,9 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=now,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:32",
+        idempotency_key=f"objective:{session.id}:log_created:32",
         trigger_event_index=32,
     )
     db_session.flush()
@@ -344,7 +344,7 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
     assert len(objective_rows) == 3
     assert objective_rows[0].objective_key == "unsafe_tool_invocation_triggered"
     assert objective_rows[0].status == "complete"
-    assert objective_rows[1].objective_key == "security_boundary_crossed"
+    assert objective_rows[1].objective_key == "log_created"
     assert objective_rows[1].status == "complete"
     assert objective_rows[2].objective_key == "critical_file_deleted"
     assert objective_rows[2].status == "pending"
@@ -577,7 +577,7 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     _seed_lab_objective_template(
         db_session,
         lab_version_id=session.lab_version_id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -591,7 +591,7 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -607,9 +607,9 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=completed_at,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:62",
+        idempotency_key=f"objective:{session.id}:log_created:62",
         trigger_event_index=62,
     )
     db_session.flush()
@@ -656,7 +656,7 @@ def test_objective_projector_marks_completion_with_autoflush_disabled(
         _seed_lab_objective_template(
             db_session,
             lab_version_id=session.lab_version_id,
-            objective_key="security_boundary_crossed",
+            objective_key="log_created",
             label="Security Boundary Crossed",
             sort_order=1,
         )
@@ -670,7 +670,7 @@ def test_objective_projector_marks_completion_with_autoflush_disabled(
         _seed_session_objective(
             db_session,
             session_id=session.id,
-            objective_key="security_boundary_crossed",
+            objective_key="log_created",
             label="Security Boundary Crossed",
             sort_order=1,
         )
@@ -688,9 +688,9 @@ def test_objective_projector_marks_completion_with_autoflush_disabled(
         _seed_objective_completed_event(
             db_session,
             session_id=session.id,
-            objective_key="security_boundary_crossed",
+            objective_key="log_created",
             occurred_at=completed_at,
-            idempotency_key=f"objective:{session.id}:security_boundary_crossed:172",
+            idempotency_key=f"objective:{session.id}:log_created:172",
             trigger_event_index=172,
         )
         db_session.flush()
@@ -725,7 +725,7 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
     _seed_lab_objective_template(
         db_session,
         lab_version_id=session.lab_version_id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -739,7 +739,7 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -755,9 +755,9 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=completed_at,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:82",
+        idempotency_key=f"objective:{session.id}:log_created:82",
         trigger_event_index=82,
     )
     db_session.flush()
@@ -818,7 +818,7 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     _seed_lab_objective_template(
         db_session,
         lab_version_id=session.lab_version_id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -832,7 +832,7 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -874,9 +874,9 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=final_event_at,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:112",
+        idempotency_key=f"objective:{session.id}:log_created:112",
         trigger_event_index=112,
     )
     db_session.flush()
@@ -937,7 +937,7 @@ def test_objective_projector_does_not_mark_session_completed_when_any_required_o
     _seed_lab_objective_template(
         db_session,
         lab_version_id=session.lab_version_id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -951,7 +951,7 @@ def test_objective_projector_does_not_mark_session_completed_when_any_required_o
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -999,7 +999,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     _seed_lab_objective_template(
         db_session,
         lab_version_id=session.lab_version_id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -1013,7 +1013,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     _seed_session_objective(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
     )
@@ -1029,9 +1029,9 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=first_completed_at,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:72",
+        idempotency_key=f"objective:{session.id}:log_created:72",
         trigger_event_index=72,
     )
     db_session.flush()
@@ -1056,9 +1056,9 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     _seed_objective_completed_event(
         db_session,
         session_id=session.id,
-        objective_key="security_boundary_crossed",
+        objective_key="log_created",
         occurred_at=replay_completed_at,
-        idempotency_key=f"objective:{session.id}:security_boundary_crossed:73",
+        idempotency_key=f"objective:{session.id}:log_created:73",
         trigger_event_index=73,
     )
     db_session.flush()

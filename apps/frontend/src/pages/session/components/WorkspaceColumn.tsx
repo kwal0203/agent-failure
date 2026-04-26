@@ -1,11 +1,14 @@
 import type { FormEvent, RefObject } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { ToolKey, TranscriptEntry } from "../types";
+import type { SessionTelemetryLog, ToolKey, TranscriptEntry } from "../types";
 import { DEMO_H2_STYLE } from "../ui";
 import { EmailToolForm } from "./EmailToolForm";
 
+const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
+
 type WorkspaceColumnProps = {
+  labId?: string | null;
   transcriptViewportRef: RefObject<HTMLDivElement | null>;
   transcriptEntries: TranscriptEntry[];
   activeEntry: string;
@@ -35,9 +38,11 @@ type WorkspaceColumnProps = {
   onPromptChange: (value: string) => void;
   onSubmitPrompt: (e: FormEvent<HTMLFormElement>) => void;
   formatTime: (isoTs: string) => string;
+  telemetryLogs: SessionTelemetryLog[];
 };
 
 export function WorkspaceColumn({
+  labId,
   transcriptViewportRef,
   transcriptEntries,
   activeEntry,
@@ -67,20 +72,33 @@ export function WorkspaceColumn({
   onPromptChange,
   onSubmitPrompt,
   formatTime,
+  telemetryLogs,
 }: WorkspaceColumnProps) {
   const [isAttackToolsCollapsed, setIsAttackToolsCollapsed] = useState(false);
   const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
+  const [logsSeenAtMs, setLogsSeenAtMs] = useState(0);
+  const isLab2Session = labId === LAB_2_TOOL_MISUSE_ID;
 
-  const tools: Array<{ key: ToolKey; label: string }> = [
+  const unreadLogCount = useMemo(
+    () =>
+      telemetryLogs.filter(
+        (log) => new Date(log.created_at).getTime() > logsSeenAtMs,
+      ).length,
+    [logsSeenAtMs, telemetryLogs],
+  );
+  const hasUnreadLogs = unreadLogCount > 0;
+
+  const tools: Array<{ key: ToolKey; label: string; disabled?: boolean }> = [
     { key: "email", label: "Email" },
-    { key: "files", label: "Files" },
-    { key: "payloads", label: "Payloads" },
-    { key: "notes", label: "Notes" },
-    { key: "recon", label: "Recon" },
+    ...(isLab2Session ? [{ key: "logs" as const, label: "Logs" }] : []),
+    { key: "files", label: "Files", disabled: true },
+    { key: "payloads", label: "Payloads", disabled: true },
+    { key: "notes", label: "Notes", disabled: true },
+    { key: "recon", label: "Recon", disabled: true },
   ];
 
   const paneContent: Record<
-    Exclude<ToolKey, "email">,
+    Exclude<ToolKey, "email" | "logs">,
     { title: string; description: string }
   > = {
     files: {
@@ -164,25 +182,53 @@ export function WorkspaceColumn({
           >
             {tools.map((tool) => {
               const isActive = toolPaneOpen && selectedTool === tool.key;
+              const isDisabled = interactionLocked || Boolean(tool.disabled);
+              const logsHighlighted = tool.key === "logs" && hasUnreadLogs;
+
               return (
                 <button
                   key={tool.key}
                   type="button"
-                  onClick={() => onToolSelect(tool.key)}
+                  onClick={() => {
+                    onToolSelect(tool.key);
+                    if (tool.key === "logs") {
+                      setLogsSeenAtMs(Date.now());
+                    }
+                  }}
                   aria-pressed={isActive}
-                  disabled={interactionLocked}
+                  disabled={isDisabled}
                   title={`${tool.label} tool`}
                   style={{
                     padding: "6px 10px",
                     borderRadius: 8,
-                    border: isActive ? "1px solid #4ea4d9" : "1px solid #999",
-                    background: isActive ? "rgba(26, 76, 107, 0.55)" : "#fff",
-                    color: isActive ? "#d6f1ff" : "#1f2a33",
-                    cursor: interactionLocked ? "not-allowed" : "pointer",
-                    opacity: interactionLocked ? 0.6 : 1,
+                    border: logsHighlighted
+                      ? "1px solid #ff9f1a"
+                      : isActive
+                        ? "1px solid #4ea4d9"
+                        : "1px solid #999",
+                    background: logsHighlighted
+                      ? "rgba(168, 98, 0, 0.9)"
+                      : isActive
+                        ? "rgba(26, 76, 107, 0.55)"
+                        : "#fff",
+                    color: logsHighlighted
+                      ? "#fff3df"
+                      : isActive
+                        ? "#d6f1ff"
+                        : "#1f2a33",
+                    cursor: isDisabled ? "not-allowed" : "pointer",
+                    opacity: isDisabled ? 0.55 : 1,
+                    boxShadow: logsHighlighted
+                      ? "0 0 0 1px rgba(255, 159, 26, 0.35), 0 0 14px rgba(255, 159, 26, 0.45)"
+                      : undefined,
                   }}
                 >
                   {tool.label}
+                  {tool.key === "logs" && telemetryLogs.length > 0 ? (
+                    <span style={{ marginLeft: 6 }}>
+                      ({telemetryLogs.length})
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -220,6 +266,62 @@ export function WorkspaceColumn({
                 onEmailBodyChange={onEmailBodyChange}
                 interactionLocked={interactionLocked}
               />
+            </div>
+          ) : selectedTool === "logs" ? (
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+                Telemetry Log Feed
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 10px 0",
+                  fontSize: 13,
+                  color: "#263643",
+                }}
+              >
+                Runtime-generated operational errors appear here.
+              </p>
+              <div
+                className="hints-scroll-region"
+                style={{
+                  border: "1px solid #e1e7ef",
+                  borderRadius: 8,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  padding: 10,
+                  background: "#f8fbff",
+                }}
+              >
+                {telemetryLogs.length === 0 ? (
+                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                    No telemetry reports yet.
+                  </p>
+                ) : (
+                  telemetryLogs
+                    .slice()
+                    .reverse()
+                    .map((log) => (
+                      <p
+                        key={log.id}
+                        style={{
+                          margin: "0 0 8px 0",
+                          fontSize: 13,
+                          color: "#132736",
+                        }}
+                      >
+                        {formatTime(log.created_at)} - {log.message}{" "}
+                        <span
+                          style={{
+                            color: "#1f6d37",
+                            fontWeight: 600,
+                          }}
+                        >
+                          [Handled by A-SRE]
+                        </span>
+                      </p>
+                    ))
+                )}
+              </div>
             </div>
           ) : selectedTool ? (
             <div>

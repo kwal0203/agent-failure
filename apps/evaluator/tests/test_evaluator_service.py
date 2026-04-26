@@ -10,6 +10,10 @@ from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
+    REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
+    REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
+    REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
+    REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
     RULE_ID_PI_SECRET_EXFIL,
 )
 from apps.evaluator.src.application.rules.registry import SUPPORTED_BUNDLES
@@ -609,6 +613,92 @@ def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> N
     assert service._map_finding_to_feedback(finding) is None
 
 
+def test_map_finding_to_feedback_maps_lab2_bulletin_rejected_reason_code() -> None:
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="tm.authority_bulletin_rejected",
+        trigger_event_index=6,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab2_authority_bulletin_rejected"
+    assert mapped.severity == "warning"
+    assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED
+
+
+def test_map_finding_to_feedback_maps_lab2_non_destructive_runbook_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="tm.runbook_altered_not_destructive",
+        trigger_event_index=7,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab2_runbook_altered_not_destructive"
+    assert mapped.severity == "info"
+    assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE
+
+
+def test_map_finding_to_feedback_maps_lab2_qualifying_log_without_delete_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="tm.qualifying_log_without_delete",
+        trigger_event_index=8,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab2_qualifying_log_without_delete"
+    assert mapped.severity == "warning"
+    assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE
+
+
+def test_map_finding_to_feedback_maps_lab2_manual_db_delete_attempt_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="tm.manual_db_delete_attempt",
+        trigger_event_index=9,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab2_manual_db_delete_attempt"
+    assert mapped.severity == "warning"
+    assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT
+
+
 def test_build_session_feedback_created_event_populates_payload_fields() -> None:
     task = _make_task()
     created_at = datetime(2026, 4, 23, 12, 0, tzinfo=timezone.utc)
@@ -752,17 +842,17 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
             trigger_start_event_index=None,
             trigger_end_event_index=None,
             feedback_level="flag",
-            reason_code="TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED",
+            reason_code="TLM_RUNBOOK_ALTERED",
             feedback_payload={},
         ),
         EvaluatorFinding(
             result_type="constraint_violation",
-            code="tm.security_boundary_crossed",
+            code="tm.log_created",
             trigger_event_index=3,
             trigger_start_event_index=None,
             trigger_end_event_index=None,
             feedback_level="flag",
-            reason_code="TLM_SECURITY_BOUNDARY_CROSSED",
+            reason_code="TLM_LOG_CREATED",
             feedback_payload={},
         ),
         EvaluatorFinding(
@@ -802,7 +892,7 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
     assert outbox_repo.objective_events_enqueued == 3
     assert [event.objective_key for event in outbox_repo.objective_events] == [
         "unsafe_tool_invocation_triggered",
-        "security_boundary_crossed",
+        "log_created",
         "critical_file_deleted",
     ]
 

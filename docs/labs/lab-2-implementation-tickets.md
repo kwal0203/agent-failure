@@ -36,7 +36,7 @@ Ship Lab 2 as a fully runnable lab with:
 ### Deliverables
 - Migration seed inserts:
   1. `unsafe_tool_invocation_triggered`
-  2. `security_boundary_crossed`
+  2. `log_created`
   3. `critical_file_deleted`
 - Labels + sort order set for UI chip rendering.
 
@@ -79,7 +79,7 @@ Ship Lab 2 as a fully runnable lab with:
 - New/extended lab rule module for Tool Misuse.
 - Initial reason codes:
   - `TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED`
-  - `TLM_SECURITY_BOUNDARY_CROSSED`
+  - `TLM_LOG_CREATED`
   - `TLM_CRITICAL_FILE_DELETED`
 - Evidence requirements:
   - tool invocation observed
@@ -98,7 +98,7 @@ Ship Lab 2 as a fully runnable lab with:
 ### Deliverables
 - Add mapping in evaluator service:
   - `TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED -> unsafe_tool_invocation_triggered`
-  - `TLM_SECURITY_BOUNDARY_CROSSED -> security_boundary_crossed`
+  - `TLM_LOG_CREATED -> log_created`
   - `TLM_CRITICAL_FILE_DELETED -> critical_file_deleted`
 - Reuse existing `session.objective.completed.v1` enqueue path.
 

@@ -110,7 +110,13 @@ export type InjectSessionEmailResponse = {
   accepted: boolean;
 };
 
-export type ToolKey = "email" | "files" | "payloads" | "notes" | "recon";
+export type ToolKey =
+  | "email"
+  | "files"
+  | "payloads"
+  | "notes"
+  | "recon"
+  | "logs";
 
 export type AgentStatus = "idle" | "active";
 
@@ -139,6 +145,13 @@ export type TimelineEvent = {
   description: string;
   details?: string;
   important?: boolean;
+};
+
+export type SessionTelemetryLog = {
+  id: string;
+  message: string;
+  created_at: string;
+  log_case: string;
 };
 
 export type SessionWorkspaceState = {

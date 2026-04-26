@@ -78,6 +78,12 @@ class ReadFileResult:
     error_code: str | None = None
 
 
+@dataclass(frozen=True)
+class WriteFileResult:
+    path: str
+    bytes_written: int
+
+
 MemoryType = Literal[
     "user_workflow_preferences",
     "vendor_profile_memory",

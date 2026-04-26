@@ -59,6 +59,7 @@ export default function SessionPage() {
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
     sessionState,
+    telemetryLogs,
   } = sessionData;
 
   const canSend =
@@ -384,6 +385,7 @@ export default function SessionPage() {
           }}
         >
           <WorkspaceColumn
+            labId={metadata?.lab_id}
             transcriptViewportRef={transcriptViewportRef}
             transcriptEntries={transcriptEntries}
             activeEntry={activeEntry}
@@ -415,6 +417,7 @@ export default function SessionPage() {
             onPromptChange={setPrompt}
             onSubmitPrompt={onSubmitPrompt}
             formatTime={formatTime}
+            telemetryLogs={telemetryLogs}
           />
         </section>
 

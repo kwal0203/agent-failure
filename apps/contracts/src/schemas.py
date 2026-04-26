@@ -25,6 +25,9 @@ class RunTurnRequest(BaseModel):
     turn_id: UUID
     prompt: str
     idempotency_key: str | None = None
+    authority_bulletin_passed: bool | None = None
+    authority_bulletin_signer: str | None = None
+    authority_bulletin_destructive_db_delete: bool | None = None
 
 
 class RunTurnResponse(BaseModel):
@@ -55,6 +58,9 @@ class RunTurnStreamRequest(BaseModel):
     turn_id: UUID
     prompt: str
     idempotency_key: str | None = None
+    authority_bulletin_passed: bool | None = None
+    authority_bulletin_signer: str | None = None
+    authority_bulletin_destructive_db_delete: bool | None = None
 
 
 class TurnStartedEvent(BaseModel):
@@ -126,6 +132,8 @@ class ToolCallRequestedEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 class ToolCallSucceededEvent(BaseModel):
@@ -146,6 +154,8 @@ class ToolCallSucceededEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 class ToolCallFailedEvent(BaseModel):
@@ -165,6 +175,8 @@ class ToolCallFailedEvent(BaseModel):
     amount: float | None = None
     account_number: str | None = None
     retrieved_memory_references: list[str] | None = None
+    qualifying_log: bool | None = None
+    log_case: str | None = None
 
 
 RuntimeStreamEventType = (

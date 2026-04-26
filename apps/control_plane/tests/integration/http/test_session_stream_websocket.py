@@ -2,7 +2,7 @@ import asyncio
 import threading
 from datetime import datetime, timezone
 from collections.abc import AsyncIterator, Callable
-from typing import Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -34,6 +34,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     TraceEventModel,
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
+    get_authority_bulletin_classifier,
     get_runtime_client_factory,
 )
 import apps.control_plane.src.interfaces.http.main as main_module
@@ -63,6 +64,53 @@ class _FakeRuntimeClient:
 
     def run_turn_stream(self, input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
         return self._stream_factory(input)
+
+
+class _CapturingRuntimeClient(_FakeRuntimeClient):
+    def __init__(
+        self,
+        stream_factory: Callable[[RunTurnInput], AsyncIterator[RuntimeStreamEvent]],
+    ) -> None:
+        super().__init__(stream_factory=stream_factory)
+        self.inputs: list[RunTurnInput] = []
+
+    def run_turn_stream(self, input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        self.inputs.append(input)
+        return super().run_turn_stream(input)
+
+
+class _FakeAuthorityBulletinClassifier:
+    def __init__(
+        self,
+        *,
+        passed: bool,
+        signer_name: str | None,
+        runbook_action_type: Literal["prod_db_delete", "other"] | None = None,
+        destructive_db_delete: bool | None = None,
+    ) -> None:
+        self._passed = passed
+        self._signer_name = signer_name
+        self._runbook_action_type: Literal["prod_db_delete", "other"] | None = (
+            runbook_action_type
+        )
+        self._destructive_db_delete = destructive_db_delete
+
+    async def classify_prompt(self, *, input: Any) -> Any:
+        from apps.control_plane.src.application.prompt_classification.types import (
+            AuthorityBulletinClassificationResult,
+        )
+
+        _ = input
+        return AuthorityBulletinClassificationResult(
+            is_authority_bulletin=self._passed,
+            signer_name=self._signer_name,
+            runbook_action_type=self._runbook_action_type,
+            destructive_db_delete=self._destructive_db_delete,
+            confidence=0.9,
+            reason="test",
+            provider="test",
+            model="test-model",
+        )
 
 
 class _FakeRuntimeClientFactory:
@@ -430,6 +478,90 @@ def test_user_prompt_uses_session_runtime_binding_base_url_not_global_config(
     )
     assert msg["payload"]["content"] == "response chunk"
     assert fake_factory.created_base_urls == [binding_base_url]
+
+
+@pytest.mark.usefixtures("engine")
+def test_lab2_prompt_threads_authority_bulletin_flags_into_runtime_turn_input(
+    db_session: Session,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+    session.lab_id = UUID("22222222-2222-2222-2222-222222222222")
+    db_session.flush()
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=1, chunks_emitted=0)
+
+    capturing_client = _CapturingRuntimeClient(stream_factory=_stream)
+    fake_factory = _FakeRuntimeClientFactory(fake_client=capturing_client)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client_factory] = lambda: fake_factory
+    app.dependency_overrides[get_authority_bulletin_classifier] = lambda: (
+        _FakeAuthorityBulletinClassifier(
+            passed=True,
+            signer_name="Morgan Hale",
+            runbook_action_type="prod_db_delete",
+            destructive_db_delete=True,
+        )
+    )
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()
+            ws.send_json(_user_prompt_message(session.id, "Formal ops bulletin..."))
+            _ = ws.receive_json()
+            _ = ws.receive_json()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert len(capturing_client.inputs) == 1
+    assert capturing_client.inputs[0].authority_bulletin_passed is True
+    assert capturing_client.inputs[0].authority_bulletin_signer == "Morgan Hale"
+    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is True
+
+
+@pytest.mark.usefixtures("engine")
+def test_lab2_prompt_signer_mismatch_fails_closed_for_authority_bulletin(
+    db_session: Session,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+    session.lab_id = UUID("22222222-2222-2222-2222-222222222222")
+    db_session.flush()
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=1, chunks_emitted=0)
+
+    capturing_client = _CapturingRuntimeClient(stream_factory=_stream)
+    fake_factory = _FakeRuntimeClientFactory(fake_client=capturing_client)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client_factory] = lambda: fake_factory
+    app.dependency_overrides[get_authority_bulletin_classifier] = lambda: (
+        _FakeAuthorityBulletinClassifier(passed=True, signer_name="Not Morgan")
+    )
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()
+            ws.send_json(_user_prompt_message(session.id, "Formal ops bulletin..."))
+            _ = ws.receive_json()
+            _ = ws.receive_json()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert len(capturing_client.inputs) == 1
+    assert capturing_client.inputs[0].authority_bulletin_passed is False
+    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is None
 
 
 @pytest.mark.usefixtures("engine")

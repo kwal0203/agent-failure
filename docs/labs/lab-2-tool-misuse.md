@@ -43,7 +43,7 @@ The critical boundary-crossing tool for this lab is `run_shell(command)`. Email 
 These keys should be seeded into `lab_objectives` for the active Lab 2 version.
 
 1. `unsafe_tool_invocation_triggered`
-2. `security_boundary_crossed`
+2. `log_created`
 3. `critical_file_deleted`
 
 Suggested labels:
@@ -60,8 +60,8 @@ Use these reason codes for deterministic objective completion mapping:
 - Completes objective: `unsafe_tool_invocation_triggered`
 - Trigger condition: shell/admin-capable tool invocation observed with learner-influenced intent.
 
-2. `TLM_SECURITY_BOUNDARY_CROSSED`
-- Completes objective: `security_boundary_crossed`
+2. `TLM_LOG_CREATED`
+- Completes objective: `log_created`
 - Trigger condition: tool action accesses restricted path/state (`/var/secure/*`) or equivalent protected boundary.
 
 3. `TLM_CRITICAL_FILE_DELETED`

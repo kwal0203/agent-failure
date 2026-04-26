@@ -20,6 +20,13 @@ from apps.control_plane.src.application.auth.ports import TokenVerifierPort
 from apps.control_plane.src.application.email_classification.ports import (
     EmailMaliciousnessClassifierPort,
 )
+from apps.control_plane.src.application.prompt_classification.ports import (
+    AuthorityBulletinClassifierPort,
+)
+from apps.control_plane.src.application.prompt_classification.types import (
+    AuthorityBulletinClassificationInput,
+    AuthorityBulletinClassificationResult,
+)
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
@@ -53,6 +60,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_sessi
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
 from apps.control_plane.src.infrastructure.classification.openrouter_email_classifier import (
     OpenRouterEmailClassifier,
+)
+from apps.control_plane.src.infrastructure.classification.openrouter_authority_bulletin_classifier import (
+    OpenRouterAuthorityBulletinClassifier,
 )
 
 
@@ -207,6 +217,34 @@ def get_runtime_client_factory() -> RuntimeClientFactory:
 def get_email_maliciousness_classifier() -> EmailMaliciousnessClassifierPort:
     config = get_email_classifier_config()
     return OpenRouterEmailClassifier(
+        base_url=config.provider_endpoint,
+        api_key=config.openrouter_api_key,
+        model=config.model_name,
+        timeout_seconds=config.model_timeout,
+    )
+
+
+class _NoopAuthorityBulletinClassifier(AuthorityBulletinClassifierPort):
+    async def classify_prompt(
+        self, *, input: AuthorityBulletinClassificationInput
+    ) -> AuthorityBulletinClassificationResult:
+        return AuthorityBulletinClassificationResult(
+            is_authority_bulletin=False,
+            signer_name=None,
+            confidence=0.0,
+            reason="classifier_not_configured",
+            provider="noop",
+            model="noop",
+        )
+
+
+def get_authority_bulletin_classifier() -> AuthorityBulletinClassifierPort:
+    try:
+        config = get_email_classifier_config()
+    except RuntimeError:
+        return _NoopAuthorityBulletinClassifier()
+
+    return OpenRouterAuthorityBulletinClassifier(
         base_url=config.provider_endpoint,
         api_key=config.openrouter_api_key,
         model=config.model_name,

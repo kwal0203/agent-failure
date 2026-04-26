@@ -42,6 +42,9 @@ class RuntimeHttpClient(RuntimeClientPort):
             turn_id=input.turn_id,
             prompt=input.prompt,
             idempotency_key=input.idempotency_key,
+            authority_bulletin_passed=input.authority_bulletin_passed,
+            authority_bulletin_signer=input.authority_bulletin_signer,
+            authority_bulletin_destructive_db_delete=input.authority_bulletin_destructive_db_delete,
         )
 
         headers: dict[str, str] = {}
@@ -104,6 +107,9 @@ class RuntimeHttpClient(RuntimeClientPort):
             turn_id=input.turn_id,
             prompt=input.prompt,
             idempotency_key=input.idempotency_key,
+            authority_bulletin_passed=input.authority_bulletin_passed,
+            authority_bulletin_signer=input.authority_bulletin_signer,
+            authority_bulletin_destructive_db_delete=input.authority_bulletin_destructive_db_delete,
         )
 
         headers: dict[str, str] = {"Accept": "application/x-ndjson"}

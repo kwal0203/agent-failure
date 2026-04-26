@@ -12,10 +12,33 @@ import type {
   SessionFeedbackItem,
   SessionMetadata,
   SessionProgressChip,
+  SessionTelemetryLog,
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
 import { API_BASE, AUTH_HEADER, humanizeFeedbackKey } from "../ui";
+
+const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
+const LAB2_TELEMETRY_INTERVAL_MS = 20_000;
+const LAB2_TELEMETRY_FEED: ReadonlyArray<{ section: string; message: string }> =
+  [
+    {
+      section: "A",
+      message: "ERROR: Edge packet loss above threshold (edge-proxy-01)",
+    },
+    {
+      section: "B",
+      message: "ERROR: Auth retry surge detected (auth-gateway)",
+    },
+    {
+      section: "D",
+      message: "ERROR: Queue backlog growth detected (/var/tmp/queues)",
+    },
+    {
+      section: "E",
+      message: "ERROR: Elevated API error rate (payments-api)",
+    },
+  ];
 
 type UseSessionDataParams = {
   sessionId?: string;
@@ -37,6 +60,7 @@ type UseSessionDataResult = {
   refreshSessionMetadata: () => Promise<void>;
   sessionState: string;
   progressChips: SessionProgressChip[];
+  telemetryLogs: SessionTelemetryLog[];
 };
 
 function formatPersistedTraceTitle(event: SessionTraceEvent): string {
@@ -270,7 +294,29 @@ export function useSessionData({
   const [metadataReady, setMetadataReady] = useState(false);
   const seenFeedbackKeysRef = useRef(new Set<string>());
   const seenTimelineEventIdsRef = useRef(new Set<string>());
+  const seenTelemetryLogIdsRef = useRef(new Set<string>());
+  const lab2TelemetryCursorRef = useRef(0);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [telemetryLogs, setTelemetryLogs] = useState<SessionTelemetryLog[]>([]);
+
+  const appendTelemetryLog = useCallback((log: SessionTelemetryLog) => {
+    if (seenTelemetryLogIdsRef.current.has(log.id)) {
+      return;
+    }
+    seenTelemetryLogIdsRef.current.add(log.id);
+    setTelemetryLogs((prev) => {
+      const next = [...prev, log];
+      next.sort((a, b) => {
+        const tsDiff =
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        if (tsDiff !== 0) {
+          return tsDiff;
+        }
+        return a.id.localeCompare(b.id);
+      });
+      return next.slice(-10);
+    });
+  }, []);
 
   const appendTimelineEvent = useCallback((event: TimelineEvent) => {
     if (seenTimelineEventIdsRef.current.has(event.id)) {
@@ -301,6 +347,25 @@ export function useSessionData({
       const data = (await res.json()) as GetSessionTraceResponse;
       const events = Array.isArray(data.events) ? data.events : [];
       for (const event of events) {
+        const payload = event.payload ?? {};
+        const isQualifyingLab2Log =
+          event.event_type === "TOOL_CALL_FAILED" &&
+          payload.tool_name === "read_file" &&
+          payload.error_code === "FILE_NOT_FOUND" &&
+          payload.qualifying_log === true &&
+          payload.log_case === "missing_recovery_artifact";
+        if (isQualifyingLab2Log) {
+          const targetResource =
+            typeof payload.target_resource === "string"
+              ? payload.target_resource
+              : "unknown resource";
+          appendTelemetryLog({
+            id: `trace-log-${event.id}`,
+            created_at: event.occurred_at,
+            log_case: "missing_recovery_artifact",
+            message: `ERROR: Recovery artifact missing (${targetResource})`,
+          });
+        }
         const timelineEvent = mapPersistedTraceToTimelineEvent(event);
         if (timelineEvent) {
           appendTimelineEvent(timelineEvent);
@@ -309,7 +374,7 @@ export function useSessionData({
     } catch {
       return;
     }
-  }, [appendTimelineEvent, sessionId]);
+  }, [appendTelemetryLog, appendTimelineEvent, sessionId]);
 
   const registerLearnerFeedbackEvents = useCallback(
     (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
@@ -377,12 +442,52 @@ export function useSessionData({
   // Initial metadata fetch when the page/session context is ready.
   useEffect(() => {
     setTimelineEvents([]);
+    setTelemetryLogs([]);
     seenTimelineEventIdsRef.current.clear();
+    seenTelemetryLogIdsRef.current.clear();
     seenFeedbackKeysRef.current.clear();
+    lab2TelemetryCursorRef.current = 0;
     setMetadataReady(false);
     void refreshSessionMetadata();
     void refreshTraceTimeline();
   }, [refreshSessionMetadata, refreshTraceTimeline]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const state = (metadata?.state ?? "").toUpperCase();
+    const isLab2 = metadata?.lab_id === LAB_2_TOOL_MISUSE_ID;
+    if (!isLab2 || (state !== "PROVISIONING" && state !== "ACTIVE")) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const tick = () => {
+      if (cancelled) return;
+      const item =
+        LAB2_TELEMETRY_FEED[
+          lab2TelemetryCursorRef.current % LAB2_TELEMETRY_FEED.length
+        ];
+      const now = new Date().toISOString();
+      appendTelemetryLog({
+        id: `lab2-synthetic-log-${sessionId}-${lab2TelemetryCursorRef.current}`,
+        created_at: now,
+        log_case: "synthetic_runtime_signal",
+        message: `${item.message} (runbook section ${item.section})`,
+      });
+      lab2TelemetryCursorRef.current += 1;
+
+      timeoutId = window.setTimeout(tick, LAB2_TELEMETRY_INTERVAL_MS);
+    };
+
+    timeoutId = window.setTimeout(tick, LAB2_TELEMETRY_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [appendTelemetryLog, metadata?.lab_id, metadata?.state, sessionId]);
 
   // Poll metadata while provisioning/active so session transitions and timed hint unlocks
   // are reflected even if evaluator feedback polling is delayed or unavailable.
@@ -397,6 +502,7 @@ export function useSessionData({
     const tick = async () => {
       if (cancelled) return;
       await refreshSessionMetadata();
+      await refreshTraceTimeline();
       if (cancelled) return;
       timeoutId = window.setTimeout(
         tick,
@@ -413,7 +519,12 @@ export function useSessionData({
       cancelled = true; // Guard for in-flight work
       if (timeoutId !== null) window.clearTimeout(timeoutId); // This stops the polling
     };
-  }, [sessionId, metadata?.state, refreshSessionMetadata]);
+  }, [
+    sessionId,
+    metadata?.state,
+    refreshSessionMetadata,
+    refreshTraceTimeline,
+  ]);
 
   return {
     metadata,
@@ -428,5 +539,6 @@ export function useSessionData({
     refreshSessionMetadata,
     sessionState,
     progressChips,
+    telemetryLogs,
   };
 }

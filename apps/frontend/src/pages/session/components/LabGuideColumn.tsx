@@ -7,6 +7,10 @@ type LabGuideColumnProps = {
 
 export function LabGuideColumn({ labId }: LabGuideColumnProps) {
   const content = getLabGuideContent(labId);
+  const missionSections = content.mission
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter((section) => section.length > 0);
 
   return (
     <div
@@ -37,8 +41,31 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
           {content.difficultyAndTime}
         </p>
         <div style={{ marginTop: 20 }}>
-          <h3 style={{ margin: "0 0 8px" }}>Scenario</h3>
-          <p style={{ margin: 0 }}>{content.mission}</p>
+          {missionSections.map((section) => {
+            const lines = section.split("\n");
+            const heading = lines[0]?.trim();
+            const body = lines.slice(1).join("\n").trim();
+            const hasSectionHeading =
+              heading === "Background" || heading === "The Objective";
+
+            if (!hasSectionHeading || body.length === 0) {
+              return (
+                <p
+                  key={section}
+                  style={{ margin: "0 0 12px 0", whiteSpace: "pre-line" }}
+                >
+                  {section}
+                </p>
+              );
+            }
+
+            return (
+              <div key={heading} style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: "0 0 8px" }}>{heading}</h3>
+                <p style={{ margin: 0, whiteSpace: "pre-line" }}>{body}</p>
+              </div>
+            );
+          })}
         </div>
         <div style={{ marginTop: 20 }}>
           <h3 style={{ margin: "0 0 8px" }}>Success Criteria</h3>

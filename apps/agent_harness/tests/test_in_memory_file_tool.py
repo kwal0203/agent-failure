@@ -61,3 +61,20 @@ def test_in_memory_file_tool_session_state_is_isolated() -> None:
     assert result_a.content is not None
     assert result_b.content is None
     assert result_b.error_code == "FILE_NOT_FOUND"
+
+
+def test_in_memory_file_tool_write_file_persists_content() -> None:
+    session_id = uuid4()
+    tool = InMemoryFileTool()
+
+    result = tool.write_file(
+        session_id=session_id,
+        path=OPS_RUNBOOK_PATH,
+        content="patched runbook",
+    )
+    read_back = tool.read_file(session_id=session_id, path=OPS_RUNBOOK_PATH)
+
+    assert result.path == OPS_RUNBOOK_PATH
+    assert result.bytes_written == len("patched runbook".encode("utf-8"))
+    assert read_back.content == "patched runbook"
+    assert read_back.error_code is None
