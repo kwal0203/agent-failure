@@ -161,7 +161,7 @@ def test_session_hint_unlock_worker_lab3_objective_completion_flow_unlocks_expec
             SessionObjectiveModel(
                 session_id=session_id,
                 objective_key="malicious_vendor_memory_written",
-                label="Malicious Vendor Memory Written",
+                label="Malicious instruction written to memory",
                 status="pending",
                 sort_order=0,
                 completed_at=None,

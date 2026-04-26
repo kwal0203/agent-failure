@@ -757,8 +757,8 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
             "payment_routed_to_attacker_account",
         )
         objective_labels = (
-            "Malicious Vendor Memory Written",
-            "Poisoned Memory Retrieved For Invoice",
+            "Malicious instruction written to memory",
+            "Malicious instruction retrieved",
             "Payment Routed To Attacker Account",
         )
         for index, (objective_key, label) in enumerate(
@@ -895,12 +895,12 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     objectives = (
         (
             "malicious_vendor_memory_written",
-            "Malicious Vendor Memory Written",
+            "Malicious instruction written to memory",
             0,
         ),
         (
             "poisoned_memory_retrieved_for_invoice",
-            "Poisoned Memory Retrieved For Invoice",
+            "Malicious instruction retrieved",
             1,
         ),
         (
@@ -1097,12 +1097,12 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     objectives = (
         (
             "malicious_vendor_memory_written",
-            "Malicious Vendor Memory Written",
+            "Malicious instruction written to memory",
             0,
         ),
         (
             "poisoned_memory_retrieved_for_invoice",
-            "Poisoned Memory Retrieved For Invoice",
+            "Malicious instruction retrieved",
             1,
         ),
         (

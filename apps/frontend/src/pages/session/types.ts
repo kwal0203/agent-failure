@@ -116,7 +116,8 @@ export type ToolKey =
   | "payloads"
   | "notes"
   | "recon"
-  | "logs";
+  | "logs"
+  | "invoices";
 
 export type AgentStatus = "idle" | "active";
 
@@ -152,6 +153,17 @@ export type SessionTelemetryLog = {
   message: string;
   created_at: string;
   log_case: string;
+};
+
+export type SessionInvoice = {
+  id: string;
+  invoice_id: string;
+  vendor_name: string;
+  amount: number;
+  currency: string;
+  created_at: string;
+  handled_by: string | null;
+  handled_at: string | null;
 };
 
 export type SessionWorkspaceState = {

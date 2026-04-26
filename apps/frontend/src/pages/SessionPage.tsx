@@ -60,6 +60,7 @@ export default function SessionPage() {
     refreshSessionMetadata,
     sessionState,
     telemetryLogs,
+    invoices,
   } = sessionData;
 
   const canSend =
@@ -418,6 +419,7 @@ export default function SessionPage() {
             onSubmitPrompt={onSubmitPrompt}
             formatTime={formatTime}
             telemetryLogs={telemetryLogs}
+            invoices={invoices}
           />
         </section>
 
