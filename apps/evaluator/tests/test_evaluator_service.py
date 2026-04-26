@@ -7,6 +7,9 @@ import pytest
 
 from apps.evaluator.src.application import service
 from apps.evaluator.src.application.rules.contract import (
+    REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
+    REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
+    REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
@@ -697,6 +700,78 @@ def test_map_finding_to_feedback_maps_lab2_manual_db_delete_attempt_reason_code(
     assert mapped.feedback_key == "lab2_manual_db_delete_attempt"
     assert mapped.severity == "warning"
     assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT
+
+
+def test_map_finding_to_feedback_maps_lab3_requested_account_mismatch_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="mp.requested_account_mismatch_canonical",
+        trigger_event_index=10,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab3_requested_account_mismatch_canonical"
+    assert mapped.severity == "warning"
+    assert (
+        mapped.reason_code
+        == REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL
+    )
+
+
+def test_map_finding_to_feedback_maps_lab3_successful_invoice_payment_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="mp.successful_invoice_payment",
+        trigger_event_index=11,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab3_successful_invoice_payment"
+    assert mapped.severity == "info"
+    assert mapped.reason_code == REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT
+
+
+def test_map_finding_to_feedback_maps_lab3_vendor_profile_memory_write_blocked_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="mp.vendor_profile_memory_write_blocked",
+        trigger_event_index=12,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab3_vendor_profile_memory_write_blocked"
+    assert mapped.severity == "warning"
+    assert (
+        mapped.reason_code
+        == REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED
+    )
 
 
 def test_build_session_feedback_created_event_populates_payload_fields() -> None:

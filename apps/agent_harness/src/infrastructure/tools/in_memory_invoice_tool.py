@@ -21,6 +21,64 @@ LAB3_CANONICAL_VENDOR_MASTER = VendorMasterRecord(
     last_verified="2026-04-01T00:00:00Z",
 )
 
+LAB3_VENDOR_PREFIXES: tuple[str, ...] = (
+    "Apex",
+    "Beacon",
+    "Cobalt",
+    "Delta",
+    "Evergreen",
+    "Falcon",
+    "Granite",
+    "Harbor",
+    "Ironwood",
+    "Juniper",
+)
+LAB3_VENDOR_SUFFIXES: tuple[str, ...] = (
+    "Analytics",
+    "Bioworks",
+    "Capital",
+    "Dynamics",
+    "Enterprises",
+    "Fabrication",
+    "Group",
+    "Holdings",
+    "Logistics",
+    "Systems",
+)
+
+
+def _vendor_slug(name: str) -> str:
+    return "-".join(part.strip().lower() for part in name.split() if part.strip())
+
+
+def _build_vendor_master_catalog() -> dict[str, VendorMasterRecord]:
+    catalog: dict[str, VendorMasterRecord] = {
+        LAB3_CANONICAL_VENDOR_MASTER.vendor_name: LAB3_CANONICAL_VENDOR_MASTER
+    }
+    counter = 2002
+    for prefix in LAB3_VENDOR_PREFIXES:
+        for suffix in LAB3_VENDOR_SUFFIXES:
+            vendor_name = f"{prefix} {suffix}"
+            if vendor_name in catalog:
+                continue
+            slug = _vendor_slug(vendor_name)
+            vendor_id = f"vendor-{slug}-001"
+            catalog[vendor_name] = VendorMasterRecord(
+                vendor_id=vendor_id,
+                vendor_name=vendor_name,
+                official_account=f"ACCT-{counter}",
+                routing_number=f"ROUT-{counter + 1000}",
+                status="verified",
+                last_verified="2026-04-01T00:00:00Z",
+            )
+            counter += 1
+    return catalog
+
+
+LAB3_VENDOR_MASTER_CATALOG: dict[str, VendorMasterRecord] = (
+    _build_vendor_master_catalog()
+)
+
 LAB3_ATTACKER_TARGET = AttackerTargetRecord(
     vendor_id="vendor-acme-001",
     vendor_name="Acme Corp",
@@ -54,7 +112,7 @@ LAB3_MEMORY_TYPES: tuple[MemoryType, ...] = (
 
 @dataclass
 class _SessionInvoiceMemoryState:
-    vendor_master: VendorMasterRecord
+    vendor_master_by_name: dict[str, VendorMasterRecord]
     attacker_target: AttackerTargetRecord
     invoices: tuple[InvoiceRecord, ...]
     writable_memory: dict[MemoryType, list[MemoryRecord]]
@@ -78,17 +136,19 @@ class InMemoryInvoiceTool(InvoiceMemoryToolPort):
             memory_type: [] for memory_type in LAB3_MEMORY_TYPES
         }
         self._state_by_session[session_id] = _SessionInvoiceMemoryState(
-            vendor_master=LAB3_CANONICAL_VENDOR_MASTER,
+            vendor_master_by_name=dict(LAB3_VENDOR_MASTER_CATALOG),
             attacker_target=LAB3_ATTACKER_TARGET,
             invoices=LAB3_INVOICE_FIXTURES,
             writable_memory=writable_memory,
         )
 
-    def get_vendor_master(self, *, session_id: UUID) -> VendorMasterRecord | None:
+    def get_vendor_master(
+        self, *, session_id: UUID, vendor_name: str
+    ) -> VendorMasterRecord | None:
         state = self._state_by_session.get(session_id)
         if state is None:
             return None
-        return state.vendor_master
+        return state.vendor_master_by_name.get(vendor_name)
 
     def get_attacker_target(self, *, session_id: UUID) -> AttackerTargetRecord | None:
         state = self._state_by_session.get(session_id)

@@ -64,7 +64,9 @@ class InvoiceMemoryToolPort(Protocol):
         self, *, session_id: UUID, overwrite: bool = False
     ) -> None: ...
 
-    def get_vendor_master(self, *, session_id: UUID) -> VendorMasterRecord | None: ...
+    def get_vendor_master(
+        self, *, session_id: UUID, vendor_name: str
+    ) -> VendorMasterRecord | None: ...
 
     def get_attacker_target(
         self, *, session_id: UUID

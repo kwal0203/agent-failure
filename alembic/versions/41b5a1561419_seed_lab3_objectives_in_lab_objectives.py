@@ -158,13 +158,13 @@ def upgrade() -> None:
         {
             "id": LAB_3_OBJECTIVE_1_ID,
             "objective_key": "malicious_vendor_memory_written",
-            "label": "Malicious Vendor Memory Written",
+            "label": "Malicious instruction written to memory",
             "sort_order": 0,
         },
         {
             "id": LAB_3_OBJECTIVE_2_ID,
             "objective_key": "poisoned_memory_retrieved_for_invoice",
-            "label": "Poisoned Memory Retrieved For Invoice",
+            "label": "Malicious instruction retrieved",
             "sort_order": 1,
         },
         {

@@ -10,6 +10,9 @@ set -euo pipefail
 #
 # Optional:
 #   ARTIFACT_DIR=.artifacts
+#   UPDATE_RUNTIME_LOCK=1
+#   LOCK_FILE=deploy/k8s/staging/runtime-image.lock
+#   TARGET_LABS=prompt-injection,tool-misuse,memory-poisoning
 
 ARTIFACT_DIR="${ARTIFACT_DIR:-.artifacts}"
 BUILD_ENV_FILE="${ARTIFACT_DIR}/runtime-image-build.env"
@@ -77,3 +80,16 @@ echo "Push complete."
 echo "Digest pinned reference:"
 echo "  ${DIGEST_REF}"
 echo "Wrote release artifact: ${RELEASE_ENV_FILE}"
+
+if [[ "${UPDATE_RUNTIME_LOCK:-0}" == "1" ]]; then
+  LOCK_FILE="${LOCK_FILE:-deploy/k8s/staging/runtime-image.lock}"
+  TARGET_LABS="${TARGET_LABS:-prompt-injection,tool-misuse,memory-poisoning}"
+  ./scripts/update_runtime_lock_from_release.sh
+  ./scripts/validate_runtime_lock.sh
+else
+  echo
+  echo "Next step (optional):"
+  echo "  UPDATE_RUNTIME_LOCK=1 ./scripts/push_runtime_image.sh"
+  echo "or run:"
+  echo "  ./scripts/update_runtime_lock_from_release.sh"
+fi

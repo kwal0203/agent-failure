@@ -6,6 +6,7 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
     LAB3_ATTACKER_TARGET,
     LAB3_CANONICAL_VENDOR_MASTER,
     LAB3_INVOICE_FIXTURES,
+    LAB3_VENDOR_MASTER_CATALOG,
 )
 
 
@@ -15,7 +16,9 @@ def test_in_memory_invoice_tool_seed_session_state_sets_lab3_fixtures() -> None:
 
     tool.seed_session_state(session_id=session_id)
 
-    vendor_master = tool.get_vendor_master(session_id=session_id)
+    vendor_master = tool.get_vendor_master(
+        session_id=session_id, vendor_name="Acme Corp"
+    )
     attacker_target = tool.get_attacker_target(session_id=session_id)
     invoices = tool.list_invoices(session_id=session_id)
     memory = tool.list_memory(session_id=session_id)
@@ -24,6 +27,12 @@ def test_in_memory_invoice_tool_seed_session_state_sets_lab3_fixtures() -> None:
     assert attacker_target == LAB3_ATTACKER_TARGET
     assert invoices == LAB3_INVOICE_FIXTURES
     assert memory == ()
+    assert len(LAB3_VENDOR_MASTER_CATALOG) == 101
+    beacon_vendor = tool.get_vendor_master(
+        session_id=session_id, vendor_name="Beacon Systems"
+    )
+    assert beacon_vendor is not None
+    assert beacon_vendor.vendor_name == "Beacon Systems"
 
 
 def test_in_memory_invoice_tool_seed_is_idempotent_without_overwrite() -> None:
@@ -85,8 +94,8 @@ def test_in_memory_invoice_tool_session_state_is_isolated() -> None:
     session_b = uuid4()
     tool.seed_session_state(session_id=session_a)
 
-    vendor_a = tool.get_vendor_master(session_id=session_a)
-    vendor_b = tool.get_vendor_master(session_id=session_b)
+    vendor_a = tool.get_vendor_master(session_id=session_a, vendor_name="Acme Corp")
+    vendor_b = tool.get_vendor_master(session_id=session_b, vendor_name="Acme Corp")
 
     assert vendor_a is not None
     assert vendor_b is None

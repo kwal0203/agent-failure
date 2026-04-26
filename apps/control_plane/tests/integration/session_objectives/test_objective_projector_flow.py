@@ -366,7 +366,7 @@ def test_objective_projector_marks_lab3_objective_pending_to_complete(
         db_session,
         session_id=session.id,
         objective_key=objective_key,
-        label="Malicious Vendor Memory Written",
+        label="Malicious instruction written to memory",
         sort_order=0,
     )
     _seed_objective_completed_event(
@@ -479,7 +479,7 @@ def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
         db_session,
         session_id=session.id,
         objective_key=objective_key,
-        label="Poisoned Memory Retrieved For Invoice",
+        label="Malicious instruction retrieved",
         sort_order=0,
     )
     _seed_objective_completed_event(

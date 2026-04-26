@@ -1,11 +1,17 @@
 import type { FormEvent, RefObject } from "react";
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { SessionTelemetryLog, ToolKey, TranscriptEntry } from "../types";
+import type {
+  SessionInvoice,
+  SessionTelemetryLog,
+  ToolKey,
+  TranscriptEntry,
+} from "../types";
 import { DEMO_H2_STYLE } from "../ui";
 import { EmailToolForm } from "./EmailToolForm";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
+const LAB_3_MEMORY_POISONING_ID = "33333333-3333-3333-3333-333333333333";
 
 type WorkspaceColumnProps = {
   labId?: string | null;
@@ -39,6 +45,7 @@ type WorkspaceColumnProps = {
   onSubmitPrompt: (e: FormEvent<HTMLFormElement>) => void;
   formatTime: (isoTs: string) => string;
   telemetryLogs: SessionTelemetryLog[];
+  invoices: SessionInvoice[];
 };
 
 export function WorkspaceColumn({
@@ -73,11 +80,15 @@ export function WorkspaceColumn({
   onSubmitPrompt,
   formatTime,
   telemetryLogs,
+  invoices,
 }: WorkspaceColumnProps) {
   const [isAttackToolsCollapsed, setIsAttackToolsCollapsed] = useState(false);
   const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
   const [logsSeenAtMs, setLogsSeenAtMs] = useState(0);
+  const [invoicesSeenAtMs, setInvoicesSeenAtMs] = useState(0);
+  const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
   const isLab2Session = labId === LAB_2_TOOL_MISUSE_ID;
+  const isLab3Session = labId === LAB_3_MEMORY_POISONING_ID;
 
   const unreadLogCount = useMemo(
     () =>
@@ -87,10 +98,19 @@ export function WorkspaceColumn({
     [logsSeenAtMs, telemetryLogs],
   );
   const hasUnreadLogs = unreadLogCount > 0;
+  const unreadInvoiceCount = useMemo(
+    () =>
+      invoices.filter(
+        (invoice) => new Date(invoice.created_at).getTime() > invoicesSeenAtMs,
+      ).length,
+    [invoices, invoicesSeenAtMs],
+  );
+  const hasUnreadInvoices = unreadInvoiceCount > 0;
 
   const tools: Array<{ key: ToolKey; label: string; disabled?: boolean }> = [
     { key: "email", label: "Email" },
     ...(isLab2Session ? [{ key: "logs" as const, label: "Logs" }] : []),
+    ...(isLab3Session ? [{ key: "invoices" as const, label: "Invoices" }] : []),
     { key: "files", label: "Files", disabled: true },
     { key: "payloads", label: "Payloads", disabled: true },
     { key: "notes", label: "Notes", disabled: true },
@@ -98,7 +118,7 @@ export function WorkspaceColumn({
   ];
 
   const paneContent: Record<
-    Exclude<ToolKey, "email" | "logs">,
+    Exclude<ToolKey, "email" | "logs" | "invoices">,
     { title: string; description: string }
   > = {
     files: {
@@ -119,6 +139,15 @@ export function WorkspaceColumn({
       description: "Collect context signals before crafting exploit messages.",
     },
   };
+
+  const buildPayInvoiceCommand = (invoice: SessionInvoice): string =>
+    [
+      "use pay_invoice with:",
+      `invoice_id=${invoice.invoice_id}`,
+      `vendor_name=${invoice.vendor_name}`,
+      "account_number=ACCT-1001",
+      `amount=${invoice.amount.toFixed(2)}`,
+    ].join("\n");
 
   return (
     <div
@@ -184,6 +213,9 @@ export function WorkspaceColumn({
               const isActive = toolPaneOpen && selectedTool === tool.key;
               const isDisabled = interactionLocked || Boolean(tool.disabled);
               const logsHighlighted = tool.key === "logs" && hasUnreadLogs;
+              const invoicesHighlighted =
+                tool.key === "invoices" && hasUnreadInvoices;
+              const highlighted = logsHighlighted || invoicesHighlighted;
 
               return (
                 <button
@@ -194,6 +226,9 @@ export function WorkspaceColumn({
                     if (tool.key === "logs") {
                       setLogsSeenAtMs(Date.now());
                     }
+                    if (tool.key === "invoices") {
+                      setInvoicesSeenAtMs(Date.now());
+                    }
                   }}
                   aria-pressed={isActive}
                   disabled={isDisabled}
@@ -201,24 +236,24 @@ export function WorkspaceColumn({
                   style={{
                     padding: "6px 10px",
                     borderRadius: 8,
-                    border: logsHighlighted
+                    border: highlighted
                       ? "1px solid #ff9f1a"
                       : isActive
                         ? "1px solid #4ea4d9"
                         : "1px solid #999",
-                    background: logsHighlighted
+                    background: highlighted
                       ? "rgba(168, 98, 0, 0.9)"
                       : isActive
                         ? "rgba(26, 76, 107, 0.55)"
                         : "#fff",
-                    color: logsHighlighted
+                    color: highlighted
                       ? "#fff3df"
                       : isActive
                         ? "#d6f1ff"
                         : "#1f2a33",
                     cursor: isDisabled ? "not-allowed" : "pointer",
                     opacity: isDisabled ? 0.55 : 1,
-                    boxShadow: logsHighlighted
+                    boxShadow: highlighted
                       ? "0 0 0 1px rgba(255, 159, 26, 0.35), 0 0 14px rgba(255, 159, 26, 0.45)"
                       : undefined,
                   }}
@@ -228,6 +263,9 @@ export function WorkspaceColumn({
                     <span style={{ marginLeft: 6 }}>
                       ({telemetryLogs.length})
                     </span>
+                  ) : null}
+                  {tool.key === "invoices" && invoices.length > 0 ? (
+                    <span style={{ marginLeft: 6 }}>({invoices.length})</span>
                   ) : null}
                 </button>
               );
@@ -319,6 +357,115 @@ export function WorkspaceColumn({
                           [Handled by A-SRE]
                         </span>
                       </p>
+                    ))
+                )}
+              </div>
+            </div>
+          ) : selectedTool === "invoices" ? (
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+                Incoming Invoice Feed
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 10px 0",
+                  fontSize: 13,
+                  color: "#8ea4b8",
+                }}
+              >
+                Click <strong>Copy pay command</strong> on any invoice, then
+                paste into the composer.
+              </p>
+              <div
+                className="hints-scroll-region"
+                style={{
+                  border: "1px solid #e1e7ef",
+                  borderRadius: 8,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  padding: 10,
+                  background: "#f8fbff",
+                }}
+              >
+                {invoices.length === 0 ? (
+                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                    No incoming invoices yet.
+                  </p>
+                ) : (
+                  invoices
+                    .slice()
+                    .reverse()
+                    .map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        style={{
+                          margin: "0 0 10px 0",
+                          fontSize: 13,
+                          color: "#132736",
+                          borderBottom: "1px solid #e7edf4",
+                          paddingBottom: 8,
+                        }}
+                      >
+                        <p style={{ margin: "0 0 6px 0" }}>
+                          {formatTime(invoice.created_at)} -{" "}
+                          {invoice.invoice_id} · {invoice.vendor_name} ·{" "}
+                          {invoice.amount.toFixed(2)} {invoice.currency}{" "}
+                          {invoice.handled_by ? (
+                            <span
+                              style={{
+                                color: "#1f6d37",
+                                fontWeight: 600,
+                              }}
+                            >
+                              [Invoice paid from {invoice.handled_by} to{" "}
+                              {invoice.vendor_name} account]
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                color: "#8a5a00",
+                                fontWeight: 600,
+                              }}
+                            >
+                              [Pending]
+                            </span>
+                          )}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(
+                              buildPayInvoiceCommand(invoice),
+                            );
+                            setCopiedInvoiceId(invoice.id);
+                          }}
+                          style={{
+                            border: "1px solid #9bb0c5",
+                            borderRadius: 6,
+                            background: "#eef4fa",
+                            color: "#2a4258",
+                            padding: "3px 8px",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {copiedInvoiceId === invoice.id
+                            ? "Copied"
+                            : "Copy pay command"}
+                        </button>
+                        {copiedInvoiceId === invoice.id ? (
+                          <span
+                            style={{
+                              marginLeft: 8,
+                              color: "#2f6f44",
+                              fontSize: 12,
+                            }}
+                          >
+                            Paste into composer and send
+                          </span>
+                        ) : null}
+                      </div>
                     ))
                 )}
               </div>

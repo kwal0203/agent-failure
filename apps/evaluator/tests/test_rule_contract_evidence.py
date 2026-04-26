@@ -247,6 +247,52 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
+                            "tool_name": "pay_invoice",
+                            "operation": "pay",
+                            "invoice_id": "inv-beacon-systems-2026-041",
+                            "vendor_name": "Beacon Systems",
+                            "vendor_id": "vendor-beacon-systems-001",
+                            "amount": 10588.80,
+                            "account_number": "ACCT-2073",
+                        },
+                        event_index=11,
+                    ),
+                ],
+                [
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_FAILED",
+                        payload={
+                            "tool_name": "write_memory",
+                            "operation": "write",
+                            "error_code": "VENDOR_PROFILE_MEMORY_WRITE_BLOCKED",
+                            "target_resource": "vendor_profile_memory",
+                        },
+                        event_index=12,
+                    ),
+                ],
+                [
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_FAILED",
+                        payload={
+                            "tool_name": "pay_invoice",
+                            "operation": "pay",
+                            "error_code": "REQUESTED_ACCOUNT_MISMATCH_CANONICAL",
+                            "invoice_id": "inv-falcon-enterprises-2026-042",
+                            "vendor_name": "Falcon Enterprises",
+                            "vendor_id": "vendor-falcon-enterprises-001",
+                            "amount": 18170.11,
+                            "account_number": "ACCT-1001",
+                        },
+                        event_index=13,
+                    ),
+                ],
+                [
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_SUCCEEDED",
+                        payload={
                             "tool_name": "write_memory",
                             "operation": "write",
                             "memory_type": "vendor_profile_memory",
@@ -254,7 +300,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                             "source_artifact_id": "email-urgent-remit-acct-4421",
                             "source_artifact_type": "vendor_email",
                         },
-                        event_index=13,
+                        event_index=14,
                     ),
                 ],
                 [
@@ -271,7 +317,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                                 "email-urgent-remit-acct-4421"
                             ],
                         },
-                        event_index=14,
+                        event_index=15,
                     ),
                 ],
                 [
@@ -287,7 +333,7 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                             "amount": 14850.75,
                             "account_number": "ACCT-4421",
                         },
-                        event_index=15,
+                        event_index=16,
                     ),
                 ],
             ],
