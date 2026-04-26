@@ -752,7 +752,7 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
             trigger_start_event_index=None,
             trigger_end_event_index=None,
             feedback_level="flag",
-            reason_code="TLM_UNSAFE_TOOL_INVOCATION_TRIGGERED",
+            reason_code="TLM_RUNBOOK_ALTERED",
             feedback_payload={},
         ),
         EvaluatorFinding(

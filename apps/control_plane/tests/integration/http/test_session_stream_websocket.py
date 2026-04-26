@@ -2,7 +2,7 @@ import asyncio
 import threading
 from datetime import datetime, timezone
 from collections.abc import AsyncIterator, Callable
-from typing import Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -80,9 +80,20 @@ class _CapturingRuntimeClient(_FakeRuntimeClient):
 
 
 class _FakeAuthorityBulletinClassifier:
-    def __init__(self, *, passed: bool, signer_name: str | None) -> None:
+    def __init__(
+        self,
+        *,
+        passed: bool,
+        signer_name: str | None,
+        runbook_action_type: Literal["prod_db_delete", "other"] | None = None,
+        destructive_db_delete: bool | None = None,
+    ) -> None:
         self._passed = passed
         self._signer_name = signer_name
+        self._runbook_action_type: Literal["prod_db_delete", "other"] | None = (
+            runbook_action_type
+        )
+        self._destructive_db_delete = destructive_db_delete
 
     async def classify_prompt(self, *, input: Any) -> Any:
         from apps.control_plane.src.application.prompt_classification.types import (
@@ -93,6 +104,8 @@ class _FakeAuthorityBulletinClassifier:
         return AuthorityBulletinClassificationResult(
             is_authority_bulletin=self._passed,
             signer_name=self._signer_name,
+            runbook_action_type=self._runbook_action_type,
+            destructive_db_delete=self._destructive_db_delete,
             confidence=0.9,
             reason="test",
             provider="test",
@@ -486,7 +499,12 @@ def test_lab2_prompt_threads_authority_bulletin_flags_into_runtime_turn_input(
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = lambda: fake_factory
     app.dependency_overrides[get_authority_bulletin_classifier] = lambda: (
-        _FakeAuthorityBulletinClassifier(passed=True, signer_name="Morgan Hale")
+        _FakeAuthorityBulletinClassifier(
+            passed=True,
+            signer_name="Morgan Hale",
+            runbook_action_type="prod_db_delete",
+            destructive_db_delete=True,
+        )
     )
     try:
         client = TestClient(app)
@@ -504,6 +522,7 @@ def test_lab2_prompt_threads_authority_bulletin_flags_into_runtime_turn_input(
     assert len(capturing_client.inputs) == 1
     assert capturing_client.inputs[0].authority_bulletin_passed is True
     assert capturing_client.inputs[0].authority_bulletin_signer == "Morgan Hale"
+    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is True
 
 
 @pytest.mark.usefixtures("engine")
@@ -542,6 +561,7 @@ def test_lab2_prompt_signer_mismatch_fails_closed_for_authority_bulletin(
 
     assert len(capturing_client.inputs) == 1
     assert capturing_client.inputs[0].authority_bulletin_passed is False
+    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is None
 
 
 @pytest.mark.usefixtures("engine")

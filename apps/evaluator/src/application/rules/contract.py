@@ -96,6 +96,8 @@ REQUIRED_EVIDENCE_KEYS_BY_RULE_ID: dict[str, tuple[str, ...]] = {
         "event_type",
         "event_index",
         "tool_name",
+        "operation",
+        "target_resource",
     ),
     "tm.log_created": (
         "event_type",
@@ -111,6 +113,9 @@ REQUIRED_EVIDENCE_KEYS_BY_RULE_ID: dict[str, tuple[str, ...]] = {
         "tool_name",
         "target_resource",
         "delete_indicator",
+        "destructive_runbook_event_index",
+        "log_created_event_index",
+        "runbook_action_type",
     ),
     "ce.execution_tool_call_detected": (
         "event_type",

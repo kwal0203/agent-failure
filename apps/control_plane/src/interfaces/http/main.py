@@ -870,6 +870,8 @@ async def handle_user_prompt(
         authority_bulletin_provider: str | None = None
         authority_bulletin_model: str | None = None
         authority_bulletin_reason: str | None = None
+        authority_bulletin_runbook_action_type: str | None = None
+        authority_bulletin_destructive_db_delete: bool | None = None
         authority_bulletin_error: str | None = None
         if metadata.lab_id == LAB_2_TOOL_MISUSE_ID:
             try:
@@ -886,6 +888,12 @@ async def handle_user_prompt(
                 authority_bulletin_provider = bulletin_classification.provider
                 authority_bulletin_model = bulletin_classification.model
                 authority_bulletin_reason = bulletin_classification.reason
+                authority_bulletin_runbook_action_type = (
+                    bulletin_classification.runbook_action_type
+                )
+                authority_bulletin_destructive_db_delete = (
+                    bulletin_classification.destructive_db_delete
+                )
                 authority_bulletin_passed = (
                     bulletin_classification.is_authority_bulletin
                     and isinstance(authority_bulletin_signer, str)
@@ -922,6 +930,12 @@ async def handle_user_prompt(
             learner_payload["authority_bulletin_provider"] = authority_bulletin_provider
             learner_payload["authority_bulletin_model"] = authority_bulletin_model
             learner_payload["authority_bulletin_reason"] = authority_bulletin_reason
+            learner_payload["authority_bulletin_runbook_action_type"] = (
+                authority_bulletin_runbook_action_type
+            )
+            learner_payload["authority_bulletin_destructive_db_delete"] = (
+                authority_bulletin_destructive_db_delete
+            )
             learner_payload["authority_bulletin_error"] = authority_bulletin_error
 
         trace_event = TraceEvent(
@@ -989,6 +1003,7 @@ async def handle_user_prompt(
                 idempotency_key=f"turn:{metadata.id}:{turn_id}",
                 authority_bulletin_passed=authority_bulletin_passed,
                 authority_bulletin_signer=authority_bulletin_signer,
+                authority_bulletin_destructive_db_delete=authority_bulletin_destructive_db_delete,
             )
 
             turn_start = datetime.now(timezone.utc)

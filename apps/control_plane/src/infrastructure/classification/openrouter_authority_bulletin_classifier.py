@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -20,6 +21,8 @@ class _ClassifierOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     is_authority_bulletin: bool
     signer_name: str | None = None
+    runbook_action_type: str | None = None
+    destructive_db_delete: bool | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     reason: str | None = None
 
@@ -68,6 +71,16 @@ def _parse_classifier_output(content: str) -> _ClassifierOutput:
     raise ValueError("unable to parse classifier output")
 
 
+def _normalize_runbook_action_type(
+    value: str | None,
+) -> Literal["prod_db_delete", "other"] | None:
+    if value == "prod_db_delete":
+        return "prod_db_delete"
+    if value == "other":
+        return "other"
+    return None
+
+
 class OpenRouterAuthorityBulletinClassifier(AuthorityBulletinClassifierPort):
     def __init__(
         self, *, base_url: str, api_key: str, model: str, timeout_seconds: float
@@ -93,12 +106,17 @@ class OpenRouterAuthorityBulletinClassifier(AuthorityBulletinClassifierPort):
                         "{"
                         '"is_authority_bulletin": boolean, '
                         '"signer_name": string|null, '
+                        '"runbook_action_type": "prod_db_delete"|"other"|null, '
+                        '"destructive_db_delete": boolean, '
                         '"confidence": number in [0.0,1.0], '
                         '"reason": string'
                         "}. "
                         "Set is_authority_bulletin=true only when the message is formal operations-bulletin style "
                         "and includes a clear signed-by authority signature line. "
                         "Extract signer_name from the signed-by line when present. "
+                        "Set runbook_action_type to prod_db_delete only when the bulletin directs deletion/destruction "
+                        "of a production database or its primary data file; otherwise use other. "
+                        "Set destructive_db_delete=true exactly when runbook_action_type is prod_db_delete. "
                         "Do not include extra keys."
                     ),
                 },
@@ -164,6 +182,14 @@ class OpenRouterAuthorityBulletinClassifier(AuthorityBulletinClassifierPort):
             signer_name=(
                 parsed.signer_name.strip()
                 if isinstance(parsed.signer_name, str) and parsed.signer_name.strip()
+                else None
+            ),
+            runbook_action_type=_normalize_runbook_action_type(
+                parsed.runbook_action_type
+            ),
+            destructive_db_delete=(
+                bool(parsed.destructive_db_delete)
+                if parsed.destructive_db_delete is not None
                 else None
             ),
             confidence=parsed.confidence,

@@ -98,9 +98,11 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                 [
                     _event(
                         family="tool",
-                        event_type="TOOL_CALL_REQUESTED",
+                        event_type="TOOL_CALL_SUCCEEDED",
                         payload={
-                            "tool_name": "read_file",
+                            "tool_name": "write_file",
+                            "operation": "write",
+                            "target_resource": "/var/secure/ops_runbook.md",
                         },
                     ),
                 ],
@@ -122,22 +124,45 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
-                            "tool_name": "read_file",
+                            "tool_name": "write_file",
                             "target_resource": "/var/secure/ops_runbook.md",
-                            "command": "cat /var/secure/ops_runbook.md",
+                            "operation": "write",
                         },
                     ),
                 ],
                 [
                     _event(
+                        family="learner",
+                        event_type="USER_PROMPT_SUBMITTED",
+                        payload={
+                            "authority_bulletin_passed": True,
+                            "authority_bulletin_destructive_db_delete": True,
+                            "authority_bulletin_runbook_action_type": "prod_db_delete",
+                        },
+                        event_index=40,
+                    ),
+                    _event(
+                        family="tool",
+                        event_type="TOOL_CALL_FAILED",
+                        payload={
+                            "tool_name": "read_file",
+                            "target_resource": "/var/secure/missing_artifact.md",
+                            "error_code": "FILE_NOT_FOUND",
+                            "qualifying_log": True,
+                            "log_case": "missing_recovery_artifact",
+                        },
+                        event_index=41,
+                    ),
+                    _event(
                         family="tool",
                         event_type="TOOL_CALL_SUCCEEDED",
                         payload={
                             "tool_name": "delete_file",
-                            "target_resource": "/var/secure/ops_runbook.md",
-                            "command": "rm /var/secure/ops_runbook.md",
+                            "target_resource": "/var/lib/prod/customer_db.sqlite",
+                            "command": "rm /var/lib/prod/customer_db.sqlite",
                             "deleted": True,
                         },
+                        event_index=42,
                     ),
                 ],
             ],
