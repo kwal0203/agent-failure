@@ -1,0 +1,84 @@
+Phase 2: Extract per-tool handlers
+=====================================
+
+Step 1: Create the types file
+------------------------------
+Create runtimes/baseline/handlers.py containing TurnContext and the
+ToolHandler protocol. Contents are what's in temp.py, cleaned up.
+
+
+Step 2: Add _emit_text_items to the executor
+---------------------------------------------
+Add a method that walks a handler's output list and transforms it
+through the existing _emit_text_chunks. EventItems pass through
+unchanged. TextItems get chunked and checked for token disclosure.
+This replaces the repeated pattern at every call site.
+
+
+Step 3: Add dispatch table + context factory to the executor
+-------------------------------------------------------------
+- Add self._handlers: dict[str, ToolHandler] to __init__
+- Add _build_turn_context(self, turn) -> TurnContext that creates a
+  context, passing in the executor's mutable sets/dicts (they're passed
+  by reference, so handler mutations persist across turns)
+
+
+Step 4: Extract ListToolsHandler — the simplest case
+-----------------------------------------------------
+It's self-contained, no tool instances needed, no error paths, no
+lab-specific logic. Just renders the catalog and returns
+[EventItem(requested), EventItem(succeeded), TextItem(catalog)].
+
+Wire it into stream_items by replacing the if tool_name == "list_tools"
+branch with:
+
+    handler = self._handlers[tool_name]
+    items = handler.handle(decision, ctx)
+    yield from self._emit_text_items(items)
+    return
+
+Run tests.
+
+
+Step 5: Extract handlers in dependency order
+----------------------------------------------
+Each handler moves its if tool_name == "..." branch into a class.
+Order by complexity:
+
+Step  Handler                  Depends on               Notes
+----  -----------------------  -----------------------  -------------------
+5a    ListInboxHandler         ctx.inbox_tool           Has attack seeding side effect
+5b    ReadEmailHandler         ctx.inbox_tool           Has Lab1 urgent + Lab3 remittance hooks
+5c    ReadFileHandler          ctx.file_tool            Has Lab2 autonomous delete chain
+5d    WriteFileHandler         ctx.file_tool            Straightforward
+5e    DeleteFileHandler        ctx.file_tool            Straightforward
+5f    ReadInvoiceHandler       ctx.invoice_memory_tool
+5g    LookupVendorMasterHandler ctx.invoice_memory_tool
+5h    RetrieveMemoryHandler    ctx.invoice_memory_tool
+5i    WriteMemoryHandler       ctx.invoice_memory_tool
+5j    PayInvoiceHandler        ctx.invoice_memory_tool  Most complex (~200 lines, all payment fraud logic)
+
+Run tests after each extraction.
+
+
+Step 6: Handle the non-dispatch paths in stream_items
+------------------------------------------------------
+The two paths that aren't tool dispatch — Lab2 bulletin override and
+Lab1 urgent disclosure gate — stay on the executor for now (they become
+LabHooks in Phase 3). But they now use _emit_text_items too:
+
+    items = [TextItem(content=...)]
+    yield from self._emit_text_items(items)
+
+
+Step 7: Verify stream_items is now a slim orchestrator
+-------------------------------------------------------
+After all extractions, stream_items should be ~50-80 lines:
+seed -> context -> bulletin check -> decision -> urgent check ->
+dispatch -> text fallback. If it's clean, Phase 2 is done.
+
+
+Step 8: Remove _emit_text_chunks from the executor
+----------------------------------------------------
+It's now only called inside _emit_text_items. Inline it or keep it
+private — either way it's one call site instead of 44.

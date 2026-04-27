@@ -12,7 +12,6 @@ from apps.contracts.src.schemas import (
     RuntimeStreamEvent,
     TurnFailedEvent,
     MaliciousEmailReadEvent,
-    AttackEmailSentEvent,
     TokenDisclosedEvent,
     ToolCallRequestedEvent,
     ToolCallSucceededEvent,
@@ -43,6 +42,7 @@ from apps.agent_harness.src.application.session_loop.types import (
 )
 
 from .types import RuntimeTurnInput, RuntimeExecutorItem, EventItem, TextItem
+from .handlers import TurnContext, ToolHandler, ListToolsHandler, ListInboxHandler
 
 from uuid import UUID
 
@@ -119,6 +119,24 @@ class RuntimeTurnExecutor:
         self._urgent_malicious_context_by_session: dict[UUID, str] = {}
         self._lab2_destructive_runbook_by_session: dict[UUID, bool] = {}
         self._lab2_autonomous_delete_applied_sessions: set[UUID] = set()
+        self._handlers: dict[str, ToolHandler] = {
+            "list_tools": ListToolsHandler(),
+            "list_inbox": ListInboxHandler(),
+        }
+
+    def _build_turn_context(self, turn: RuntimeTurnInput) -> TurnContext:
+        return TurnContext(
+            turn=turn,
+            inbox_tool=self._inbox_tool,
+            file_tool=self._file_tool,
+            invoice_memory_tool=self._invoice_memory_tool,
+            attack_seeded_sessions=self._attack_seeded_sessions,
+            file_seeded_sessions=self._file_seeded_sessions,
+            lab3_seeded_sessions=self._lab3_seeded_sessions,
+            urgent_malicious_context_by_session=self._urgent_malicious_context_by_session,
+            lab2_destructive_runbook_by_session=self._lab2_destructive_runbook_by_session,
+            lab2_autonomous_delete_applied_sessions=self._lab2_autonomous_delete_applied_sessions,
+        )
 
     def _seed_lab_artifacts_for_session(self, turn: RuntimeTurnInput) -> None:
         if turn.lab_id == LAB_2_TOOL_MISUSE_ID:
@@ -182,6 +200,28 @@ class RuntimeTurnExecutor:
                 token_disclosed_emitted = True
             items.append(TextItem(content=part))
         return items, full_text_so_far, token_disclosed_emitted
+
+    def _emit_text_items(
+        self,
+        items: list[RuntimeExecutorItem],
+        *,
+        full_text_so_far: str,
+        token_disclosed_emitted: bool,
+    ) -> tuple[list[RuntimeExecutorItem], str, bool]:
+        result: list[RuntimeExecutorItem] = []
+        for item in items:
+            if isinstance(item, EventItem):
+                result.append(item)
+            else:
+                text_items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=item.content,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+                result.extend(text_items)
+        return result, full_text_so_far, token_disclosed_emitted
 
     def _render_tool_catalog(self) -> str:
         lines = ["Available tools:"]
@@ -535,6 +575,7 @@ class RuntimeTurnExecutor:
         token_disclosed_emitted = False
         full_text_so_far = ""
         self._seed_lab_artifacts_for_session(turn)
+        ctx = self._build_turn_context(turn)
 
         if (
             turn.lab_id == LAB_2_TOOL_MISUSE_ID
@@ -610,26 +651,10 @@ class RuntimeTurnExecutor:
         if tool_call_decision.kind == "tool_call":
             tool_name = tool_call_decision.tool_name
             if tool_name == "list_tools":
-                yield EventItem(
-                    event=ToolCallRequestedEvent(
-                        type="tool_call_requested",
-                        tool_name="list_tools",
-                        target_resource="tools",
-                        operation="list",
-                    )
-                )
-                yield EventItem(
-                    event=ToolCallSucceededEvent(
-                        type="tool_call_succeeded",
-                        tool_name="list_tools",
-                        target_resource="tools",
-                        operation="list",
-                    )
-                )
-
+                handler = self._handlers[tool_name]
                 items, full_text_so_far, token_disclosed_emitted = (
-                    self._emit_text_chunks(
-                        text=self._render_tool_catalog(),
+                    self._emit_text_items(
+                        handler.handle(tool_call_decision, ctx),
                         full_text_so_far=full_text_so_far,
                         token_disclosed_emitted=token_disclosed_emitted,
                     )
@@ -640,44 +665,10 @@ class RuntimeTurnExecutor:
                 return
 
             if tool_name == "list_inbox":
-                yield EventItem(
-                    event=ToolCallRequestedEvent(
-                        type="tool_call_requested",
-                        tool_name="list_inbox",
-                        target_resource="inbox",
-                        operation="list",
-                    )
-                )
-                inbox_items = self._inbox_tool.list_inbox()
-                if turn.session_id not in self._attack_seeded_sessions:
-                    # TODO(lab-runtime): This is temporary MVP behavior while inbox
-                    # state is stubbed in-memory. Move ATTACK_EMAIL_SENT emission to
-                    # real provisioning-time lab artifact seeding.
-                    malicious = next((x for x in inbox_items if x.malicious), None)
-                    if malicious is not None:
-                        yield EventItem(
-                            event=AttackEmailSentEvent(
-                                type="attack_email_sent",
-                                email_id=malicious.email_id,  # TODO: Haven't implemented email_id yet
-                                recipient="learner@lab.local",
-                                subject=malicious.email_subject,
-                            )
-                        )
-                    self._attack_seeded_sessions.add(turn.session_id)
-
-                yield EventItem(
-                    event=ToolCallSucceededEvent(
-                        type="tool_call_succeeded",
-                        tool_name="list_inbox",
-                        target_resource="inbox",
-                        operation="list",
-                    )
-                )
-
-                text = self._render_inbox(items=inbox_items)
+                handler = self._handlers[tool_name]
                 items, full_text_so_far, token_disclosed_emitted = (
-                    self._emit_text_chunks(
-                        text=text,
+                    self._emit_text_items(
+                        handler.handle(tool_call_decision, ctx),
                         full_text_so_far=full_text_so_far,
                         token_disclosed_emitted=token_disclosed_emitted,
                     )
