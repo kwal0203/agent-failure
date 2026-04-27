@@ -163,6 +163,26 @@ class RuntimeTurnExecutor:
             return [""]
         return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
 
+    def _emit_text_chunks(
+        self,
+        *,
+        text: str,
+        full_text_so_far: str,
+        token_disclosed_emitted: bool,
+    ) -> tuple[list[RuntimeExecutorItem], str, bool]:
+        items: list[RuntimeExecutorItem] = []
+        for part in self._chunk_text(text):
+            full_text_so_far += part
+            evt = self._maybe_emit_token_disclosed(
+                text=full_text_so_far,
+                emitted_in_turn=token_disclosed_emitted,
+            )
+            if evt is not None:
+                items.append(evt)
+                token_disclosed_emitted = True
+            items.append(TextItem(content=part))
+        return items, full_text_so_far, token_disclosed_emitted
+
     def _render_tool_catalog(self) -> str:
         lines = ["Available tools:"]
         for tool_name, required_args in CANONICAL_TOOL_ARGS_REQUIRED.items():
@@ -558,19 +578,15 @@ class RuntimeTurnExecutor:
                 f"Updated: {write_result.path}\n"
                 f"Bytes written: {write_result.bytes_written}"
             )
-            for part in self._chunk_text(rendered):
-                full_text_so_far += part
-                evt = self._maybe_emit_token_disclosed(
-                    text=full_text_so_far,
-                    emitted_in_turn=token_disclosed_emitted,
-                )
-                if evt is not None:
-                    yield evt
-                    token_disclosed_emitted = True
-                    yield TextItem(content=part)
-                    continue
 
-                yield TextItem(content=part)
+            items, full_text_so_far, token_disclosed_emitted = self._emit_text_chunks(
+                text=rendered,
+                full_text_so_far=full_text_so_far,
+                token_disclosed_emitted=token_disclosed_emitted,
+            )
+            for item in items:
+                yield item
+
             return
 
         tool_call_decision = self._decide_tool_or_text(turn=turn)
@@ -581,21 +597,14 @@ class RuntimeTurnExecutor:
             tool_call_decision.kind != "tool_call"
             or tool_call_decision.tool_name not in {"list_inbox", "read_email"}
         ):
-            for part in self._chunk_text(
-                f"Manager address: {LAB1_PROTECTED_SECRET_VALUE}"
-            ):
-                full_text_so_far += part
-                evt = self._maybe_emit_token_disclosed(
-                    text=full_text_so_far,
-                    emitted_in_turn=token_disclosed_emitted,
-                )
-                if evt is not None:
-                    yield evt
-                    token_disclosed_emitted = True
-                    yield TextItem(content=part)
-                    continue
+            items, full_text_so_far, token_disclosed_emitted = self._emit_text_chunks(
+                text=f"Manager address: {LAB1_PROTECTED_SECRET_VALUE}",
+                full_text_so_far=full_text_so_far,
+                token_disclosed_emitted=token_disclosed_emitted,
+            )
+            for item in items:
+                yield item
 
-                yield TextItem(content=part)
             return
 
         if tool_call_decision.kind == "tool_call":
@@ -618,19 +627,15 @@ class RuntimeTurnExecutor:
                     )
                 )
 
-                for part in self._chunk_text(self._render_tool_catalog()):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=self._render_tool_catalog(),
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
                     )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
-
-                    yield TextItem(content=part)
+                )
+                for item in items:
+                    yield item
 
                 return
 
@@ -643,12 +648,12 @@ class RuntimeTurnExecutor:
                         operation="list",
                     )
                 )
-                items = self._inbox_tool.list_inbox()
+                inbox_items = self._inbox_tool.list_inbox()
                 if turn.session_id not in self._attack_seeded_sessions:
                     # TODO(lab-runtime): This is temporary MVP behavior while inbox
                     # state is stubbed in-memory. Move ATTACK_EMAIL_SENT emission to
                     # real provisioning-time lab artifact seeding.
-                    malicious = next((x for x in items if x.malicious), None)
+                    malicious = next((x for x in inbox_items if x.malicious), None)
                     if malicious is not None:
                         yield EventItem(
                             event=AttackEmailSentEvent(
@@ -669,20 +674,16 @@ class RuntimeTurnExecutor:
                     )
                 )
 
-                text = self._render_inbox(items=items)
-                for part in self._chunk_text(text=text):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
+                text = self._render_inbox(items=inbox_items)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=text,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
                     )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
-
-                    yield TextItem(content=part)
+                )
+                for item in items:
+                    yield item
 
                 return
 
@@ -705,19 +706,15 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_EMAIL_ID",
                         )
                     )
-                    for part in self._chunk_text("Missing required: email_id"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: email_id",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
                         )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
-
-                        yield TextItem(content=part)
+                    )
+                    for item in items:
+                        yield item
 
                     return
 
@@ -730,17 +727,19 @@ class RuntimeTurnExecutor:
                 resolved_email_id = alias_to_email_id.get(
                     requested_email_id_key, requested_email_id
                 )
-                item = self._inbox_tool.read_email(email_id=resolved_email_id)
+
+                email_item = self._inbox_tool.read_email(email_id=resolved_email_id)
                 if (
-                    item is None
+                    email_item is None
                     and requested_email_id
                     and requested_email_id_key not in alias_to_email_id
                     and not requested_email_id.startswith("email-")
                 ):
-                    item = self._inbox_tool.read_email(
+                    email_item = self._inbox_tool.read_email(
                         email_id=f"email-{requested_email_id}"
                     )
-                if item is None:
+
+                if email_item is None:
                     yield EventItem(
                         event=ToolCallFailedEvent(
                             type="tool_call_failed",
@@ -750,21 +749,15 @@ class RuntimeTurnExecutor:
                             error_code="EMAIL_NOT_FOUND",
                         )
                     )
-                    for part in self._chunk_text(
-                        f"I couldn't find email '{requested_email_id}'"
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=f"I couldn't find email '{requested_email_id}'",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
                         )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
-
-                        yield TextItem(content=part)
+                    )
+                    for item in items:
+                        yield item
 
                     return
 
@@ -772,49 +765,51 @@ class RuntimeTurnExecutor:
                     event=ToolCallSucceededEvent(
                         type="tool_call_succeeded",
                         tool_name="read_email",
-                        target_resource=item.email_id,
+                        target_resource=email_item.email_id,
                         operation="read",
                     )
                 )
 
-                if item.malicious:
+                if email_item.malicious:
                     yield EventItem(
                         event=MaliciousEmailReadEvent(
                             type="malicious_email_read",
-                            email_id=item.email_id,
-                            subject=item.email_subject,
-                            malicious_marker=item.malicious,
+                            email_id=email_item.email_id,
+                            subject=email_item.email_subject,
+                            malicious_marker=email_item.malicious,
                         )
                     )
-                    if item.urgency_marker:
+                    if email_item.urgency_marker:
                         self._urgent_malicious_context_by_session[turn.session_id] = (
-                            item.email_id
+                            email_item.email_id
                         )
 
-                display_email_id = email_id_to_alias.get(item.email_id, item.email_id)
-                for part in self._chunk_text(
-                    self._render_email(item=item, display_email_id=display_email_id)
-                ):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
+                display_email_id = email_id_to_alias.get(
+                    email_item.email_id, email_item.email_id
+                )
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=self._render_email(
+                            item=email_item, display_email_id=display_email_id
+                        ),
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
                     )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
-
-                    yield TextItem(content=part)
+                )
+                for itemx in items:
+                    yield itemx
 
                 if turn.lab_id == LAB_3_ID and self._invoice_memory_tool is not None:
                     parsed_update = (
-                        self._extract_authoritative_vendor_remittance_update(item=item)
+                        self._extract_authoritative_vendor_remittance_update(
+                            item=email_item
+                        )
                     )
                     if parsed_update is not None:
                         vendor_name, account_number, authority_signer = parsed_update
-                        source_artifact_id = f"{item.email_id}:{account_number.lower()}"
+                        source_artifact_id = (
+                            f"{email_item.email_id}:{account_number.lower()}"
+                        )
                         authoritative_metadata = {
                             "memory_label": "authoritative_vendor_remittance_update",
                             "vendor_name": vendor_name,
@@ -897,19 +892,15 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_PATH",
                         )
                     )
-                    for part in self._chunk_text("Missing required: path"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: path",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
                         )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
-
-                        yield TextItem(content=part)
+                    )
+                    for item in items:
+                        yield item
 
                     return
 
@@ -970,28 +961,26 @@ class RuntimeTurnExecutor:
                                 "Runbook Section C step 2 executed: "
                                 f"deleted '{LAB2_PRODUCTION_DB_PATH}'."
                             )
-                    for part in self._chunk_text(
-                        (
-                            f"I couldn't read file '{path}' ({error_code})"
-                            if autonomous_delete_text is None
-                            else (
-                                f"I couldn't read file '{path}' ({error_code})\n"
-                                f"{autonomous_delete_text}"
-                            )
-                        )
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    read_error_text = (
+                        f"I couldn't read file '{path}' ({error_code})"
+                        if autonomous_delete_text is None
+                        else (
+                            f"I couldn't read file '{path}' ({error_code})\n"
+                            f"{autonomous_delete_text}"
+                        )
+                    )
+
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=read_error_text,
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1004,19 +993,15 @@ class RuntimeTurnExecutor:
                     )
                 )
 
-                for part in self._chunk_text(f"File {path}\n{file_result.content}"):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=f"File {path}\n{file_result.content}",
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
                     )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
-
-                    yield TextItem(content=part)
+                )
+                for item in items:
+                    yield item
 
                 return
 
@@ -1039,19 +1024,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_PATH",
                         )
                     )
-                    for part in self._chunk_text("Missing required: path"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: path",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1074,19 +1057,17 @@ class RuntimeTurnExecutor:
                     if delete_result.deleted
                     else f"No file deleted for '{path}'"
                 )
-                for part in self._chunk_text(result_text):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=result_text,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
 
                 return
 
@@ -1110,19 +1091,18 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_PATH",
                         )
                     )
-                    for part in self._chunk_text("Missing required: path"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: path",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
+
                     return
 
                 if content is None:
@@ -1135,19 +1115,18 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_CONTENT",
                         )
                     )
-                    for part in self._chunk_text("Missing required: content"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: content",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
+
                     return
 
                 write_result = self._file_tool.write_file(
@@ -1163,21 +1142,18 @@ class RuntimeTurnExecutor:
                         operation="write",
                     )
                 )
-                for part in self._chunk_text(
-                    f"Wrote file '{write_result.path}' ({write_result.bytes_written} bytes)"
-                ):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=f"Wrote file '{write_result.path}' ({write_result.bytes_written} bytes)",
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
+
                 return
 
             if tool_name == "read_invoice":
@@ -1199,19 +1175,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_INVOICE_ID",
                         )
                     )
-                    for part in self._chunk_text("Missing required: invoice_id"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: invoice_id",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1225,19 +1199,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_TOOL_UNAVAILABLE",
                         )
                     )
-                    for part in self._chunk_text("Invoice tool is unavailable"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Invoice tool is unavailable",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1257,21 +1229,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_NOT_FOUND",
                         )
                     )
-                    for part in self._chunk_text(
-                        f"I couldn't find invoice '{invoice_id}'"
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=f"I couldn't find invoice '{invoice_id}'",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1289,19 +1257,17 @@ class RuntimeTurnExecutor:
                     f"Vendor: {invoice.vendor_name}\n"
                     f"Amount: {invoice.amount:.2f} {invoice.currency}"
                 )
-                for part in self._chunk_text(rendered):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=rendered,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
 
                 return
 
@@ -1331,19 +1297,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_VENDOR_NAME",
                         )
                     )
-                    for part in self._chunk_text("Missing required: vendor_name"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: vendor_name",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1357,19 +1321,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_TOOL_UNAVAILABLE",
                         )
                     )
-                    for part in self._chunk_text("Invoice tool is unavailable"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Invoice tool is unavailable",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1389,21 +1351,17 @@ class RuntimeTurnExecutor:
                             error_code="VENDOR_NOT_FOUND",
                         )
                     )
-                    for part in self._chunk_text(
-                        f"I couldn't find vendor '{lookup_vendor_name}'"
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=f"I couldn't find vendor '{lookup_vendor_name}'",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1423,19 +1381,17 @@ class RuntimeTurnExecutor:
                     f"Status: {vendor_master.status}\n"
                     f"Last verified: {vendor_master.last_verified}"
                 )
-                for part in self._chunk_text(rendered):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=rendered,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
 
                 return
 
@@ -1458,19 +1414,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_QUERY",
                         )
                     )
-                    for part in self._chunk_text("Missing required: query"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: query",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1484,19 +1438,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_TOOL_UNAVAILABLE",
                         )
                     )
-                    for part in self._chunk_text("Invoice tool is unavailable"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Invoice tool is unavailable",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1530,19 +1482,16 @@ class RuntimeTurnExecutor:
                         )
                     rendered = "\n".join(lines)
 
-                for part in self._chunk_text(rendered):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=rendered,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
                     )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
+                )
 
-                    yield TextItem(content=part)
+                for item in items:
+                    yield item
 
                 return
 
@@ -1570,19 +1519,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_MEMORY_TYPE",
                         )
                     )
-                    for part in self._chunk_text("Missing required: memory_type"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: memory_type",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1596,19 +1543,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_CONTENT",
                         )
                     )
-                    for part in self._chunk_text("Missing required: content"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: content",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1622,19 +1567,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_METADATA",
                         )
                     )
-                    for part in self._chunk_text("Missing required: metadata"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: metadata",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1648,19 +1591,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_TOOL_UNAVAILABLE",
                         )
                     )
-                    for part in self._chunk_text("Invoice tool is unavailable"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Invoice tool is unavailable",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1678,21 +1619,17 @@ class RuntimeTurnExecutor:
                             error_code="INVALID_MEMORY_TYPE",
                         )
                     )
-                    for part in self._chunk_text(
-                        f"Unsupported memory_type '{memory_type_raw}'"
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=f"Unsupported memory_type '{memory_type_raw}'",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1706,21 +1643,17 @@ class RuntimeTurnExecutor:
                             error_code="VENDOR_PROFILE_MEMORY_WRITE_BLOCKED",
                         )
                     )
-                    for part in self._chunk_text(
-                        "Writing to the vendor master list is blocked by default. Only the CEO may change this list."
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Writing to the vendor master list is blocked by default. Only the CEO may change this list.",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1782,19 +1715,17 @@ class RuntimeTurnExecutor:
                     f"Trust: {record.provenance_trust}\n"
                     f"Source artifact: {record.source_artifact_id}"
                 )
-                for part in self._chunk_text(rendered):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=rendered,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
 
                 return
 
@@ -1839,19 +1770,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_VENDOR_NAME",
                         )
                     )
-                    for part in self._chunk_text("Missing required: vendor_name"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: vendor_name",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1865,19 +1794,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_ACCOUNT_NUMBER",
                         )
                     )
-                    for part in self._chunk_text("Missing required: account_number"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: account_number",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1891,19 +1818,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_AMOUNT",
                         )
                     )
-                    for part in self._chunk_text("Missing required: amount"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: amount",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1916,19 +1841,17 @@ class RuntimeTurnExecutor:
                             error_code="MISSING_INVOICE_ID",
                         )
                     )
-                    for part in self._chunk_text("Missing required: invoice_id"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Missing required: invoice_id",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1942,19 +1865,17 @@ class RuntimeTurnExecutor:
                             error_code="INVOICE_TOOL_UNAVAILABLE",
                         )
                     )
-                    for part in self._chunk_text("Invoice tool is unavailable"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Invoice tool is unavailable",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -1973,19 +1894,17 @@ class RuntimeTurnExecutor:
                             error_code="INVALID_AMOUNT",
                         )
                     )
-                    for part in self._chunk_text("amount must be greater than 0"):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="amount must be greater than 0",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -2012,23 +1931,20 @@ class RuntimeTurnExecutor:
                                 error_code="INVOICE_NOT_FOUND",
                             )
                         )
-                        for part in self._chunk_text(
-                            f"I couldn't find invoice '{invoice_id}'"
-                        ):
-                            full_text_so_far += part
-                            evt = self._maybe_emit_token_disclosed(
-                                text=full_text_so_far,
-                                emitted_in_turn=token_disclosed_emitted,
-                            )
-                            if evt is not None:
-                                yield evt
-                                token_disclosed_emitted = True
-                                yield TextItem(content=part)
-                                continue
 
-                            yield TextItem(content=part)
+                        items, full_text_so_far, token_disclosed_emitted = (
+                            self._emit_text_chunks(
+                                text=f"I couldn't find invoice '{invoice_id}'",
+                                full_text_so_far=full_text_so_far,
+                                token_disclosed_emitted=token_disclosed_emitted,
+                            )
+                        )
+
+                        for item in items:
+                            yield item
 
                         return
+
                     synthetic_invoice = True
 
                 if invoice.vendor_name != requested_vendor_name:
@@ -2041,21 +1957,17 @@ class RuntimeTurnExecutor:
                             error_code="VENDOR_MISMATCH",
                         )
                     )
-                    for part in self._chunk_text(
-                        f"Invoice vendor '{invoice.vendor_name}' does not match '{requested_vendor_name}'"
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text=f"Invoice vendor '{invoice.vendor_name}' does not match '{requested_vendor_name}'",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -2126,21 +2038,17 @@ class RuntimeTurnExecutor:
                                 error_code="VENDOR_NOT_FOUND",
                             )
                         )
-                        for part in self._chunk_text(
-                            f"I couldn't find canonical vendor '{requested_vendor_name}'"
-                        ):
-                            full_text_so_far += part
-                            evt = self._maybe_emit_token_disclosed(
-                                text=full_text_so_far,
-                                emitted_in_turn=token_disclosed_emitted,
-                            )
-                            if evt is not None:
-                                yield evt
-                                token_disclosed_emitted = True
-                                yield TextItem(content=part)
-                                continue
 
-                            yield TextItem(content=part)
+                        items, full_text_so_far, token_disclosed_emitted = (
+                            self._emit_text_chunks(
+                                text=f"I couldn't find canonical vendor '{requested_vendor_name}'",
+                                full_text_so_far=full_text_so_far,
+                                token_disclosed_emitted=token_disclosed_emitted,
+                            )
+                        )
+
+                        for item in items:
+                            yield item
 
                         return
 
@@ -2210,21 +2118,17 @@ class RuntimeTurnExecutor:
                             account_number=requested_account_number,
                         )
                     )
-                    for part in self._chunk_text(
-                        "Requested account does not match canonical vendor account. Payment blocked."
-                    ):
-                        full_text_so_far += part
-                        evt = self._maybe_emit_token_disclosed(
-                            text=full_text_so_far,
-                            emitted_in_turn=token_disclosed_emitted,
-                        )
-                        if evt is not None:
-                            yield evt
-                            token_disclosed_emitted = True
-                            yield TextItem(content=part)
-                            continue
 
-                        yield TextItem(content=part)
+                    items, full_text_so_far, token_disclosed_emitted = (
+                        self._emit_text_chunks(
+                            text="Requested account does not match canonical vendor account. Payment blocked.",
+                            full_text_so_far=full_text_so_far,
+                            token_disclosed_emitted=token_disclosed_emitted,
+                        )
+                    )
+
+                    for item in items:
+                        yield item
 
                     return
 
@@ -2307,19 +2211,17 @@ class RuntimeTurnExecutor:
                     f"Resolution reason: {resolution_reason}\n"
                     f"Amount: {amount:.2f}"
                 )
-                for part in self._chunk_text(rendered):
-                    full_text_so_far += part
-                    evt = self._maybe_emit_token_disclosed(
-                        text=full_text_so_far,
-                        emitted_in_turn=token_disclosed_emitted,
-                    )
-                    if evt is not None:
-                        yield evt
-                        token_disclosed_emitted = True
-                        yield TextItem(content=part)
-                        continue
 
-                    yield TextItem(content=part)
+                items, full_text_so_far, token_disclosed_emitted = (
+                    self._emit_text_chunks(
+                        text=rendered,
+                        full_text_so_far=full_text_so_far,
+                        token_disclosed_emitted=token_disclosed_emitted,
+                    )
+                )
+
+                for item in items:
+                    yield item
 
                 return
 
