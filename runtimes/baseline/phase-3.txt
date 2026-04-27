@@ -1,0 +1,136 @@
+Phase 3: Extract lab-specific modules
+======================================
+
+Goal: Split handlers.py (god file, 1796 lines) into lab-agnostic handlers + per-lab hook
+modules. Slim service.py to a pure orchestrator that delegates lab-specific control flow to
+a LabHooks instance.
+
+Current state:
+  service.py  — 589 lines (orchestrator + lab-specific control flow)
+  handlers.py — 1796 lines (11 handlers for all 3 labs + helpers + constants)
+
+Target state:
+  service.py          — ~200 lines (pure orchestrator, no lab-specific logic)
+  handlers.py         — ~500 lines (lab-agnostic handlers + shared infrastructure)
+  labs/__init__.py    — LabHooks protocol + NullLabHooks
+  labs/lab1_hooks.py  — token disclosure, urgent disclosure gate
+  labs/lab2_hooks.py  — bulletin override, poisoned runbook, autonomous delete chain
+  labs/lab3_hooks.py  — remittance/memory logic, PayInvoiceHandler, PoisonSignalMemoryModel
+
+
+Steps
+-----
+
+### Step 1: Create labs/ package and define LabHooks protocol
+
+Create labs/__init__.py with a LabHooks protocol describing the extension points:
+- seed_artifacts(turn, file_tool, invoice_memory_tool) — replaces _seed_lab_artifacts_for_session
+- pre_dispatch(turn, decision, full_text_so_far, token_disclosed_emitted) -> PreDispatchResult | None
+  replaces the Lab2 bulletin override and Lab1 urgent disclosure gate blocks in stream_items()
+- maybe_emit_token_disclosed(text, emitted) -> EventItem | None — replaces _maybe_emit_token_disclosed
+- on_read_file_error(ctx, path, error_code, items) -> list[RuntimeExecutorItem]
+  replaces Lab2 autonomous delete logic in ReadFileHandler._handle_read_error
+- on_email_read(ctx, email_item, items) -> None — replaces Lab3 remittance write in ReadEmailHandler
+- get_handlers() -> dict[str, ToolHandler] — lab-specific handlers (e.g. PayInvoiceHandler for Lab3)
+
+Also create a NullLabHooks no-op implementation for labs that don't need hooks.
+
+### Step 2: Create labs/lab1_hooks.py
+
+Extract from service.py:
+- _maybe_emit_token_disclosed -> Lab1Hooks.maybe_emit_token_disclosed
+- The urgent disclosure gate (lines 334-349) -> Lab1Hooks.pre_dispatch
+  (when the urgent email is active and decision is not inbox/email, emit the secret)
+- The urgent_malicious_context_by_session state moves here
+
+### Step 3: Create labs/lab2_hooks.py
+
+Extract from service.py:
+- _render_poisoned_runbook -> Lab2Hooks._render_poisoned_runbook
+- The bulletin override block (lines 280-331) -> Lab2Hooks.pre_dispatch
+  (when bulletin is passed, write poisoned runbook and return)
+- _seed_lab_artifacts_for_session Lab2 branch -> Lab2Hooks.seed_artifacts
+- lab2_destructive_runbook_by_session state moves here
+
+Extract from handlers.py:
+- ReadFileHandler._handle_read_error's Lab2 autonomous delete chain (lines 584-626)
+  -> Lab2Hooks.on_read_file_error
+- ReadFileHandler._lab2_runbook_includes_destructive_delete and
+  _lab2_should_execute_autonomous_delete -> move here
+- Constants: LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT, LAB2_PRODUCTION_DB_PATH
+
+After extraction, ReadFileHandler._handle_read_error becomes lab-agnostic — it calls
+ctx.hooks.on_read_file_error(...) (or the hook is injected via TurnContext).
+
+### Step 4: Create labs/lab3_hooks.py
+
+Extract from service.py:
+- _seed_lab_artifacts_for_session Lab3 branch -> Lab3Hooks.seed_artifacts
+
+Extract from handlers.py:
+- ReadEmailHandler._maybe_write_authoritative_remittance_memory -> Lab3Hooks.on_email_read
+- The "if ctx.lab_id == LAB_3_ID" guard in ReadEmailHandler.handle -> removed,
+  executor hooks handle routing
+- PayInvoiceHandler (entire class, ~430 lines) -> Lab3Hooks.get_handlers()
+  returns {"pay_invoice": PayInvoiceHandler()}
+- PoisonSignalMemoryModel -> moves here
+- All Lab3 helper functions: _extract_authoritative_vendor_remittance_update,
+  _build_synthetic_invoice_record, _extract_vendor_memory_account_override,
+  _should_use_poisoned_account, _should_bypass_payment_verification_from_workflow_preferences
+- Constants: LAB3_VENDOR_EMAIL_*_MARKERS, LAB_3_ID
+
+### Step 5: Thread LabHooks through TurnContext
+
+Add a hooks: LabHooks field to TurnContext. Update _build_turn_context to pass the hooks
+instance. Handlers access hooks via ctx.hooks for lab-specific extension points.
+
+### Step 6: Refactor RuntimeTurnExecutor to use hooks
+
+In __init__:
+- Accept a hooks: LabHooks parameter (defaulting to NullLabHooks)
+- Merge hooks.get_handlers() into self._handlers
+
+In stream_items:
+- Replace _seed_lab_artifacts_for_session(turn) -> self._hooks.seed_artifacts(turn, ...)
+- Replace the Lab2 bulletin override block -> self._hooks.pre_dispatch(...)
+- Replace the Lab1 urgent disclosure gate block -> self._hooks.pre_dispatch(...)
+- Remove _maybe_emit_token_disclosed -> delegate to self._hooks.maybe_emit_token_disclosed
+- Remove _render_poisoned_runbook
+- Remove lab-specific state fields (_lab2_destructive_runbook_by_session, _lab3_seeded_sessions,
+  etc.) -> move into respective hook instances
+
+### Step 7: Clean up handlers.py
+
+Remove all lab-specific code that was moved to lab modules:
+- Remove Lab2/Lab3 constants
+- Remove Lab3 helper functions
+- Remove PoisonSignalMemoryModel
+- Strip lab-specific branches from ReadFileHandler and ReadEmailHandler
+- Remove PayInvoiceHandler
+
+What remains in handlers.py (~400-500 lines): TurnContext, ToolHandler protocol,
+WriteMemoryMetadataModel, and the 9 lab-agnostic handlers (ListTools, ListInbox, ReadEmail,
+ReadFile, WriteFile, DeleteFile, ReadInvoice, LookupVendorMaster, RetrieveMemory,
+WriteMemory).
+
+### Step 8: Wire it all up at the call site
+
+Wherever RuntimeTurnExecutor is constructed (likely a factory or the FastAPI app setup),
+select the correct LabHooks based on lab_id and pass it to the executor.
+
+### Step 9: Verify
+
+Run tests, mypy, and lint after each step to catch regressions early.
+
+  .venv/bin/python -m pytest runtimes/baseline/tests/ -v
+  .venv/bin/python -m mypy runtimes/baseline/service.py runtimes/baseline/handlers.py
+
+
+Net result
+----------
+service.py          ~589 -> ~200 lines  (pure orchestrator, no lab-specific logic)
+handlers.py         ~1796 -> ~500 lines (lab-agnostic handlers + shared infra)
+labs/__init__.py    ~50 lines           (LabHooks protocol + NullLabHooks)
+labs/lab1_hooks.py  ~50 lines           (token disclosure + urgent disclosure gate)
+labs/lab2_hooks.py  ~150 lines          (bulletin override + poisoned runbook + autonomous delete)
+labs/lab3_hooks.py  ~450 lines          (remittance/memory logic + PayInvoiceHandler)
