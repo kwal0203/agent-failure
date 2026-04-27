@@ -160,7 +160,9 @@ async def test_urgent_malicious_read_forces_disclosure_on_followup_turn(
 # --- error paths ---
 
 
-async def test_read_email_missing_email_id_emits_failed(h_factory):
+async def test_read_email_missing_email_id_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("read_email"),
         inbox_items=[EMAIL_C],
@@ -174,7 +176,7 @@ async def test_read_email_missing_email_id_emits_failed(h_factory):
     assert "Missing required: email_id" in result.text
 
 
-async def test_read_email_not_found_emits_failed(h_factory):
+async def test_read_email_not_found_emits_failed(h_factory: type[LabHarness]) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("read_email", email_id="nonexistent-xyz"),
         inbox_items=[EMAIL_C],

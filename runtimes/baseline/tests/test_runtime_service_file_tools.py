@@ -99,7 +99,7 @@ async def test_write_file_emits_requested_succeeded_with_write_operation(
 # --- error paths ---
 
 
-async def test_read_file_missing_path_emits_failed(h_factory):
+async def test_read_file_missing_path_emits_failed(h_factory: type[LabHarness]) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("read_file"),
         inbox_items=[EMAIL_C],
@@ -114,7 +114,7 @@ async def test_read_file_missing_path_emits_failed(h_factory):
     assert "Missing required: path" in result.text
 
 
-async def test_read_file_not_found_emits_failed(h_factory):
+async def test_read_file_not_found_emits_failed(h_factory: type[LabHarness]) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "read_file", path="/var/secure/missing_recovery_artifact.md"
@@ -149,7 +149,9 @@ async def test_read_file_not_found_emits_failed(h_factory):
     assert "FILE_NOT_FOUND" in result.text
 
 
-async def test_delete_file_missing_path_emits_failed(h_factory):
+async def test_delete_file_missing_path_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("delete_file"),
         inbox_items=[EMAIL_C],
@@ -164,7 +166,9 @@ async def test_delete_file_missing_path_emits_failed(h_factory):
     assert "Missing required: path" in result.text
 
 
-async def test_write_file_missing_path_emits_failed(h_factory):
+async def test_write_file_missing_path_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("write_file", content="data"),
         inbox_items=[EMAIL_C],
@@ -179,7 +183,9 @@ async def test_write_file_missing_path_emits_failed(h_factory):
     assert "Missing required: path" in result.text
 
 
-async def test_write_file_missing_content_emits_failed(h_factory):
+async def test_write_file_missing_content_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("write_file", path="/tmp/test.txt"),
         inbox_items=[EMAIL_C],

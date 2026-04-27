@@ -7,10 +7,12 @@ from runtimes.baseline.tests.conftest import (
     StubModelClient,
     EMAIL_C,
 )
+from uuid import UUID
 
 
 class _NoVendorStub(StubInvoiceMemoryTool):
-    def get_vendor_master(self, *, session_id, vendor_name):
+    def get_vendor_master(self, *, session_id: UUID, vendor_name: str):
+        _, _ = session_id, vendor_name
         return None
 
 
@@ -164,7 +166,9 @@ async def test_read_invoice_missing_invoice_id_emits_failed(
     assert "Missing required: invoice_id" in result.text
 
 
-async def test_read_invoice_tool_unavailable_emits_failed(h_factory):
+async def test_read_invoice_tool_unavailable_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("read_invoice", invoice_id="inv-1"),
         inbox_items=[EMAIL_C],
@@ -181,7 +185,7 @@ async def test_read_invoice_tool_unavailable_emits_failed(h_factory):
     assert "Invoice tool is unavailable" in result.text
 
 
-async def test_read_invoice_not_found_emits_failed(h_factory):
+async def test_read_invoice_not_found_emits_failed(h_factory: type[LabHarness]) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "read_invoice", invoice_id="inv-nonexistent-999"
@@ -202,7 +206,9 @@ async def test_read_invoice_not_found_emits_failed(h_factory):
 # --- error paths: lookup_vendor_master ---
 
 
-async def test_lookup_vendor_master_missing_vendor_name_emits_failed(h_factory):
+async def test_lookup_vendor_master_missing_vendor_name_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("lookup_vendor_master"),
         inbox_items=[EMAIL_C],
@@ -217,7 +223,9 @@ async def test_lookup_vendor_master_missing_vendor_name_emits_failed(h_factory):
     assert "Missing required: vendor_name" in result.text
 
 
-async def test_lookup_vendor_master_tool_unavailable_emits_failed(h_factory):
+async def test_lookup_vendor_master_tool_unavailable_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "lookup_vendor_master", vendor_name="Acme Corp"
@@ -236,7 +244,9 @@ async def test_lookup_vendor_master_tool_unavailable_emits_failed(h_factory):
     assert "Invoice tool is unavailable" in result.text
 
 
-async def test_lookup_vendor_master_vendor_not_found_emits_failed(h_factory):
+async def test_lookup_vendor_master_vendor_not_found_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "lookup_vendor_master", vendor_name="Acme Corp"
@@ -259,7 +269,9 @@ async def test_lookup_vendor_master_vendor_not_found_emits_failed(h_factory):
 # --- error paths: retrieve_memory ---
 
 
-async def test_retrieve_memory_missing_query_emits_failed(h_factory):
+async def test_retrieve_memory_missing_query_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("retrieve_memory"),
         inbox_items=[EMAIL_C],
@@ -274,7 +286,9 @@ async def test_retrieve_memory_missing_query_emits_failed(h_factory):
     assert "Missing required: query" in result.text
 
 
-async def test_retrieve_memory_tool_unavailable_emits_failed(h_factory):
+async def test_retrieve_memory_tool_unavailable_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool("retrieve_memory", query="vendor prefs"),
         inbox_items=[EMAIL_C],
@@ -294,7 +308,9 @@ async def test_retrieve_memory_tool_unavailable_emits_failed(h_factory):
 # --- error paths: write_memory ---
 
 
-async def test_write_memory_missing_memory_type_emits_failed(h_factory):
+async def test_write_memory_missing_memory_type_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "write_memory", content="x", metadata="{}"
@@ -311,7 +327,9 @@ async def test_write_memory_missing_memory_type_emits_failed(h_factory):
     assert "Missing required: memory_type" in result.text
 
 
-async def test_write_memory_missing_content_emits_failed(h_factory):
+async def test_write_memory_missing_content_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "write_memory",
@@ -330,7 +348,9 @@ async def test_write_memory_missing_content_emits_failed(h_factory):
     assert "Missing required: content" in result.text
 
 
-async def test_write_memory_missing_metadata_emits_failed(h_factory):
+async def test_write_memory_missing_metadata_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "write_memory",
@@ -349,7 +369,9 @@ async def test_write_memory_missing_metadata_emits_failed(h_factory):
     assert "Missing required: metadata" in result.text
 
 
-async def test_write_memory_tool_unavailable_emits_failed(h_factory):
+async def test_write_memory_tool_unavailable_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "write_memory",
@@ -368,7 +390,9 @@ async def test_write_memory_tool_unavailable_emits_failed(h_factory):
     assert "Invoice tool is unavailable" in result.text
 
 
-async def test_write_memory_invalid_memory_type_emits_failed(h_factory):
+async def test_write_memory_invalid_memory_type_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "write_memory",
