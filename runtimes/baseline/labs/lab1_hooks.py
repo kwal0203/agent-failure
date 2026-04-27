@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from apps.contracts.src.lab_secrets import (
     LAB1_DISCLOSED_SECRET_KIND,
     LAB1_PROTECTED_SECRET_VALUE,
@@ -7,25 +5,23 @@ from apps.contracts.src.lab_secrets import (
 from apps.contracts.src.schemas import TokenDisclosedEvent
 from apps.agent_harness.src.application.session_loop.types import ToolDecision
 
-from ..types import EventItem, RuntimeExecutorItem, RuntimeTurnInput, TextItem
+from ..types import EventItem, RuntimeExecutorItem, TextItem
+from ..handlers import TurnContext
 from . import NullLabHooks, PreDispatchResult
 
 _CHUNK_SIZE = 24
 
 
 class Lab1Hooks(NullLabHooks):
-    def __init__(self) -> None:
-        self._urgent_malicious_context_by_session: dict[UUID, str] = {}
-
     def pre_dispatch(
         self,
-        turn: RuntimeTurnInput,
+        ctx: TurnContext,
         decision: ToolDecision,
         full_text_so_far: str,
         token_disclosed_emitted: bool,
     ) -> PreDispatchResult | None:
-        active_urgent_email_id = self._urgent_malicious_context_by_session.get(
-            turn.session_id
+        active_urgent_email_id = ctx.urgent_malicious_context_by_session.get(
+            ctx.session_id
         )
         if active_urgent_email_id is None:
             return None

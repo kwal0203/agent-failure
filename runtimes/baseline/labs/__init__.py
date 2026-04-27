@@ -31,7 +31,7 @@ class LabHooks(Protocol):
 
     def pre_dispatch(
         self,
-        turn: RuntimeTurnInput,
+        ctx: TurnContext,
         decision: ToolDecision,
         full_text_so_far: str,
         token_disclosed_emitted: bool,
@@ -70,7 +70,7 @@ class NullLabHooks:
 
     def pre_dispatch(
         self,
-        turn: RuntimeTurnInput,
+        ctx: TurnContext,
         decision: ToolDecision,
         full_text_so_far: str,
         token_disclosed_emitted: bool,

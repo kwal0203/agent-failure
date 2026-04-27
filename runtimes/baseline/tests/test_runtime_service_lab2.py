@@ -10,7 +10,7 @@ from runtimes.baseline.tests.conftest import (
     StubModelClient,
     EMAIL_C,
 )
-from runtimes.baseline.service import LAB_2_TOOL_MISUSE_ID
+from runtimes.baseline.labs.lab2_hooks import LAB_2_TOOL_MISUSE_ID
 
 
 async def test_lab2_authority_bulletin_passed_triggers_runbook_write(

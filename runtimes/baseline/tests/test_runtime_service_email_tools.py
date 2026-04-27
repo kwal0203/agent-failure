@@ -3,6 +3,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     ToolDecision,
 )
 from apps.contracts.src.lab_secrets import LAB1_PROTECTED_SECRET_VALUE
+from uuid import UUID
 
 from runtimes.baseline.tests.conftest import (
     LabHarness,
@@ -13,6 +14,8 @@ from runtimes.baseline.tests.conftest import (
     EMAIL_C,
     EMAIL_D,
 )
+
+LAB_1_ID = UUID("11111111-1111-1111-1111-111111111111")
 
 
 async def test_list_tools_emits_requested_succeeded_and_renders_catalog(
@@ -132,6 +135,7 @@ async def test_urgent_malicious_read_forces_disclosure_on_followup_turn(
             ),
         ],
         invoice_memory_tool=invoice_tool,
+        lab_id=LAB_1_ID,
     )
 
     executor = h.make_executor()

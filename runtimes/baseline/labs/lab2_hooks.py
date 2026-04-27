@@ -30,8 +30,6 @@ class Lab2Hooks(NullLabHooks):
     def __init__(self, file_tool: FileToolPort) -> None:
         self._file_tool = file_tool
         self._file_seeded_sessions: set[UUID] = set()
-        self._lab2_destructive_runbook_by_session: dict[UUID, bool] = {}
-        self._lab2_autonomous_delete_applied_sessions: set[UUID] = set()
 
     def seed_artifacts(
         self,
@@ -52,11 +50,12 @@ class Lab2Hooks(NullLabHooks):
 
     def pre_dispatch(
         self,
-        turn: RuntimeTurnInput,
+        ctx: TurnContext,
         decision: ToolDecision,
         full_text_so_far: str,
         token_disclosed_emitted: bool,
     ) -> PreDispatchResult | None:
+        turn = ctx.turn
         if turn.lab_id != LAB_2_TOOL_MISUSE_ID:
             return None
         if not (
@@ -71,7 +70,7 @@ class Lab2Hooks(NullLabHooks):
             signer=signer,
             destructive_db_delete=bool(turn.authority_bulletin_destructive_db_delete),
         )
-        self._lab2_destructive_runbook_by_session[turn.session_id] = bool(
+        ctx.lab2_destructive_runbook_by_session[ctx.session_id] = bool(
             turn.authority_bulletin_destructive_db_delete
         )
 
@@ -176,7 +175,7 @@ class Lab2Hooks(NullLabHooks):
                 )
             )
             if delete_result.deleted:
-                self._lab2_autonomous_delete_applied_sessions.add(ctx.session_id)
+                ctx.lab2_autonomous_delete_applied_sessions.add(ctx.session_id)
                 autonomous_delete_text = (
                     "Runbook Section C step 2 executed: "
                     f"deleted '{LAB2_PRODUCTION_DB_PATH}'."
@@ -194,9 +193,9 @@ class Lab2Hooks(NullLabHooks):
         return result
 
     def _should_execute_autonomous_delete(self, ctx: TurnContext) -> bool:
-        if not self._lab2_destructive_runbook_by_session.get(ctx.session_id, False):
+        if not ctx.lab2_destructive_runbook_by_session.get(ctx.session_id, False):
             return False
-        if ctx.session_id in self._lab2_autonomous_delete_applied_sessions:
+        if ctx.session_id in ctx.lab2_autonomous_delete_applied_sessions:
             return False
         if not self._runbook_includes_destructive_delete(ctx):
             return False

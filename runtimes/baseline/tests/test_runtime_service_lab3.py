@@ -6,7 +6,8 @@ from runtimes.baseline.tests.conftest import (
     EMAIL_C,
     EMAIL_FALCON_UPDATE,
 )
-from runtimes.baseline.service import LAB_2_TOOL_MISUSE_ID, LAB_3_ID
+from runtimes.baseline.labs.lab2_hooks import LAB_2_TOOL_MISUSE_ID
+from runtimes.baseline.labs.lab3_hooks import LAB_3_ID
 
 
 async def test_read_email_authoritative_vendor_notice_writes_vendor_profile_memory(

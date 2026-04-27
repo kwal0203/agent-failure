@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import pytest
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from apps.agent_harness.src.application.session_loop.types import (
     InboxItem,
@@ -12,11 +14,12 @@ from runtimes.baseline.tests.conftest import (
     StubModelClient,
     EMAIL_C,
 )
-from runtimes.baseline.service import LAB_3_ID
+from runtimes.baseline.labs.lab3_hooks import LAB_3_ID
 
 
 class _NoVendorStub(StubInvoiceMemoryTool):
-    def get_vendor_master(self, *, session_id, vendor_name):
+    def get_vendor_master(self, *, session_id: UUID, vendor_name: str):
+        _, _ = session_id, vendor_name
         return None
 
 
@@ -506,7 +509,9 @@ async def test_pay_invoice_missing_amount_emits_failed(
     assert "Missing required: amount" in result.text
 
 
-async def test_pay_invoice_missing_vendor_name_emits_failed(h_factory):
+async def test_pay_invoice_missing_vendor_name_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -516,6 +521,7 @@ async def test_pay_invoice_missing_vendor_name_emits_failed(h_factory):
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(prompt="pay invoice", idempotency_key="k-err-pay-no-vendor")
 
@@ -526,7 +532,9 @@ async def test_pay_invoice_missing_vendor_name_emits_failed(h_factory):
     assert "Missing required: vendor_name" in result.text
 
 
-async def test_pay_invoice_missing_account_number_emits_failed(h_factory):
+async def test_pay_invoice_missing_account_number_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -536,6 +544,7 @@ async def test_pay_invoice_missing_account_number_emits_failed(h_factory):
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(prompt="pay invoice", idempotency_key="k-err-pay-no-acct")
 
@@ -546,7 +555,9 @@ async def test_pay_invoice_missing_account_number_emits_failed(h_factory):
     assert "Missing required: account_number" in result.text
 
 
-async def test_pay_invoice_missing_invoice_id_emits_failed(h_factory):
+async def test_pay_invoice_missing_invoice_id_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -556,6 +567,7 @@ async def test_pay_invoice_missing_invoice_id_emits_failed(h_factory):
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(prompt="pay invoice", idempotency_key="k-err-pay-no-inv-id")
 
@@ -566,7 +578,9 @@ async def test_pay_invoice_missing_invoice_id_emits_failed(h_factory):
     assert "Missing required: invoice_id" in result.text
 
 
-async def test_pay_invoice_tool_unavailable_emits_failed(h_factory):
+async def test_pay_invoice_tool_unavailable_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -576,6 +590,7 @@ async def test_pay_invoice_tool_unavailable_emits_failed(h_factory):
             invoice_id="inv-acme-2026-041",
         ),
         inbox_items=[EMAIL_C],
+        lab_id=LAB_3_ID,
     )
     result = await h.run(prompt="pay invoice", idempotency_key="k-err-pay-tool-unavail")
 
@@ -587,7 +602,9 @@ async def test_pay_invoice_tool_unavailable_emits_failed(h_factory):
 
 
 @pytest.mark.parametrize("bad_amount", ["not_a_number", "0", "-5"])
-async def test_pay_invoice_invalid_amount_emits_failed(h_factory, bad_amount):
+async def test_pay_invoice_invalid_amount_emits_failed(
+    h_factory: type[LabHarness], bad_amount: str
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -598,6 +615,7 @@ async def test_pay_invoice_invalid_amount_emits_failed(h_factory, bad_amount):
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(
         prompt="pay invoice",
@@ -611,7 +629,9 @@ async def test_pay_invoice_invalid_amount_emits_failed(h_factory, bad_amount):
     assert "amount must be greater than 0" in result.text
 
 
-async def test_pay_invoice_invoice_not_found_non_synthetic_emits_failed(h_factory):
+async def test_pay_invoice_invoice_not_found_non_synthetic_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -622,6 +642,7 @@ async def test_pay_invoice_invoice_not_found_non_synthetic_emits_failed(h_factor
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(
         prompt="pay invoice", idempotency_key="k-err-pay-inv-not-found"
@@ -635,7 +656,9 @@ async def test_pay_invoice_invoice_not_found_non_synthetic_emits_failed(h_factor
     assert "I couldn't find invoice" in result.text
 
 
-async def test_pay_invoice_vendor_mismatch_emits_failed(h_factory):
+async def test_pay_invoice_vendor_mismatch_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -646,6 +669,7 @@ async def test_pay_invoice_vendor_mismatch_emits_failed(h_factory):
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=StubInvoiceMemoryTool(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(
         prompt="pay invoice", idempotency_key="k-err-pay-vendor-mismatch"
@@ -659,7 +683,10 @@ async def test_pay_invoice_vendor_mismatch_emits_failed(h_factory):
     assert "does not match" in result.text
 
 
-async def test_pay_invoice_vendor_not_found_during_payment_emits_failed(h_factory):
+async def test_pay_invoice_vendor_not_found_during_payment_emits_failed(
+    h_factory: type[LabHarness],
+) -> None:
+
     h = h_factory(
         model_client=StubModelClient.for_tool(
             "pay_invoice",
@@ -670,6 +697,7 @@ async def test_pay_invoice_vendor_not_found_during_payment_emits_failed(h_factor
         ),
         inbox_items=[EMAIL_C],
         invoice_memory_tool=_NoVendorStub(),
+        lab_id=LAB_3_ID,
     )
     result = await h.run(
         prompt="pay invoice", idempotency_key="k-err-pay-vendor-not-found"
