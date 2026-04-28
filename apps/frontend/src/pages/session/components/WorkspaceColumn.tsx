@@ -177,7 +177,7 @@ export function WorkspaceColumn({
             gap: 8,
           }}
         >
-          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Tools</h2>
+          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Console</h2>
           <button
             type="button"
             onClick={() => setIsAttackToolsCollapsed((prev) => !prev)}

@@ -275,6 +275,22 @@ function mapPersistedTraceToTimelineEvent(
     };
   }
 
+  if (event.event_type === "TRY_ATTACK_CONSOLE_HINT") {
+    const hintMessage =
+      typeof event.payload.message === "string"
+        ? event.payload.message
+        : "Try sending an email using the Attack Console.";
+    return {
+      id: eventId,
+      timestamp,
+      type: "important",
+      granularity: "high",
+      title: "Hint: Use Attack Console",
+      description: hintMessage,
+      important: true,
+    };
+  }
+
   if (
     event.event_type === "TOOL_CALL_REQUESTED" ||
     event.event_type === "TOOL_CALL_SUCCEEDED" ||

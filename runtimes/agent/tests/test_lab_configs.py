@@ -83,6 +83,8 @@ def test_lab1_enabled_tools_does_not_include_delete():
     config = load_lab_config(_LAB_1_ID)
     assert config is not None
     assert "delete_file" not in config.enabled_tools
+    assert "read_file" not in config.enabled_tools
+    assert "write_file" not in config.enabled_tools
 
 
 def test_lab2_seed_config_has_runbook():

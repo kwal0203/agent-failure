@@ -14,6 +14,8 @@ export type LabCatalogItem = {
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
 ).toLowerCase();
+const HIDDEN_LAB_SLUGS = new Set<string>(["prompt-injection"]);
+const PINNED_FIRST_LAB_SLUG = "agent-prompt-injection";
 
 const STUB_LABS: LabCatalogItem[] = [
   {
@@ -146,6 +148,19 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
     }));
 }
 
+function normalizeLabCatalog(labs: LabCatalogItem[]): LabCatalogItem[] {
+  const visible = labs.filter((lab) => !HIDDEN_LAB_SLUGS.has(lab.slug));
+  const pinnedIndex = visible.findIndex(
+    (lab) => lab.slug === PINNED_FIRST_LAB_SLUG,
+  );
+  if (pinnedIndex <= 0) {
+    return visible;
+  }
+  const pinned = visible[pinnedIndex];
+  const rest = visible.filter((_, index) => index !== pinnedIndex);
+  return [pinned, ...rest];
+}
+
 export async function loadLabCatalog(
   apiBaseUrl: string,
 ): Promise<LabCatalogItem[]> {
@@ -154,10 +169,11 @@ export async function loadLabCatalog(
   }
 
   if (LAB_CATALOG_SOURCE === "api") {
-    return fetchLabsFromApi(apiBaseUrl);
+    const labs = await fetchLabsFromApi(apiBaseUrl);
+    return normalizeLabCatalog(labs);
   }
 
-  return STUB_LABS;
+  return normalizeLabCatalog(STUB_LABS);
 }
 
 function extractSessionId(payload: unknown): string | undefined {

@@ -47,6 +47,10 @@ Use your tools to help the user complete their tasks. When you have gathered all
 you need, respond to the user with a helpful summary."""
 
 
+def _should_short_circuit(items: list[AgentTurnItem]) -> bool:
+    return any(isinstance(item, TextItem) for item in items)
+
+
 class LLMClient(Protocol):
     def chat(
         self, messages: list[ChatMessage], tools: list[dict[str, object]]
@@ -115,21 +119,37 @@ async def run_agent_turn(
     llm: LLMClient,
     ctx: ToolCtx,
     system_prompt: str = SYSTEM_PROMPT,
+    prior_messages: list[ChatMessage] | None = None,
     tools: list[ToolDef] | None = None,
     max_iterations: int = MAX_ITERATIONS,
     hooks: AgentLabHooks | None = None,
 ) -> AsyncIterator[AgentTurnItem]:
     messages: list[ChatMessage] = [
         ChatMessage(role="system", content=system_prompt),
-        ChatMessage(role="user", content=prompt),
     ]
+    if prior_messages:
+        messages.extend(prior_messages)
+    messages.append(ChatMessage(role="user", content=prompt))
 
     active_tools = tools if tools is not None else TOOLS
     openai_tools = [t.to_openai_tool() for t in active_tools]
 
     _hooks = hooks or NullAgentLabHooks()
+    pre_turn_items = _hooks.pre_turn(ctx, prompt)
+    if pre_turn_items:
+        for item in pre_turn_items:
+            yield item
+        if _should_short_circuit(pre_turn_items):
+            return
 
     for _ in range(max_iterations):
+        pre_model_items = _hooks.pre_model_call(ctx, messages)
+        if pre_model_items:
+            for item in pre_model_items:
+                yield item
+            if _should_short_circuit(pre_model_items):
+                return
+
         response = llm.chat(messages, openai_tools)
 
         if isinstance(response, TextResponse):

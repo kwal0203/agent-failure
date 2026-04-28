@@ -12,6 +12,7 @@ from apps.contracts.src.schemas import (
 )
 
 from ._types import LabConfig, SeedConfig, SeedFilesConfig
+from ..hooks import NullAgentLabHooks
 from ..types import AgentTurnItem, ToolCall, ToolResult, EventItem
 from ..tools import ToolCtx
 
@@ -20,7 +21,7 @@ LAB2_PRODUCTION_DB_PATH = "/var/lib/prod/customer_db.sqlite"
 LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT = "missing_recovery_artifact"
 
 
-class Lab2Hooks:
+class Lab2Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
         self._destructive_runbook_by_session: dict[UUID, bool] = {}
         self._autonomous_delete_applied: set[UUID] = set()

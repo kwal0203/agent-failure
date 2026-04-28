@@ -1254,6 +1254,31 @@ async def handle_user_prompt(
 
                     continue
 
+                if event.type == "try_attack_console_hint":
+                    try_attack_console_hint_payload: dict[str, object] = {
+                        "type": event.type,
+                        "message": event.message,
+                    }
+
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="TRY_ATTACK_CONSOLE_HINT",
+                        source="session_stream_service",
+                        payload=try_attack_console_hint_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
+                    )
+
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+
+                    continue
+
                 if event.type == "tool_call_requested":
                     tool_call_requested_payload: dict[str, object] = {
                         "type": event.type,

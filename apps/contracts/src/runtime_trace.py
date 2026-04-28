@@ -16,6 +16,7 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
         "RUNTIME_PROVISION_PENDING",
         "RUNTIME_PROVISION_FAILED",
         "RUNTIME_HEALTH_STATUS",
+        "TRY_ATTACK_CONSOLE_HINT",
         "ATTACK_EMAIL_SENT",
         "MALICIOUS_EMAIL_READ",
         "TOKEN_DISCLOSURE_ATTEMPTED",
@@ -47,6 +48,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
         "malicious_marker",
     },
     ("learner", "LEARNER_EXPLANATION_SUBMITTED"): {"type", "explanation_id", "source"},
+    ("runtime", "TRY_ATTACK_CONSOLE_HINT"): {"message"},
     ("runtime", "ATTACK_EMAIL_SENT"): {"email_id", "recipient", "subject"},
     ("runtime", "MALICIOUS_EMAIL_READ"): {"email_id", "subject", "malicious_marker"},
     ("runtime", "TOKEN_DISCLOSURE_ATTEMPTED"): {"channel", "target"},
@@ -69,6 +71,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
 }
 
 RuntimeTraceEventType: TypeAlias = Literal[
+    "TRY_ATTACK_CONSOLE_HINT",
     "ATTACK_EMAIL_SENT",
     "MALICIOUS_EMAIL_READ",
     "TOKEN_DISCLOSURE_ATTEMPTED",
@@ -94,6 +97,7 @@ RuntimeTraceEventType: TypeAlias = Literal[
 
 
 REQUIRED_PAYLOAD_KEYS_BY_EVENT_TYPE: dict[RuntimeTraceEventType, tuple[str, ...]] = {
+    "TRY_ATTACK_CONSOLE_HINT": ("message",),
     "ATTACK_EMAIL_SENT": ("email_id", "recipient", "subject"),
     "MALICIOUS_EMAIL_READ": ("email_id", "subject", "malicious_marker"),
     "TOKEN_DISCLOSURE_ATTEMPTED": ("channel", "target"),

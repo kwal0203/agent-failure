@@ -167,11 +167,12 @@ class ToolCtx:
     inbox: InboxToolPort
     files: FileToolPort
     invoice_memory: InvoiceMemoryToolPort | None = None
+    available_tools: tuple[ToolDef, ...] = tuple(TOOLS)
 
 
 def _handle_list_tools(ctx: ToolCtx, args: dict[str, object]) -> str:
     lines: list[str] = []
-    for t in TOOLS:
+    for t in ctx.available_tools:
         lines.append(f"- {t.name}: {t.description}")
     return "\n".join(lines)
 

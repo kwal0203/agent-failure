@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from time import monotonic
 from uuid import UUID, uuid4
 
@@ -22,9 +23,6 @@ from apps.agent_harness.src.infrastructure.model.gateway_client import (
 from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
     InMemoryFileTool,
 )
-from apps.agent_harness.src.infrastructure.tools.in_memory_inbox_tool import (
-    InMemoryInboxTool,
-)
 from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
     InMemoryInvoiceTool,
 )
@@ -34,8 +32,9 @@ from .auth import require_internal_auth
 from .hooks import AgentLabHooks, NullAgentLabHooks
 from .lab_configs import load_lab_config
 from .lab_configs.lab_002_tool_misuse import Lab2Hooks
-from .tools import ToolCtx, TOOLS, filter_tools
+from .tools import ToolCtx, TOOLS, filter_tools, ToolDef
 from .types import EventItem
+from .types import ChatMessage, TextItem
 
 import logging
 
@@ -49,7 +48,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 
-_INBOX = InMemoryInboxTool()
 _FILES = InMemoryFileTool()
 _INVOICE = InMemoryInvoiceTool()
 
@@ -57,15 +55,73 @@ _GATEWAY = GatewayModelClient(load_gateway_config())
 _LLM = GatewayLLMClient(_GATEWAY)
 
 _seeded_sessions: set[UUID] = set()
+_session_transcripts: dict[
+    UUID, list[ChatMessage]
+] = {}  # TODO: transcripts should be in db
+_session_inboxes: dict[UUID, list[InboxItem]] = {}
+_MAX_TRANSCRIPT_MESSAGES = 64
+
+_DEFAULT_INBOX_ITEMS: tuple[InboxItem, ...] = (
+    InboxItem(
+        email_from="hr@corp.com",
+        email_subject="Team Lunch",
+        email_body="Lunch Friday COME ALONG!",
+        email_preview="Team Lunch C...",
+        email_id="e1",
+        malicious=False,
+    ),
+)
 
 
-def _make_ctx(session_id: UUID) -> ToolCtx:
+class _SessionInboxView:
+    def __init__(self, session_id: UUID) -> None:
+        self._session_id = session_id
+
+    def _items(self) -> list[InboxItem]:
+        items = _session_inboxes.get(self._session_id)
+        if items is None:
+            items = [replace(x) for x in _DEFAULT_INBOX_ITEMS]
+            _session_inboxes[self._session_id] = items
+        return items
+
+    def list_inbox(self) -> list[InboxItem]:
+        return list(self._items())
+
+    def read_email(self, email_id: str) -> InboxItem | None:
+        for x in self._items():
+            if x.email_id == email_id:
+                return x
+        return None
+
+    def receive_email(self, email: InboxItem) -> None:
+        items = self._items()
+        if len(items) >= 10:
+            return None
+        items.append(email)
+
+
+def _make_ctx(session_id: UUID, active_tools: list[ToolDef] | None = None) -> ToolCtx:
     return ToolCtx(
         session_id=session_id,
-        inbox=_INBOX,
+        inbox=_SessionInboxView(session_id),
         files=_FILES,
         invoice_memory=_INVOICE,
+        available_tools=tuple(active_tools or TOOLS),
     )
+
+
+def _get_session_transcript(session_id: UUID) -> list[ChatMessage]:
+    transcript = _session_transcripts.get(session_id)
+    if transcript is None:
+        transcript = []
+        _session_transcripts[session_id] = transcript
+    return transcript
+
+
+def _trim_transcript(transcript: list[ChatMessage]) -> None:
+    overflow = len(transcript) - _MAX_TRANSCRIPT_MESSAGES
+    if overflow > 0:
+        del transcript[:overflow]
 
 
 def _seed_lab(
@@ -146,15 +202,20 @@ async def stream_turn(
             },
         )
 
-    ctx = _make_ctx(request.session_id)
     lab = load_lab_config(request.lab_id)
     system_prompt = lab.system_prompt if lab is not None else SYSTEM_PROMPT
     active_tools = filter_tools(lab.enabled_tools) if lab is not None else TOOLS
+    ctx = _make_ctx(request.session_id, active_tools)
     hooks = _seed_lab(request.lab_id, ctx, request)
 
     async def event_stream() -> AsyncIterator[str]:
         start = monotonic()
         chunks = 0
+        transcript = _get_session_transcript(request.session_id)
+        prior_messages = list(transcript)
+        transcript.append(ChatMessage(role="user", content=request.prompt))
+        _trim_transcript(transcript)
+        assistant_text_parts: list[str] = []
         yield (
             TurnStartedEvent(type="turn_started", runtime="agent").model_dump_json()
             + "\n"
@@ -166,13 +227,16 @@ async def stream_turn(
                 llm=_LLM,
                 ctx=ctx,
                 system_prompt=system_prompt,
+                prior_messages=prior_messages,
                 tools=active_tools,
                 hooks=hooks,
             ):
                 if isinstance(item, EventItem):
                     yield item.event.model_dump_json() + "\n"
                 else:
+                    assert isinstance(item, TextItem)
                     text = item.content
+                    assistant_text_parts.append(text)
                     chunk_size = 24
                     for i in range(0, len(text), chunk_size):
                         part = text[i : i + chunk_size]
@@ -187,6 +251,12 @@ async def stream_turn(
                             + "\n"
                         )
                         chunks += 1
+
+            if assistant_text_parts:
+                transcript.append(
+                    ChatMessage(role="assistant", content="".join(assistant_text_parts))
+                )
+                _trim_transcript(transcript)
 
             duration_ms = int((monotonic() - start) * 1000)
             yield (
@@ -231,7 +301,7 @@ def inject_inbox_email(
         urgency_marker=bool(request.urgency_marker),
         source=request.source,
     )
-    _INBOX.receive_email(email=inbox_item)
+    _SessionInboxView(session_id).receive_email(email=inbox_item)
     return {"session_id": str(session_id), "accepted": True}
 
 

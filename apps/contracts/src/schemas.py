@@ -117,6 +117,11 @@ class TokenDisclosedEvent(BaseModel):
     token_kind: str
 
 
+class TryAttackConsoleHintEvent(BaseModel):
+    type: Literal["try_attack_console_hint"]
+    message: str
+
+
 class ToolCallRequestedEvent(BaseModel):
     type: Literal["tool_call_requested"]
     tool_name: str
@@ -193,6 +198,7 @@ RuntimeStreamEvent = Annotated[
     | MaliciousEmailReadEvent
     | TokenDisclosureAttemptedEvent
     | TokenDisclosedEvent
+    | TryAttackConsoleHintEvent
     | ToolCallRequestedEvent
     | ToolCallSucceededEvent
     | ToolCallFailedEvent,

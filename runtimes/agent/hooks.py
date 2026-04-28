@@ -2,11 +2,27 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .types import AgentTurnItem, ToolCall, ToolResult
+from .types import AgentTurnItem, ChatMessage, ToolCall, ToolResult
 from .tools import ToolCtx
 
 
 class AgentLabHooks(Protocol):
+    def pre_turn(
+        self,
+        ctx: ToolCtx,
+        prompt: str,
+    ) -> list[AgentTurnItem]:
+        """Called once at turn start. Return emitted items and optionally short-circuit the turn."""
+        ...
+
+    def pre_model_call(
+        self,
+        ctx: ToolCtx,
+        messages: list[ChatMessage],
+    ) -> list[AgentTurnItem]:
+        """Called before each model call. Return emitted items and optionally short-circuit the turn."""
+        ...
+
     def on_tool_dispatch(
         self,
         call: ToolCall,
@@ -32,6 +48,18 @@ class AgentLabHooks(Protocol):
 
 
 class NullAgentLabHooks:
+    def pre_turn(self, ctx: ToolCtx, prompt: str) -> list[AgentTurnItem]:
+        _ = ctx
+        _ = prompt
+        return []
+
+    def pre_model_call(
+        self, ctx: ToolCtx, messages: list[ChatMessage]
+    ) -> list[AgentTurnItem]:
+        _ = ctx
+        _ = messages
+        return []
+
     def on_tool_dispatch(
         self, call: ToolCall, result: ToolResult, ctx: ToolCtx
     ) -> list[AgentTurnItem]:
