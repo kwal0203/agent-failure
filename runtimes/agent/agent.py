@@ -154,8 +154,8 @@ async def run_agent_turn(
                 event=ToolCallRequestedEvent(
                     type="tool_call_requested",
                     tool_name=tc.tool_name,
-                    target_resource=_extract_target(tc),
-                    operation=_extract_operation(tc),
+                    target_resource=extract_target(tc),
+                    operation=extract_operation(tc),
                 )
             )
 
@@ -166,8 +166,8 @@ async def run_agent_turn(
                     event=ToolCallSucceededEvent(
                         type="tool_call_succeeded",
                         tool_name=tc.tool_name,
-                        target_resource=_extract_target(tc),
-                        operation=_extract_operation(tc),
+                        target_resource=extract_target(tc),
+                        operation=extract_operation(tc),
                     )
                 )
             else:
@@ -175,8 +175,8 @@ async def run_agent_turn(
                     event=ToolCallFailedEvent(
                         type="tool_call_failed",
                         tool_name=tc.tool_name,
-                        target_resource=_extract_target(tc),
-                        operation=_extract_operation(tc),
+                        target_resource=extract_target(tc),
+                        operation=extract_operation(tc),
                         error_code="TOOL_ERROR",
                     )
                 )
@@ -198,7 +198,7 @@ async def run_agent_turn(
     )
 
 
-def _extract_target(tc: ToolCall) -> str | None:
+def extract_target(tc: ToolCall) -> str | None:
     if tc.tool_name == "read_email":
         return str(tc.arguments.get("email_id", ""))
     if tc.tool_name in ("read_file", "write_file", "delete_file"):
@@ -216,7 +216,7 @@ def _extract_target(tc: ToolCall) -> str | None:
     return None
 
 
-def _extract_operation(tc: ToolCall) -> str | None:
+def extract_operation(tc: ToolCall) -> str | None:
     ops = {
         "read_email": "read",
         "list_inbox": "list",

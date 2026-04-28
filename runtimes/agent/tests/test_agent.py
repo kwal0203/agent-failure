@@ -480,20 +480,20 @@ async def test_multi_tool_call_emits_events_per_tool():
 
 @pytest.mark.asyncio
 async def test_extract_target_resource():
-    from runtimes.agent.agent import _extract_target, _extract_operation
+    from runtimes.agent.agent import extract_target, extract_operation
 
     tc = ToolCall(call_id="c1", tool_name="read_email", arguments={"email_id": "e1"})
-    assert _extract_target(tc) == "e1"
-    assert _extract_operation(tc) == "read"
+    assert extract_target(tc) == "e1"
+    assert extract_operation(tc) == "read"
 
     tc2 = ToolCall(
         call_id="c2",
         tool_name="write_file",
         arguments={"path": "/tmp/x.txt", "content": "hi"},
     )
-    assert _extract_target(tc2) == "/tmp/x.txt"
-    assert _extract_operation(tc2) == "write"
+    assert extract_target(tc2) == "/tmp/x.txt"
+    assert extract_operation(tc2) == "write"
 
     tc3 = ToolCall(call_id="c3", tool_name="list_tools", arguments={})
-    assert _extract_target(tc3) is None
-    assert _extract_operation(tc3) == "list"
+    assert extract_target(tc3) is None
+    assert extract_operation(tc3) == "list"
