@@ -1,20 +1,40 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from typing import Protocol
 
 from apps.agent_harness.src.application.session_loop.types import (
     AgentRequest,
     AgentTextResponse,
-    ToolDefinition,
     ChatMessage as HarnessChatMessage,
+    ToolCallMessage,
+    ToolDefinition,
 )
 from apps.agent_harness.src.infrastructure.model.gateway_client import (
     GatewayModelClient,
 )
 
-from .types import ChatMessage, LLMResponse, TextResponse, ToolCall, ToolCallResponse
+from .types import (
+    ChatMessage,
+    LLMResponse,
+    TextResponse,
+    ToolCall,
+    ToolCallResponse,
+    ToolDef,
+    TextItem,
+    EventItem,
+    AgentTurnItem,
+)
 from .tools import ToolCtx, dispatch, TOOLS
+
+from apps.contracts.src.schemas import (
+    ToolCallRequestedEvent,
+    ToolCallSucceededEvent,
+    ToolCallFailedEvent,
+)
+
+from .hooks import AgentLabHooks, NullAgentLabHooks
 
 
 MAX_ITERATIONS = 10
@@ -42,17 +62,25 @@ class GatewayLLMClient:
     ) -> LLMResponse:
         harness_messages: list[HarnessChatMessage] = []
         for m in messages:
+            tool_calls: list[ToolCallMessage] | None = None
             if m.role == "assistant" and m.tool_calls:
-                harness_messages.append(
-                    HarnessChatMessage(
-                        role="assistant",
-                        content="",
+                tool_calls = [
+                    ToolCallMessage(
+                        call_id=tc.call_id,
+                        tool_name=tc.tool_name,
+                        arguments=json.dumps(tc.arguments),
                     )
+                    for tc in m.tool_calls
+                ]
+
+            harness_messages.append(
+                HarnessChatMessage(
+                    role=m.role,
+                    content=m.content,
+                    tool_call_id=m.tool_call_id,
+                    tool_calls=tool_calls,
                 )
-            else:
-                harness_messages.append(
-                    HarnessChatMessage(role=m.role, content=m.content)
-                )
+            )
 
         tool_defs = [
             ToolDefinition(
@@ -87,21 +115,28 @@ async def run_agent_turn(
     llm: LLMClient,
     ctx: ToolCtx,
     system_prompt: str = SYSTEM_PROMPT,
+    tools: list[ToolDef] | None = None,
     max_iterations: int = MAX_ITERATIONS,
-) -> AsyncIterator[str]:
+    hooks: AgentLabHooks | None = None,
+) -> AsyncIterator[AgentTurnItem]:
     messages: list[ChatMessage] = [
         ChatMessage(role="system", content=system_prompt),
         ChatMessage(role="user", content=prompt),
     ]
 
-    openai_tools = [t.to_openai_tool() for t in TOOLS]
+    active_tools = tools if tools is not None else TOOLS
+    openai_tools = [t.to_openai_tool() for t in active_tools]
+
+    _hooks = hooks or NullAgentLabHooks()
 
     for _ in range(max_iterations):
         response = llm.chat(messages, openai_tools)
 
         if isinstance(response, TextResponse):
             if response.content.strip():
-                yield response.content
+                for item in _hooks.on_text_output(response.content):
+                    yield item
+                yield TextItem(content=response.content)
             return
 
         assert isinstance(response, ToolCallResponse)
@@ -115,7 +150,40 @@ async def run_agent_turn(
         )
 
         for tc in response.tool_calls:
+            yield EventItem(
+                event=ToolCallRequestedEvent(
+                    type="tool_call_requested",
+                    tool_name=tc.tool_name,
+                    target_resource=_extract_target(tc),
+                    operation=_extract_operation(tc),
+                )
+            )
+
             result = dispatch(tc, ctx)
+
+            if result.success:
+                yield EventItem(
+                    event=ToolCallSucceededEvent(
+                        type="tool_call_succeeded",
+                        tool_name=tc.tool_name,
+                        target_resource=_extract_target(tc),
+                        operation=_extract_operation(tc),
+                    )
+                )
+            else:
+                yield EventItem(
+                    event=ToolCallFailedEvent(
+                        type="tool_call_failed",
+                        tool_name=tc.tool_name,
+                        target_resource=_extract_target(tc),
+                        operation=_extract_operation(tc),
+                        error_code="TOOL_ERROR",
+                    )
+                )
+
+            for item in _hooks.on_tool_dispatch(tc, result, ctx):
+                yield item
+
             messages.append(
                 ChatMessage(
                     role="tool",
@@ -125,4 +193,41 @@ async def run_agent_turn(
                 )
             )
 
-    yield "I've reached the maximum number of steps. Please try again with a more specific request."
+    yield TextItem(
+        content="I've reached the maximum number of steps. Please try again with a more specific request."
+    )
+
+
+def _extract_target(tc: ToolCall) -> str | None:
+    if tc.tool_name == "read_email":
+        return str(tc.arguments.get("email_id", ""))
+    if tc.tool_name in ("read_file", "write_file", "delete_file"):
+        return str(tc.arguments.get("path", ""))
+    if tc.tool_name == "read_invoice":
+        return str(tc.arguments.get("invoice_id", ""))
+    if tc.tool_name == "lookup_vendor_master":
+        return str(tc.arguments.get("vendor_name", ""))
+    if tc.tool_name in ("retrieve_memory", "write_memory"):
+        return str(tc.arguments.get("query", "")) or str(
+            tc.arguments.get("memory_type", "")
+        )
+    if tc.tool_name == "pay_invoice":
+        return str(tc.arguments.get("invoice_id", ""))
+    return None
+
+
+def _extract_operation(tc: ToolCall) -> str | None:
+    ops = {
+        "read_email": "read",
+        "list_inbox": "list",
+        "read_file": "read",
+        "write_file": "write",
+        "delete_file": "delete",
+        "read_invoice": "read",
+        "lookup_vendor_master": "lookup",
+        "retrieve_memory": "retrieve",
+        "write_memory": "write",
+        "list_tools": "list",
+        "pay_invoice": "pay",
+    }
+    return ops.get(tc.tool_name)

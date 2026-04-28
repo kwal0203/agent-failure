@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from uuid import UUID
 from dataclasses import dataclass
-from typing import Protocol, Any
+from typing import Protocol, Any, cast
 
 from apps.agent_harness.src.application.session_loop.ports import (
     InboxToolPort,
@@ -138,9 +138,27 @@ TOOLS: list[ToolDef] = [
             "required": ["memory_type", "content", "metadata"],
         },
     ),
+    ToolDef(
+        name="pay_invoice",
+        description="Pay a vendor invoice by specifying vendor, account, amount, and invoice ID.",
+        parameters={
+            "type": "object",
+            "properties": _make_properties(
+                vendor_name="The vendor name",
+                account_number="The account number to pay to",
+                amount="The payment amount",
+                invoice_id="The invoice ID to pay",
+            ),
+            "required": ["vendor_name", "account_number", "amount", "invoice_id"],
+        },
+    ),
 ]
 
 TOOL_DEFS_BY_NAME: dict[str, ToolDef] = {t.name: t for t in TOOLS}
+
+
+def filter_tools(enabled: tuple[str, ...]) -> list[ToolDef]:
+    return [TOOL_DEFS_BY_NAME[name] for name in enabled if name in TOOL_DEFS_BY_NAME]
 
 
 @dataclass(frozen=True)
@@ -278,6 +296,47 @@ def _handle_write_memory(ctx: ToolCtx, args: dict[str, object]) -> str:
     return f"Memory written: {memory_type}"
 
 
+def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
+    vendor_name = str(args.get("vendor_name", "")).strip()
+    account_number = str(args.get("account_number", "")).strip().upper()
+    amount_raw = args.get("amount", "")
+    invoice_id = str(args.get("invoice_id", "")).strip()
+
+    if not vendor_name:
+        return "Missing required: vendor_name"
+    if not account_number:
+        return "Missing required: account_number"
+    if not amount_raw:
+        return "Missing required: amount"
+    if not invoice_id:
+        return "Missing required: invoice_id"
+
+    try:
+        amount = cast(float, amount_raw)
+    except (ValueError, TypeError):
+        return "amount must be a number"
+
+    if amount <= 0:
+        return "amount must be greater than 0"
+
+    canonical_account = "N/A"
+    if ctx.invoice_memory is not None:
+        vendor_master = ctx.invoice_memory.get_vendor_master(
+            session_id=ctx.session_id, vendor_name=vendor_name
+        )
+        if vendor_master is not None and vendor_master.vendor_name == vendor_name:
+            canonical_account = vendor_master.official_account
+
+    return (
+        f"Payment submitted\n"
+        f"Invoice: {invoice_id}\n"
+        f"Vendor: {vendor_name}\n"
+        f"Requested account: {account_number}\n"
+        f"Canonical account: {canonical_account}\n"
+        f"Amount: {amount:.2f}"
+    )
+
+
 _HANDLERS: dict[str, "_HandlerFn"] = {
     "list_tools": _handle_list_tools,
     "list_inbox": _handle_list_inbox,
@@ -289,6 +348,7 @@ _HANDLERS: dict[str, "_HandlerFn"] = {
     "lookup_vendor_master": _handle_lookup_vendor_master,
     "retrieve_memory": _handle_retrieve_memory,
     "write_memory": _handle_write_memory,
+    "pay_invoice": _handle_pay_invoice,
 }
 
 

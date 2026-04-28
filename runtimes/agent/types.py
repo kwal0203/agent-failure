@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 from uuid import UUID
 
+from apps.contracts.src.schemas import RuntimeStreamEvent
+
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
@@ -77,3 +79,16 @@ class ToolCallResponse:
 
 
 LLMResponse = TextResponse | ToolCallResponse
+
+
+@dataclass(frozen=True)
+class TextItem:
+    content: str
+
+
+@dataclass(frozen=True)
+class EventItem:
+    event: RuntimeStreamEvent
+
+
+AgentTurnItem = TextItem | EventItem

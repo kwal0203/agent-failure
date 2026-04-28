@@ -8,6 +8,7 @@ import pytest
 from runtimes.agent.types import ChatMessage, LLMResponse, TextResponse
 from runtimes.agent.agent import LLMClient, run_agent_turn
 from runtimes.agent.tools import ToolCtx
+from runtimes.agent.types import TextItem, EventItem
 from .stubs import StubFiles, StubInbox, StubInvoiceMemory
 
 
@@ -62,10 +63,31 @@ async def run_turn(
     ctx: ToolCtx | None = None,
 ) -> str:
     parts: list[str] = []
-    async for chunk in run_agent_turn(
+    async for item in run_agent_turn(
         prompt=prompt,
         llm=llm,
         ctx=ctx or make_ctx(),
     ):
-        parts.append(chunk)
+        if isinstance(item, TextItem):
+            parts.append(item.content)
     return "".join(parts)
+
+
+async def run_turn_collect_events(
+    *,
+    prompt: str = "hello",
+    llm: LLMClient,
+    ctx: ToolCtx | None = None,
+) -> tuple[str, list[EventItem]]:
+    text_parts: list[str] = []
+    events: list[EventItem] = []
+    async for item in run_agent_turn(
+        prompt=prompt,
+        llm=llm,
+        ctx=ctx or make_ctx(),
+    ):
+        if isinstance(item, TextItem):
+            text_parts.append(item.content)
+        else:
+            events.append(item)
+    return "".join(text_parts), events

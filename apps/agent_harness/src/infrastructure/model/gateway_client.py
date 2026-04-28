@@ -25,6 +25,8 @@ from .types import GatewayConfig
 from .schemas import (
     ModelClientRequest,
     ModelClientChatMessage,
+    ModelClientToolCall,
+    ChatToolCallFunction,
     StreamChunk,
     LLMToolCall,
     LLMResponse,
@@ -217,7 +219,23 @@ class GatewayModelClient(ModelClientPort):
         request_body = ModelClientRequest(
             model=self._config.model,
             messages=[
-                ModelClientChatMessage(role=m.role, content=m.content)
+                ModelClientChatMessage(
+                    role=m.role,
+                    content=m.content,
+                    tool_call_id=m.tool_call_id,
+                    tool_calls=[
+                        ModelClientToolCall(
+                            id=tc.call_id,
+                            function=ChatToolCallFunction(
+                                name=tc.tool_name,
+                                arguments=tc.arguments,
+                            ),
+                        )
+                        for tc in (m.tool_calls or [])
+                    ]
+                    if m.tool_calls
+                    else None,
+                )
                 for m in payload.messages
             ],
             stream=False,
@@ -244,7 +262,10 @@ class GatewayModelClient(ModelClientPort):
                 raise ProviderAuthError(details={"status_code": str(resp.status_code)})
             if resp.status_code >= 400:
                 raise ProviderResponseError(
-                    details={"status_code": str(resp.status_code)}
+                    details={
+                        "status_code": str(resp.status_code),
+                        "body": resp.text[:500],
+                    }
                 )
 
             parsed = ChatResponse.model_validate(resp.json())

@@ -65,6 +65,7 @@ class RunTurnStreamRequest(BaseModel):
 
 class TurnStartedEvent(BaseModel):
     type: Literal["turn_started"]
+    runtime: str | None = None
 
 
 class TextChunkEvent(BaseModel):

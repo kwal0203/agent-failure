@@ -4,6 +4,7 @@ from uuid import UUID
 
 class HealthStatus(BaseModel):
     status: str
+    runtime: str | None = None
 
 
 class InjectEmailResponse(BaseModel):

@@ -23,9 +23,18 @@ class HarnessTurnInput:
 
 
 @dataclass(frozen=True)
+class ToolCallMessage:
+    call_id: str
+    tool_name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: MessageRole
     content: str
+    tool_call_id: str | None = None
+    tool_calls: list[ToolCallMessage] | None = None
 
 
 @dataclass(frozen=True)

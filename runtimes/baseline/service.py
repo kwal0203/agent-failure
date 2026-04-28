@@ -252,7 +252,7 @@ async def stream_turn_events(
     start = monotonic()
     chunks_emitted = 0
 
-    yield TurnStartedEvent(type="turn_started")
+    yield TurnStartedEvent(type="turn_started", runtime="baseline")
 
     try:
         aiter = executor.stream_items(turn=input)
