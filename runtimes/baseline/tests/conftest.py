@@ -6,6 +6,10 @@ from typing import cast, Any
 from uuid import UUID, uuid4
 
 from apps.agent_harness.src.application.session_loop.types import (
+    AgentRequest,
+    AgentResponse,
+    AgentTextResponse,
+    AgentToolCallResponse,
     ChatMessage,
     HarnessChunk,
     HarnessFailure,
@@ -16,6 +20,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     MemoryRecord,
     MemoryType,
     ModelRequest,
+    ToolCallResult,
     ToolDecision,
     DeleteFileResult,
     ReadFileResult,
@@ -139,14 +144,26 @@ class StubModelClient:
         return ""
 
     def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
-        # Return the next decision in the sequence
         if self._counter < len(self._decisions):
             decision = self._decisions[self._counter]
             self._counter += 1
             return decision
 
-        # Fallback or loop if called more times than decisions provided
         return self._decisions[-1]
+
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse:
+        decision = self.decide_tool_or_text(ModelRequest(messages=payload.messages))
+        if decision.kind == "tool_call" and decision.tool_name is not None:
+            return AgentToolCallResponse(
+                tool_calls=[
+                    ToolCallResult(
+                        call_id="call-stub",
+                        tool_name=decision.tool_name,
+                        args={k: v for k, v in decision.args.items()},
+                    )
+                ]
+            )
+        return AgentTextResponse(content=decision.text or "")
 
 
 class StubInboxTool:
