@@ -2,6 +2,7 @@ import json
 from collections.abc import AsyncIterator
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.contracts.src.schemas import (
@@ -209,7 +210,9 @@ def _request_payload(*, prompt: str = "hello") -> dict[str, object]:
     }
 
 
-def test_runtime_stream_unauthorized_returns_401(monkeypatch) -> None:
+def test_runtime_stream_unauthorized_returns_401(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
 
     client = TestClient(app)
@@ -221,7 +224,9 @@ def test_runtime_stream_unauthorized_returns_401(monkeypatch) -> None:
     assert response.status_code == 401
 
 
-def test_runtime_stream_empty_prompt_returns_400(monkeypatch) -> None:
+def test_runtime_stream_empty_prompt_returns_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
 
     client = TestClient(app)
@@ -236,7 +241,9 @@ def test_runtime_stream_empty_prompt_returns_400(monkeypatch) -> None:
     assert detail["error_code"] == "invalid_request"
 
 
-def test_runtime_stream_happy_path_emits_started_chunk_completed(monkeypatch) -> None:
+def test_runtime_stream_happy_path_emits_started_chunk_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
     app.dependency_overrides[get_runtime_executor] = lambda: _HappyExecutor()
 
@@ -267,7 +274,9 @@ def test_runtime_stream_happy_path_emits_started_chunk_completed(monkeypatch) ->
     assert events[3]["chunks_emitted"] == 2
 
 
-def test_runtime_stream_emits_runtime_lab_events(monkeypatch) -> None:
+def test_runtime_stream_emits_runtime_lab_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
     app.dependency_overrides[get_runtime_executor] = lambda: _LabEventExecutor()
 
@@ -296,7 +305,9 @@ def test_runtime_stream_emits_runtime_lab_events(monkeypatch) -> None:
     assert events[2]["tool_name"] == "list_inbox"
 
 
-def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
+def test_runtime_stream_emits_extended_runtime_lab_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
     app.dependency_overrides[get_runtime_executor] = lambda: _ExtendedLabEventExecutor()
 
@@ -330,7 +341,7 @@ def test_runtime_stream_emits_extended_runtime_lab_events(monkeypatch) -> None:
 
 
 def test_runtime_stream_emits_lab3_payment_event_order_with_evidence(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
     app.dependency_overrides[get_runtime_executor] = lambda: _Lab3PaymentEventExecutor()
@@ -373,7 +384,9 @@ def test_runtime_stream_emits_lab3_payment_event_order_with_evidence(
     assert events[8]["account_number"] == "ACCT-4421"
 
 
-def test_runtime_stream_failure_emits_turn_failed(monkeypatch) -> None:
+def test_runtime_stream_failure_emits_turn_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RUNTIME_SHARED_TOKEN", "secret-token")
     app.dependency_overrides[get_runtime_executor] = lambda: _FailingExecutor()
 

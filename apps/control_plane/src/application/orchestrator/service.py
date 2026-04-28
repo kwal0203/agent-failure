@@ -471,7 +471,17 @@ def process_pending_once(
                     StateMismatch,
                     ValueError,
                     TypeError,
-                ):
+                ) as exc:
+                    logger.exception(
+                        "provisioning outbox event failed",
+                        extra={
+                            "event": "provisioning_outbox_event_failed",
+                            "outbox_event_id": str(outbox_event_id),
+                            "session_id": str(session_id),
+                            "error_type": type(exc).__name__,
+                            "error": str(exc),
+                        },
+                    )
                     _invalid_outbox_payload(uow, outbox_event_id)
                     failed_count += 1
                     continue

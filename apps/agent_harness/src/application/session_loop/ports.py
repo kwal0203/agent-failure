@@ -17,6 +17,8 @@ from .types import (
     MemoryRecord,
     WriteMemoryInput,
     MemoryType,
+    AgentRequest,
+    AgentResponse,
 )
 
 
@@ -26,6 +28,8 @@ class ModelClientPort(Protocol):
     def complete(self, payload: ModelRequest) -> str: ...
 
     def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision: ...
+
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse: ...
 
 
 class LabContextBuilderPort(Protocol):

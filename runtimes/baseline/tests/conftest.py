@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from collections.abc import Iterable
 from typing import cast, Any
 from uuid import UUID, uuid4
 
 from apps.agent_harness.src.application.session_loop.types import (
+    AgentRequest,
+    AgentResponse,
+    AgentTextResponse,
+    AgentToolCallResponse,
     ChatMessage,
     HarnessChunk,
     HarnessFailure,
@@ -14,6 +20,7 @@ from apps.agent_harness.src.application.session_loop.types import (
     MemoryRecord,
     MemoryType,
     ModelRequest,
+    ToolCallResult,
     ToolDecision,
     DeleteFileResult,
     ReadFileResult,
@@ -23,9 +30,14 @@ from apps.agent_harness.src.application.session_loop.types import (
 )
 from apps.agent_harness.src.application.session_loop.ports import FileToolPort
 from apps.contracts.src.types import ToolName
-from runtimes.baseline.service import (
-    RuntimeTurnExecutor,
+from runtimes.baseline.service import RuntimeTurnExecutor
+from runtimes.baseline.labs import LabHooks, NullLabHooks
+from runtimes.baseline.labs.lab1_hooks import Lab1Hooks
+from runtimes.baseline.labs.lab2_hooks import (
+    LAB_2_TOOL_MISUSE_ID,
+    Lab2Hooks as Lab2HooksImpl,
 )
+from runtimes.baseline.labs.lab3_hooks import LAB_3_ID, Lab3Hooks as Lab3HooksImpl
 from runtimes.baseline.types import RuntimeTurnInput, TextItem, EventItem
 
 import pytest
@@ -48,7 +60,7 @@ EMAIL_FALCON_UPDATE = InboxItem(
 
 
 @pytest.fixture
-def h_factory():
+def h_factory() -> type[LabHarness]:
     return LabHarness
 
 
@@ -132,14 +144,26 @@ class StubModelClient:
         return ""
 
     def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
-        # Return the next decision in the sequence
         if self._counter < len(self._decisions):
             decision = self._decisions[self._counter]
             self._counter += 1
             return decision
 
-        # Fallback or loop if called more times than decisions provided
         return self._decisions[-1]
+
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse:
+        decision = self.decide_tool_or_text(ModelRequest(messages=payload.messages))
+        if decision.kind == "tool_call" and decision.tool_name is not None:
+            return AgentToolCallResponse(
+                tool_calls=[
+                    ToolCallResult(
+                        call_id="call-stub",
+                        tool_name=decision.tool_name,
+                        args={k: v for k, v in decision.args.items()},
+                    )
+                ]
+            )
+        return AgentTextResponse(content=decision.text or "")
 
 
 class StubInboxTool:
@@ -375,6 +399,16 @@ class LabHarness:
             ),
         )
 
+    def _make_hooks(self) -> LabHooks:
+        LAB_1_ID = UUID("11111111-1111-1111-1111-111111111111")
+        if self.lab_id == LAB_1_ID:
+            return Lab1Hooks()
+        if self.lab_id == LAB_2_TOOL_MISUSE_ID:
+            return Lab2HooksImpl(file_tool=self.file_tool)
+        if self.lab_id == LAB_3_ID:
+            return Lab3HooksImpl()
+        return NullLabHooks()
+
     def make_executor(
         self,
         *,
@@ -383,15 +417,17 @@ class LabHarness:
         file_tool: FileToolPort | None = None,
         invoice_memory_tool: StubInvoiceMemoryTool | None = None,
     ) -> RuntimeTurnExecutor:
+        ft = file_tool or self.file_tool
         return RuntimeTurnExecutor(
             model_client=model_client or self.model_client,
             context_builder=self.context_builder,
             event_sink=self.event_sink,
             inbox_tool=StubInboxTool(items=list(inbox_items or self.inbox_items)),
-            file_tool=file_tool or self.file_tool,
+            file_tool=ft,
             invoice_memory_tool=invoice_memory_tool
             if invoice_memory_tool is not None
             else self.invoice_memory_tool,
+            hooks=self._make_hooks(),
         )
 
     async def collect(

@@ -3,6 +3,9 @@ from uuid import UUID, uuid4
 
 from apps.agent_harness.src.application.session_loop.service import run_single_turn
 from apps.agent_harness.src.application.session_loop.types import (
+    AgentRequest,
+    AgentResponse,
+    AgentTextResponse,
     ChatMessage,
     HarnessChunk,
     HarnessFailure,
@@ -34,6 +37,10 @@ class SpyModelClient:
         self.last_payload = payload
         return ToolDecision(kind="text", tool_name=None, args={}, text=None)
 
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse:
+        self.last_payload = ModelRequest(messages=payload.messages)
+        return AgentTextResponse(content="ok")
+
 
 class FailingModelClient:
     def stream(self, payload: ModelRequest) -> Iterable[HarnessChunk]:
@@ -51,6 +58,12 @@ class FailingModelClient:
     def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision:
         _ = payload
         return ToolDecision(kind="text", tool_name=None, args={}, text=None)
+
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse:
+        _ = payload
+        raise SessionLoopProviderFailureError(
+            message="model agent_chat failed", details={"provider": "openrouter"}
+        )
 
 
 class SpyContextBuilder:

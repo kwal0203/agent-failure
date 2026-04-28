@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 from uuid import UUID
-from typing import Literal
-from dataclasses import dataclass
+from typing import Literal, Mapping
+from dataclasses import dataclass, field
 from apps.contracts.src.types import ToolName
 
 
 FailureCode = Literal["provider_failure", "invalid_request", "internal_error"]
 MessageRole = Literal["system", "user", "assistant", "tool"]
+
+
+def default_parameters() -> dict[str, object]:
+    return {}
 
 
 @dataclass(frozen=True)
@@ -17,9 +23,18 @@ class HarnessTurnInput:
 
 
 @dataclass(frozen=True)
+class ToolCallMessage:
+    call_id: str
+    tool_name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: MessageRole
     content: str
+    tool_call_id: str | None = None
+    tool_calls: list[ToolCallMessage] | None = None
 
 
 @dataclass(frozen=True)
@@ -139,3 +154,36 @@ class WriteMemoryInput:
     source_artifact_type: str
     provenance_trust: ProvenanceTrust
     stored_at: str
+
+
+@dataclass(frozen=True)
+class ToolDefinition:
+    name: str
+    description: str
+    parameters: Mapping[str, object] = field(default_factory=default_parameters)
+
+
+@dataclass(frozen=True)
+class ToolCallResult:
+    call_id: str
+    tool_name: str
+    args: dict[str, str | int | float | bool | None]
+
+
+@dataclass(frozen=True)
+class AgentRequest:
+    messages: list[ChatMessage]
+    tools: list[ToolDefinition]
+
+
+@dataclass(frozen=True)
+class AgentTextResponse:
+    content: str
+
+
+@dataclass(frozen=True)
+class AgentToolCallResponse:
+    tool_calls: list[ToolCallResult]
+
+
+AgentResponse = AgentTextResponse | AgentToolCallResponse

@@ -48,6 +48,30 @@ class SQLAlchemyLabRepository(LabRepository):
                 supports_resume=False,
                 supports_uploads=False,
             ),
+            GetLabCatalogRow(
+                lab_id=UUID("44444444-4444-4444-4444-444444444444"),
+                slug="agent-prompt-injection",
+                name="Agent: Indirect Prompt Injection",
+                summary="Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
+                supports_resume=False,
+                supports_uploads=False,
+            ),
+            GetLabCatalogRow(
+                lab_id=UUID("55555555-5555-5555-5555-555555555555"),
+                slug="agent-tool-misuse",
+                name="Agent: Tool Misuse",
+                summary="Induce an LLM agent into performing unsafe tool operations via deceptive inputs.",
+                supports_resume=False,
+                supports_uploads=False,
+            ),
+            GetLabCatalogRow(
+                lab_id=UUID("66666666-6666-6666-6666-666666666666"),
+                slug="agent-memory-poisoning",
+                name="Agent: Memory Poisoning",
+                summary="Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
+                supports_resume=False,
+                supports_uploads=False,
+            ),
         ]
         return lab_rows
 

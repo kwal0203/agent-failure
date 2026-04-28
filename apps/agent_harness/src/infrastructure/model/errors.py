@@ -28,7 +28,7 @@ class ProviderResponseError(Exception):
     ) -> None:
         self.message = message
         self.details = details or {}
-        super().__init__(self.message)
+        super().__init__(f"{self.message} | details={self.details}")
 
 
 class ProviderUnavailableError(Exception):

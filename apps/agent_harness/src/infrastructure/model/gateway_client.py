@@ -3,8 +3,13 @@ from pydantic import ValidationError, TypeAdapter
 
 from apps.agent_harness.src.application.session_loop.ports import ModelClientPort
 from apps.agent_harness.src.application.session_loop.types import (
+    AgentRequest,
+    AgentResponse,
+    AgentTextResponse,
+    AgentToolCallResponse,
     HarnessChunk,
     ModelRequest,
+    ToolCallResult,
     ToolDecision,
 )
 from apps.agent_harness.src.application.session_loop.errors import (
@@ -20,9 +25,12 @@ from .types import GatewayConfig
 from .schemas import (
     ModelClientRequest,
     ModelClientChatMessage,
+    ModelClientToolCall,
+    ChatToolCallFunction,
     StreamChunk,
     LLMToolCall,
     LLMResponse,
+    ChatResponse,
 )
 
 import httpx
@@ -194,3 +202,99 @@ class GatewayModelClient(ModelClientPort):
             ) from exc
         except (KeyError, json.JSONDecodeError, TypeError, ValidationError):
             return ToolDecision(kind="text", tool_name=None, args={}, text=None)
+
+    def agent_chat(self, payload: AgentRequest) -> AgentResponse:
+        tools_payload: list[dict[str, object]] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                },
+            }
+            for t in payload.tools
+        ]
+
+        request_body = ModelClientRequest(
+            model=self._config.model,
+            messages=[
+                ModelClientChatMessage(
+                    role=m.role,
+                    content=m.content,
+                    tool_call_id=m.tool_call_id,
+                    tool_calls=[
+                        ModelClientToolCall(
+                            id=tc.call_id,
+                            function=ChatToolCallFunction(
+                                name=tc.tool_name,
+                                arguments=tc.arguments,
+                            ),
+                        )
+                        for tc in (m.tool_calls or [])
+                    ]
+                    if m.tool_calls
+                    else None,
+                )
+                for m in payload.messages
+            ],
+            stream=False,
+            tools=tools_payload,
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self._config.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        body = request_body.model_dump(mode="json", exclude_none=True)
+        body["tool_choice"] = "auto"
+
+        try:
+            with httpx.Client(timeout=self._config.timeout_seconds) as client:
+                resp = client.post(
+                    self._config.endpoint,
+                    headers=headers,
+                    json=body,
+                )
+
+            if resp.status_code in (401, 403):
+                raise ProviderAuthError(details={"status_code": str(resp.status_code)})
+            if resp.status_code >= 400:
+                raise ProviderResponseError(
+                    details={
+                        "status_code": str(resp.status_code),
+                        "body": resp.text[:500],
+                    }
+                )
+
+            parsed = ChatResponse.model_validate(resp.json())
+            message = parsed.choices[0].message
+
+            if message.tool_calls:
+                return AgentToolCallResponse(
+                    tool_calls=[
+                        ToolCallResult(
+                            call_id=tc.id,
+                            tool_name=tc.function.name,
+                            args=json.loads(tc.function.arguments),
+                        )
+                        for tc in message.tool_calls
+                    ]
+                )
+
+            return AgentTextResponse(content=message.content or "")
+
+        except httpx.TimeoutException as exc:
+            raise SessionLoopProviderFailureError(
+                message="Provider request timed out", details={"error": str(exc)}
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise SessionLoopProviderFailureError(
+                message="Provider unavailable", details={"error": str(exc)}
+            ) from exc
+        except (KeyError, IndexError, json.JSONDecodeError, ValidationError) as exc:
+            raise SessionLoopProviderFailureError(
+                message="Provider returned invalid agent response",
+                details={"error": str(exc)},
+            ) from exc

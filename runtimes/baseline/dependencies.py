@@ -1,3 +1,6 @@
+import os
+from uuid import UUID
+
 from apps.agent_harness.src.interfaces.runtime.dependencies import (
     get_context_builder,
     get_event_sink,
@@ -14,13 +17,31 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
 )
 
 from .service import RuntimeTurnExecutor
+from .labs import LabHooks, NullLabHooks
+from .labs.lab1_hooks import Lab1Hooks
+from .labs.lab2_hooks import Lab2Hooks, LAB_2_TOOL_MISUSE_ID
+from .labs.lab3_hooks import Lab3Hooks, LAB_3_ID
+
+_LAB_1_ID = UUID("11111111-1111-1111-1111-111111111111")
 
 
-# TODO(lab1-persistence): MVP shortcut. Process-level singleton state keeps
-# injected inbox artifacts visible across requests in one runtime pod, but this
-# is not durable and not safe for multi-process/multi-replica deployments.
-# Replace with session-scoped durable inbox storage (repository/DB) as source
-# of truth, and keep in-memory state as an optional cache only.
+def _make_hooks(file_tool: InMemoryFileTool) -> LabHooks:
+    raw = os.getenv("LAB_ID", "").strip()
+    if not raw:
+        return NullLabHooks()
+    try:
+        lab_id = UUID(raw)
+    except ValueError:
+        return NullLabHooks()
+    if lab_id == _LAB_1_ID:
+        return Lab1Hooks()
+    if lab_id == LAB_2_TOOL_MISUSE_ID:
+        return Lab2Hooks(file_tool=file_tool)
+    if lab_id == LAB_3_ID:
+        return Lab3Hooks()
+    return NullLabHooks()
+
+
 _INBOX_TOOL = InMemoryInboxTool()
 _FILE_TOOL = InMemoryFileTool()
 _INVOICE_MEMORY_TOOL = InMemoryInvoiceTool()
@@ -31,6 +52,7 @@ _EXECUTOR = RuntimeTurnExecutor(
     inbox_tool=_INBOX_TOOL,
     file_tool=_FILE_TOOL,
     invoice_memory_tool=_INVOICE_MEMORY_TOOL,
+    hooks=_make_hooks(_FILE_TOOL),
 )
 
 

@@ -88,4 +88,4 @@ def inject_inbox_email(
 
 @app.get("/healthz", status_code=200)
 def health_status() -> dict[str, str]:
-    return HealthStatus(status="ok").model_dump(mode="json")
+    return HealthStatus(status="ok", runtime="baseline").model_dump(mode="json")
