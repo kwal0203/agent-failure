@@ -10,9 +10,9 @@ set -euo pipefail
 #   REGISTRY=ghcr.io
 #   ORG=kane
 #   IMAGE_REPO=agent-failure-runtime-v1
-#   LAB_SLUG=baseline
+#   LAB_SLUG=agent
 #   LAB_VERSION=0.1.0
-#   RUNTIME_DIR=runtimes/baseline
+#   RUNTIME_DIR=runtimes/agent
 #   ARTIFACT_DIR=.artifacts
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ cd "${REPO_ROOT}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 ORG="${ORG:-kwal0203}"
 IMAGE_REPO="${IMAGE_REPO:-agent-failure-runtime-v1}"
-LAB_SLUG="${LAB_SLUG:-baseline}"
+LAB_SLUG="${LAB_SLUG:-agent}"
 LAB_VERSION="${LAB_VERSION:-0.1.0}"
 RUNTIME_DIR="${RUNTIME_DIR:-runtimes/${LAB_SLUG}}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-.artifacts}"

@@ -4,21 +4,33 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_FILE="${ROOT_DIR}/.artifacts/control-plane-image-release.env"
 KUSTOMIZATION_FILE="${ROOT_DIR}/deploy/k8s/staging/kustomization.yaml"
+SELECTION_FILE="${ROOT_DIR}/deploy/k8s/staging/runtime-image-selection.yaml"
 CONTROL_PLANE_IMAGE="ghcr.io/kwal0203/agent-failure-control-plane"
+AGENT_TARGET_LABS="agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning"
 
 cd "${ROOT_DIR}"
 
-echo "[1/5] Releasing default runtime image..."
-./scripts/release_runtime_image.sh
+echo "[1/8] Releasing agent runtime image set..."
+LAB_SLUG=agent TARGET_LABS="${AGENT_TARGET_LABS}" UPDATE_RUNTIME_LOCK=1 ./scripts/release_runtime_image.sh
 
-echo "[2/5] Releasing agent runtime image set..."
-LAB_SLUG=agent TARGET_LABS=agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning \
-  ./scripts/release_runtime_image.sh
+echo "[2/8] Validating runtime lock..."
+TARGET_LABS="${AGENT_TARGET_LABS}" ./scripts/validate_runtime_lock.sh
 
-echo "[3/5] Building control-plane image..."
+if [[ ! -f "${SELECTION_FILE}" ]]; then
+  echo "Missing runtime image selection file: ${SELECTION_FILE}" >&2
+  exit 1
+fi
+
+echo "[3/8] Setting default runtime selection to agent-prompt-injection..."
+cat > "${SELECTION_FILE}" <<EOF
+default_lab_slug: agent-prompt-injection
+default_lab_version: "v1"
+EOF
+
+echo "[4/8] Building control-plane image..."
 ./scripts/build_control_plane_image.sh
 
-echo "[4/5] Pushing control-plane image..."
+echo "[5/8] Pushing control-plane image..."
 ./scripts/push_control_plane_image.sh
 
 if [[ ! -f "${ARTIFACT_FILE}" ]]; then
@@ -46,7 +58,7 @@ if [[ ! -f "${KUSTOMIZATION_FILE}" ]]; then
   exit 1
 fi
 
-echo "[5/5] Updating staging kustomization digest to ${NEW_DIGEST}..."
+echo "[6/8] Updating staging kustomization digest to ${NEW_DIGEST}..."
 tmp_file="$(mktemp)"
 trap 'rm -f "${tmp_file}"' EXIT
 
@@ -94,10 +106,10 @@ awk -v image_name="${CONTROL_PLANE_IMAGE}" -v new_digest="${NEW_DIGEST}" '
 mv "${tmp_file}" "${KUSTOMIZATION_FILE}"
 trap - EXIT
 
-echo "[6/6] Applying staging manifests..."
+echo "[7/8] Applying staging manifests..."
 ./scripts/apply_control_plane_staging.sh
 
-echo "[7/7] Waiting for control-plane rollout..."
+echo "[8/8] Waiting for control-plane rollout..."
 kubectl rollout status deploy/control-plane -n runtime-pool --timeout=300s
 
-echo "Done. Updated ${KUSTOMIZATION_FILE} with digest ${NEW_DIGEST}, applied staging, and confirmed control-plane rollout."
+echo "Done. Updated runtime lock + selection, updated ${KUSTOMIZATION_FILE} with digest ${NEW_DIGEST}, applied staging, and confirmed control-plane rollout."
