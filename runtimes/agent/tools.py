@@ -39,6 +39,15 @@ TOOLS: list[ToolDef] = [
         },
     ),
     ToolDef(
+        name="list_files",
+        description="List all available file paths in the current session.",
+        parameters={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
+    ToolDef(
         name="list_inbox",
         description="List all emails in the inbox.",
         parameters={
@@ -161,18 +170,45 @@ def filter_tools(enabled: tuple[str, ...]) -> list[ToolDef]:
     return [TOOL_DEFS_BY_NAME[name] for name in enabled if name in TOOL_DEFS_BY_NAME]
 
 
+class RunbookAuthorizerPort(Protocol):
+    def authorizes_db_delete(
+        self,
+        *,
+        runbook_text: str,
+        incident_type: str,
+        target_path: str,
+    ) -> bool: ...
+
+
 @dataclass(frozen=True)
 class ToolCtx:
     session_id: UUID
     inbox: InboxToolPort
     files: FileToolPort
+    lab_id: UUID | None = None
     invoice_memory: InvoiceMemoryToolPort | None = None
+    available_tools: tuple[ToolDef, ...] = tuple(TOOLS)
+    authority_bulletin_passed: bool | None = None
+    runbook_authorizer: RunbookAuthorizerPort | None = None
 
 
 def _handle_list_tools(ctx: ToolCtx, args: dict[str, object]) -> str:
-    lines: list[str] = []
-    for t in TOOLS:
-        lines.append(f"- {t.name}: {t.description}")
+    lines: list[str] = ["<ul>"]
+    for t in ctx.available_tools:
+        lines.append(f"<li><strong>{t.name}</strong>: {t.description}</li>")
+    lines.append("</ul>")
+    return "\n".join(lines)
+
+
+def _handle_list_files(ctx: ToolCtx, args: dict[str, object]) -> str:
+    _ = args
+    paths = ctx.files.list_files(session_id=ctx.session_id)
+    if not paths:
+        return "No files available."
+    lines: list[str] = ["<ul>"]
+    for path in paths:
+        lines.append(f"<li>{path}</li>")
+    lines.append("</ul>")
     return "\n".join(lines)
 
 
@@ -203,7 +239,7 @@ def _handle_read_file(ctx: ToolCtx, args: dict[str, object]) -> str:
     path = str(args.get("path", ""))
     result = ctx.files.read_file(session_id=ctx.session_id, path=path)
     if result.content is None:
-        return f"File not found: {path}"
+        return f"ERROR(FILE_NOT_FOUND): {path}"
     return result.content
 
 
@@ -339,6 +375,7 @@ def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
 
 _HANDLERS: dict[str, "_HandlerFn"] = {
     "list_tools": _handle_list_tools,
+    "list_files": _handle_list_files,
     "list_inbox": _handle_list_inbox,
     "read_email": _handle_read_email,
     "read_file": _handle_read_file,
@@ -368,6 +405,15 @@ def dispatch(call: ToolCall, ctx: ToolCtx) -> ToolResult:
 
     try:
         output = handler(ctx, call.arguments)
+        if call.tool_name == "read_file" and output.startswith(
+            "ERROR(FILE_NOT_FOUND):"
+        ):
+            return ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                output=output,
+                success=False,
+            )
         return ToolResult(
             call_id=call.call_id,
             tool_name=call.tool_name,

@@ -6,7 +6,6 @@ from apps.evaluator.src.application.types import (
 from .types import RuleBundle
 from .errors import UnsupportedLabBundleError
 from .labs.prompt_injection_v1 import PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY
-from .labs.rag_poisoning_v1 import RAG_POISONING_V1_BUNDLE
 from .labs.tool_misuse_v1 import TOOL_MISUSE_V1_BUNDLE
 from .labs.code_execution_v1 import CODE_EXECUTION_V1_BUNDLE
 from .labs.memory_poisoning_v1 import MEMORY_POISONING_V1_BUNDLE
@@ -14,8 +13,9 @@ from .labs.memory_poisoning_v1 import MEMORY_POISONING_V1_BUNDLE
 
 SUPPORTED_BUNDLES: dict[tuple[str, str, int], dict[str, RuleBundle]] = {
     ("prompt-injection", "v1", 1): PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
-    ("rag-poisoning", "v1", 1): {"medium": RAG_POISONING_V1_BUNDLE},
+    ("agent-prompt-injection", "v1", 1): PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
     ("tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
+    ("agent-tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
     ("code-execution", "v1", 1): {"medium": CODE_EXECUTION_V1_BUNDLE},
     ("memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
 }

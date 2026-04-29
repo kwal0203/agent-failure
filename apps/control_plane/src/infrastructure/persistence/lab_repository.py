@@ -33,14 +33,6 @@ class SQLAlchemyLabRepository(LabRepository):
                 supports_uploads=False,
             ),
             GetLabCatalogRow(
-                lab_id=UUID("22222222-2222-2222-2222-222222222222"),
-                slug="tool-misuse",
-                name="Tool Misuse",
-                summary="Detect unsafe tool invocation patterns and enforce constraints to prevent high-impact misuse.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
-            GetLabCatalogRow(
                 lab_id=UUID("33333333-3333-3333-3333-333333333333"),
                 slug="memory-poisoning",
                 name="Memory Poisoning",
@@ -51,7 +43,7 @@ class SQLAlchemyLabRepository(LabRepository):
             GetLabCatalogRow(
                 lab_id=UUID("44444444-4444-4444-4444-444444444444"),
                 slug="agent-prompt-injection",
-                name="Agent: Indirect Prompt Injection",
+                name="Indirect Prompt Injection",
                 summary="Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
                 supports_resume=False,
                 supports_uploads=False,
@@ -59,8 +51,8 @@ class SQLAlchemyLabRepository(LabRepository):
             GetLabCatalogRow(
                 lab_id=UUID("55555555-5555-5555-5555-555555555555"),
                 slug="agent-tool-misuse",
-                name="Agent: Tool Misuse",
-                summary="Induce an LLM agent into performing unsafe tool operations via deceptive inputs.",
+                name="Tool Misuse",
+                summary="Induce an LLM agent into unsafe tool operations via deceptive inputs.",
                 supports_resume=False,
                 supports_uploads=False,
             ),

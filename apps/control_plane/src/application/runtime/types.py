@@ -19,8 +19,6 @@ class RunTurnInput:
     prompt: str
     idempotency_key: str | None = None
     authority_bulletin_passed: bool | None = None
-    authority_bulletin_signer: str | None = None
-    authority_bulletin_destructive_db_delete: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -45,3 +43,15 @@ class InjectEmailInput:
     malicious: bool | None = None
     urgency_marker: bool | None = None
     source: Literal["learner"] = "learner"
+
+
+@dataclass(frozen=True)
+class ReadRuntimeFileInput:
+    session_id: UUID
+    path: str
+
+
+@dataclass(frozen=True)
+class ReadRuntimeFileOutput:
+    path: str
+    content: str | None

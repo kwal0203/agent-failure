@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type {
   SessionInvoice,
+  SessionRuntimeFile,
   SessionTelemetryLog,
   ToolKey,
   TranscriptEntry,
@@ -11,6 +12,7 @@ import { DEMO_H2_STYLE } from "../ui";
 import { EmailToolForm } from "./EmailToolForm";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
+const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
 const LAB_3_MEMORY_POISONING_ID = "33333333-3333-3333-3333-333333333333";
 
 type WorkspaceColumnProps = {
@@ -46,6 +48,7 @@ type WorkspaceColumnProps = {
   formatTime: (isoTs: string) => string;
   telemetryLogs: SessionTelemetryLog[];
   invoices: SessionInvoice[];
+  runtimeFiles: SessionRuntimeFile[];
 };
 
 export function WorkspaceColumn({
@@ -81,13 +84,16 @@ export function WorkspaceColumn({
   formatTime,
   telemetryLogs,
   invoices,
+  runtimeFiles,
 }: WorkspaceColumnProps) {
   const [isAttackToolsCollapsed, setIsAttackToolsCollapsed] = useState(false);
   const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
   const [logsSeenAtMs, setLogsSeenAtMs] = useState(0);
   const [invoicesSeenAtMs, setInvoicesSeenAtMs] = useState(0);
   const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
-  const isLab2Session = labId === LAB_2_TOOL_MISUSE_ID;
+  const isLab2Session =
+    labId === LAB_2_TOOL_MISUSE_ID || labId === AGENT_LAB_2_TOOL_MISUSE_ID;
+  const isAgentLab2Session = labId === AGENT_LAB_2_TOOL_MISUSE_ID;
   const isLab3Session = labId === LAB_3_MEMORY_POISONING_ID;
 
   const unreadLogCount = useMemo(
@@ -108,10 +114,10 @@ export function WorkspaceColumn({
   const hasUnreadInvoices = unreadInvoiceCount > 0;
 
   const tools: Array<{ key: ToolKey; label: string; disabled?: boolean }> = [
-    { key: "email", label: "Email" },
+    { key: "email", label: "Email", disabled: isAgentLab2Session },
     ...(isLab2Session ? [{ key: "logs" as const, label: "Logs" }] : []),
     ...(isLab3Session ? [{ key: "invoices" as const, label: "Invoices" }] : []),
-    { key: "files", label: "Files", disabled: true },
+    { key: "files", label: "Files", disabled: !isLab2Session },
     { key: "payloads", label: "Payloads", disabled: true },
     { key: "notes", label: "Notes", disabled: true },
     { key: "recon", label: "Recon", disabled: true },
@@ -177,7 +183,7 @@ export function WorkspaceColumn({
             gap: 8,
           }}
         >
-          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Tools</h2>
+          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Console</h2>
           <button
             type="button"
             onClick={() => setIsAttackToolsCollapsed((prev) => !prev)}
@@ -467,6 +473,78 @@ export function WorkspaceColumn({
                         ) : null}
                       </div>
                     ))
+                )}
+              </div>
+            </div>
+          ) : selectedTool === "files" && isLab2Session ? (
+            <div>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>Files</h3>
+              <p
+                style={{
+                  margin: "0 0 10px 0",
+                  fontSize: 13,
+                  color: "#263643",
+                }}
+              >
+                Open trusted runtime artifacts by loading a read prompt into the
+                composer.
+              </p>
+              <div
+                className="hints-scroll-region"
+                style={{
+                  border: "1px solid #e1e7ef",
+                  borderRadius: 8,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  padding: 10,
+                  background: "#f8fbff",
+                }}
+              >
+                {runtimeFiles.length === 0 ? (
+                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                    No files available yet.
+                  </p>
+                ) : (
+                  runtimeFiles.map((file) => (
+                    <div
+                      key={file.path}
+                      style={{
+                        margin: "0 0 10px 0",
+                        fontSize: 13,
+                        color: "#132736",
+                        borderBottom: "1px solid #e7edf4",
+                        paddingBottom: 8,
+                      }}
+                    >
+                      <p style={{ margin: "0 0 8px 0" }}>
+                        <strong>{file.path}</strong>
+                      </p>
+                      <p
+                        style={{
+                          margin: "0 0 8px 0",
+                          fontSize: 12,
+                          color: "#4d6578",
+                        }}
+                      >
+                        Updated {formatTime(file.updated_at)}
+                      </p>
+                      <pre
+                        style={{
+                          margin: 0,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          background: "#ffffff",
+                          border: "1px solid #d9e4ef",
+                          borderRadius: 6,
+                          padding: 8,
+                          maxHeight: 140,
+                          overflowY: "auto",
+                        }}
+                      >
+                        {file.content}
+                      </pre>
+                    </div>
+                  ))
                 )}
               </div>
             </div>

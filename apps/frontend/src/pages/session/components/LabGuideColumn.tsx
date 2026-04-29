@@ -46,7 +46,9 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
             const heading = lines[0]?.trim();
             const body = lines.slice(1).join("\n").trim();
             const hasSectionHeading =
-              heading === "Background" || heading === "The Objective";
+              heading === "Background" ||
+              heading === "The Objective" ||
+              heading === "Mission Overview";
 
             if (!hasSectionHeading || body.length === 0) {
               return (
@@ -62,7 +64,40 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
             return (
               <div key={heading} style={{ marginBottom: 16 }}>
                 <h3 style={{ margin: "0 0 8px" }}>{heading}</h3>
-                <p style={{ margin: 0, whiteSpace: "pre-line" }}>{body}</p>
+                {(() => {
+                  const bodyLines = body.split("\n");
+                  const bulletItems = bodyLines
+                    .map((line) => line.trim())
+                    .filter((line) => line.startsWith("- "))
+                    .map((line) => line.slice(2).trim())
+                    .filter((line) => line.length > 0);
+                  const prose = bodyLines
+                    .filter((line) => !line.trim().startsWith("- "))
+                    .join("\n")
+                    .trim();
+
+                  return (
+                    <>
+                      {prose.length > 0 ? (
+                        <p style={{ margin: 0, whiteSpace: "pre-line" }}>
+                          {prose}
+                        </p>
+                      ) : null}
+                      {bulletItems.length > 0 ? (
+                        <ul
+                          style={{
+                            margin: prose.length > 0 ? "8px 0 0 0" : 0,
+                            paddingLeft: 20,
+                          }}
+                        >
+                          {bulletItems.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
             );
           })}

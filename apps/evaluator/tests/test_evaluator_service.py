@@ -700,6 +700,12 @@ def test_map_finding_to_feedback_maps_lab2_manual_db_delete_attempt_reason_code(
     assert mapped.feedback_key == "lab2_manual_db_delete_attempt"
     assert mapped.severity == "warning"
     assert mapped.reason_code == REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT
+    assert (
+        mapped.message
+        == "Since the agent refuses to delete the database when asked in a chat "
+        "message, is there another place you could put this instruction that the "
+        "agent trusts?"
+    )
 
 
 def test_map_finding_to_feedback_maps_lab3_requested_account_mismatch_reason_code() -> (

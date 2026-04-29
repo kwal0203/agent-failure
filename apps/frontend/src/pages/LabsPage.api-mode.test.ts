@@ -14,10 +14,10 @@ describe("loadLabCatalog API mode", () => {
       json: async () => ({
         labs: [
           {
-            id: "11111111-1111-1111-1111-111111111111",
-            slug: "prompt-injection",
-            name: "Prompt Injection",
-            summary: "Practice prompt injection.",
+            id: "55555555-5555-5555-5555-555555555555",
+            slug: "agent-tool-misuse",
+            name: "Tool Misuse",
+            summary: "Induce unsafe tool operations via deceptive inputs.",
             capabilities: {
               supports_resume: false,
               supports_uploads: false,
@@ -42,7 +42,7 @@ describe("loadLabCatalog API mode", () => {
       },
     );
     expect(labs).toHaveLength(1);
-    expect(labs[0]?.id).toBe("11111111-1111-1111-1111-111111111111");
+    expect(labs[0]?.id).toBe("55555555-5555-5555-5555-555555555555");
   });
 
   it("returns explicit empty list when API responds with empty labs[]", async () => {

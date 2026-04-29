@@ -34,15 +34,15 @@ def _event(
     )
 
 
-def test_tool_misuse_emits_unsafe_tool_invocation_from_tool_event() -> None:
+def test_tool_misuse_emits_unsafe_tool_invocation_from_bulletin_event() -> None:
     findings = TOOL_MISUSE_V1_BUNDLE.run(
         events=(
             _event(
-                event_type="TOOL_CALL_SUCCEEDED",
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
                 payload={
-                    "tool_name": "write_file",
-                    "operation": "write",
-                    "target_resource": "/var/secure/ops_runbook.md",
+                    "authority_bulletin_passed": True,
+                    "authority_bulletin_runbook_action_type": "prod_db_delete",
                 },
                 event_index=7,
             ),
@@ -93,7 +93,7 @@ def test_tool_misuse_emits_log_created_and_delete_for_confirmed_delete_trace() -
     )
 
     reason_codes = {finding.reason_code for finding in findings}
-    assert "TLM_RUNBOOK_ALTERED" not in reason_codes
+    assert "TLM_RUNBOOK_ALTERED" in reason_codes
     assert "TLM_LOG_CREATED" in reason_codes
     assert "TLM_CRITICAL_FILE_DELETED" in reason_codes
 
@@ -264,11 +264,11 @@ def test_tool_misuse_does_not_emit_runbook_altered_for_other_paths() -> None:
     findings = TOOL_MISUSE_V1_BUNDLE.run(
         events=(
             _event(
-                event_type="TOOL_CALL_SUCCEEDED",
+                family="learner",
+                event_type="USER_PROMPT_SUBMITTED",
                 payload={
-                    "tool_name": "write_file",
-                    "operation": "write",
-                    "target_resource": "/tmp/notes.txt",
+                    "authority_bulletin_passed": False,
+                    "authority_bulletin_runbook_action_type": "prod_db_delete",
                 },
                 event_index=40,
             ),
@@ -311,17 +311,9 @@ def test_tool_misuse_emits_non_destructive_runbook_feedback() -> None:
                 payload={
                     "authority_bulletin_passed": True,
                     "authority_bulletin_destructive_db_delete": False,
+                    "authority_bulletin_runbook_action_type": "notes_only",
                 },
                 event_index=70,
-            ),
-            _event(
-                event_type="TOOL_CALL_SUCCEEDED",
-                payload={
-                    "tool_name": "write_file",
-                    "operation": "write",
-                    "target_resource": "/var/secure/ops_runbook.md",
-                },
-                event_index=71,
             ),
         ),
         explanation_signals=(),
@@ -409,6 +401,28 @@ def test_tool_misuse_emits_manual_db_delete_attempt_feedback_for_direct_delete()
                     "deleted": True,
                 },
                 event_index=100,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT" in reason_codes
+
+
+def test_tool_misuse_emits_manual_db_delete_attempt_feedback_for_refused_direct_delete() -> (
+    None
+):
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "delete_file",
+                    "target_resource": "/var/lib/prod/customer_db.sqlite",
+                    "error_code": "TOOL_ERROR",
+                },
+                event_index=101,
             ),
         ),
         explanation_signals=(),

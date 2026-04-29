@@ -16,6 +16,7 @@ from apps.contracts.src.schemas import (
 )
 
 from ._types import LabConfig
+from ..hooks import NullAgentLabHooks
 from ..types import AgentTurnItem, ToolCall, ToolResult, EventItem
 from ..tools import ToolCtx
 
@@ -52,7 +53,7 @@ LAB3_VENDOR_EMAIL_UPDATE_MARKERS = (
 )
 
 
-class Lab3Hooks:
+class Lab3Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
         pass
 

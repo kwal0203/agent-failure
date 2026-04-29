@@ -6,8 +6,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from runtimes.agent.types import ChatMessage, LLMResponse, TextResponse
-from runtimes.agent.agent import LLMClient, run_agent_turn
-from runtimes.agent.tools import ToolCtx
+from runtimes.agent.agent import LLMClient, SYSTEM_PROMPT, run_agent_turn
+from runtimes.agent.hooks import AgentLabHooks
+from runtimes.agent.tools import ToolCtx, TOOLS
+from runtimes.agent.types import ToolDef
 from runtimes.agent.types import TextItem, EventItem
 from .stubs import StubFiles, StubInbox, StubInvoiceMemory
 
@@ -18,12 +20,14 @@ def make_ctx(
     inbox: StubInbox | None = None,
     files: StubFiles | None = None,
     invoice: StubInvoiceMemory | None = None,
+    available_tools: tuple[ToolDef, ...] | None = None,
 ) -> ToolCtx:
     return ToolCtx(
         session_id=session_id or uuid4(),
         inbox=inbox or StubInbox(),
         files=files or StubFiles(),
         invoice_memory=invoice or StubInvoiceMemory(),
+        available_tools=available_tools or tuple(TOOLS),
     )
 
 
@@ -61,12 +65,17 @@ async def run_turn(
     prompt: str = "hello",
     llm: LLMClient,
     ctx: ToolCtx | None = None,
+    hooks: AgentLabHooks | None = None,
+    prior_messages: list[ChatMessage] | None = None,
 ) -> str:
     parts: list[str] = []
     async for item in run_agent_turn(
         prompt=prompt,
         llm=llm,
         ctx=ctx or make_ctx(),
+        system_prompt=SYSTEM_PROMPT,
+        hooks=hooks,
+        prior_messages=prior_messages,
     ):
         if isinstance(item, TextItem):
             parts.append(item.content)
@@ -78,6 +87,8 @@ async def run_turn_collect_events(
     prompt: str = "hello",
     llm: LLMClient,
     ctx: ToolCtx | None = None,
+    hooks: AgentLabHooks | None = None,
+    prior_messages: list[ChatMessage] | None = None,
 ) -> tuple[str, list[EventItem]]:
     text_parts: list[str] = []
     events: list[EventItem] = []
@@ -85,6 +96,9 @@ async def run_turn_collect_events(
         prompt=prompt,
         llm=llm,
         ctx=ctx or make_ctx(),
+        system_prompt=SYSTEM_PROMPT,
+        hooks=hooks,
+        prior_messages=prior_messages,
     ):
         if isinstance(item, TextItem):
             text_parts.append(item.content)

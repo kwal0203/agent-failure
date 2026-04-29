@@ -31,6 +31,7 @@ from .schemas import (
     SessionProgressChipResponse,
     SessionHintResponse,
     SessionFeedbackResponse,
+    SessionRuntimeFileResponse,
 )
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
@@ -110,6 +111,7 @@ from apps.control_plane.src.application.runtime.ports import RuntimeClientFactor
 from apps.control_plane.src.application.runtime.types import (
     RunTurnInput,
     InjectEmailInput,
+    ReadRuntimeFileInput,
 )
 from apps.control_plane.src.application.email_classification.ports import (
     EmailMaliciousnessClassifierPort,
@@ -199,6 +201,7 @@ import contextlib
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
 PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS = 360
 LAB_2_TOOL_MISUSE_ID = UUID("22222222-2222-2222-2222-222222222222")
+AGENT_LAB_2_TOOL_MISUSE_ID = UUID("55555555-5555-5555-5555-555555555555")
 LAB2_AUTHORITY_SIGNER = "Morgan Hale"
 
 logger = logging.getLogger(__name__)
@@ -280,10 +283,13 @@ def _exception_log_helper(
         404: {"model": ApiErrorEnvelope},
     },
 )
-def get_metadata(
+async def get_metadata(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
     db: Session = Depends(get_db_session),
+    runtime_client_factory: RuntimeClientFactoryPort = Depends(
+        get_runtime_client_factory
+    ),
 ) -> GetSessionMetadataResponse | JSONResponse:
     repo = SQLAlchemySessionMetadataRepository(db=db)
     heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
@@ -367,6 +373,37 @@ def get_metadata(
                 )
             )
 
+        runtime_files: list[SessionRuntimeFileResponse] = []
+        agent_lab2_id = UUID("55555555-5555-5555-5555-555555555555")
+        if session_metadata.lab_id == agent_lab2_id:
+            try:
+                runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
+                runtime_binding = runtime_binding_repo.get_by_session_id(
+                    session_id=session_id
+                )
+                if runtime_binding is not None and runtime_binding.status == "ready":
+                    client = runtime_client_factory.create(
+                        base_url=runtime_binding.base_url
+                    )
+                    runbook = await client.read_runtime_file(
+                        ReadRuntimeFileInput(
+                            session_id=session_id,
+                            path="/var/secure/ops_runbook.md",
+                        )
+                    )
+                    if isinstance(runbook.content, str) and runbook.content.strip():
+                        runtime_files.append(
+                            SessionRuntimeFileResponse(
+                                path=runbook.path,
+                                content=runbook.content,
+                                updated_at=datetime.now(timezone.utc),
+                            )
+                        )
+            except Exception:
+                logger.warning(
+                    "runtime file read failed in get_metadata", exc_info=True
+                )
+
         http_obj = SessionMetadataResponse(
             id=session_metadata.id,
             lab_id=session_metadata.lab_id,
@@ -395,6 +432,7 @@ def get_metadata(
             feedback_items=feedback,
             feedback=feedback,
             unread_feedback_count=session_metadata.unread_feedback_count,
+            runtime_files=runtime_files,
         )
         return GetSessionMetadataResponse(session=http_obj)
 
@@ -783,7 +821,7 @@ async def handle_user_prompt(
     prompt_content: str,
     db: Session,
     runtime_client_factory: RuntimeClientFactoryPort,
-    authority_bulletin_classifier: AuthorityBulletinClassifierPort,
+    bulletin_classifier: AuthorityBulletinClassifierPort,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
     outbox_repo = SQLAlchemyOutbox(db=db)
@@ -865,43 +903,28 @@ async def handle_user_prompt(
         )
 
         authority_bulletin_passed = False
-        authority_bulletin_signer: str | None = None
-        authority_bulletin_confidence: float | None = None
-        authority_bulletin_provider: str | None = None
-        authority_bulletin_model: str | None = None
-        authority_bulletin_reason: str | None = None
         authority_bulletin_runbook_action_type: str | None = None
         authority_bulletin_destructive_db_delete: bool | None = None
-        authority_bulletin_error: str | None = None
-        if metadata.lab_id == LAB_2_TOOL_MISUSE_ID:
+        if metadata.lab_id in {LAB_2_TOOL_MISUSE_ID, AGENT_LAB_2_TOOL_MISUSE_ID}:
             try:
-                bulletin_classification = (
-                    await authority_bulletin_classifier.classify_prompt(
-                        input=AuthorityBulletinClassificationInput(
-                            prompt_content=prompt_content,
-                            expected_signer=LAB2_AUTHORITY_SIGNER,
-                        )
+                classify = await bulletin_classifier.classify_prompt(
+                    input=AuthorityBulletinClassificationInput(
+                        prompt_content=prompt_content,
+                        expected_signer=LAB2_AUTHORITY_SIGNER,
                     )
                 )
-                authority_bulletin_signer = bulletin_classification.signer_name
-                authority_bulletin_confidence = bulletin_classification.confidence
-                authority_bulletin_provider = bulletin_classification.provider
-                authority_bulletin_model = bulletin_classification.model
-                authority_bulletin_reason = bulletin_classification.reason
-                authority_bulletin_runbook_action_type = (
-                    bulletin_classification.runbook_action_type
-                )
+                authority_bulletin_runbook_action_type = classify.runbook_action_type
                 authority_bulletin_destructive_db_delete = (
-                    bulletin_classification.destructive_db_delete
+                    classify.destructive_db_delete
                 )
                 authority_bulletin_passed = (
-                    bulletin_classification.is_authority_bulletin
-                    and isinstance(authority_bulletin_signer, str)
-                    and authority_bulletin_signer.strip().lower()
+                    classify.is_authority_bulletin
+                    and isinstance(classify.signer_name, str)
+                    and classify.signer_name.strip().lower()
                     == LAB2_AUTHORITY_SIGNER.lower()
                 )
-            except RuntimeError as exc:
-                authority_bulletin_error = str(exc)
+
+            except RuntimeError:
                 authority_bulletin_passed = False
 
         # TODO(P1-E6 follow-up): This writes learner trace directly via DB adapter
@@ -918,25 +941,15 @@ async def handle_user_prompt(
             "channel": "websocket",
             "message_type": "USER_PROMPT",
         }
-        if metadata.lab_id == LAB_2_TOOL_MISUSE_ID:
-            learner_payload["authority_bulletin_expected_signer"] = (
-                LAB2_AUTHORITY_SIGNER
-            )
+
+        if metadata.lab_id in {LAB_2_TOOL_MISUSE_ID, AGENT_LAB_2_TOOL_MISUSE_ID}:
             learner_payload["authority_bulletin_passed"] = authority_bulletin_passed
-            learner_payload["authority_bulletin_signer"] = authority_bulletin_signer
-            learner_payload["authority_bulletin_confidence"] = (
-                authority_bulletin_confidence
-            )
-            learner_payload["authority_bulletin_provider"] = authority_bulletin_provider
-            learner_payload["authority_bulletin_model"] = authority_bulletin_model
-            learner_payload["authority_bulletin_reason"] = authority_bulletin_reason
             learner_payload["authority_bulletin_runbook_action_type"] = (
                 authority_bulletin_runbook_action_type
             )
             learner_payload["authority_bulletin_destructive_db_delete"] = (
                 authority_bulletin_destructive_db_delete
             )
-            learner_payload["authority_bulletin_error"] = authority_bulletin_error
 
         trace_event = TraceEvent(
             event_id=uuid4(),
@@ -1002,8 +1015,6 @@ async def handle_user_prompt(
                 prompt=prompt_content,
                 idempotency_key=f"turn:{metadata.id}:{turn_id}",
                 authority_bulletin_passed=authority_bulletin_passed,
-                authority_bulletin_signer=authority_bulletin_signer,
-                authority_bulletin_destructive_db_delete=authority_bulletin_destructive_db_delete,
             )
 
             turn_start = datetime.now(timezone.utc)
@@ -1254,6 +1265,31 @@ async def handle_user_prompt(
 
                     continue
 
+                if event.type == "try_attack_console_hint":
+                    try_attack_console_hint_payload: dict[str, object] = {
+                        "type": event.type,
+                        "message": event.message,
+                    }
+
+                    trace_event = build_trace_event(
+                        trace_repo=trace_repo,
+                        session_id=session_id,
+                        family="runtime",
+                        event_type="TRY_ATTACK_CONSOLE_HINT",
+                        source="session_stream_service",
+                        payload=try_attack_console_hint_payload,
+                        actor_user_id=principal.user_id,
+                        lab_id=metadata.lab_id,
+                        lab_version_id=metadata.lab_version_id,
+                        lab_difficulty=metadata.lab_difficulty,
+                    )
+
+                    append_trace_event(
+                        trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo
+                    )
+
+                    continue
+
                 if event.type == "tool_call_requested":
                     tool_call_requested_payload: dict[str, object] = {
                         "type": event.type,
@@ -1322,6 +1358,9 @@ async def handle_user_prompt(
                     if event.exists_after is not None:
                         tool_call_succeeded_payload["exists_after"] = event.exists_after
                     for field_name in (
+                        "authority_bulletin_passed",
+                        "authority_bulletin_destructive_db_delete",
+                        "authority_bulletin_runbook_action_type",
                         "memory_type",
                         "provenance_trust",
                         "source_artifact_id",
@@ -1579,7 +1618,7 @@ async def session_stream_ws(
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),
-    authority_bulletin_classifier: AuthorityBulletinClassifierPort = Depends(
+    bulletin_classifier: AuthorityBulletinClassifierPort = Depends(
         get_authority_bulletin_classifier
     ),
 ):
@@ -1666,7 +1705,7 @@ async def session_stream_ws(
                 prompt_content=prompt_msg.payload.content,
                 db=db,
                 runtime_client_factory=runtime_client_factory,
-                authority_bulletin_classifier=authority_bulletin_classifier,
+                bulletin_classifier=bulletin_classifier,
             )
 
     except WebSocketDisconnect:

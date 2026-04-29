@@ -8,6 +8,7 @@ LEARNER_VISIBLE_ALLOWLIST: set[tuple[TraceFamily, str]] = {
     ("runtime", "RUNTIME_PROVISION_REQUESTED"),
     ("runtime", "RUNTIME_PROVISION_ACCEPTED"),
     ("runtime", "RUNTIME_PROVISION_FAILED"),
+    ("runtime", "TRY_ATTACK_CONSOLE_HINT"),
     ("runtime", "ATTACK_EMAIL_SENT"),
     ("runtime", "MALICIOUS_EMAIL_READ"),
     ("runtime", "TOKEN_DISCLOSURE_ATTEMPTED"),

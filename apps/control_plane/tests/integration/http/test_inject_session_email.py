@@ -12,7 +12,11 @@ from apps.control_plane.src.application.email_classification.types import (
     EmailClassificationInput,
     EmailClassificationResult,
 )
-from apps.control_plane.src.application.runtime.types import InjectEmailInput
+from apps.control_plane.src.application.runtime.types import (
+    InjectEmailInput,
+    ReadRuntimeFileInput,
+    ReadRuntimeFileOutput,
+)
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import (
     SessionFactory,
@@ -69,6 +73,12 @@ class _FakeRuntimeClient:
         self.inject_calls.append(input)
         if self.raise_on_inject is not None:
             raise self.raise_on_inject
+
+    async def read_runtime_file(
+        self, input: ReadRuntimeFileInput
+    ) -> ReadRuntimeFileOutput:
+        _ = input
+        return ReadRuntimeFileOutput(path="/var/secure/ops_runbook.md", content=None)
 
 
 class _FakeRuntimeClientFactory:

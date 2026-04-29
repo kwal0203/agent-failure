@@ -14,6 +14,8 @@ export type LabCatalogItem = {
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
 ).toLowerCase();
+const HIDDEN_LAB_SLUGS = new Set<string>(["prompt-injection", "tool-misuse"]);
+const PINNED_FIRST_LAB_SLUG = "agent-prompt-injection";
 
 const STUB_LABS: LabCatalogItem[] = [
   {
@@ -28,29 +30,9 @@ const STUB_LABS: LabCatalogItem[] = [
     },
   },
   {
-    id: "22222222-2222-2222-2222-222222222222",
-    slug: "tool-misuse",
-    name: "Tool Misuse",
-    summary: "Identify unsafe tool invocation paths and guardrail failures.",
-    capabilities: {
-      supports_resume: true,
-      supports_uploads: false,
-    },
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    slug: "rag-poisoning",
-    name: "RAG Poisoning",
-    summary: "Explore retrieval poisoning behaviors and mitigation workflows.",
-    capabilities: {
-      supports_resume: true,
-      supports_uploads: false,
-    },
-  },
-  {
     id: "44444444-4444-4444-4444-444444444444",
     slug: "agent-prompt-injection",
-    name: "Agent: Indirect Prompt Injection",
+    name: "Indirect Prompt Injection",
     summary:
       "Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
     capabilities: {
@@ -61,7 +43,7 @@ const STUB_LABS: LabCatalogItem[] = [
   {
     id: "55555555-5555-5555-5555-555555555555",
     slug: "agent-tool-misuse",
-    name: "Agent: Tool Misuse",
+    name: "Tool Misuse",
     summary:
       "Induce an LLM agent into performing unsafe tool operations via deceptive inputs.",
     capabilities: {
@@ -146,6 +128,19 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
     }));
 }
 
+function normalizeLabCatalog(labs: LabCatalogItem[]): LabCatalogItem[] {
+  const visible = labs.filter((lab) => !HIDDEN_LAB_SLUGS.has(lab.slug));
+  const pinnedIndex = visible.findIndex(
+    (lab) => lab.slug === PINNED_FIRST_LAB_SLUG,
+  );
+  if (pinnedIndex <= 0) {
+    return visible;
+  }
+  const pinned = visible[pinnedIndex];
+  const rest = visible.filter((_, index) => index !== pinnedIndex);
+  return [pinned, ...rest];
+}
+
 export async function loadLabCatalog(
   apiBaseUrl: string,
 ): Promise<LabCatalogItem[]> {
@@ -154,10 +149,11 @@ export async function loadLabCatalog(
   }
 
   if (LAB_CATALOG_SOURCE === "api") {
-    return fetchLabsFromApi(apiBaseUrl);
+    const labs = await fetchLabsFromApi(apiBaseUrl);
+    return normalizeLabCatalog(labs);
   }
 
-  return STUB_LABS;
+  return normalizeLabCatalog(STUB_LABS);
 }
 
 function extractSessionId(payload: unknown): string | undefined {

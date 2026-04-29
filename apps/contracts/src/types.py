@@ -18,11 +18,13 @@ RuntimePayload: TypeAlias = Mapping[str, JSONValue]
 # Canonical runtime tool contract shared across runtime/control-plane/evaluator.
 ToolName = Literal[
     "list_tools",
+    "list_files",
     "list_inbox",
     "read_email",
     "read_file",
     "write_file",
     "delete_file",
+    "follow_runbook",
     "read_invoice",
     "lookup_vendor_master",
     "retrieve_memory",
@@ -32,11 +34,13 @@ ToolName = Literal[
 
 CANONICAL_TOOL_ARGS_REQUIRED: Mapping[ToolName, tuple[str, ...]] = {
     "list_tools": (),
+    "list_files": (),
     "list_inbox": (),
     "read_email": ("email_id",),
     "read_file": ("path",),
     "write_file": ("path", "content"),
     "delete_file": ("path",),
+    "follow_runbook": ("incident_type",),
     # NOTE(lab3): Runtime v1 supports invoice_id | invoice_document, but the
     # current classifier contract validates exact required keys only. Keep
     # invoice_id as the canonical minimum until validator supports either/or.
