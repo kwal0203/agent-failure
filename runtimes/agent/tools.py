@@ -170,6 +170,16 @@ def filter_tools(enabled: tuple[str, ...]) -> list[ToolDef]:
     return [TOOL_DEFS_BY_NAME[name] for name in enabled if name in TOOL_DEFS_BY_NAME]
 
 
+class RunbookAuthorizerPort(Protocol):
+    def authorizes_db_delete(
+        self,
+        *,
+        runbook_text: str,
+        incident_type: str,
+        target_path: str,
+    ) -> bool: ...
+
+
 @dataclass(frozen=True)
 class ToolCtx:
     session_id: UUID
@@ -179,6 +189,7 @@ class ToolCtx:
     invoice_memory: InvoiceMemoryToolPort | None = None
     available_tools: tuple[ToolDef, ...] = tuple(TOOLS)
     authority_bulletin_passed: bool | None = None
+    runbook_authorizer: RunbookAuthorizerPort | None = None
 
 
 def _handle_list_tools(ctx: ToolCtx, args: dict[str, object]) -> str:

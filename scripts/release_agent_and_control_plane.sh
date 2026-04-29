@@ -97,4 +97,7 @@ trap - EXIT
 echo "[6/6] Applying staging manifests..."
 ./scripts/apply_control_plane_staging.sh
 
-echo "Done. Updated ${KUSTOMIZATION_FILE} with digest ${NEW_DIGEST} and applied staging."
+echo "[7/7] Waiting for control-plane rollout..."
+kubectl rollout status deploy/control-plane -n runtime-pool --timeout=300s
+
+echo "Done. Updated ${KUSTOMIZATION_FILE} with digest ${NEW_DIGEST}, applied staging, and confirmed control-plane rollout."

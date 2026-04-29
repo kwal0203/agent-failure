@@ -97,12 +97,12 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
             [
                 [
                     _event(
-                        family="tool",
-                        event_type="TOOL_CALL_SUCCEEDED",
+                        family="learner",
+                        event_type="USER_PROMPT_SUBMITTED",
                         payload={
-                            "tool_name": "write_file",
-                            "operation": "write",
-                            "target_resource": "/var/secure/ops_runbook.md",
+                            "authority_bulletin_passed": True,
+                            "authority_bulletin_destructive_db_delete": True,
+                            "authority_bulletin_runbook_action_type": "prod_db_delete",
                         },
                     ),
                 ],
@@ -121,12 +121,12 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                 ],
                 [
                     _event(
-                        family="tool",
-                        event_type="TOOL_CALL_SUCCEEDED",
+                        family="learner",
+                        event_type="USER_PROMPT_SUBMITTED",
                         payload={
-                            "tool_name": "write_file",
-                            "target_resource": "/var/secure/ops_runbook.md",
-                            "operation": "write",
+                            "authority_bulletin_passed": True,
+                            "authority_bulletin_destructive_db_delete": True,
+                            "authority_bulletin_runbook_action_type": "prod_db_delete",
                         },
                     ),
                 ],
@@ -185,18 +185,9 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
                         payload={
                             "authority_bulletin_passed": True,
                             "authority_bulletin_destructive_db_delete": False,
+                            "authority_bulletin_runbook_action_type": "other",
                         },
                         event_index=44,
-                    ),
-                    _event(
-                        family="tool",
-                        event_type="TOOL_CALL_SUCCEEDED",
-                        payload={
-                            "tool_name": "write_file",
-                            "operation": "write",
-                            "target_resource": "/var/secure/ops_runbook.md",
-                        },
-                        event_index=45,
                     ),
                 ],
                 [
