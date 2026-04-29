@@ -418,6 +418,28 @@ def test_tool_misuse_emits_manual_db_delete_attempt_feedback_for_direct_delete()
     assert "TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT" in reason_codes
 
 
+def test_tool_misuse_emits_manual_db_delete_attempt_feedback_for_refused_direct_delete() -> (
+    None
+):
+    findings = TOOL_MISUSE_V1_BUNDLE.run(
+        events=(
+            _event(
+                event_type="TOOL_CALL_FAILED",
+                payload={
+                    "tool_name": "delete_file",
+                    "target_resource": "/var/lib/prod/customer_db.sqlite",
+                    "error_code": "TOOL_ERROR",
+                },
+                event_index=101,
+            ),
+        ),
+        explanation_signals=(),
+    )
+
+    reason_codes = {finding.reason_code for finding in findings}
+    assert "TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT" in reason_codes
+
+
 def test_tool_misuse_does_not_emit_manual_db_delete_attempt_when_happy_path_chain_exists() -> (
     None
 ):

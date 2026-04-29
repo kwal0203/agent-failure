@@ -41,6 +41,12 @@ class SessionFeedbackResponse(BaseModel):
     seen_at: datetime | None
 
 
+class SessionRuntimeFileResponse(BaseModel):
+    path: str
+    content: str
+    updated_at: datetime
+
+
 class MarkSessionHintsSeenResponse(BaseModel):
     session_id: UUID
     updated_count: int
@@ -82,6 +88,7 @@ class SessionMetadataResponse(BaseModel):
     # Backward-compat alias; new clients should use feedback_items.
     feedback: list[SessionFeedbackResponse] = []
     unread_feedback_count: int = 0
+    runtime_files: list[SessionRuntimeFileResponse] = []
 
 
 class GetSessionMetadataResponse(BaseModel):

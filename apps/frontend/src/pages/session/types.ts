@@ -34,6 +34,12 @@ export type SessionFeedbackItem = {
   seen_at: string | null;
 };
 
+export type SessionRuntimeFile = {
+  path: string;
+  content: string;
+  updated_at: string;
+};
+
 export type SessionMetadata = {
   id: string;
   lab_id: string | null;
@@ -54,6 +60,7 @@ export type SessionMetadata = {
   feedback_items: SessionFeedbackItem[];
   feedback: SessionFeedbackItem[];
   unread_feedback_count: number;
+  runtime_files?: SessionRuntimeFile[];
 };
 
 export type GetSessionMetadataResponse = {

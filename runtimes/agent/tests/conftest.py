@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from runtimes.agent.types import ChatMessage, LLMResponse, TextResponse
-from runtimes.agent.agent import LLMClient, run_agent_turn
+from runtimes.agent.agent import LLMClient, SYSTEM_PROMPT, run_agent_turn
 from runtimes.agent.hooks import AgentLabHooks
 from runtimes.agent.tools import ToolCtx, TOOLS
 from runtimes.agent.types import ToolDef
@@ -73,6 +73,7 @@ async def run_turn(
         prompt=prompt,
         llm=llm,
         ctx=ctx or make_ctx(),
+        system_prompt=SYSTEM_PROMPT,
         hooks=hooks,
         prior_messages=prior_messages,
     ):
@@ -95,6 +96,7 @@ async def run_turn_collect_events(
         prompt=prompt,
         llm=llm,
         ctx=ctx or make_ctx(),
+        system_prompt=SYSTEM_PROMPT,
         hooks=hooks,
         prior_messages=prior_messages,
     ):

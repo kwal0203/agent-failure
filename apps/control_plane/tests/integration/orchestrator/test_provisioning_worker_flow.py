@@ -34,6 +34,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work_outbox_pendi
 )
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
 
+AGENT_LAB_2_ID = UUID("55555555-5555-5555-5555-555555555555")
+AGENT_LAB_2_VERSION_ID = UUID("55555555-5555-5555-5555-aaaaaaaaaaa2")
+
 
 class _ResolverOK:
     def resolve(self, lab_slug: str, lab_version: str) -> str:
@@ -147,6 +150,102 @@ def _launch_session() -> UUID:
     return created.session_id
 
 
+def _launch_agent_lab2_seeded_session() -> UUID:
+    principal = PrincipalContext(user_id=uuid4(), role="learner")
+    with SessionFactory() as db:
+        existing_lab = db.execute(
+            select(LabModel).where(LabModel.id == AGENT_LAB_2_ID)
+        ).scalar_one_or_none()
+        if existing_lab is None:
+            db.add(
+                LabModel(
+                    id=AGENT_LAB_2_ID,
+                    slug="agent-tool-misuse",
+                    name="Agent Tool Misuse",
+                    summary="Agent runtime Lab 2",
+                    is_active=True,
+                )
+            )
+
+        existing_version = db.execute(
+            select(LabVersionModel).where(LabVersionModel.id == AGENT_LAB_2_VERSION_ID)
+        ).scalar_one_or_none()
+        if existing_version is None:
+            db.add(
+                LabVersionModel(
+                    id=AGENT_LAB_2_VERSION_ID,
+                    lab_id=AGENT_LAB_2_ID,
+                    version="v1",
+                    is_active=True,
+                )
+            )
+        db.commit()
+
+        existing_template_count = (
+            db.execute(
+                select(LabHintTemplateModel).where(
+                    LabHintTemplateModel.lab_version_id == AGENT_LAB_2_VERSION_ID
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not existing_template_count:
+            db.add_all(
+                [
+                    LabHintTemplateModel(
+                        id=uuid4(),
+                        lab_version_id=AGENT_LAB_2_VERSION_ID,
+                        hint_key="hint_1",
+                        text="Hint 1: TBD",
+                        offset_seconds=90,
+                        sort_order=0,
+                        is_active=True,
+                    ),
+                    LabHintTemplateModel(
+                        id=uuid4(),
+                        lab_version_id=AGENT_LAB_2_VERSION_ID,
+                        hint_key="hint_2",
+                        text="Hint 2: TBD",
+                        offset_seconds=210,
+                        sort_order=1,
+                        is_active=True,
+                    ),
+                    LabHintTemplateModel(
+                        id=uuid4(),
+                        lab_version_id=AGENT_LAB_2_VERSION_ID,
+                        hint_key="hint_3",
+                        text="Hint 3: TBD",
+                        offset_seconds=360,
+                        sort_order=2,
+                        is_active=True,
+                    ),
+                    LabHintTemplateModel(
+                        id=uuid4(),
+                        lab_version_id=AGENT_LAB_2_VERSION_ID,
+                        hint_key="hint_4",
+                        text="Hint 4: TBD",
+                        offset_seconds=540,
+                        sort_order=3,
+                        is_active=True,
+                    ),
+                ]
+            )
+        db.commit()
+
+    key = f"idem-{uuid4()}"
+    create_uow = SQLAlchemyCreateSessionUnitOfWork(session_factory=SessionFactory)
+    admission = StubAdmissionPolicy()
+    created = create_session(
+        principal=principal,
+        admission_policy=admission,
+        lab_id=AGENT_LAB_2_ID,
+        idempotency_key=key,
+        uow=create_uow,
+    )
+    return created.session_id
+
+
 @pytest.mark.usefixtures("engine")
 def test_provisioning_worker_success_consumes_outbox_and_transitions_active() -> None:
     session_id = _launch_session()
@@ -232,6 +331,56 @@ def test_provisioning_worker_success_consumes_outbox_and_transitions_active() ->
         assert [hint.hint_key for hint in session_hints] == ["hint_1", "hint_2"]
         assert [hint.status for hint in session_hints] == ["pending", "pending"]
         assert session_hints[0].unlock_at < session_hints[1].unlock_at
+
+
+@pytest.mark.usefixtures("engine")
+def test_provisioning_worker_agent_lab2_uses_seeded_hint_templates_in_order() -> None:
+    session_id = _launch_agent_lab2_seeded_session()
+
+    worker_uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
+    result = process_pending_once(
+        uow=worker_uow,
+        image_resolver=_ResolverOK(),
+        provisioner=_ProvisionerAccepted(),
+        runtime_inspector=_InspectorReady(),
+    )
+    assert result.succeeded_count == 1
+
+    with SessionFactory() as db:
+        session_row = db.execute(
+            select(SessionModel).where(SessionModel.id == session_id)
+        ).scalar_one()
+        assert session_row.lab_id == AGENT_LAB_2_ID
+        assert session_row.lab_version_id == AGENT_LAB_2_VERSION_ID
+
+        session_hints = (
+            db.execute(
+                select(SessionHintModel)
+                .where(SessionHintModel.session_id == session_id)
+                .order_by(SessionHintModel.sort_order.asc())
+            )
+            .scalars()
+            .all()
+        )
+        assert [hint.hint_key for hint in session_hints] == [
+            "hint_1",
+            "hint_2",
+            "hint_3",
+            "hint_4",
+        ]
+        assert [hint.status for hint in session_hints] == [
+            "pending",
+            "pending",
+            "pending",
+            "pending",
+        ]
+
+        base_unlock_at = session_hints[0].unlock_at
+        offsets_from_first = [
+            int((hint.unlock_at - base_unlock_at).total_seconds())
+            for hint in session_hints
+        ]
+        assert offsets_from_first == [0, 120, 270, 450]
 
 
 @pytest.mark.usefixtures("engine")

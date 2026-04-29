@@ -17,6 +17,7 @@ SUPPORTED_BUNDLES: dict[tuple[str, str, int], dict[str, RuleBundle]] = {
     ("agent-prompt-injection", "v1", 1): PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
     ("rag-poisoning", "v1", 1): {"medium": RAG_POISONING_V1_BUNDLE},
     ("tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
+    ("agent-tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
     ("code-execution", "v1", 1): {"medium": CODE_EXECUTION_V1_BUNDLE},
     ("memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
 }

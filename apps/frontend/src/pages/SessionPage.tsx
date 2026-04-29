@@ -120,6 +120,7 @@ export default function SessionPage() {
     setTranscriptEntries,
     setMetadata,
     setAgentStatus,
+    refreshSessionMetadata,
   });
 
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
@@ -420,6 +421,7 @@ export default function SessionPage() {
             formatTime={formatTime}
             telemetryLogs={telemetryLogs}
             invoices={invoices}
+            runtimeFiles={metadata?.runtime_files ?? []}
           />
         </section>
 

@@ -26,8 +26,6 @@ class RunTurnRequest(BaseModel):
     prompt: str
     idempotency_key: str | None = None
     authority_bulletin_passed: bool | None = None
-    authority_bulletin_signer: str | None = None
-    authority_bulletin_destructive_db_delete: bool | None = None
 
 
 class RunTurnResponse(BaseModel):
@@ -59,8 +57,6 @@ class RunTurnStreamRequest(BaseModel):
     prompt: str
     idempotency_key: str | None = None
     authority_bulletin_passed: bool | None = None
-    authority_bulletin_signer: str | None = None
-    authority_bulletin_destructive_db_delete: bool | None = None
 
 
 class TurnStartedEvent(BaseModel):
@@ -150,6 +146,10 @@ class ToolCallSucceededEvent(BaseModel):
     operation: str | None = None
     deleted: bool | None = None
     exists_after: bool | None = None
+    authority_bulletin_passed: bool | None = None
+    authority_bulletin_signer: str | None = None
+    authority_bulletin_destructive_db_delete: bool | None = None
+    authority_bulletin_runbook_action_type: str | None = None
     memory_type: str | None = None
     provenance_trust: str | None = None
     source_artifact_id: str | None = None

@@ -67,6 +67,10 @@ class InMemoryFileTool(FileToolPort):
             return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
         return ReadFileResult(content=content, error_code=None)
 
+    def list_files(self, *, session_id: UUID) -> tuple[str, ...]:
+        session_files = self._files_by_session.get(session_id, {})
+        return tuple(sorted(session_files.keys()))
+
     def write_file(
         self, *, session_id: UUID, path: str, content: str
     ) -> WriteFileResult:

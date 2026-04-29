@@ -45,8 +45,6 @@ async def stream_turn(
         prompt=request.prompt,
         idempotency_key=request.idempotency_key,
         authority_bulletin_passed=request.authority_bulletin_passed,
-        authority_bulletin_signer=request.authority_bulletin_signer,
-        authority_bulletin_destructive_db_delete=request.authority_bulletin_destructive_db_delete,
     )
 
     async def event_stream():

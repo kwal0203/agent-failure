@@ -24,6 +24,7 @@ type UseSessionStreamIngestionParams = {
   setTranscriptEntries: Dispatch<SetStateAction<TranscriptEntry[]>>;
   setMetadata: Dispatch<SetStateAction<SessionMetadata | null>>;
   setAgentStatus: (status: AgentStatus) => void;
+  refreshSessionMetadata: () => Promise<void>;
 };
 
 function formatTraceTitle(eventCode: string, message: string): string {
@@ -115,6 +116,7 @@ export function useSessionStreamIngestion(
         if (message.payload.final) {
           params.setAgentStatus("idle");
           params.finalizePendingRef.current = true;
+          void params.refreshSessionMetadata();
           params.appendTimelineEvent({
             id: `agent-final-${message.timestamp}`,
             timestamp: message.timestamp,
@@ -159,6 +161,9 @@ export function useSessionStreamIngestion(
         ) {
           params.setAgentStatus("active");
           continue;
+        }
+        if (message.payload.event_code === "MODEL_TURN_COMPLETED") {
+          void params.refreshSessionMetadata();
         }
         params.setTranscriptEntries((entries) => [
           ...entries,
@@ -229,5 +234,6 @@ export function useSessionStreamIngestion(
     params.setTranscriptEntries,
     params.setMetadata,
     params.setAgentStatus,
+    params.refreshSessionMetadata,
   ]);
 }

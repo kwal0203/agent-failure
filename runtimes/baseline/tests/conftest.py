@@ -202,6 +202,10 @@ class StubFileTool:
             return ReadFileResult(content=session_files[path], error_code=None)
         return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
 
+    def list_files(self, *, session_id: UUID) -> tuple[str, ...]:
+        session_files = self.files.get(session_id, {})
+        return tuple(sorted(session_files.keys()))
+
     def write_file(
         self, *, session_id: UUID, path: str, content: str
     ) -> WriteFileResult:

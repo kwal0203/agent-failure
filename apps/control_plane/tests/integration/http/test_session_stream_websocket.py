@@ -25,7 +25,11 @@ from apps.contracts.src.schemas import (
     TurnStartedEvent,
 )
 from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
-from apps.control_plane.src.application.runtime.types import RunTurnInput
+from apps.control_plane.src.application.runtime.types import (
+    RunTurnInput,
+    ReadRuntimeFileInput,
+    ReadRuntimeFileOutput,
+)
 from apps.control_plane.src.domain.session_lifecycle.state_machine import SessionState
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
@@ -64,6 +68,15 @@ class _FakeRuntimeClient:
 
     def run_turn_stream(self, input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
         return self._stream_factory(input)
+
+    async def inject_email(self, input: Any) -> None:
+        _ = input
+
+    async def read_runtime_file(
+        self, input: ReadRuntimeFileInput
+    ) -> ReadRuntimeFileOutput:
+        _ = input
+        return ReadRuntimeFileOutput(path="/var/secure/ops_runbook.md", content=None)
 
 
 class _CapturingRuntimeClient(_FakeRuntimeClient):
@@ -521,8 +534,6 @@ def test_lab2_prompt_threads_authority_bulletin_flags_into_runtime_turn_input(
 
     assert len(capturing_client.inputs) == 1
     assert capturing_client.inputs[0].authority_bulletin_passed is True
-    assert capturing_client.inputs[0].authority_bulletin_signer == "Morgan Hale"
-    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is True
 
 
 @pytest.mark.usefixtures("engine")
@@ -561,7 +572,6 @@ def test_lab2_prompt_signer_mismatch_fails_closed_for_authority_bulletin(
 
     assert len(capturing_client.inputs) == 1
     assert capturing_client.inputs[0].authority_bulletin_passed is False
-    assert capturing_client.inputs[0].authority_bulletin_destructive_db_delete is None
 
 
 @pytest.mark.usefixtures("engine")

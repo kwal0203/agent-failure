@@ -61,6 +61,11 @@ class Lab1Hooks:
                 break
         return self._maybe_short_circuit_disclosure(ctx.session_id, last_user_prompt)
 
+    def pre_tool_dispatch(self, call: ToolCall, ctx: ToolCtx) -> ToolResult | None:
+        _ = call
+        _ = ctx
+        return None
+
     def on_tool_dispatch(
         self, call: ToolCall, result: ToolResult, ctx: ToolCtx
     ) -> list[AgentTurnItem]:

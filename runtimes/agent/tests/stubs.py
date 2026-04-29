@@ -57,6 +57,10 @@ class StubFiles(FileToolPort):
             return ReadFileResult(content=None, error_code="not_found")
         return ReadFileResult(content=content)
 
+    def list_files(self, *, session_id: UUID) -> tuple[str, ...]:
+        _ = session_id
+        return tuple(sorted(self._files.keys()))
+
     def write_file(
         self, *, session_id: UUID, path: str, content: str
     ) -> WriteFileResult:

@@ -20,6 +20,7 @@ import type {
 import { API_BASE, AUTH_HEADER, humanizeFeedbackKey } from "../ui";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
+const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
 const LAB_3_MEMORY_POISONING_ID = "33333333-3333-3333-3333-333333333333";
 const LAB2_TELEMETRY_INTERVAL_MS = 20_000;
 const LAB2_TELEMETRY_FEED: ReadonlyArray<{ section: string; message: string }> =
@@ -628,7 +629,9 @@ export function useSessionData({
   useEffect(() => {
     if (!sessionId) return;
     const state = (metadata?.state ?? "").toUpperCase();
-    const isLab2 = metadata?.lab_id === LAB_2_TOOL_MISUSE_ID;
+    const isLab2 =
+      metadata?.lab_id === LAB_2_TOOL_MISUSE_ID ||
+      metadata?.lab_id === AGENT_LAB_2_TOOL_MISUSE_ID;
     if (!isLab2 || (state !== "PROVISIONING" && state !== "ACTIVE")) {
       return;
     }

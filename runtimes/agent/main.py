@@ -100,13 +100,21 @@ class _SessionInboxView:
         items.append(email)
 
 
-def _make_ctx(session_id: UUID, active_tools: list[ToolDef] | None = None) -> ToolCtx:
+def _make_ctx(
+    session_id: UUID,
+    active_tools: list[ToolDef] | None = None,
+    *,
+    lab_id: UUID | None = None,
+    authority_bulletin_passed: bool | None = None,
+) -> ToolCtx:
     return ToolCtx(
         session_id=session_id,
         inbox=_SessionInboxView(session_id),
         files=_FILES,
+        lab_id=lab_id,
         invoice_memory=_INVOICE,
         available_tools=tuple(active_tools or TOOLS),
+        authority_bulletin_passed=authority_bulletin_passed,
     )
 
 
@@ -173,16 +181,8 @@ def _seed_lab(
         isinstance(hooks, Lab2Hooks)
         and request is not None
         and request.authority_bulletin_passed
-        and isinstance(request.authority_bulletin_signer, str)
-        and request.authority_bulletin_signer.strip()
     ):
-        hooks.apply_authority_bulletin(
-            ctx=ctx,
-            signer=request.authority_bulletin_signer.strip(),
-            destructive_db_delete=bool(
-                request.authority_bulletin_destructive_db_delete
-            ),
-        )
+        hooks.apply_authority_bulletin(ctx=ctx, prompt=request.prompt)
 
     return hooks
 
@@ -205,7 +205,12 @@ async def stream_turn(
     lab = load_lab_config(request.lab_id)
     system_prompt = lab.system_prompt if lab is not None else SYSTEM_PROMPT
     active_tools = filter_tools(lab.enabled_tools) if lab is not None else TOOLS
-    ctx = _make_ctx(request.session_id, active_tools)
+    ctx = _make_ctx(
+        request.session_id,
+        active_tools,
+        lab_id=request.lab_id,
+        authority_bulletin_passed=request.authority_bulletin_passed,
+    )
     hooks = _seed_lab(request.lab_id, ctx, request)
 
     async def event_stream() -> AsyncIterator[str]:
@@ -303,6 +308,20 @@ def inject_inbox_email(
     )
     _SessionInboxView(session_id).receive_email(email=inbox_item)
     return {"session_id": str(session_id), "accepted": True}
+
+
+@app.get("/runtime/v1/sessions/{session_id}/files/read", status_code=200)
+def read_runtime_file(
+    session_id: UUID,
+    path: str,
+    _auth: None = Depends(require_internal_auth),
+) -> dict[str, object]:
+    result = _FILES.read_file(session_id=session_id, path=path)
+    return {
+        "session_id": str(session_id),
+        "path": path,
+        "content": result.content,
+    }
 
 
 @app.get("/healthz", status_code=200)

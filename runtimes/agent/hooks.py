@@ -23,6 +23,14 @@ class AgentLabHooks(Protocol):
         """Called before each model call. Return emitted items and optionally short-circuit the turn."""
         ...
 
+    def pre_tool_dispatch(
+        self,
+        call: ToolCall,
+        ctx: ToolCtx,
+    ) -> ToolResult | None:
+        """Called before tool dispatch. Return ToolResult to override execution."""
+        ...
+
     def on_tool_dispatch(
         self,
         call: ToolCall,
@@ -59,6 +67,11 @@ class NullAgentLabHooks:
         _ = ctx
         _ = messages
         return []
+
+    def pre_tool_dispatch(self, call: ToolCall, ctx: ToolCtx) -> ToolResult | None:
+        _ = call
+        _ = ctx
+        return None
 
     def on_tool_dispatch(
         self, call: ToolCall, result: ToolResult, ctx: ToolCtx
