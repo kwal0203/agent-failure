@@ -16,12 +16,6 @@ const featuredLabs = [
       "Use the email attack console to seed malicious instructions and test agent trust boundaries.",
   },
   {
-    name: "RAG Poisoning",
-    status: "Coming Soon",
-    summary:
-      "Explore retrieval contamination paths and grounding failures in memory/tool loops.",
-  },
-  {
     name: "Tool Misuse",
     status: "Coming Soon",
     summary:
