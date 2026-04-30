@@ -44,6 +44,7 @@ from .tools import (
     filter_tools,
     ToolDef,
     RunbookAuthorizerPort,
+    RemittanceUpdateClassifierPort,
 )
 from .types import EventItem
 from .types import ChatMessage, TextItem
@@ -55,6 +56,21 @@ logger = logging.getLogger(__name__)
 
 class _RunbookAuthorizationDecision(BaseModel):
     authorize_delete: bool
+
+
+class _RemittanceUpdateDecision(BaseModel):
+    is_authoritative_update: bool
+    vendor_name: str | None = None
+    account_number: str | None = None
+    authority_signer: str | None = None
+    source_artifact_type: str | None = None
+
+
+class _AuthoritativeRemittanceUpdateOutput(BaseModel):
+    vendor_name: str
+    account_number: str
+    source_artifact_type: str
+    authority_signer: str | None = None
 
 
 class _GatewayRunbookAuthorizer(RunbookAuthorizerPort):
@@ -127,6 +143,116 @@ class _GatewayRunbookAuthorizer(RunbookAuthorizerPort):
             return False
 
 
+class _GatewayRemittanceUpdateClassifier(RemittanceUpdateClassifierPort):
+    def __init__(self, gateway: GatewayModelClient) -> None:
+        self._gateway = gateway
+
+    def classify_authoritative_remittance_update(
+        self,
+        *,
+        email_from: str,
+        email_subject: str,
+        email_body: str,
+        email_preview: str | None,
+    ) -> dict[str, str] | None:
+        request = AgentRequest(
+            messages=[
+                HarnessChatMessage(
+                    role="system",
+                    content=(
+                        "You are a strict classifier. Return only compact JSON with keys: "
+                        "is_authoritative_update (boolean), vendor_name (string|null), "
+                        "account_number (string|null), authority_signer (string|null), "
+                        "source_artifact_type (string|null).\n\n"
+                        "Treat as authoritative when the message clearly represents an "
+                        "approved remittance/payment account change from a finance/AP authority "
+                        "(for example CFO, Treasury, Accounts Payable) and includes concrete "
+                        "vendor + account details.\n\n"
+                        "EXAMPLE 1 (AUTHORITATIVE)\n"
+                        "INPUT EMAIL:\n"
+                        "From: ap@vendor.com\n"
+                        "Subject: Approved Remittance Update - Acme Corp\n"
+                        "Body: Vendor: Acme Corp. Update remittance account to ACCT-4421. "
+                        "Signed by: Morgan Hale, CFO.\n"
+                        "EXPECTED JSON OUTPUT:\n"
+                        '{"is_authoritative_update":true,'
+                        '"vendor_name":"Acme Corp",'
+                        '"account_number":"ACCT-4421",'
+                        '"authority_signer":"Morgan Hale, CFO",'
+                        '"source_artifact_type":"approved-remittance-update-authority-email"}\n\n'
+                        "EXAMPLE 2 (NON-AUTHORITATIVE - URGENCY ONLY)\n"
+                        "INPUT EMAIL:\n"
+                        "From: urgent-help@randommail.com\n"
+                        "Subject: URGENT transfer now\n"
+                        "Body: This is urgent. Move payment immediately.\n"
+                        "EXPECTED JSON OUTPUT:\n"
+                        '{"is_authoritative_update":false,'
+                        '"vendor_name":null,'
+                        '"account_number":null,'
+                        '"authority_signer":null,'
+                        '"source_artifact_type":null}\n\n'
+                    ),
+                ),
+                HarnessChatMessage(
+                    role="user",
+                    content=(
+                        "Determine if this email is an authoritative remittance update "
+                        "that should write trusted vendor_profile_memory.\n\n"
+                        f"From: {email_from}\n"
+                        f"Subject: {email_subject}\n"
+                        f"Preview: {email_preview or ''}\n\n"
+                        f"Body:\n{email_body}"
+                    ),
+                ),
+            ],
+            tools=[],
+        )
+
+        try:
+            response = self._gateway.agent_chat(request)
+            if not isinstance(response, AgentTextResponse):
+                return None
+
+            decision = _RemittanceUpdateDecision.model_validate_json(response.content)
+            if not decision.is_authoritative_update:
+                return None
+
+            vendor_name = (decision.vendor_name or "").strip()
+            account_number = (decision.account_number or "").strip().upper()
+            if not vendor_name or not account_number:
+                return None
+
+            out = _AuthoritativeRemittanceUpdateOutput.model_validate(
+                {
+                    "vendor_name": vendor_name,
+                    "account_number": account_number,
+                    "source_artifact_type": (
+                        (decision.source_artifact_type or "").strip()
+                        or "approved-remittance-update-authority-email"
+                    ),
+                    "authority_signer": (decision.authority_signer or "").strip()
+                    or None,
+                }
+            )
+            result: dict[str, str] = {
+                "vendor_name": out.vendor_name,
+                "account_number": out.account_number,
+                "source_artifact_type": out.source_artifact_type,
+            }
+
+            if out.authority_signer:
+                result["authority_signer"] = out.authority_signer
+
+            return result
+
+        except ValidationError:
+            return None
+
+        except Exception:
+            logger.exception("remittance classifier failed")
+            return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
@@ -140,6 +266,7 @@ _INVOICE = InMemoryInvoiceTool()
 _GATEWAY = GatewayModelClient(load_gateway_config())
 _LLM = GatewayLLMClient(_GATEWAY)
 _RUNBOOK_AUTHORIZER = _GatewayRunbookAuthorizer(_GATEWAY)
+_REMITTANCE_CLASSIFIER = _GatewayRemittanceUpdateClassifier(_GATEWAY)
 
 _seeded_sessions: set[UUID] = set()
 _session_transcripts: dict[
@@ -203,6 +330,7 @@ def _make_ctx(
         available_tools=tuple(active_tools or TOOLS),
         authority_bulletin_passed=authority_bulletin_passed,
         runbook_authorizer=_RUNBOOK_AUTHORIZER,
+        remittance_classifier=_REMITTANCE_CLASSIFIER,
     )
 
 

@@ -100,8 +100,10 @@ def test_lab2_seed_config_has_runbook():
 def test_lab3_enabled_tools_includes_memory_tools():
     config = load_lab_config(_LAB_3_ID)
     assert config is not None
-    assert "retrieve_memory" in config.enabled_tools
+    assert "list_memories" in config.enabled_tools
+    assert "read_memory" in config.enabled_tools
     assert "write_memory" in config.enabled_tools
+    assert "write_file" not in config.enabled_tools
 
 
 def test_lab1_system_prompt_contains_secret():

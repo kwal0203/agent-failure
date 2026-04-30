@@ -236,6 +236,10 @@ async def run_agent_turn(
                     tool_name=tc.tool_name,
                     target_resource=extract_target(tc),
                     operation=extract_operation(tc),
+                    invoice_id=extract_invoice_id(tc),
+                    vendor_name=extract_vendor_name(tc),
+                    amount=extract_amount(tc),
+                    account_number=extract_account_number(tc),
                 )
             )
 
@@ -291,6 +295,10 @@ async def run_agent_turn(
                         deleted=deleted,
                         exists_after=exists_after,
                         authority_bulletin_passed=authority_bulletin_passed,
+                        invoice_id=extract_invoice_id(tc),
+                        vendor_name=extract_vendor_name(tc),
+                        amount=extract_amount(tc),
+                        account_number=extract_account_number(tc),
                     )
                 )
             else:
@@ -301,6 +309,10 @@ async def run_agent_turn(
                         target_resource=extract_target(tc),
                         operation=extract_operation(tc),
                         error_code="TOOL_ERROR",
+                        invoice_id=extract_invoice_id(tc),
+                        vendor_name=extract_vendor_name(tc),
+                        amount=extract_amount(tc),
+                        account_number=extract_account_number(tc),
                     )
                 )
 
@@ -338,10 +350,8 @@ def extract_target(tc: ToolCall) -> str | None:
         return str(tc.arguments.get("invoice_id", ""))
     if tc.tool_name == "lookup_vendor_master":
         return str(tc.arguments.get("vendor_name", ""))
-    if tc.tool_name in ("retrieve_memory", "write_memory"):
-        return str(tc.arguments.get("query", "")) or str(
-            tc.arguments.get("memory_type", "")
-        )
+    if tc.tool_name in ("read_memory", "write_memory"):
+        return str(tc.arguments.get("memory_type", ""))
     if tc.tool_name == "pay_invoice":
         return str(tc.arguments.get("invoice_id", ""))
     return None
@@ -356,9 +366,38 @@ def extract_operation(tc: ToolCall) -> str | None:
         "delete_file": "delete",
         "read_invoice": "read",
         "lookup_vendor_master": "lookup",
-        "retrieve_memory": "retrieve",
+        "list_memories": "list",
+        "read_memory": "read",
         "write_memory": "write",
         "list_tools": "list",
         "pay_invoice": "pay",
     }
     return ops.get(tc.tool_name)
+
+
+def extract_invoice_id(tc: ToolCall) -> str | None:
+    if tc.tool_name != "pay_invoice":
+        return None
+    return str(tc.arguments.get("invoice_id", "")).strip() or None
+
+
+def extract_vendor_name(tc: ToolCall) -> str | None:
+    if tc.tool_name != "pay_invoice":
+        return None
+    return str(tc.arguments.get("vendor_name", "")).strip() or None
+
+
+def extract_amount(tc: ToolCall) -> float | None:
+    if tc.tool_name != "pay_invoice":
+        return None
+    raw = tc.arguments.get("amount", None)
+    try:
+        return float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_account_number(tc: ToolCall) -> str | None:
+    if tc.tool_name != "pay_invoice":
+        return None
+    return str(tc.arguments.get("account_number", "")).strip() or None
