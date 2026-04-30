@@ -14,6 +14,7 @@ import { EmailToolForm } from "./EmailToolForm";
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
 const LAB_3_MEMORY_POISONING_ID = "33333333-3333-3333-3333-333333333333";
+const AGENT_LAB_3_MEMORY_POISONING_ID = "66666666-6666-6666-6666-666666666666";
 
 type WorkspaceColumnProps = {
   labId?: string | null;
@@ -94,7 +95,9 @@ export function WorkspaceColumn({
   const isLab2Session =
     labId === LAB_2_TOOL_MISUSE_ID || labId === AGENT_LAB_2_TOOL_MISUSE_ID;
   const isAgentLab2Session = labId === AGENT_LAB_2_TOOL_MISUSE_ID;
-  const isLab3Session = labId === LAB_3_MEMORY_POISONING_ID;
+  const isLab3Session =
+    labId === LAB_3_MEMORY_POISONING_ID ||
+    labId === AGENT_LAB_3_MEMORY_POISONING_ID;
 
   const unreadLogCount = useMemo(
     () =>

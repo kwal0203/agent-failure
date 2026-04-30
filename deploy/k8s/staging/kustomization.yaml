@@ -13,4 +13,4 @@ resources:
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:149b2dd11e1c9ad1244c9e6678095c525e2a1c81eb8e941ca47c0c72021ffe78
+    digest: sha256:757dae257309c1e335da1b6e832f8193e202d3d4d0d02c0df96955b8a476831e

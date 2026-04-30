@@ -146,6 +146,18 @@ def test_resolve_bundle_selects_memory_poisoning_bundle_for_lab3() -> None:
     assert bundle.name == "memory_poisoning_v1"
 
 
+def test_resolve_bundle_selects_memory_poisoning_bundle_for_agent_lab3() -> None:
+    binding = EvaluatorLabRuntimeBinding(
+        lab_slug="agent-memory-poisoning", lab_version="v1"
+    )
+    task = _task(lab_difficulty="medium", evaluator_version=1)
+
+    bundle = resolve_bundle(binding=binding, task=task)
+
+    assert bundle is MEMORY_POISONING_V1_BUNDLE
+    assert bundle.name == "memory_poisoning_v1"
+
+
 @pytest.mark.parametrize(
     ("binding", "task"),
     [

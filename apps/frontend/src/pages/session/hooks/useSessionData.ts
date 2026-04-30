@@ -21,7 +21,6 @@ import { API_BASE, AUTH_HEADER, humanizeFeedbackKey } from "../ui";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
-const LAB_3_MEMORY_POISONING_ID = "33333333-3333-3333-3333-333333333333";
 const LAB2_TELEMETRY_INTERVAL_MS = 20_000;
 const LAB2_TELEMETRY_FEED: ReadonlyArray<{ section: string; message: string }> =
   [
@@ -42,55 +41,6 @@ const LAB2_TELEMETRY_FEED: ReadonlyArray<{ section: string; message: string }> =
       message: "ERROR: Elevated API error rate (payments-api)",
     },
   ];
-const LAB3_INVOICE_INTERVAL_MS = 20_000;
-const LAB3_INVOICE_SEED: ReadonlyArray<{
-  invoice_id: string;
-  vendor_name: string;
-  amount: number;
-  currency: string;
-}> = [];
-const LAB3_COMPANY_PREFIXES: ReadonlyArray<string> = [
-  "Apex",
-  "Beacon",
-  "Cobalt",
-  "Delta",
-  "Evergreen",
-  "Falcon",
-  "Granite",
-  "Harbor",
-  "Ironwood",
-  "Juniper",
-];
-const LAB3_COMPANY_SUFFIXES: ReadonlyArray<string> = [
-  "Analytics",
-  "Bioworks",
-  "Capital",
-  "Dynamics",
-  "Enterprises",
-  "Fabrication",
-  "Group",
-  "Holdings",
-  "Logistics",
-  "Systems",
-];
-const LAB3_FAKE_COMPANIES: ReadonlyArray<{
-  slug: string;
-  vendor_name: string;
-  base_amount: number;
-  currency: string;
-}> = LAB3_COMPANY_PREFIXES.flatMap((prefix, prefixIndex) =>
-  LAB3_COMPANY_SUFFIXES.map((suffix, suffixIndex) => {
-    const vendorName = `${prefix} ${suffix}`;
-    const slug = vendorName.toLowerCase().replace(/\s+/g, "-");
-    const listIndex = prefixIndex * LAB3_COMPANY_SUFFIXES.length + suffixIndex;
-    return {
-      slug,
-      vendor_name: vendorName,
-      base_amount: 7400 + listIndex * 185.4,
-      currency: "USD",
-    };
-  }),
-);
 
 type UseSessionDataParams = {
   sessionId?: string;
@@ -366,7 +316,6 @@ export function useSessionData({
   const seenTelemetryLogIdsRef = useRef(new Set<string>());
   const seenInvoiceIdsRef = useRef(new Set<string>());
   const lab2TelemetryCursorRef = useRef(0);
-  const lab3InvoiceCursorRef = useRef(0);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [telemetryLogs, setTelemetryLogs] = useState<SessionTelemetryLog[]>([]);
   const [invoices, setInvoices] = useState<SessionInvoice[]>([]);
@@ -513,6 +462,33 @@ export function useSessionData({
             message: `ERROR: Recovery artifact missing (${targetResource})`,
           });
         }
+        const isQualifyingLab3InvoiceFeed =
+          event.event_type === "TOOL_CALL_SUCCEEDED" &&
+          payload.tool_name === "read_invoice" &&
+          payload.qualifying_log === true &&
+          payload.log_case === "incoming_invoice_feed";
+        if (isQualifyingLab3InvoiceFeed) {
+          const payloadInvoiceId =
+            typeof payload.invoice_id === "string" ? payload.invoice_id : null;
+          const payloadVendorName =
+            typeof payload.vendor_name === "string"
+              ? payload.vendor_name
+              : null;
+          const payloadAmount =
+            typeof payload.amount === "number" ? payload.amount : null;
+          if (payloadInvoiceId && payloadVendorName && payloadAmount !== null) {
+            appendInvoice({
+              id: `trace-invoice-${event.id}`,
+              invoice_id: payloadInvoiceId,
+              vendor_name: payloadVendorName,
+              amount: payloadAmount,
+              currency: "USD",
+              created_at: event.occurred_at,
+              handled_by: null,
+              handled_at: null,
+            });
+          }
+        }
         const timelineEvent = mapPersistedTraceToTimelineEvent(event);
         if (timelineEvent) {
           appendTimelineEvent(timelineEvent);
@@ -545,7 +521,13 @@ export function useSessionData({
     } catch {
       return;
     }
-  }, [appendTelemetryLog, appendTimelineEvent, markInvoiceHandled, sessionId]);
+  }, [
+    appendInvoice,
+    appendTelemetryLog,
+    appendTimelineEvent,
+    markInvoiceHandled,
+    sessionId,
+  ]);
 
   const registerLearnerFeedbackEvents = useCallback(
     (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
@@ -620,7 +602,6 @@ export function useSessionData({
     seenInvoiceIdsRef.current.clear();
     seenFeedbackKeysRef.current.clear();
     lab2TelemetryCursorRef.current = 0;
-    lab3InvoiceCursorRef.current = 0;
     setMetadataReady(false);
     void refreshSessionMetadata();
     void refreshTraceTimeline();
@@ -664,69 +645,6 @@ export function useSessionData({
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
   }, [appendTelemetryLog, metadata?.lab_id, metadata?.state, sessionId]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const state = (metadata?.state ?? "").toUpperCase();
-    const isLab3 = metadata?.lab_id === LAB_3_MEMORY_POISONING_ID;
-    if (!isLab3 || (state !== "PROVISIONING" && state !== "ACTIVE")) {
-      return;
-    }
-
-    let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const tick = () => {
-      if (cancelled) return;
-      const cursor = lab3InvoiceCursorRef.current;
-      let item: {
-        invoice_id: string;
-        vendor_name: string;
-        amount: number;
-        currency: string;
-      };
-      if (cursor < LAB3_INVOICE_SEED.length) {
-        item = LAB3_INVOICE_SEED[cursor];
-      } else {
-        const sequence = cursor - LAB3_INVOICE_SEED.length;
-        const randomVendorIndex = Math.floor(
-          Math.random() * LAB3_FAKE_COMPANIES.length,
-        );
-        const vendor = LAB3_FAKE_COMPANIES[randomVendorIndex];
-        const variation = (Math.random() - 0.5) * 2600;
-        const amount = Math.max(
-          100,
-          Math.round((vendor.base_amount + variation) * 100) / 100,
-        );
-        item = {
-          invoice_id: `inv-${vendor.slug}-2026-${String(sequence + 41).padStart(3, "0")}`,
-          vendor_name: vendor.vendor_name,
-          amount,
-          currency: vendor.currency,
-        };
-      }
-      const now = new Date().toISOString();
-      appendInvoice({
-        id: `lab3-invoice-${sessionId}-${cursor}`,
-        invoice_id: item.invoice_id,
-        vendor_name: item.vendor_name,
-        amount: item.amount,
-        currency: item.currency,
-        created_at: now,
-        handled_by: null,
-        handled_at: null,
-      });
-      lab3InvoiceCursorRef.current += 1;
-      timeoutId = window.setTimeout(tick, LAB3_INVOICE_INTERVAL_MS);
-    };
-
-    timeoutId = window.setTimeout(tick, LAB3_INVOICE_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-    };
-  }, [appendInvoice, metadata?.lab_id, metadata?.state, sessionId]);
 
   // Poll metadata while provisioning/active so session transitions and timed hint unlocks
   // are reflected even if evaluator feedback polling is delayed or unavailable.

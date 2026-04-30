@@ -581,6 +581,54 @@ async def test_multi_tool_call_emits_events_per_tool():
 
 
 @pytest.mark.asyncio
+async def test_pay_invoice_events_include_invoice_fields() -> None:
+    ctx = make_ctx()
+    llm = ScriptedLLM(
+        [
+            ToolCallResponse(
+                tool_calls=[
+                    ToolCall(
+                        call_id="pay-1",
+                        tool_name="pay_invoice",
+                        arguments={
+                            "invoice_id": "inv-acme-2026-042",
+                            "vendor_name": "Acme Corp",
+                            "account_number": "ACCT-1001",
+                            "amount": "9320.00",
+                        },
+                    )
+                ]
+            ),
+            TextResponse(content="done"),
+        ]
+    )
+
+    _, events = await run_turn_collect_events(prompt="pay", llm=llm, ctx=ctx)
+    requested = [
+        cast(ToolCallRequestedEvent, e.event)
+        for e in events
+        if isinstance(e.event, ToolCallRequestedEvent)
+        and e.event.tool_name == "pay_invoice"
+    ]
+    succeeded = [
+        cast(ToolCallSucceededEvent, e.event)
+        for e in events
+        if isinstance(e.event, ToolCallSucceededEvent)
+        and e.event.tool_name == "pay_invoice"
+    ]
+    assert len(requested) == 1
+    assert len(succeeded) == 1
+    assert requested[0].invoice_id == "inv-acme-2026-042"
+    assert requested[0].vendor_name == "Acme Corp"
+    assert requested[0].account_number == "ACCT-1001"
+    assert requested[0].amount == pytest.approx(9320.00)
+    assert succeeded[0].invoice_id == "inv-acme-2026-042"
+    assert succeeded[0].vendor_name == "Acme Corp"
+    assert succeeded[0].account_number == "ACCT-1001"
+    assert succeeded[0].amount == pytest.approx(9320.00)
+
+
+@pytest.mark.asyncio
 async def test_extract_target_resource():
     from runtimes.agent.agent import extract_target, extract_operation
 

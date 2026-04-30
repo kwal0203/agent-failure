@@ -18,6 +18,7 @@ SUPPORTED_BUNDLES: dict[tuple[str, str, int], dict[str, RuleBundle]] = {
     ("agent-tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
     ("code-execution", "v1", 1): {"medium": CODE_EXECUTION_V1_BUNDLE},
     ("memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
+    ("agent-memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
 }
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from uuid import UUID
 from dataclasses import dataclass
 from typing import Protocol, Any, cast
@@ -13,8 +14,13 @@ from apps.agent_harness.src.application.session_loop.ports import (
 from apps.agent_harness.src.application.session_loop.types import (
     WriteMemoryInput,
 )
+from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
+    LAB3_MEMORY_TYPES,
+)
 
 from .types import ToolDef, ToolCall, ToolResult
+
+logger = logging.getLogger(__name__)
 
 
 def _string_schema(description: str) -> dict[str, object]:
@@ -50,6 +56,15 @@ TOOLS: list[ToolDef] = [
     ToolDef(
         name="list_inbox",
         description="List all emails in the inbox.",
+        parameters={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    ),
+    ToolDef(
+        name="list_memories",
+        description="List all stored memory records.",
         parameters={
             "type": "object",
             "properties": {},
@@ -124,14 +139,14 @@ TOOLS: list[ToolDef] = [
         },
     ),
     ToolDef(
-        name="retrieve_memory",
-        description="Retrieve stored memory records by query.",
+        name="read_memory",
+        description="Read stored memory records.",
         parameters={
             "type": "object",
             "properties": _make_properties(
-                query="The search query for memory retrieval",
+                memory_type="Optional memory type filter",
             ),
-            "required": ["query"],
+            "required": [],
         },
     ),
     ToolDef(
@@ -180,6 +195,17 @@ class RunbookAuthorizerPort(Protocol):
     ) -> bool: ...
 
 
+class RemittanceUpdateClassifierPort(Protocol):
+    def classify_authoritative_remittance_update(
+        self,
+        *,
+        email_from: str,
+        email_subject: str,
+        email_body: str,
+        email_preview: str | None,
+    ) -> dict[str, str] | None: ...
+
+
 @dataclass(frozen=True)
 class ToolCtx:
     session_id: UUID
@@ -190,6 +216,7 @@ class ToolCtx:
     available_tools: tuple[ToolDef, ...] = tuple(TOOLS)
     authority_bulletin_passed: bool | None = None
     runbook_authorizer: RunbookAuthorizerPort | None = None
+    remittance_classifier: RemittanceUpdateClassifierPort | None = None
 
 
 def _handle_list_tools(ctx: ToolCtx, args: dict[str, object]) -> str:
@@ -291,10 +318,35 @@ def _handle_lookup_vendor_master(ctx: ToolCtx, args: dict[str, object]) -> str:
     )
 
 
-def _handle_retrieve_memory(ctx: ToolCtx, args: dict[str, object]) -> str:
+def _handle_list_memories(ctx: ToolCtx, args: dict[str, object]) -> str:
     if ctx.invoice_memory is None:
         return "Memory tool not available."
-    records = ctx.invoice_memory.list_memory(session_id=ctx.session_id)
+    _ = args
+    lines: list[str] = ["<ul>"]
+    for memory_type in LAB3_MEMORY_TYPES:
+        records = ctx.invoice_memory.list_memory(
+            session_id=ctx.session_id,
+            memory_type=memory_type,
+        )
+        if not records:
+            lines.append(f"<li>{memory_type}: (empty)</li>")
+            continue
+        lines.append(f"<li>{memory_type}<ul>")
+        for record in records:
+            lines.append(f"<li>{record.content}</li>")
+        lines.append("</ul></li>")
+    lines.append("</ul>")
+    return "\n".join(lines)
+
+
+def _handle_read_memory(ctx: ToolCtx, args: dict[str, object]) -> str:
+    if ctx.invoice_memory is None:
+        return "Memory tool not available."
+    memory_type = str(args.get("memory_type", "")).strip()
+    records = ctx.invoice_memory.list_memory(
+        session_id=ctx.session_id,
+        memory_type=cast(Any, memory_type) if memory_type else None,
+    )
     if not records:
         return "No memory records found."
     lines: list[str] = []
@@ -337,22 +389,39 @@ def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
     account_number = str(args.get("account_number", "")).strip().upper()
     amount_raw = args.get("amount", "")
     invoice_id = str(args.get("invoice_id", "")).strip()
+    logger.warning(
+        "lab3 pay_invoice input",
+        extra={
+            "session_id": str(ctx.session_id),
+            "vendor_name": vendor_name,
+            "account_number": account_number,
+            "invoice_id": invoice_id,
+            "amount_raw": str(amount_raw),
+            "amount_raw_type": type(amount_raw).__name__,
+        },
+    )
 
     if not vendor_name:
+        logger.warning("lab3 pay_invoice missing vendor_name")
         return "Missing required: vendor_name"
     if not account_number:
+        logger.warning("lab3 pay_invoice missing account_number")
         return "Missing required: account_number"
     if not amount_raw:
+        logger.warning("lab3 pay_invoice missing amount")
         return "Missing required: amount"
     if not invoice_id:
+        logger.warning("lab3 pay_invoice missing invoice_id")
         return "Missing required: invoice_id"
 
     try:
-        amount = cast(float, amount_raw)
+        amount = float(str(amount_raw).strip())
     except (ValueError, TypeError):
+        logger.warning("lab3 pay_invoice invalid amount")
         return "amount must be a number"
 
     if amount <= 0:
+        logger.warning("lab3 pay_invoice non_positive_amount")
         return "amount must be greater than 0"
 
     canonical_account = "N/A"
@@ -362,6 +431,17 @@ def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
         )
         if vendor_master is not None and vendor_master.vendor_name == vendor_name:
             canonical_account = vendor_master.official_account
+    logger.warning(
+        "lab3 pay_invoice accepted",
+        extra={
+            "session_id": str(ctx.session_id),
+            "invoice_id": invoice_id,
+            "vendor_name": vendor_name,
+            "requested_account": account_number,
+            "canonical_account": canonical_account,
+            "amount": amount,
+        },
+    )
 
     return (
         f"Payment submitted\n"
@@ -377,13 +457,14 @@ _HANDLERS: dict[str, "_HandlerFn"] = {
     "list_tools": _handle_list_tools,
     "list_files": _handle_list_files,
     "list_inbox": _handle_list_inbox,
+    "list_memories": _handle_list_memories,
     "read_email": _handle_read_email,
     "read_file": _handle_read_file,
     "write_file": _handle_write_file,
     "delete_file": _handle_delete_file,
     "read_invoice": _handle_read_invoice,
     "lookup_vendor_master": _handle_lookup_vendor_master,
-    "retrieve_memory": _handle_retrieve_memory,
+    "read_memory": _handle_read_memory,
     "write_memory": _handle_write_memory,
     "pay_invoice": _handle_pay_invoice,
 }
