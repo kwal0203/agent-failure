@@ -74,8 +74,8 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
 - Files:
   - `apps/agent_harness/src/infrastructure/lab_context/local_v1.py`
   - `apps/agent_harness/src/interfaces/runtime/dependencies.py` (if needed for injection)
-  - `runtimes/baseline/service.py` (only if turn/event payload wiring needs tier visibility)
-  - `runtimes/baseline/labs/prompt_injection.py` (or new tier config module)
+  - `archive/runtimes/baseline/service.py` (only if turn/event payload wiring needs tier visibility)
+  - `archive/runtimes/baseline/labs/prompt_injection.py` (or new tier config module)
 - Acceptance criteria:
   - Easy and Medium produce different system prompt behavior.
   - Chat and inbox UX/API contracts unchanged.
@@ -123,7 +123,7 @@ Implement tier-aware session/runtime/evaluator wiring while keeping attacker con
   - `apps/control_plane/tests/integration/http/test_create_session.py`
   - `apps/control_plane/tests/application/orchestrator/test_orchestrator_service.py`
   - `apps/control_plane/tests/infrastructure/orchestrator/test_k8s_provisioner_manifest.py`
-  - `runtimes/baseline/tests/test_runtime_stream_endpoint.py`
+  - `archive/runtimes/baseline/tests/test_runtime_stream_endpoint.py`
   - `apps/evaluator/tests/test_evaluator_worker.py`
   - `apps/evaluator/tests/test_prompt_injection_rules_and_registry.py`
 - Acceptance criteria:

@@ -290,7 +290,7 @@ Implemented a scriptable runtime image pipeline for the initial supported V1 lab
 
 - Runtime image build automation:
   - `scripts/build_runtime_image.sh`
-  - builds `runtimes/baseline/Dockerfile`
+  - builds `archive/runtimes/baseline/Dockerfile`
   - tags image with both release and source tags:
     - `v1-baseline-<lab_version>`
     - `sha-<git_sha>`
