@@ -12,12 +12,9 @@ from .labs.memory_poisoning_v1 import MEMORY_POISONING_V1_BUNDLE
 
 
 SUPPORTED_BUNDLES: dict[tuple[str, str, int], dict[str, RuleBundle]] = {
-    ("prompt-injection", "v1", 1): PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
     ("agent-prompt-injection", "v1", 1): PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
-    ("tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
     ("agent-tool-misuse", "v1", 1): {"medium": TOOL_MISUSE_V1_BUNDLE},
     ("code-execution", "v1", 1): {"medium": CODE_EXECUTION_V1_BUNDLE},
-    ("memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
     ("agent-memory-poisoning", "v1", 1): {"medium": MEMORY_POISONING_V1_BUNDLE},
 }
 

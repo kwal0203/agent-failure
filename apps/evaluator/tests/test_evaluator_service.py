@@ -150,7 +150,7 @@ class _StubLab1LookupRepo:
     ) -> EvaluatorLabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return EvaluatorLabRuntimeBinding(
-            lab_slug="prompt-injection",
+            lab_slug="agent-prompt-injection",
             lab_version="v1",
         )
 

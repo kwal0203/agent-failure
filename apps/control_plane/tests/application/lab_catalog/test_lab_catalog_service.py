@@ -28,7 +28,7 @@ class StubLabRepository:
         self, lab_id: UUID, lab_version_id: UUID
     ) -> LabRuntimeBinding:
         _ = (lab_id, lab_version_id)
-        return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+        return LabRuntimeBinding(lab_slug="agent-prompt-injection", lab_version="v1")
 
     def get_active_version_id(self, lab_id: UUID) -> UUID | None:
         _ = lab_id
@@ -40,17 +40,17 @@ def test_get_labs_for_principal_returns_mapped_catalog() -> None:
     rows = [
         GetLabCatalogRow(
             lab_id=first_id,
-            slug="prompt-injection",
-            name="Prompt Injection",
-            summary="Prompt injection lab",
+            slug="agent-prompt-injection",
+            name="Indirect Prompt Injection",
+            summary="Agent prompt injection lab",
             supports_resume=False,
             supports_uploads=False,
         ),
         GetLabCatalogRow(
             lab_id=uuid4(),
-            slug="tool-misuse",
+            slug="agent-tool-misuse",
             name="Tool Misuse",
-            summary="Tool misuse lab",
+            summary="Agent tool misuse lab",
             supports_resume=True,
             supports_uploads=False,
         ),
@@ -62,7 +62,7 @@ def test_get_labs_for_principal_returns_mapped_catalog() -> None:
 
     assert len(result.labs) == 2
     assert result.labs[0].lab_id == first_id
-    assert result.labs[0].slug == "prompt-injection"
+    assert result.labs[0].slug == "agent-prompt-injection"
     assert result.labs[0].capabilities.supports_resume is False
     assert result.labs[1].capabilities.supports_resume is True
 

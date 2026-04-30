@@ -30,7 +30,6 @@ from apps.evaluator.src.application.types import (
 )
 
 DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
-LAB1_SUPPORTED_TUPLE = ("prompt-injection", "v1", 1)
 LAB1_AGENT_SUPPORTED_TUPLE = ("agent-prompt-injection", "v1", 1)
 
 
@@ -79,35 +78,16 @@ def _event(
 
 
 def _prompt_injection_binding() -> EvaluatorLabRuntimeBinding:
-    lab_slug, lab_version, _ = LAB1_SUPPORTED_TUPLE
-    return EvaluatorLabRuntimeBinding(lab_slug=lab_slug, lab_version=lab_version)
-
-
-def _agent_prompt_injection_binding() -> EvaluatorLabRuntimeBinding:
     lab_slug, lab_version, _ = LAB1_AGENT_SUPPORTED_TUPLE
     return EvaluatorLabRuntimeBinding(lab_slug=lab_slug, lab_version=lab_version)
-
-
-def test_registry_includes_lab1_prompt_injection_v1_tuple() -> None:
-    assert LAB1_SUPPORTED_TUPLE in SUPPORTED_BUNDLES
 
 
 def test_registry_includes_agent_lab1_prompt_injection_v1_tuple() -> None:
     assert LAB1_AGENT_SUPPORTED_TUPLE in SUPPORTED_BUNDLES
 
 
-def test_resolve_bundle_selects_easy_bundle_for_easy_task() -> None:
-    binding = _prompt_injection_binding()
-    task = _task(lab_difficulty="easy")
-
-    bundle = resolve_bundle(binding=binding, task=task)
-
-    assert bundle is PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["easy"]
-    assert bundle.lab_difficulty == "easy"
-
-
 def test_resolve_bundle_selects_easy_bundle_for_agent_lab1_easy_task() -> None:
-    binding = _agent_prompt_injection_binding()
+    binding = _prompt_injection_binding()
     task = _task(lab_difficulty="easy")
 
     bundle = resolve_bundle(binding=binding, task=task)
@@ -134,16 +114,6 @@ def test_resolve_bundle_falls_back_to_medium_for_unknown_difficulty() -> None:
 
     assert bundle is PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
     assert bundle.lab_difficulty == "medium"
-
-
-def test_resolve_bundle_selects_memory_poisoning_bundle_for_lab3() -> None:
-    binding = EvaluatorLabRuntimeBinding(lab_slug="memory-poisoning", lab_version="v1")
-    task = _task(lab_difficulty="medium", evaluator_version=1)
-
-    bundle = resolve_bundle(binding=binding, task=task)
-
-    assert bundle is MEMORY_POISONING_V1_BUNDLE
-    assert bundle.name == "memory_poisoning_v1"
 
 
 def test_resolve_bundle_selects_memory_poisoning_bundle_for_agent_lab3() -> None:

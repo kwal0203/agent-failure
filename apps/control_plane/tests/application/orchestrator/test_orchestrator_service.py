@@ -127,7 +127,7 @@ class _FakeLabRepository:
         self, lab_id: UUID, lab_version_id: UUID
     ) -> LabRuntimeBinding:
         _ = (lab_id, lab_version_id)
-        return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+        return LabRuntimeBinding(lab_slug="agent-prompt-injection", lab_version="v1")
 
     def get_active_version_id(self, lab_id: UUID) -> UUID | None:
         _ = lab_id
