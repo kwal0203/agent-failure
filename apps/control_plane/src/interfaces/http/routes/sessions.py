@@ -125,10 +125,7 @@ from apps.control_plane.src.interfaces.http.errors import (
     internal_error,
     session_not_found,
 )
-from apps.control_plane.src.interfaces.http.helpers import (
-    build_api_error_response,
-    build_trace_event,
-)
+from apps.control_plane.src.interfaces.http.helpers import build_trace_event
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
@@ -193,11 +190,11 @@ def create_session_endpoint(
 ) -> CreateSessionResponse | JSONResponse | None:
     key = idempotency_key.strip()
     if not key or len(key) > 128:
-        return build_api_error_response(
-            "INVALID_IDEMPOTENCY_KEY",
-            "Valid Idempotency-Key header is required",
-            False,
-            400,
+        return api_error(
+            code="INVALID_IDEMPOTENCY_KEY",
+            message="Valid Idempotency-Key header is required",
+            retryable=False,
+            status_code=400,
         )
 
     application_principal = PrincipalContext(
@@ -246,8 +243,12 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "LAB_NOT_AVAILABLE", exc.message, False, 404, exc.details
+        return api_error(
+            code="LAB_NOT_AVAILABLE",
+            message=exc.message,
+            retryable=False,
+            status_code=404,
+            details=exc.details,
         )
     except QuotaExceededError as exc:
         _exception_log_helper(
@@ -257,15 +258,23 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "QUOTA_EXCEEDED", exc.message, False, 429, exc.details
+        return api_error(
+            code="QUOTA_EXCEEDED",
+            message=exc.message,
+            retryable=False,
+            status_code=429,
+            details=exc.details,
         )
     except RateLimitedError as exc:
         _exception_log_helper(
             "rate_limited", "create_session_denied", "RATE_LIMITED", request, principal
         )
-        return build_api_error_response(
-            "RATE_LIMITED", exc.message, False, 429, exc.details
+        return api_error(
+            code="RATE_LIMITED",
+            message=exc.message,
+            retryable=False,
+            status_code=429,
+            details=exc.details,
         )
     except DegradedModeRestrictionError as exc:
         _exception_log_helper(
@@ -275,8 +284,12 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "DEGRADED_MODE_RESTRICTION", exc.message, False, 503, exc.details
+        return api_error(
+            code="DEGRADED_MODE_RESTRICTION",
+            message=exc.message,
+            retryable=False,
+            status_code=503,
+            details=exc.details,
         )
     except InvalidIdempotencyKeyError as exc:
         _exception_log_helper(
@@ -286,16 +299,18 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "INVALID_IDEMPOTENCY_KEY", exc.message, False, 400, exc.details
+        return api_error(
+            code="INVALID_IDEMPOTENCY_KEY",
+            message=exc.message,
+            retryable=False,
+            status_code=400,
+            details=exc.details,
         )
     except ForbiddenError as exc:
         _exception_log_helper(
             "forbidden", "create_session_denied", "FORBIDDEN", request, principal
         )
-        return build_api_error_response(
-            "FORBIDDEN", exc.message, False, 403, exc.details
-        )
+        return forbidden(exc.message, exc.details)
     except AdmissionDecisionError as exc:
         _exception_log_helper(
             "admission_denied",
@@ -304,8 +319,12 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "ADMISSION_DENIED", exc.message, False, 400, exc.details
+        return api_error(
+            code="ADMISSION_DENIED",
+            message=exc.message,
+            retryable=False,
+            status_code=400,
+            details=exc.details,
         )
     except InvalidLabDifficulty as exc:
         _exception_log_helper(
@@ -315,8 +334,12 @@ def create_session_endpoint(
             request,
             principal,
         )
-        return build_api_error_response(
-            "INVALID_LAB_DIFFICULTY", exc.message, False, 400, exc.details
+        return api_error(
+            code="INVALID_LAB_DIFFICULTY",
+            message=exc.message,
+            retryable=False,
+            status_code=400,
+            details=exc.details,
         )
     except Exception:
         safe_idempo = f"{key[:8]}..." if key else None
@@ -331,9 +354,7 @@ def create_session_endpoint(
             },
         )
 
-        return build_api_error_response(
-            "INTERNAL_ERROR", "unexpected server error", False, 500, None
-        )
+        return internal_error()
 
 
 @router.post(
@@ -613,16 +634,10 @@ async def inject_session_email(
         )
 
         if session_metadata is None:
-            return build_api_error_response(
-                "SESSION_NOT_FOUND",
-                "Session not found",
-                False,
-                404,
-                {"session_id": str(session_id)},
-            )
+            return session_not_found(str(session_id))
 
         if not session_metadata.interactive:
-            return build_api_error_response(
+            return api_error(
                 code="SESSION_NOT_INTERACTIVE",
                 message="Session is not interactive",
                 retryable=True,
@@ -648,7 +663,7 @@ async def inject_session_email(
                     "lab_difficulty": session_metadata.lab_difficulty,
                 },
             )
-            return build_api_error_response(
+            return api_error(
                 code="RUNTIME_NOT_READY",
                 message=f"Runtime not ready (status={current_status})",
                 retryable=True,
@@ -776,13 +791,11 @@ async def inject_session_email(
         return InjectSessionEmailResponse(session_id=session_id)
 
     except ForbiddenErrorSessionQuery as exc:
-        return build_api_error_response(
-            "FORBIDDEN", exc.message, False, 403, exc.details
-        )
+        return forbidden(exc.message, exc.details)
 
     except RuntimeClientError as exc:
         db.rollback()
-        return build_api_error_response(
+        return api_error(
             code=exc.code,
             message=exc.message,
             retryable=exc.retryable,
@@ -791,7 +804,7 @@ async def inject_session_email(
         )
     except RuntimeError as exc:
         db.rollback()
-        return build_api_error_response(
+        return api_error(
             code="EMAIL_CLASSIFICATION_FAILED",
             message=str(exc),
             retryable=True,
@@ -801,12 +814,8 @@ async def inject_session_email(
     except Exception:
         db.rollback()
         logger.exception("inject session email failed")
-        return build_api_error_response(
-            code="INTERNAL_ERROR",
-            message="Unexpected server error",
-            retryable=False,
-            status_code=500,
-            details={"session_id": str(session_id)},
+        return internal_error(
+            "Unexpected server error", details={"session_id": str(session_id)}
         )
 
 
@@ -841,11 +850,11 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
-            "INVALID_IDEMPOTENCY_KEY",
-            "Valid Idempotency-Key header is required",
-            False,
-            400,
+        return api_error(
+            code="INVALID_IDEMPOTENCY_KEY",
+            message="Valid Idempotency-Key header is required",
+            retryable=False,
+            status_code=400,
         )
 
     log_lab_id: str | None = None
@@ -870,13 +879,7 @@ def learner_explanation(
                     "user_id": str(principal.user_id),
                 },
             )
-            return build_api_error_response(
-                "SESSION_NOT_FOUND",
-                "Session not found",
-                False,
-                404,
-                {"session_id": str(session_id)},
-            )
+            return session_not_found(str(session_id))
 
         log_lab_id = str(session_metadata.lab_id) if session_metadata.lab_id else None
         log_lab_difficulty = (
@@ -896,7 +899,7 @@ def learner_explanation(
                     "user_id": str(principal.user_id),
                 },
             )
-            return build_api_error_response(
+            return api_error(
                 code="SESSION_NOT_READY",
                 message="Explanations can only be submitted after lab completion.",
                 retryable=False,
@@ -922,7 +925,7 @@ def learner_explanation(
                     "user_id": str(principal.user_id),
                 },
             )
-            return build_api_error_response(
+            return api_error(
                 code="SESSION_METADATA_INCOMPLETE",
                 message="Session is missing lab metadata required for explanation submission.",
                 retryable=False,
@@ -979,7 +982,7 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
+        return api_error(
             code=exc.code,
             message=exc.message,
             retryable=False,
@@ -997,13 +1000,7 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
-            code="FORBIDDEN",
-            message=exc.message,
-            retryable=False,
-            status_code=403,
-            details=exc.details,
-        )
+        return forbidden(exc.message, exc.details)
     except ValidationError:
         logger.exception(
             "learner explanation metadata validation failed",
@@ -1015,7 +1012,7 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
+        return api_error(
             code="SESSION_METADATA_INVALID",
             message="Invalid lab difficulty on session_metadata",
             retryable=False,
@@ -1033,7 +1030,7 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
+        return api_error(
             code=exc.code,
             message=exc.message,
             retryable=False,
@@ -1051,7 +1048,7 @@ def learner_explanation(
                 "user_id": str(principal.user_id),
             },
         )
-        return build_api_error_response(
+        return api_error(
             code="INTERNAL_SERVER_ERROR",
             message="Unknown error in explanation endpoint",
             retryable=False,
