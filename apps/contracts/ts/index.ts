@@ -1,4 +1,8 @@
 export type TraceFamily = "lifecycle" | "learner" | "runtime" | "tool" | "model";
+export type SessionCompletionStatus =
+  | "in_progress"
+  | "completed_success"
+  | "completed_failure";
 
 export type EvaluatorFeedbackStatusType =
   | "learned"
@@ -46,6 +50,72 @@ export type SessionTraceEvent = {
 export type GetSessionTraceResponse = {
   events: SessionTraceEvent[];
   next_cursor?: string | null;
+};
+
+export type SessionProgressChipResponse = {
+  objective_key: string;
+  label: string;
+  status: "pending" | "complete";
+  completed_at: string | null;
+  updated_at: string;
+};
+
+export type SessionHintResponse = {
+  hint_key: string;
+  text: string;
+  sort_order: number;
+  status: "pending" | "unlocked";
+  unlock_at: string;
+  unlocked_at: string | null;
+  seen_at: string | null;
+};
+
+export type SessionFeedbackResponse = {
+  id: string;
+  feedback_key: string;
+  reason_code: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  trigger_event_index: number | null;
+  created_at: string;
+  seen_at: string | null;
+};
+
+export type SessionRuntimeFileResponse = {
+  path: string;
+  content: string;
+  updated_at: string;
+};
+
+export type SessionMetadataResponse = {
+  id: string;
+  lab_id: string | null;
+  lab_version_id: string | null;
+  lab_difficulty: string;
+  state: string;
+  runtime_substate: string | null;
+  resume_mode: string;
+  last_transition_reason: string | null;
+  interactive: boolean;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  completion_status: SessionCompletionStatus;
+  completed_at: string | null;
+  completion_reason_code: string | null;
+  provisioning_stalled: boolean;
+  provisioning_stall_reason_code: string | null;
+  progress_chips: SessionProgressChipResponse[];
+  hints: SessionHintResponse[];
+  unread_hint_count: number;
+  feedback_items: SessionFeedbackResponse[];
+  feedback: SessionFeedbackResponse[];
+  unread_feedback_count: number;
+  runtime_files: SessionRuntimeFileResponse[];
+};
+
+export type GetSessionMetadataResponse = {
+  session: SessionMetadataResponse;
 };
 
 export type LearnerFeedbackItem = {

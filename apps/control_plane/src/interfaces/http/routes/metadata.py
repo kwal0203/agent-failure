@@ -6,7 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from apps.contracts.src.schemas import ApiErrorEnvelope
+from apps.contracts.src.schemas import (
+    ApiErrorEnvelope,
+    GetSessionMetadataResponse,
+    SessionRuntimeFileResponse,
+)
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_email.ports import (
     RuntimeBindingReaderPort,
@@ -36,10 +40,6 @@ from apps.control_plane.src.interfaces.http.errors import (
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     build_runtime_file_response,
     map_session_metadata_response,
-)
-from apps.control_plane.src.interfaces.http.schemas import (
-    GetSessionMetadataResponse,
-    SessionRuntimeFileResponse,
 )
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360

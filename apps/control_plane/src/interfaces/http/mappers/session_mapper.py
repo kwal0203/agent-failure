@@ -4,6 +4,11 @@ from collections.abc import Sequence
 from apps.contracts.src.schemas import (
     EvaluatorFeedbackResponse,
     GetFeedbackResponse,
+    SessionFeedbackResponse,
+    SessionHintResponse,
+    SessionMetadataResponse,
+    SessionProgressChipResponse,
+    SessionRuntimeFileResponse,
     GetSessionTraceResponse,
     SessionTraceEvent,
 )
@@ -12,13 +17,6 @@ from apps.control_plane.src.application.evaluator_feedback.types import (
 )
 from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
 from apps.control_plane.src.application.trace.types import TraceEvent
-from apps.control_plane.src.interfaces.http.schemas import (
-    SessionFeedbackResponse,
-    SessionHintResponse,
-    SessionMetadataResponse,
-    SessionProgressChipResponse,
-    SessionRuntimeFileResponse,
-)
 
 
 def map_session_metadata_response(

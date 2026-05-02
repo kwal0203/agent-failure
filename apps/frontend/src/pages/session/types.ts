@@ -1,79 +1,27 @@
 import type {
   GetFeedbackResponse,
+  GetSessionMetadataResponse,
   GetSessionTraceResponse,
+  SessionCompletionStatus,
+  SessionFeedbackResponse,
+  SessionHintResponse,
+  SessionMetadataResponse,
+  SessionProgressChipResponse,
+  SessionRuntimeFileResponse,
   SessionTraceEvent,
 } from "../../../../contracts/ts/index";
 
-export type SessionCompletionStatus =
-  | "in_progress"
-  | "completed_success"
-  | "completed_failure";
-
-export type SessionProgressChip = {
-  objective_key: string;
-  label: string;
-  status: "pending" | "complete";
-  completed_at: string | null;
-  updated_at: string;
+export type {
+  GetSessionMetadataResponse,
+  GetSessionTraceResponse,
+  SessionCompletionStatus,
+  SessionTraceEvent,
 };
-
-export type SessionHint = {
-  hint_key: string;
-  text: string;
-  sort_order: number;
-  status: "pending" | "unlocked";
-  unlock_at: string;
-  unlocked_at: string | null;
-  seen_at: string | null;
-};
-
-export type SessionFeedbackSeverity = "info" | "warning" | "error";
-
-export type SessionFeedbackItem = {
-  id: string;
-  feedback_key: string;
-  reason_code: string;
-  message: string;
-  severity: SessionFeedbackSeverity;
-  trigger_event_index: number | null;
-  created_at: string;
-  seen_at: string | null;
-};
-
-export type SessionRuntimeFile = {
-  path: string;
-  content: string;
-  updated_at: string;
-};
-
-export type SessionMetadata = {
-  id: string;
-  lab_id: string | null;
-  lab_version_id: string | null;
-  state: string;
-  runtime_substate: string | null;
-  resume_mode: string;
-  interactive: boolean;
-  created_at: string;
-  started_at: string | null;
-  ended_at: string | null;
-  completion_status: SessionCompletionStatus;
-  completed_at: string | null;
-  completion_reason_code: string | null;
-  progress_chips: SessionProgressChip[];
-  hints: SessionHint[];
-  unread_hint_count: number;
-  feedback_items: SessionFeedbackItem[];
-  feedback: SessionFeedbackItem[];
-  unread_feedback_count: number;
-  runtime_files?: SessionRuntimeFile[];
-};
-
-export type GetSessionMetadataResponse = {
-  session: SessionMetadata;
-};
-
-export type { GetSessionTraceResponse, SessionTraceEvent };
+export type SessionProgressChip = SessionProgressChipResponse;
+export type SessionHint = SessionHintResponse;
+export type SessionFeedbackItem = SessionFeedbackResponse;
+export type SessionRuntimeFile = SessionRuntimeFileResponse;
+export type SessionMetadata = SessionMetadataResponse;
 
 export type MarkSessionHintsSeenResponse = {
   session_id: string;

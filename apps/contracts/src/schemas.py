@@ -14,6 +14,11 @@ from .types import (
 
 
 ErrorCode = Literal["provider_failure", "invalid_request", "internal_error"]
+SessionCompletionStatus = Literal[
+    "in_progress",
+    "completed_success",
+    "completed_failure",
+]
 
 
 # Dataclasses for non-streaming
@@ -360,3 +365,69 @@ class SessionTraceEvent(BaseModel):
 class GetSessionTraceResponse(BaseModel):
     events: tuple[SessionTraceEvent, ...]
     next_cursor: str | None = None
+
+
+class SessionProgressChipResponse(BaseModel):
+    objective_key: str
+    label: str
+    status: Literal["pending", "complete"]
+    completed_at: datetime | None
+    updated_at: datetime
+
+
+class SessionHintResponse(BaseModel):
+    hint_key: str
+    text: str
+    sort_order: int
+    status: Literal["pending", "unlocked"]
+    unlock_at: datetime
+    unlocked_at: datetime | None
+    seen_at: datetime | None
+
+
+class SessionFeedbackResponse(BaseModel):
+    id: UUID
+    feedback_key: str
+    reason_code: str
+    message: str
+    severity: FeedbackSeverity
+    trigger_event_index: int | None
+    created_at: datetime
+    seen_at: datetime | None
+
+
+class SessionRuntimeFileResponse(BaseModel):
+    path: str
+    content: str
+    updated_at: datetime
+
+
+class SessionMetadataResponse(BaseModel):
+    id: UUID
+    lab_id: UUID | None
+    lab_version_id: UUID | None
+    lab_difficulty: str = "medium"
+    state: str
+    runtime_substate: str | None
+    resume_mode: str
+    last_transition_reason: str | None
+    interactive: bool
+    created_at: datetime
+    started_at: datetime | None
+    ended_at: datetime | None
+    completion_status: SessionCompletionStatus = "in_progress"
+    completed_at: datetime | None = None
+    completion_reason_code: str | None = None
+    provisioning_stalled: bool = False
+    provisioning_stall_reason_code: str | None = None
+    progress_chips: list[SessionProgressChipResponse] = Field(default_factory=list)
+    hints: list[SessionHintResponse] = Field(default_factory=list)
+    unread_hint_count: int = 0
+    feedback_items: list[SessionFeedbackResponse] = Field(default_factory=list)
+    feedback: list[SessionFeedbackResponse] = Field(default_factory=list)
+    unread_feedback_count: int = 0
+    runtime_files: list[SessionRuntimeFileResponse] = Field(default_factory=list)
+
+
+class GetSessionMetadataResponse(BaseModel):
+    session: SessionMetadataResponse
