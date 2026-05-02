@@ -27,6 +27,7 @@ from apps.control_plane.src.interfaces.http.schemas import (
     CreateSessionResponse,
     SessionResponse,
 )
+from apps.control_plane.src.application.common.observability import log_fields
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -89,13 +90,16 @@ def create_session_endpoint(
             "create session succeeded",
             extra={
                 "event": "create_session_succeeded",
-                "session_id": str(result.session_id),
-                "lab_id": str(result.lab_id),
+                **log_fields(
+                    session_id=result.session_id,
+                    lab_id=result.lab_id,
+                    principal_id=application_principal.user_id,
+                    idempotency_key=key,
+                ),
                 "lab_version_id": str(result.lab_version_id)
                 if result.lab_version_id is not None
                 else None,
                 "lab_difficulty": result.lab_difficulty,
-                "user_id": str(application_principal.user_id),
             },
         )
 
@@ -109,10 +113,12 @@ def create_session_endpoint(
             "create session endpoint failed",
             extra={
                 "event": "create_session_failed",
-                "lab_id": str(request.lab_id),
+                **log_fields(
+                    lab_id=request.lab_id,
+                    principal_id=application_principal.user_id,
+                    idempotency_key=safe_idempo,
+                ),
                 "lab_difficulty": request.lab_difficulty,
-                "user_id": str(application_principal.user_id),
-                "idempotency_key_prefix": safe_idempo,
             },
         )
         return map_unexpected_exception()

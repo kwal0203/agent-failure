@@ -24,6 +24,7 @@ from apps.control_plane.src.application.session_stream.payloads import (
     ModelTurnStartedPayload,
     RuntimeEventPayload,
 )
+from apps.control_plane.src.application.common.observability import get_correlation_id
 
 
 def append_learner_prompt_trace(
@@ -66,7 +67,7 @@ def append_learner_prompt_trace(
         event_index=trace_repo.get_next_event_index(session_id=session_id),
         payload=learner_payload,
         trace_version=1,
-        correlation_id=None,
+        correlation_id=UUID(get_correlation_id()),
         request_id=None,
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,

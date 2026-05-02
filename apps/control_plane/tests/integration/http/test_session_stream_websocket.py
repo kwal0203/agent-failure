@@ -360,11 +360,16 @@ def test_stream_logs_connect_and_disconnect_with_session_context(
     finally:
         app.dependency_overrides.clear()
 
-    messages = [record.getMessage().lower() for record in caplog.records]
     session_id = str(session.id)
-    assert any("connect" in message and session_id in message for message in messages)
     assert any(
-        "disconnect" in message and session_id in message for message in messages
+        record.getMessage().lower() == "session stream connect"
+        and getattr(record, "session_id", None) == session_id
+        for record in caplog.records
+    )
+    assert any(
+        record.getMessage().lower() == "session stream disconnect"
+        and getattr(record, "session_id", None) == session_id
+        for record in caplog.records
     )
 
 

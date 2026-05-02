@@ -7,6 +7,7 @@ from apps.control_plane.src.application.trace.types import TraceEvent, TraceFami
 from apps.control_plane.src.application.session_stream.payloads import (
     ModelTurnFailedPayload,
 )
+from apps.control_plane.src.application.common.observability import get_correlation_id
 
 
 def build_trace_event(
@@ -24,6 +25,9 @@ def build_trace_event(
     lab_version_id: UUID | None = None,
     lab_difficulty: str | None = None,
 ) -> TraceEvent:
+    resolved_correlation_id = correlation_id
+    if resolved_correlation_id is None:
+        resolved_correlation_id = UUID(get_correlation_id())
     return TraceEvent(
         event_id=uuid4(),
         session_id=session_id,
@@ -34,7 +38,7 @@ def build_trace_event(
         event_index=trace_repo.get_next_event_index(session_id=session_id),
         payload=payload,
         trace_version=1,
-        correlation_id=correlation_id,
+        correlation_id=resolved_correlation_id,
         request_id=request_id,
         actor_user_id=actor_user_id,
         lab_id=lab_id,

@@ -38,6 +38,7 @@ from .trace_events import (
     append_model_turn_started,
 )
 from .constants import LAB2_IDS
+from apps.control_plane.src.application.common.observability import log_fields
 
 logger = logging.getLogger(__name__)
 
@@ -153,16 +154,30 @@ async def handle_user_prompt(
             )
 
             turn_id = uuid4()
+            turn_idempotency_key = build_turn_idempotency_key(
+                session_id=metadata.id, turn_id=turn_id
+            )
             turn = RunTurnInput(
                 session_id=metadata.id,
                 lab_id=metadata.lab_id,
                 lab_version_id=metadata.lab_version_id,
                 turn_id=turn_id,
                 prompt=prompt_content,
-                idempotency_key=build_turn_idempotency_key(
-                    session_id=metadata.id, turn_id=turn_id
-                ),
+                idempotency_key=turn_idempotency_key,
                 authority_bulletin_passed=authority_decision.passed,
+            )
+            logger.info(
+                "session turn started",
+                extra={
+                    **log_fields(
+                        session_id=session_id,
+                        lab_id=metadata.lab_id,
+                        principal_id=principal.user_id,
+                        turn_id=turn_id,
+                        idempotency_key=turn_idempotency_key,
+                    ),
+                    "event": "session_turn_started",
+                },
             )
             turn_start = datetime.now(timezone.utc)
 
@@ -205,8 +220,12 @@ async def handle_user_prompt(
             logger.warning(
                 "runtime stream failed",
                 extra={
+                    **log_fields(
+                        session_id=session_id,
+                        lab_id=metadata.lab_id,
+                        principal_id=principal.user_id,
+                    ),
                     "event": "runtime_stream_failed",
-                    "session_id": str(session_id),
                     "error_code": exc.code,
                     "retryable": exc.retryable,
                     "lab_difficulty": metadata.lab_difficulty,
@@ -223,7 +242,14 @@ async def handle_user_prompt(
             return
         except Exception:
             db.rollback()
-            logger.exception(f"session prompt handling failed session_id={session_id}")
+            logger.exception(
+                "session prompt handling failed",
+                extra=log_fields(
+                    session_id=session_id,
+                    lab_id=metadata.lab_id if "metadata" in locals() else None,
+                    principal_id=principal.user_id,
+                ),
+            )
             await session_manager.send_to(
                 websocket,
                 build_system_error_message(

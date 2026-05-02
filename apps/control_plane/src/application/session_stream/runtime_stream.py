@@ -40,6 +40,7 @@ from apps.control_plane.src.application.session_stream.payloads import (
 )
 
 from .trace_events import append_model_turn_failed, append_runtime_event
+from apps.control_plane.src.application.common.observability import log_fields
 
 logger = logging.getLogger(__name__)
 
@@ -206,8 +207,14 @@ async def stream_runtime_turn(
                 logger.warning(
                     "turn stream send timeout",
                     extra={
+                        **log_fields(
+                            session_id=session_id,
+                            lab_id=metadata.lab_id,
+                            principal_id=principal.user_id,
+                            turn_id=turn.turn_id,
+                            idempotency_key=turn.idempotency_key,
+                        ),
                         "event": "turn_failed_mid_stream",
-                        "session_id": str(session_id),
                         "reason_code": "TURN_FAILED_MID_STREAM",
                         "retryable": True,
                         "first_chunk_emitted": first_chunk_emitted,
@@ -241,8 +248,14 @@ async def stream_runtime_turn(
                 logger.info(
                     "turn stream client disconnected",
                     extra={
+                        **log_fields(
+                            session_id=session_id,
+                            lab_id=metadata.lab_id,
+                            principal_id=principal.user_id,
+                            turn_id=turn.turn_id,
+                            idempotency_key=turn.idempotency_key,
+                        ),
                         "event": "turn_stream_disconnected",
-                        "session_id": str(session_id),
                         "chunks_emitted": chunks_emitted,
                         "lab_difficulty": metadata.lab_difficulty,
                     },
@@ -253,8 +266,14 @@ async def stream_runtime_turn(
                 logger.exception(
                     "turn stream send failed",
                     extra={
+                        **log_fields(
+                            session_id=session_id,
+                            lab_id=metadata.lab_id,
+                            principal_id=principal.user_id,
+                            turn_id=turn.turn_id,
+                            idempotency_key=turn.idempotency_key,
+                        ),
                         "event": "turn_failed_mid_stream",
-                        "session_id": str(session_id),
                         "reason_code": "TURN_FAILED_MID_STREAM",
                         "retryable": True,
                         "first_chunk_emitted": first_chunk_emitted,
@@ -304,8 +323,14 @@ async def stream_runtime_turn(
             logger.warning(
                 log_message,
                 extra={
+                    **log_fields(
+                        session_id=session_id,
+                        lab_id=metadata.lab_id,
+                        principal_id=principal.user_id,
+                        turn_id=turn.turn_id,
+                        idempotency_key=turn.idempotency_key,
+                    ),
                     "event": reason_code.lower(),
-                    "session_id": str(session_id),
                     "reason_code": reason_code,
                     "retryable": getattr(event, "retryable", True),
                     "first_chunk_emitted": first_chunk_emitted,

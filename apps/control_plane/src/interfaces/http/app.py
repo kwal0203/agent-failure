@@ -7,6 +7,8 @@ import contextlib
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 from fastapi.responses import JSONResponse
 
 from apps.control_plane.src.interfaces.http.auth import UnauthenticatedError
@@ -38,6 +40,11 @@ from apps.control_plane.src.interfaces.http.routes.session_queries import (
 from apps.control_plane.src.interfaces.http.routes.ws_stream import (
     router as ws_stream_router,
 )
+from apps.control_plane.src.application.common.observability import (
+    get_correlation_id,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 
 @asynccontextmanager
@@ -68,6 +75,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    incoming = request.headers.get("x-correlation-id") or request.headers.get(
+        "x-request-id"
+    )
+    token = set_correlation_id(incoming)
+    try:
+        response = await call_next(request)
+    finally:
+        correlation_id = get_correlation_id()
+        reset_correlation_id(token)
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
 
 
 @app.exception_handler(UnauthenticatedError)

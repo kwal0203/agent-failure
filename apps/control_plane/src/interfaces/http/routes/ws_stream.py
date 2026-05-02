@@ -21,6 +21,11 @@ from apps.control_plane.src.application.session_stream.ports import (
     SessionStreamManagerPort,
 )
 from apps.control_plane.src.application.session_stream.service import handle_user_prompt
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 from apps.control_plane.src.interfaces.http.auth import (
     UnauthenticatedError,
     get_current_principal_ws,
@@ -56,11 +61,19 @@ async def session_stream_ws(
     ),
     session_manager: SessionStreamManagerPort = Depends(get_ws_session_manager),
 ) -> None:
+    correlation_token = set_correlation_id(
+        websocket.headers.get("x-correlation-id")
+        or websocket.headers.get("x-request-id")
+    )
     try:
         principal = get_current_principal_ws(websocket=websocket)
     except UnauthenticatedError:
         await websocket.close(code=1008, reason="unauthenticated")
-        logger.warning(f"session stream denied unauthenticated session_id={session_id}")
+        logger.warning(
+            "session stream denied unauthenticated",
+            extra=log_fields(session_id=session_id),
+        )
+        reset_correlation_id(correlation_token)
         return
 
     try:
@@ -72,17 +85,34 @@ async def session_stream_ws(
     except ForbiddenErrorSessionQuery:
         await websocket.close(code=1008, reason="forbidden")
         logger.warning(
-            f"session stream denied forbidden session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+            "session stream denied forbidden",
+            extra={
+                **log_fields(
+                    session_id=session_id,
+                    principal_id=principal.user_id,
+                ),
+                "role": principal.role,
+            },
         )
+        reset_correlation_id(correlation_token)
         return
 
     if metadata is None:
         await websocket.close(code=1008, reason="session not found")
+        reset_correlation_id(correlation_token)
         return
 
     await session_manager.connect(session_id=session_id, websocket=websocket)
     logger.info(
-        f"session stream connect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+        "session stream connect",
+        extra={
+            **log_fields(
+                session_id=session_id,
+                principal_id=principal.user_id,
+                lab_id=metadata.lab_id,
+            ),
+            "role": principal.role,
+        },
     )
     try:
         await session_manager.send_to(
@@ -138,5 +168,14 @@ async def session_stream_ws(
     finally:
         session_manager.disconnect(session_id=session_id, websocket=websocket)
         logger.info(
-            f"session stream disconnect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
+            "session stream disconnect",
+            extra={
+                **log_fields(
+                    session_id=session_id,
+                    principal_id=principal.user_id,
+                    lab_id=metadata.lab_id,
+                ),
+                "role": principal.role,
+            },
         )
+        reset_correlation_id(correlation_token)

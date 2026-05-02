@@ -25,6 +25,7 @@ from apps.control_plane.src.application.session_email.idempotency import (
 from apps.control_plane.src.application.session_email.mapper import (
     map_attack_email_sent_payload,
 )
+from apps.control_plane.src.application.common.observability import get_correlation_id
 from .ports import SessionEmailDeps
 
 
@@ -153,7 +154,7 @@ async def inject_session_email_for_session(
         event_index=deps.trace_repo.get_next_event_index(session_id=command.session_id),
         payload=attack_email_sent_payload,
         trace_version=1,
-        correlation_id=None,
+        correlation_id=UUID(get_correlation_id()),
         request_id=None,
         actor_user_id=command.principal.user_id,
         lab_id=session_metadata.lab_id,
