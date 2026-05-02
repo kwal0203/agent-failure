@@ -31,6 +31,7 @@ from .policy import (
     runtime_not_ready_message,
 )
 from .runtime_stream import stream_runtime_turn
+from .idempotency import build_turn_idempotency_key
 from .trace_events import (
     append_learner_prompt_trace,
     append_model_turn_completed,
@@ -158,7 +159,9 @@ async def handle_user_prompt(
                 lab_version_id=metadata.lab_version_id,
                 turn_id=turn_id,
                 prompt=prompt_content,
-                idempotency_key=f"turn:{metadata.id}:{turn_id}",
+                idempotency_key=build_turn_idempotency_key(
+                    session_id=metadata.id, turn_id=turn_id
+                ),
                 authority_bulletin_passed=authority_decision.passed,
             )
             turn_start = datetime.now(timezone.utc)

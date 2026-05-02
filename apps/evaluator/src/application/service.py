@@ -20,6 +20,7 @@ from .types import (
 from .idempotency import (
     build_feedback_event_idempotency_key,
     build_objective_event_idempotency_key,
+    build_result_idempotency_key,
 )
 from apps.evaluator.src.application.rules.registry import resolve_bundle
 from apps.evaluator.src.application.rules.contract import (
@@ -254,17 +255,6 @@ def _validate_event_scope(event: EvaluatorTraceEvent, task: EvaluatorTaskInput) 
         raise ValueError(
             "Trace event session_id does not match evaluator task session_id"
         )
-
-
-def build_result_idempotency_key(
-    task: EvaluatorTaskInput, finding: EvaluatorFinding
-) -> str:
-    trigger_ref = (
-        str(finding.trigger_event_index)
-        if finding.trigger_event_index is not None
-        else f"{finding.trigger_start_event_index}:{finding.trigger_end_event_index}"
-    )
-    return f"eval:{task.session_id}:{task.lab_version_id}:{task.evaluator_version}:{finding.code}:{trigger_ref}"
 
 
 def evaluate_trace_window_once(

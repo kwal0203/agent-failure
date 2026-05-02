@@ -16,6 +16,9 @@ from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
 )
 from apps.control_plane.src.application.session_lifecycle.errors import SessionNotFound
+from apps.control_plane.src.application.session_lifecycle.idempotency import (
+    build_stop_session_transition_idempotency_key,
+)
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
 )
@@ -102,7 +105,10 @@ def stop_session_endpoint(
                 "requested_by_user_id": str(principal.user_id),
                 "requested_via": "session_ui",
             },
-            idempotency_key=f"stop-session:{session_id}:{principal.user_id}",
+            idempotency_key=build_stop_session_transition_idempotency_key(
+                session_id=session_id,
+                requester_user_id=principal.user_id,
+            ),
             uow=uow,
         )
 
