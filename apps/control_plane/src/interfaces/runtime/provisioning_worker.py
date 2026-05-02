@@ -23,8 +23,14 @@ from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_reposito
 )
 
 from dotenv import load_dotenv
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "provisioning_worker"
 REPO_ROOT = Path(__file__).resolve().parents[5]
 DOTENV_PATH = REPO_ROOT / ".env"
 
@@ -38,7 +44,8 @@ def _load_worker_env() -> None:
     if not os.getenv("RUNTIME_SHARED_TOKEN") and os.getenv("RUNTIME_AUTH_TOKEN"):
         os.environ["RUNTIME_SHARED_TOKEN"] = os.environ["RUNTIME_AUTH_TOKEN"] or ""
         logger.info(
-            "provisioning worker env: using RUNTIME_AUTH_TOKEN as RUNTIME_SHARED_TOKEN fallback"
+            "provisioning worker env: using RUNTIME_AUTH_TOKEN as RUNTIME_SHARED_TOKEN fallback",
+            extra={**log_fields(), "worker_name": WORKER_NAME},
         )
 
     _validate_required_env()
@@ -106,6 +113,7 @@ def run_once() -> None:
             result.succeeded_count,
             result.failed_count,
             result.retried_count,
+            extra={**log_fields(), "worker_name": WORKER_NAME},
         )
 
     except Exception as exc:
@@ -115,7 +123,10 @@ def run_once() -> None:
             error_message=str(exc),
         )
 
-        logger.exception("provisioning worker tick failed")
+        logger.exception(
+            "provisioning worker tick failed",
+            extra={**log_fields(), "worker_name": WORKER_NAME},
+        )
         raise
 
 
@@ -123,10 +134,16 @@ def run_forever(poll_interval_seconds: float = 1.0) -> None:
     # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
     # so unexpected per-tick exceptions are logged and do not kill the process.
     while True:
+        token = set_correlation_id(None)
         try:
             run_once()
         except Exception:
-            logger.exception("provisioning worker tick failed")
+            logger.exception(
+                "provisioning worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
+        finally:
+            reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
 
 

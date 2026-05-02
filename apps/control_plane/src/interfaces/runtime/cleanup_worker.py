@@ -11,8 +11,14 @@ from apps.control_plane.src.infrastructure.orchestrator.k8s_teardown import (
 
 import time
 import logging
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "cleanup_worker"
 
 
 def _build_dependencies() -> tuple[
@@ -32,15 +38,22 @@ def run_once() -> None:
         result.succeeded_count,
         result.failed_count,
         result.retried_count,
+        extra={**log_fields(), "worker_name": WORKER_NAME},
     )
 
 
 def run_forever(poll_interval_seconds: float = 1.0) -> None:
     while True:
+        token = set_correlation_id(None)
         try:
             run_once()
         except Exception:
-            logger.exception("cleanup worker tick failed")
+            logger.exception(
+                "cleanup worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
+        finally:
+            reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
 
 

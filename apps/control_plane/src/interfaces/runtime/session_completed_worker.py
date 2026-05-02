@@ -1,5 +1,10 @@
 import logging
 import time
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 from apps.control_plane.src.application.session_completion.service import (
     process_pending_session_completed_once,
@@ -13,6 +18,7 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 )
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "session_completed_worker"
 
 
 def run_once() -> None:
@@ -35,15 +41,22 @@ def run_once() -> None:
         result.succeeded_count,
         result.failed_count,
         result.retried_count,
+        extra={**log_fields(), "worker_name": WORKER_NAME},
     )
 
 
 def run_forever(poll_interval_seconds: float = 10.0) -> None:
     while True:
+        token = set_correlation_id(None)
         try:
             run_once()
         except Exception:
-            logger.exception("session completed worker tick failed")
+            logger.exception(
+                "session completed worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
+        finally:
+            reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
 
 

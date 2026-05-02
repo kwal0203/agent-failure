@@ -1,6 +1,11 @@
 import logging
 import time
 from datetime import datetime, timezone
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 from apps.control_plane.src.application.session_hints.service import (
     process_due_session_hints_once,
@@ -15,6 +20,7 @@ from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_reposito
 )
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "session_hint_unlock_worker"
 
 
 def run_once() -> None:
@@ -46,15 +52,22 @@ def run_once() -> None:
         result.claimed_count,
         result.succeeded_count,
         result.skipped_count,
+        extra={**log_fields(), "worker_name": WORKER_NAME},
     )
 
 
 def run_forever(poll_interval_seconds: float = 10.0) -> None:
     while True:
+        token = set_correlation_id(None)
         try:
             run_once()
         except Exception:
-            logger.exception("session hint unlock worker tick failed")
+            logger.exception(
+                "session hint unlock worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
+        finally:
+            reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
 
 
