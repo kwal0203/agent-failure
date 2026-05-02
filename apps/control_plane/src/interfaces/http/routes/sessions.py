@@ -1,10 +1,9 @@
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import ApiErrorEnvelope, EmailArtifact
@@ -12,13 +11,9 @@ from apps.control_plane.src.application.common.errors import (
     DuplicateIdempotencyKeyError,
     ForbiddenError,
 )
-from apps.control_plane.src.application.common.schemas import LabDifficultyParser
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.email_classification.ports import (
     EmailMaliciousnessClassifierPort,
-)
-from apps.control_plane.src.application.email_classification.types import (
-    EmailClassificationInput,
 )
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
@@ -26,15 +21,18 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
 from apps.control_plane.src.application.learner_explanation.errors import (
     InvalidLearnerExplanationError,
 )
-from apps.control_plane.src.application.learner_explanation.service import (
-    inject_learner_explanation,
-)
-from apps.control_plane.src.application.learner_explanation.types import (
-    LearnerExplanationInput,
-)
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
-from apps.control_plane.src.application.runtime.types import InjectEmailInput
+from apps.control_plane.src.application.session_email.service import (
+    InjectSessionEmailCommand,
+    SessionEmailPolicyError,
+    inject_session_email_for_session,
+)
+from apps.control_plane.src.application.session_explanation_submission.service import (
+    SessionExplanationPolicyError,
+    SubmitLearnerExplanationCommand,
+    submit_learner_explanation,
+)
 from apps.control_plane.src.application.session_create.errors import (
     AdmissionDecisionError,
     DegradedModeRestrictionError,
@@ -80,7 +78,6 @@ from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
 from apps.control_plane.src.application.trace.service import (
-    append_trace_event,
     project_learner_visible_events,
 )
 from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
@@ -88,13 +85,6 @@ from apps.control_plane.src.infrastructure.persistence.db import (
     SessionFactory,
     get_db_session,
 )
-from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
-    LearnerExplanationRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.models import (
-    SessionObjectiveModel,
-)
-from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
     SQLAlchemySessionFeedbackRepository,
 )
@@ -104,7 +94,6 @@ from apps.control_plane.src.infrastructure.persistence.session_hints_repository 
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionMetadataRepository,
-    SQLAlchemySessionRuntimeBindingRepository,
     SQLAlchemyTraceEventRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
@@ -124,14 +113,9 @@ from apps.control_plane.src.interfaces.http.errors import (
     internal_error,
     session_not_found,
 )
-from apps.control_plane.src.interfaces.http.helpers import build_trace_event
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
-)
-from apps.control_plane.src.interfaces.http.mappers.session_email_mapper import (
-    build_malicious_email_objective_idempotency_key,
-    map_attack_email_sent_payload,
 )
 from apps.control_plane.src.interfaces.http.schemas import (
     CreateSessionRequest,
@@ -627,167 +611,35 @@ async def inject_session_email(
     db: Session = Depends(get_db_session),
 ) -> InjectSessionEmailResponse | JSONResponse:
     try:
-        repo = SQLAlchemySessionMetadataRepository(db=db)
-        runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
-        trace_repo = SQLAlchemyTraceEventRepository(db=db)
-        outbox_repo = SQLAlchemyOutbox(db=db)
-
-        session_metadata = get_session_metadata(
-            session_id=session_id, principal=principal, repo=repo
-        )
-
-        if session_metadata is None:
-            return session_not_found(str(session_id))
-
-        if not session_metadata.interactive:
-            return api_error(
-                code="SESSION_NOT_INTERACTIVE",
-                message="Session is not interactive",
-                retryable=True,
-                status_code=409,
-                details={"session_id": str(session_id)},
-            )
-
-        runtime_binding = runtime_binding_repo.get_by_session_id(session_id=session_id)
-        if runtime_binding is None or runtime_binding.status != "ready":
-            current_status = (
-                runtime_binding.status if runtime_binding is not None else "missing"
-            )
-
-            logger.warning(
-                "runtime binding not ready",
-                extra={
-                    "event": "runtime_binding_not_ready",
-                    "session_id": str(session_id),
-                    "status": current_status,
-                    "base_url": runtime_binding.base_url
-                    if runtime_binding is not None
-                    else None,
-                    "lab_difficulty": session_metadata.lab_difficulty,
-                },
-            )
-            return api_error(
-                code="RUNTIME_NOT_READY",
-                message=f"Runtime not ready (status={current_status})",
-                retryable=True,
-                status_code=409,
-                details={
-                    "session_id": str(session_id),
-                    "runtime_status": current_status,
-                },
-            )
-
-        client = runtime_client_factory.create(base_url=runtime_binding.base_url)
-        classification = await email_classifier.classify_email(
-            input=EmailClassificationInput(
+        result = await inject_session_email_for_session(
+            command=InjectSessionEmailCommand(
+                session_id=session_id,
+                principal=principal,
                 email_from=request.email_from,
                 email_subject=request.email_subject,
                 email_body=request.email_body,
-            )
+                email_id=request.email_id,
+                source=request.source,
+            ),
+            db=db,
+            runtime_client_factory=runtime_client_factory,
+            email_classifier=email_classifier,
         )
-        derived_malicious = bool(classification.malicious)
-        classifier_provider = classification.provider or "unknown"
-        classifier_model = classification.model or "unknown"
-        classifier_confidence = (
-            classification.confidence if classification.confidence is not None else 0.0
-        )
-        injected_email_id = request.email_id or f"email-{uuid4().hex}"
-
-        email_input = InjectEmailInput(
-            session_id=session_id,
-            email_from=request.email_from,
-            email_subject=request.email_subject,
-            email_body=request.email_body,
-            email_id=injected_email_id,
-            malicious=derived_malicious,
-            urgency_marker=classification.urgency_marker,
-            source=request.source,
-        )
-
-        await client.inject_email(input=email_input)
-
-        attack_email_sent_payload = map_attack_email_sent_payload(
-            email_input=email_input,
-            derived_malicious=derived_malicious,
-            classifier_provider=classifier_provider,
-            classifier_model=classifier_model,
-            classifier_confidence=classifier_confidence,
-            urgency_marker=classification.urgency_marker,
-        )
-
-        trace_event = build_trace_event(
-            trace_repo=trace_repo,
-            session_id=session_id,
-            family="learner",
-            event_type="ATTACK_EMAIL_SENT",
-            source="inject_session_email_service",
-            payload=attack_email_sent_payload,
-            correlation_id=None,
-            request_id=None,
-            actor_user_id=principal.user_id,
-            lab_id=session_metadata.lab_id,
-            lab_version_id=session_metadata.lab_version_id,
-            lab_difficulty=session_metadata.lab_difficulty,
-        )
-        append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
-
-        if (
-            session_metadata.lab_id is not None
-            and session_metadata.lab_version_id is not None
-        ):
-            outbox_repo.enqueue_for_evaluator(
-                session_id=session_id,
-                lab_id=session_metadata.lab_id,
-                lab_version_id=session_metadata.lab_version_id,
-                lab_difficulty=session_metadata.lab_difficulty,
-                evaluator_version=1,
-                start_event_index=trace_event.event_index,
-                end_event_index=trace_event.event_index,
-            )
-
-        if (
-            derived_malicious
-            and session_metadata.lab_id is not None
-            and session_metadata.lab_version_id is not None
-        ):
-            objective = (
-                db.execute(
-                    select(SessionObjectiveModel).where(
-                        SessionObjectiveModel.session_id == session_id,
-                        SessionObjectiveModel.objective_key
-                        == "malicious_email_injected",
-                    )
-                )
-                .scalars()
-                .one_or_none()
-            )
-            if objective is None or objective.status != "complete":
-                objective_idempotency_key = (
-                    build_malicious_email_objective_idempotency_key(
-                        session_id=session_id,
-                        email_input=email_input,
-                        derived_malicious=derived_malicious,
-                    )
-                )
-
-                outbox_repo.enqueue_session_objective_completed(
-                    session_id=session_id,
-                    lab_id=session_metadata.lab_id,
-                    lab_version_id=session_metadata.lab_version_id,
-                    objective_key="malicious_email_injected",
-                    reason_code="EMAIL_INJECT_ACCEPTED",
-                    trigger_event_index=trace_event.event_index,
-                    idempotency_key=objective_idempotency_key,
-                    source="control_plane",
-                    evaluator_version=None,
-                    occurred_at=trace_event.occurred_at,
-                )
-
-        db.commit()
-        return InjectSessionEmailResponse(session_id=session_id)
+        if result is None:
+            return session_not_found(str(session_id))
+        return InjectSessionEmailResponse(session_id=result.session_id)
 
     except ForbiddenErrorSessionQuery as exc:
         return forbidden(exc.message, exc.details)
+    except SessionEmailPolicyError as exc:
+        db.rollback()
+        return api_error(
+            code=exc.code,
+            message=exc.message,
+            retryable=exc.retryable,
+            status_code=exc.status_code,
+            details=exc.details,
+        )
 
     except RuntimeClientError as exc:
         db.rollback()
@@ -853,131 +705,32 @@ def learner_explanation(
             status_code=400,
         )
 
-    log_lab_id: str | None = None
-    log_lab_difficulty: str | None = None
-
     try:
-        session_metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
-        session_metadata = get_session_metadata(
-            session_id=session_id,
-            principal=principal,
-            repo=session_metadata_repo,
+        result = submit_learner_explanation(
+            command=SubmitLearnerExplanationCommand(
+                session_id=session_id,
+                principal=principal,
+                explanation=request.explanation,
+                idempotency_key=key,
+            ),
+            db=db,
         )
-
-        if session_metadata is None:
-            logger.warning(
-                "learner explanation session not found",
-                extra={
-                    "event": "learner_explanation_session_not_found",
-                    "session_id": str(session_id),
-                    "lab_id": None,
-                    "lab_difficulty": None,
-                    "user_id": str(principal.user_id),
-                },
-            )
+        if result is None:
             return session_not_found(str(session_id))
-
-        log_lab_id = str(session_metadata.lab_id) if session_metadata.lab_id else None
-        log_lab_difficulty = (
-            None
-            if not session_metadata.lab_difficulty
-            else str(session_metadata.lab_difficulty)
-        )
-
-        if session_metadata.state != "COMPLETED":
-            logger.warning(
-                "learner explanation rejected due to session state",
-                extra={
-                    "event": "learner_explanation_session_not_ready",
-                    "session_id": str(session_id),
-                    "lab_id": log_lab_id,
-                    "lab_difficulty": log_lab_difficulty,
-                    "user_id": str(principal.user_id),
-                },
-            )
-            return api_error(
-                code="SESSION_NOT_READY",
-                message="Explanations can only be submitted after lab completion.",
-                retryable=False,
-                status_code=409,
-                details={
-                    "session_id": str(session_id),
-                    "state": session_metadata.state,
-                    "required_state": "COMPLETED",
-                },
-            )
-
-        lab_id = session_metadata.lab_id
-        lab_version_id = session_metadata.lab_version_id
-
-        if lab_id is None or lab_version_id is None:
-            logger.error(
-                "learner explanation session metadata incomplete",
-                extra={
-                    "event": "learner_explanation_session_metadata_incomplete",
-                    "session_id": str(session_id),
-                    "lab_id": log_lab_id,
-                    "lab_difficulty": log_lab_difficulty,
-                    "user_id": str(principal.user_id),
-                },
-            )
-            return api_error(
-                code="SESSION_METADATA_INCOMPLETE",
-                message="Session is missing lab metadata required for explanation submission.",
-                retryable=False,
-                status_code=500,
-                details={"session_id": str(session_id)},
-            )
-
-        parsed = LabDifficultyParser.model_validate(
-            {"lab_difficulty": session_metadata.lab_difficulty}
-        )
-        explanation_artifact = LearnerExplanationInput(
-            explanation=request.explanation,
-            session_id=session_metadata.id,
-            lab_id=lab_id,
-            lab_version_id=lab_version_id,
-            lab_difficulty=parsed.lab_difficulty,
-            actor_user_id=principal.user_id,
-            idempotency_key=key,
-            source="learner",
-        )
-
-        learner_explanation_repo = LearnerExplanationRepository(db=db)
-        trace_repo = SQLAlchemyTraceEventRepository(db=db)
-        outbox = SQLAlchemyOutbox(db=db)
-        result = inject_learner_explanation(
-            repo=learner_explanation_repo,
-            learner_input=explanation_artifact,
-            trace_repo=trace_repo,
-            outbox=outbox,
-        )
-
-        logger.info(
-            "learner explanation accepted",
-            extra={
-                "event": "learner_explanation_submitted",
-                "session_id": str(session_id),
-                "lab_id": str(lab_id),
-                "lab_difficulty": parsed.lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
         return LearnerExplanationResponse(
-            session_id=session_id, explanation_id=result.explanation_id, accepted=True
+            session_id=session_id,
+            explanation_id=result.explanation_id,
+            accepted=True,
         )
-
+    except SessionExplanationPolicyError as exc:
+        return api_error(
+            code=exc.code,
+            message=exc.message,
+            retryable=exc.retryable,
+            status_code=exc.status_code,
+            details=exc.details,
+        )
     except InvalidLearnerExplanationError as exc:
-        logger.warning(
-            "learner explanation validation failed",
-            extra={
-                "event": "learner_explanation_invalid_request",
-                "session_id": str(session_id),
-                "lab_id": log_lab_id,
-                "lab_difficulty": log_lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
         return api_error(
             code=exc.code,
             message=exc.message,
@@ -986,28 +739,8 @@ def learner_explanation(
             details=exc.details,
         )
     except ForbiddenErrorSessionQuery as exc:
-        logger.warning(
-            "learner explanation forbidden",
-            extra={
-                "event": "learner_explanation_forbidden",
-                "session_id": str(session_id),
-                "lab_id": log_lab_id,
-                "lab_difficulty": log_lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
         return forbidden(exc.message, exc.details)
     except ValidationError:
-        logger.exception(
-            "learner explanation metadata validation failed",
-            extra={
-                "event": "learner_explanation_session_metadata_invalid",
-                "session_id": str(session_id),
-                "lab_id": log_lab_id,
-                "lab_difficulty": log_lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
         return api_error(
             code="SESSION_METADATA_INVALID",
             message="Invalid lab difficulty on session_metadata",
@@ -1016,16 +749,6 @@ def learner_explanation(
             details={"session_id": str(session_id)},
         )
     except DuplicateIdempotencyKeyError as exc:
-        logger.exception(
-            "learner explanation idempotency replay failed",
-            extra={
-                "event": "learner_explanation_idempotency_replay_failed",
-                "session_id": str(session_id),
-                "lab_id": log_lab_id,
-                "lab_difficulty": log_lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
         return api_error(
             code=exc.code,
             message=exc.message,
@@ -1034,16 +757,7 @@ def learner_explanation(
             details=exc.details,
         )
     except Exception:
-        logger.exception(
-            "learner explanation endpoint failed",
-            extra={
-                "event": "learner_explanation_internal_error",
-                "session_id": str(session_id),
-                "lab_id": log_lab_id,
-                "lab_difficulty": log_lab_difficulty,
-                "user_id": str(principal.user_id),
-            },
-        )
+        logger.exception("learner explanation endpoint failed")
         return api_error(
             code="INTERNAL_SERVER_ERROR",
             message="Unknown error in explanation endpoint",
