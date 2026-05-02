@@ -104,9 +104,6 @@ class SQLAlchemyOutbox(Outbox):
             end_event_index=end_event_index,
         )
         payload: dict[str, object] = payload_model.model_dump(mode="json")
-        payload["requested_at"] = (
-            requested_at.isoformat() if requested_at is not None else None
-        )
 
         event = OutboxEventModel(
             event_type=OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,

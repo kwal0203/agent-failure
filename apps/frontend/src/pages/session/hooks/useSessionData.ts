@@ -529,13 +529,6 @@ export function useSessionData({
     sessionId,
   ]);
 
-  const registerLearnerFeedbackEvents = useCallback(
-    (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
-      // Metadata polling is the source of truth for feedback.
-    },
-    [],
-  );
-
   const registerMetadataFeedbackEvents = useCallback(
     (feedbackItems: SessionFeedbackItem[]) => {
       for (const item of feedbackItems) {
@@ -587,6 +580,17 @@ export function useSessionData({
       return;
     }
   }, [registerMetadataFeedbackEvents, sessionId]);
+
+  const registerLearnerFeedbackEvents = useCallback(
+    (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
+      // Persisted session metadata is the source of truth for rendered feedback.
+      // When websocket feedback arrives, refresh immediately so UI updates even
+      // if background polling is paused (for example outside ACTIVE/PROVISIONING).
+      void refreshSessionMetadata();
+      void refreshTraceTimeline();
+    },
+    [refreshSessionMetadata, refreshTraceTimeline],
+  );
 
   const progressChips = metadata?.progress_chips ?? [];
   const progressReady = metadataReady;
