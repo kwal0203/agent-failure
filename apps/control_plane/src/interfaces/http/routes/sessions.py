@@ -119,14 +119,23 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_runtime_client_factory,
     get_session_metadata_repository,
 )
+from apps.control_plane.src.interfaces.http.errors import (
+    api_error,
+    forbidden,
+    internal_error,
+    session_not_found,
+)
 from apps.control_plane.src.interfaces.http.helpers import (
     build_api_error_response,
     build_trace_event,
 )
+from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
+    map_evaluator_feedback_response,
+    map_session_trace_response,
+)
 from apps.control_plane.src.interfaces.http.schemas import (
     CreateSessionRequest,
     CreateSessionResponse,
-    EvaluatorFeedbackResponse,
     GetFeedbackResponse,
     GetSessionTraceResponse,
     InjectSessionEmailResponse,
@@ -135,7 +144,6 @@ from apps.control_plane.src.interfaces.http.schemas import (
     MarkSessionFeedbackSeenResponse,
     MarkSessionHintsSeenResponse,
     SessionResponse,
-    SessionTraceEvent,
     StopSessionResponse,
 )
 
@@ -352,13 +360,7 @@ def stop_session_endpoint(
             repo=metadata_repo,
         )
         if session_metadata is None:
-            return build_api_error_response(
-                "SESSION_NOT_FOUND",
-                "Session not found",
-                False,
-                404,
-                {"session_id": str(session_id)},
-            )
+            return session_not_found(str(session_id))
 
         if session_metadata.state in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}:
             return StopSessionResponse(
@@ -388,24 +390,16 @@ def stop_session_endpoint(
         )
 
     except ForbiddenErrorSessionQuery as exc:
-        return build_api_error_response(
-            "FORBIDDEN", exc.message, False, 403, exc.details
-        )
+        return forbidden(exc.message, exc.details)
     except SessionNotFound:
-        return build_api_error_response(
-            "SESSION_NOT_FOUND",
-            "Session not found",
-            False,
-            404,
-            {"session_id": str(session_id)},
-        )
+        return session_not_found(str(session_id))
     except InvalidTransition as exc:
-        return build_api_error_response(
-            "INVALID_SESSION_STATE",
-            "Session cannot be stopped from the current state",
-            False,
-            409,
-            {
+        return api_error(
+            code="INVALID_SESSION_STATE",
+            message="Session cannot be stopped from the current state",
+            retryable=False,
+            status_code=409,
+            details={
                 "session_id": str(session_id),
                 "current_state": exc.current_state.value,
                 "trigger": exc.trigger.value,
@@ -413,12 +407,8 @@ def stop_session_endpoint(
         )
     except Exception:
         logger.exception("stop session failed for session=%s", str(session_id))
-        return build_api_error_response(
-            "INTERNAL_ERROR",
-            "Unexpected server error",
-            False,
-            500,
-            {"session_id": str(session_id)},
+        return internal_error(
+            "Unexpected server error", details={"session_id": str(session_id)}
         )
 
 
@@ -450,31 +440,21 @@ def mark_hints_seen_endpoint(
         )
     except ForbiddenErrorSessionHints as exc:
         db.rollback()
-        return build_api_error_response(
-            "FORBIDDEN",
-            exc.message,
-            False,
-            403,
-            exc.details,
-        )
+        return forbidden(exc.message, exc.details)
     except SessionNotFoundErrorSessionHints:
         db.rollback()
-        return build_api_error_response(
-            "SESSION_NOT_FOUND",
-            "Session not found",
-            False,
-            404,
-            {"session_id": str(session_id), "exists": False},
+        return api_error(
+            code="SESSION_NOT_FOUND",
+            message="Session not found",
+            retryable=False,
+            status_code=404,
+            details={"session_id": str(session_id), "exists": False},
         )
     except Exception:
         db.rollback()
         logger.exception("mark hints seen failed")
-        return build_api_error_response(
-            "INTERNAL_ERROR",
-            "Unexpected server error",
-            False,
-            500,
-            {"session_id": str(session_id)},
+        return internal_error(
+            "Unexpected server error", details={"session_id": str(session_id)}
         )
 
 
@@ -506,31 +486,21 @@ def mark_feedback_seen_endpoint(
         )
     except ForbiddenErrorSessionFeedback as exc:
         db.rollback()
-        return build_api_error_response(
-            "FORBIDDEN",
-            exc.message,
-            False,
-            403,
-            exc.details,
-        )
+        return forbidden(exc.message, exc.details)
     except SessionNotFoundErrorSessionFeedback:
         db.rollback()
-        return build_api_error_response(
-            "SESSION_NOT_FOUND",
-            "Session not found",
-            False,
-            404,
-            {"session_id": str(session_id), "exists": False},
+        return api_error(
+            code="SESSION_NOT_FOUND",
+            message="Session not found",
+            retryable=False,
+            status_code=404,
+            details={"session_id": str(session_id), "exists": False},
         )
     except Exception:
         db.rollback()
         logger.exception("mark feedback seen failed")
-        return build_api_error_response(
-            "INTERNAL_ERROR",
-            "Unexpected server error",
-            False,
-            500,
-            {"session_id": str(session_id)},
+        return internal_error(
+            "Unexpected server error", details={"session_id": str(session_id)}
         )
 
 
@@ -551,37 +521,19 @@ def evaluator_feedback(
     repo = SQLAlchemyEvaluatorRepository(db=db)
 
     try:
-        evaluator_feedback = get_session_evaluator_feedback(
+        evaluator_feedback_item = get_session_evaluator_feedback(
             principal=principal, session_id=session_id, repo=repo
         )
-        tmp: list[EvaluatorFeedbackResponse] = []
-        for feedback in evaluator_feedback:
-            tmp.append(
-                EvaluatorFeedbackResponse(
-                    status=feedback.status,
-                    reason_code=feedback.reason_code,
-                    evidence_snippet=feedback.evidence_snippet,
-                )
-            )
-
-        return GetFeedbackResponse(feedback=tuple(tmp))
+        return map_evaluator_feedback_response(evaluator_feedback_item)
 
     except ForbiddenError as exc:
-        return build_api_error_response(
-            code="FORBIDDEN",
-            message=exc.message,
-            retryable=False,
-            status_code=403,
-            details=exc.details,
-        )
+        return forbidden(exc.message, exc.details)
 
     except Exception:
         logger.exception(
             "get evaluator feedback endpoint failed for session=%s", str(session_id)
         )
-        return build_api_error_response(
-            "INTERNAL_ERROR", "unexpected server error", False, 500, None
-        )
+        return internal_error()
 
 
 @router.get(
@@ -610,52 +562,20 @@ def get_session_trace(
             repo=metadata_repo,
         )
         if session_metadata is None:
-            return build_api_error_response(
-                code="SESSION_NOT_FOUND",
-                message="Session not found",
-                retryable=False,
-                status_code=404,
-                details={"session_id": str(session_id)},
-            )
+            return session_not_found(str(session_id))
 
         events = repo.list_trace_events_for_session(session_id=session_id)
         learner_events = project_learner_visible_events(events=events)
 
-        response: list[SessionTraceEvent] = []
-        for event in learner_events:
-            response.append(
-                SessionTraceEvent(
-                    id=event.event_id,
-                    event_index=event.event_index,
-                    family=event.family,
-                    event_type=event.event_type,
-                    source=event.source,
-                    occurred_at=event.occurred_at,
-                    payload=event.payload,
-                )
-            )
-
-        return GetSessionTraceResponse(events=tuple(response))
+        return map_session_trace_response(learner_events)
 
     except ForbiddenErrorSessionQuery as exc:
-        return build_api_error_response(
-            code="FORBIDDEN",
-            message=exc.message,
-            retryable=False,
-            status_code=403,
-            details=exc.details,
-        )
+        return forbidden(exc.message, exc.details)
     except Exception:
         logger.exception(
             "get session trace endpoint failed for session=%s", str(session_id)
         )
-        return build_api_error_response(
-            code="INTERNAL_ERROR",
-            message="unexpected server error",
-            retryable=False,
-            status_code=500,
-            details=None,
-        )
+        return internal_error()
 
 
 @router.post(

@@ -13,12 +13,12 @@ from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
 )
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
+from apps.control_plane.src.interfaces.http.errors import forbidden, internal_error
 from apps.control_plane.src.interfaces.http.schemas import (
     GetLabsResponse,
     LabCapabilitiesResponse,
     LabCatalogItemResponse,
 )
-from apps.control_plane.src.interfaces.http.helpers import build_api_error_response
 
 import logging
 
@@ -60,19 +60,11 @@ def get_labs(
         return GetLabsResponse(labs=result)
 
     except ForbiddenError as exc:
-        return build_api_error_response(
-            code="FORBIDDEN",
-            message=exc.message,
-            retryable=False,
-            status_code=403,
-            details=exc.details,
-        )
+        return forbidden(exc.message, exc.details)
     except Exception:
         logger.exception(
             "get labs endpoint failed user_id=%s role=%s",
             str(principal.user_id),
             principal.role,
         )
-        return build_api_error_response(
-            "INTERNAL_ERROR", "unexpected server error", False, 500, None
-        )
+        return internal_error()
