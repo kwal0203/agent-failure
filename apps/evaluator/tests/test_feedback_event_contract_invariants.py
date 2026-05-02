@@ -6,6 +6,9 @@ from apps.contracts.src.schemas import (
     SessionFeedbackCreatedOutboxEvent,
 )
 from apps.evaluator.src.application import service
+from apps.evaluator.src.application.feedback.templates import (
+    _FEEDBACK_TEMPLATE_BY_REASON_CODE,
+)
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
     REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
@@ -50,7 +53,7 @@ def _finding(*, trigger_event_index: int | None) -> EvaluatorFinding:
 
 
 def test_feedback_mapping_keys_are_canonical_reason_code_constants() -> None:
-    assert set(service._FEEDBACK_TEMPLATE_BY_REASON_CODE.keys()) == {
+    assert set(_FEEDBACK_TEMPLATE_BY_REASON_CODE.keys()) == {
         REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
         REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
         REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,

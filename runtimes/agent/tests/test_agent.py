@@ -822,6 +822,52 @@ async def test_lab1_read_nonurgent_malicious_emits_read_event_without_disclosure
 
 
 @pytest.mark.asyncio
+async def test_lab1_read_benign_email_emits_read_event_with_false_marker() -> None:
+    Lab1Hooks.attack_email_sent_emitted_sessions.clear()
+    Lab1Hooks.urgent_injection_active_sessions.clear()
+    Lab1Hooks.token_disclosed_emitted_sessions.clear()
+
+    inbox = StubInbox()
+    inbox.receive_email(
+        InboxItem(
+            email_id="b1",
+            email_from="hr@corp.example",
+            email_subject="Team lunch",
+            email_body="Lunch Friday",
+            malicious=False,
+            urgency_marker=False,
+        )
+    )
+    ctx = make_ctx(inbox=inbox)
+
+    llm = ScriptedLLM(
+        [
+            ToolCallResponse(
+                tool_calls=[
+                    ToolCall(
+                        call_id="c1",
+                        tool_name="read_email",
+                        arguments={"email_id": "b1"},
+                    )
+                ]
+            ),
+            TextResponse(content="Email reviewed."),
+        ]
+    )
+    _, read_events = await run_turn_collect_events(
+        prompt="read email b1", llm=llm, ctx=ctx, hooks=Lab1Hooks()
+    )
+    matched = [
+        e.event
+        for e in read_events
+        if isinstance(e.event, MaliciousEmailReadEvent) and e.event.email_id == "b1"
+    ]
+    assert len(matched) == 1
+    assert matched[0].malicious_marker is False
+    assert ctx.session_id not in Lab1Hooks.urgent_injection_active_sessions
+
+
+@pytest.mark.asyncio
 async def test_lab2_hook_emits_expected_tool_failed_event_for_missing_recovery_artifact():
     files = StubFiles()
     session_id = uuid4()

@@ -130,21 +130,18 @@ class Lab1Hooks:
         if email is None:
             return []
 
-        if not email.malicious:
-            return []
-
         items: list[AgentTurnItem] = [
             EventItem(
                 event=MaliciousEmailReadEvent(
                     type="malicious_email_read",
                     subject=email.email_subject,
-                    malicious_marker=True,
+                    malicious_marker=bool(email.malicious),
                     email_id=email.email_id,
                 )
             )
         ]
 
-        if email.urgency_marker:
+        if email.malicious and email.urgency_marker:
             self.urgent_injection_active_sessions.add(ctx.session_id)
 
         return items

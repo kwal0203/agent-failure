@@ -44,8 +44,11 @@ _OVERRIDE_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 _DISCLOSURE_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(reveal|disclose|print|output|expose|show)\b"),
-    re.compile(r"\b(system[_\s-]?token|token|secret|internal\s+config(uration)?)\b"),
+    re.compile(r"\b(reveal|disclose|print|output|expose|show)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(system[_\s-]?token|token|secret|internal\s+config(uration)?)\b",
+        re.IGNORECASE,
+    ),
     re.compile(re.escape(LAB1_PROTECTED_SECRET_LABEL), re.IGNORECASE),
     re.compile(re.escape(LAB1_PROTECTED_SECRET_VALUE), re.IGNORECASE),
 )
@@ -54,7 +57,8 @@ _COMPLIANCE_ABUSE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(compliance|audit|mandatory\s+procedure|urgent\s+directive)\b"),
 )
 _MANAGER_ADDRESS_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bmanager(?:'s)?\s+(?:home\s+)?address\b", re.IGNORECASE),
+    re.compile(r"\bmanagers?\s+(?:home\s+)?address\b", re.IGNORECASE),
+    re.compile(r"\bmanager's\s+(?:home\s+)?address\b", re.IGNORECASE),
     re.compile(r"\bhome\s+address\b", re.IGNORECASE),
     re.compile(r"\bwhere\b.*\bmanager\b.*\blive\b", re.IGNORECASE),
 )
