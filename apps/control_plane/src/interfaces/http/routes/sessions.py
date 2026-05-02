@@ -33,38 +33,18 @@ from apps.control_plane.src.application.session_explanation_submission.service i
     SubmitLearnerExplanationCommand,
     submit_learner_explanation,
 )
-from apps.control_plane.src.application.session_create.errors import (
-    AdmissionDecisionError,
-    DegradedModeRestrictionError,
-    InvalidIdempotencyKeyError,
-    InvalidLabDifficulty,
-    LabNotAvailableError,
-    QuotaExceededError,
-    RateLimitedError,
-)
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
     CreateSessionUnitOfWork,
 )
 from apps.control_plane.src.application.session_create.service import create_session
-from apps.control_plane.src.application.session_feedback.errors import (
-    ForbiddenErrorSessionFeedback,
-    SessionNotFoundErrorSessionFeedback,
-)
 from apps.control_plane.src.application.session_feedback.service import (
     mark_session_feedback_seen,
-)
-from apps.control_plane.src.application.session_hints.errors import (
-    ForbiddenErrorSessionHints,
-    SessionNotFoundErrorSessionHints,
 )
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
 )
-from apps.control_plane.src.application.session_lifecycle.errors import (
-    InvalidTransition,
-    SessionNotFound,
-)
+from apps.control_plane.src.application.session_lifecycle.errors import SessionNotFound
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
 )
@@ -113,6 +93,14 @@ from apps.control_plane.src.interfaces.http.errors import (
     internal_error,
     session_not_found,
 )
+from apps.control_plane.src.interfaces.http.translators.create_session import (
+    translate_create_session_error,
+)
+from apps.control_plane.src.interfaces.http.translators.session_actions import (
+    translate_mark_feedback_seen_error,
+    translate_mark_hints_seen_error,
+    translate_stop_session_error,
+)
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
@@ -133,25 +121,6 @@ from apps.control_plane.src.interfaces.http.schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _exception_log_helper(
-    content: str,
-    event: str,
-    reason: str,
-    request: CreateSessionRequest,
-    principal: PrincipalContext,
-) -> None:
-    logger.warning(
-        str(content),
-        extra={
-            "event": str(event),
-            "reason": str(reason),
-            "lab_id": str(request.lab_id),
-            "lab_difficulty": str(request.lab_difficulty),
-            "user_id": str(principal.user_id),
-        },
-    )
 
 
 @router.post(
@@ -222,126 +191,22 @@ def create_session_endpoint(
         )
 
         return CreateSessionResponse(session=session)
-    except LabNotAvailableError as exc:
-        _exception_log_helper(
-            "lab_not_available",
-            "create_session_denied",
-            "LAB_NOT_AVAILABLE",
-            request,
-            principal,
-        )
-        return api_error(
-            code="LAB_NOT_AVAILABLE",
-            message=exc.message,
-            retryable=False,
-            status_code=404,
-            details=exc.details,
-        )
-    except QuotaExceededError as exc:
-        _exception_log_helper(
-            "quota_exceeded",
-            "create_session_denied",
-            "QUOTA_EXCEEDED",
-            request,
-            principal,
-        )
-        return api_error(
-            code="QUOTA_EXCEEDED",
-            message=exc.message,
-            retryable=False,
-            status_code=429,
-            details=exc.details,
-        )
-    except RateLimitedError as exc:
-        _exception_log_helper(
-            "rate_limited", "create_session_denied", "RATE_LIMITED", request, principal
-        )
-        return api_error(
-            code="RATE_LIMITED",
-            message=exc.message,
-            retryable=False,
-            status_code=429,
-            details=exc.details,
-        )
-    except DegradedModeRestrictionError as exc:
-        _exception_log_helper(
-            "degraded_mode_restriction",
-            "create_session_denied",
-            "DEGRADED_MODE_RESTRICTION",
-            request,
-            principal,
-        )
-        return api_error(
-            code="DEGRADED_MODE_RESTRICTION",
-            message=exc.message,
-            retryable=False,
-            status_code=503,
-            details=exc.details,
-        )
-    except InvalidIdempotencyKeyError as exc:
-        _exception_log_helper(
-            "invalid_idempotency_key",
-            "create_session_denied",
-            "INVALID_IDEMPOTENCY_KEY",
-            request,
-            principal,
-        )
-        return api_error(
-            code="INVALID_IDEMPOTENCY_KEY",
-            message=exc.message,
-            retryable=False,
-            status_code=400,
-            details=exc.details,
-        )
-    except ForbiddenError as exc:
-        _exception_log_helper(
-            "forbidden", "create_session_denied", "FORBIDDEN", request, principal
-        )
-        return forbidden(exc.message, exc.details)
-    except AdmissionDecisionError as exc:
-        _exception_log_helper(
-            "admission_denied",
-            "create_session_denied",
-            "ADMISSION_DENIED",
-            request,
-            principal,
-        )
-        return api_error(
-            code="ADMISSION_DENIED",
-            message=exc.message,
-            retryable=False,
-            status_code=400,
-            details=exc.details,
-        )
-    except InvalidLabDifficulty as exc:
-        _exception_log_helper(
-            "invalid_lab_difficulty",
-            "create_session_denied",
-            "INVALID_LAB_DIFFICULTY",
-            request,
-            principal,
-        )
-        return api_error(
-            code="INVALID_LAB_DIFFICULTY",
-            message=exc.message,
-            retryable=False,
-            status_code=400,
-            details=exc.details,
-        )
-    except Exception:
-        safe_idempo = f"{key[:8]}..." if key else None
-        logger.exception(
-            "create session endpoint failed",
-            extra={
-                "event": "create_session_failed",
-                "lab_id": str(request.lab_id),
-                "lab_difficulty": request.lab_difficulty,
-                "user_id": str(application_principal.user_id),
-                "idempotency_key_prefix": safe_idempo,
-            },
-        )
-
-        return internal_error()
+    except Exception as exc:
+        try:
+            return translate_create_session_error(exc)
+        except TypeError:
+            safe_idempo = f"{key[:8]}..." if key else None
+            logger.exception(
+                "create session endpoint failed",
+                extra={
+                    "event": "create_session_failed",
+                    "lab_id": str(request.lab_id),
+                    "lab_difficulty": request.lab_difficulty,
+                    "user_id": str(application_principal.user_id),
+                    "idempotency_key_prefix": safe_idempo,
+                },
+            )
+            return internal_error()
 
 
 @router.post(
@@ -397,27 +262,13 @@ def stop_session_endpoint(
             state="CANCELLED",
         )
 
-    except ForbiddenErrorSessionQuery as exc:
-        return forbidden(exc.message, exc.details)
     except SessionNotFound:
         return session_not_found(str(session_id))
-    except InvalidTransition as exc:
-        return api_error(
-            code="INVALID_SESSION_STATE",
-            message="Session cannot be stopped from the current state",
-            retryable=False,
-            status_code=409,
-            details={
-                "session_id": str(session_id),
-                "current_state": exc.current_state.value,
-                "trigger": exc.trigger.value,
-            },
-        )
-    except Exception:
-        logger.exception("stop session failed for session=%s", str(session_id))
-        return internal_error(
-            "Unexpected server error", details={"session_id": str(session_id)}
-        )
+    except Exception as exc:
+        response = translate_stop_session_error(exc, session_id=session_id)
+        if response.status_code == 500:
+            logger.exception("stop session failed for session=%s", str(session_id))
+        return response
 
 
 @router.post(
@@ -446,24 +297,12 @@ def mark_hints_seen_endpoint(
             session_id=session_id,
             updated_count=updated_count,
         )
-    except ForbiddenErrorSessionHints as exc:
+    except Exception as exc:
         db.rollback()
-        return forbidden(exc.message, exc.details)
-    except SessionNotFoundErrorSessionHints:
-        db.rollback()
-        return api_error(
-            code="SESSION_NOT_FOUND",
-            message="Session not found",
-            retryable=False,
-            status_code=404,
-            details={"session_id": str(session_id), "exists": False},
-        )
-    except Exception:
-        db.rollback()
-        logger.exception("mark hints seen failed")
-        return internal_error(
-            "Unexpected server error", details={"session_id": str(session_id)}
-        )
+        response = translate_mark_hints_seen_error(exc, session_id=session_id)
+        if response.status_code == 500:
+            logger.exception("mark hints seen failed")
+        return response
 
 
 @router.post(
@@ -492,24 +331,12 @@ def mark_feedback_seen_endpoint(
             session_id=session_id,
             updated_count=updated_count,
         )
-    except ForbiddenErrorSessionFeedback as exc:
+    except Exception as exc:
         db.rollback()
-        return forbidden(exc.message, exc.details)
-    except SessionNotFoundErrorSessionFeedback:
-        db.rollback()
-        return api_error(
-            code="SESSION_NOT_FOUND",
-            message="Session not found",
-            retryable=False,
-            status_code=404,
-            details={"session_id": str(session_id), "exists": False},
-        )
-    except Exception:
-        db.rollback()
-        logger.exception("mark feedback seen failed")
-        return internal_error(
-            "Unexpected server error", details={"session_id": str(session_id)}
-        )
+        response = translate_mark_feedback_seen_error(exc, session_id=session_id)
+        if response.status_code == 500:
+            logger.exception("mark feedback seen failed")
+        return response
 
 
 @router.get(
