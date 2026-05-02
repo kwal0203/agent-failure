@@ -12,8 +12,8 @@ from apps.contracts.src.schemas import (
     GetSessionTraceResponse,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.application.evaluator_feedback.service import (
-    get_session_evaluator_feedback,
+from apps.control_plane.src.application.evaluator_feedback import (
+    service as evaluator_feedback_service,
 )
 from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
 from apps.control_plane.src.application.session_query.ports import (
@@ -61,8 +61,10 @@ def evaluator_feedback(
     repo: EvaluatorPort = Depends(get_evaluator_repository),
 ) -> GetFeedbackResponse | JSONResponse:
     try:
-        evaluator_feedback_item = get_session_evaluator_feedback(
-            principal=principal, session_id=session_id, repo=repo
+        evaluator_feedback_item = (
+            evaluator_feedback_service.get_session_evaluator_feedback(
+                principal=principal, session_id=session_id, repo=repo
+            )
         )
         return map_evaluator_feedback_response(evaluator_feedback_item)
 

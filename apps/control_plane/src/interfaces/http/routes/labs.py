@@ -7,8 +7,8 @@ from apps.contracts.src.schemas import (
     LabCatalogItemResponse,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.application.lab_catalog.service import (
-    get_labs_for_principal,
+from apps.control_plane.src.application.lab_catalog import (
+    service as lab_catalog_service,
 )
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
@@ -34,7 +34,7 @@ def get_labs(
     lab_repo: LabRepository = Depends(get_lab_repository),
 ) -> GetLabsResponse | JSONResponse:
     try:
-        labs_for_principal = get_labs_for_principal(
+        labs_for_principal = lab_catalog_service.get_labs_for_principal(
             principal=principal, lab_repo=lab_repo
         ).labs
 

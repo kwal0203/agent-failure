@@ -10,10 +10,12 @@ from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (
     SQLAlchemyLabRepository,
 )
+from apps.control_plane.src.application.lab_catalog import (
+    service as lab_catalog_service,
+)
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.main import app
-import apps.control_plane.src.interfaces.http.routes.labs as labs_routes
 
 
 def _override_principal(user_id: UUID, role: str) -> Callable[[], PrincipalContext]:
@@ -106,7 +108,7 @@ def test_get_labs_invalid_bearer_does_not_enter_service_logic(monkeypatch) -> No
     def _should_not_run(*args, **kwargs):
         raise AssertionError("get_labs_for_principal should not be called")
 
-    monkeypatch.setattr(labs_routes, "get_labs_for_principal", _should_not_run)
+    monkeypatch.setattr(lab_catalog_service, "get_labs_for_principal", _should_not_run)
     app.dependency_overrides[get_db_session] = _override_db_session()
     try:
         client = TestClient(app)
