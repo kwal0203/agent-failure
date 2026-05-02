@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import ApiErrorEnvelope, EmailArtifact
@@ -23,6 +24,15 @@ from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
 )
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
+from apps.control_plane.src.infrastructure.persistence.models import (
+    SessionObjectiveModel,
+)
+from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
+from apps.control_plane.src.infrastructure.persistence.session_repository import (
+    SQLAlchemySessionMetadataRepository,
+    SQLAlchemySessionRuntimeBindingRepository,
+    SQLAlchemyTraceEventRepository,
+)
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_email_maliciousness_classifier,
@@ -38,6 +48,35 @@ from apps.control_plane.src.interfaces.http.schemas import InjectSessionEmailRes
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class _SessionEmailObjectiveStatus:
+    def __init__(self, *, db: Session):
+        self._db = db
+
+    def is_malicious_email_injected_complete(self, *, session_id: UUID) -> bool:
+        objective = (
+            self._db.execute(
+                select(SessionObjectiveModel).where(
+                    SessionObjectiveModel.session_id == session_id,
+                    SessionObjectiveModel.objective_key == "malicious_email_injected",
+                )
+            )
+            .scalars()
+            .one_or_none()
+        )
+        return bool(objective is not None and objective.status == "complete")
+
+
+class _SessionEmailDeps:
+    def __init__(self, *, db: Session):
+        self._db = db
+        self.metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
+        self.runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
+        self.trace_repo = SQLAlchemyTraceEventRepository(db=db)
+        self.outbox_repo = SQLAlchemyOutbox(db=db)
+        self.objective_status = _SessionEmailObjectiveStatus(db=db)
+        self.tx = db
 
 
 @router.post(
@@ -75,7 +114,7 @@ async def inject_session_email(
                 email_id=request.email_id,
                 source=request.source,
             ),
-            db=db,
+            deps=_SessionEmailDeps(db=db),
             runtime_client_factory=runtime_client_factory,
             email_classifier=email_classifier,
         )

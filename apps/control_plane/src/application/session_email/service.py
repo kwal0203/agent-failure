@@ -1,10 +1,8 @@
 """Application service for injecting learner email into a session."""
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
-
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.email_classification.ports import (
@@ -19,20 +17,12 @@ from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
 from apps.control_plane.src.application.trace.service import append_trace_event
-from apps.control_plane.src.infrastructure.persistence.models import (
-    SessionObjectiveModel,
-)
-from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemySessionMetadataRepository,
-    SQLAlchemySessionRuntimeBindingRepository,
-    SQLAlchemyTraceEventRepository,
-)
-from apps.control_plane.src.interfaces.http.helpers import build_trace_event
+from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.interfaces.http.mappers.session_email_mapper import (
     build_malicious_email_objective_idempotency_key,
     map_attack_email_sent_payload,
 )
+from .ports import SessionEmailDeps
 
 
 class SessionEmailPolicyError(Exception):
@@ -72,19 +62,14 @@ class InjectSessionEmailResult:
 async def inject_session_email_for_session(
     *,
     command: InjectSessionEmailCommand,
-    db: Session,
+    deps: SessionEmailDeps,
     runtime_client_factory: RuntimeClientFactoryPort,
     email_classifier: EmailMaliciousnessClassifierPort,
 ) -> InjectSessionEmailResult | None:
-    repo = SQLAlchemySessionMetadataRepository(db=db)
-    runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
-    trace_repo = SQLAlchemyTraceEventRepository(db=db)
-    outbox_repo = SQLAlchemyOutbox(db=db)
-
     session_metadata = get_session_metadata(
         session_id=command.session_id,
         principal=command.principal,
-        repo=repo,
+        repo=deps.metadata_repo,
     )
 
     if session_metadata is None:
@@ -99,7 +84,7 @@ async def inject_session_email_for_session(
             details={"session_id": str(command.session_id)},
         )
 
-    runtime_binding = runtime_binding_repo.get_by_session_id(
+    runtime_binding = deps.runtime_binding_repo.get_by_session_id(
         session_id=command.session_id
     )
     if runtime_binding is None or runtime_binding.status != "ready":
@@ -155,13 +140,16 @@ async def inject_session_email_for_session(
         urgency_marker=classification.urgency_marker,
     )
 
-    trace_event = build_trace_event(
-        trace_repo=trace_repo,
+    trace_event = TraceEvent(
+        event_id=uuid4(),
         session_id=command.session_id,
         family="learner",
         event_type="ATTACK_EMAIL_SENT",
+        occurred_at=datetime.now(timezone.utc),
         source="inject_session_email_service",
+        event_index=deps.trace_repo.get_next_event_index(session_id=command.session_id),
         payload=attack_email_sent_payload,
+        trace_version=1,
         correlation_id=None,
         request_id=None,
         actor_user_id=command.principal.user_id,
@@ -169,13 +157,15 @@ async def inject_session_email_for_session(
         lab_version_id=session_metadata.lab_version_id,
         lab_difficulty=session_metadata.lab_difficulty,
     )
-    append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
+    append_trace_event(
+        trace=trace_event, repo=deps.trace_repo, outbox_repo=deps.outbox_repo
+    )
 
     if (
         session_metadata.lab_id is not None
         and session_metadata.lab_version_id is not None
     ):
-        outbox_repo.enqueue_for_evaluator(
+        deps.outbox_repo.enqueue_for_evaluator(
             session_id=command.session_id,
             lab_id=session_metadata.lab_id,
             lab_version_id=session_metadata.lab_version_id,
@@ -190,23 +180,15 @@ async def inject_session_email_for_session(
         and session_metadata.lab_id is not None
         and session_metadata.lab_version_id is not None
     ):
-        objective = (
-            db.execute(
-                select(SessionObjectiveModel).where(
-                    SessionObjectiveModel.session_id == command.session_id,
-                    SessionObjectiveModel.objective_key == "malicious_email_injected",
-                )
-            )
-            .scalars()
-            .one_or_none()
-        )
-        if objective is None or objective.status != "complete":
+        if not deps.objective_status.is_malicious_email_injected_complete(
+            session_id=command.session_id
+        ):
             objective_idempotency_key = build_malicious_email_objective_idempotency_key(
                 session_id=command.session_id,
                 email_input=email_input,
                 derived_malicious=derived_malicious,
             )
-            outbox_repo.enqueue_session_objective_completed(
+            deps.outbox_repo.enqueue_session_objective_completed(
                 session_id=command.session_id,
                 lab_id=session_metadata.lab_id,
                 lab_version_id=session_metadata.lab_version_id,
@@ -219,5 +201,5 @@ async def inject_session_email_for_session(
                 occurred_at=trace_event.occurred_at,
             )
 
-    db.commit()
+    deps.tx.commit()
     return InjectSessionEmailResult(session_id=command.session_id)

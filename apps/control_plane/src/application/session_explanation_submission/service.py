@@ -4,8 +4,6 @@ import logging
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-
 from apps.control_plane.src.application.common.schemas import LabDifficultyParser
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.learner_explanation.service import (
@@ -17,14 +15,7 @@ from apps.control_plane.src.application.learner_explanation.types import (
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
-from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
-    LearnerExplanationRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemySessionMetadataRepository,
-    SQLAlchemyTraceEventRepository,
-)
+from .ports import SessionExplanationDeps
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +52,12 @@ class SubmitLearnerExplanationResult:
 
 
 def submit_learner_explanation(
-    *, command: SubmitLearnerExplanationCommand, db: Session
+    *, command: SubmitLearnerExplanationCommand, deps: SessionExplanationDeps
 ) -> SubmitLearnerExplanationResult | None:
-    session_metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
     session_metadata = get_session_metadata(
         session_id=command.session_id,
         principal=command.principal,
-        repo=session_metadata_repo,
+        repo=deps.metadata_repo,
     )
     if session_metadata is None:
         return None
@@ -111,14 +101,11 @@ def submit_learner_explanation(
         source="learner",
     )
 
-    learner_explanation_repo = LearnerExplanationRepository(db=db)
-    trace_repo = SQLAlchemyTraceEventRepository(db=db)
-    outbox = SQLAlchemyOutbox(db=db)
     result = inject_learner_explanation(
-        repo=learner_explanation_repo,
+        repo=deps.learner_explanation_repo,
         learner_input=explanation_artifact,
-        trace_repo=trace_repo,
-        outbox=outbox,
+        trace_repo=deps.trace_repo,
+        outbox=deps.outbox,
     )
 
     logger.info(
