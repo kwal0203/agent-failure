@@ -15,8 +15,10 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
     SessionObjectiveModel,
 )
-import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_worker_heartbeat_repository,
+)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.interfaces.runtime.session_hint_unlock_worker import (
     run_once as run_hint_unlock_worker_once,
@@ -678,7 +680,6 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
 @pytest.mark.usefixtures("engine")
 def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session_id = uuid4()
     owner_username = "stall-owner"
@@ -700,17 +701,13 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     )
     db_session.flush()
 
-    def _fake_read_heartbeat(self: object, worker_name: str) -> None:
-        assert worker_name == "provisioning_worker"
-        return None
-
-    monkeypatch.setattr(
-        main_module.SQLAlchemyWorkerHeartbeatRepository,
-        "read_heartbeat",
-        _fake_read_heartbeat,
-    )
+    class _NoHeartbeatRepo:
+        def read_heartbeat(self, worker_name: str) -> None:
+            assert worker_name == "provisioning_worker"
+            return None
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_worker_heartbeat_repository] = _NoHeartbeatRepo
     try:
         client = TestClient(app)
         response = client.get(
