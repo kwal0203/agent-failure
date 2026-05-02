@@ -25,13 +25,8 @@ from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
 )
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.learner_explanation_repository import (
-    LearnerExplanationRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemySessionMetadataRepository,
-    SQLAlchemyTraceEventRepository,
+from apps.control_plane.src.infrastructure.session_explanation_submission.deps import (
+    build_session_explanation_deps,
 )
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.errors import (
@@ -46,14 +41,6 @@ from apps.control_plane.src.interfaces.http.schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-class _SessionExplanationDeps:
-    def __init__(self, *, db: Session):
-        self.metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
-        self.learner_explanation_repo = LearnerExplanationRepository(db=db)
-        self.trace_repo = SQLAlchemyTraceEventRepository(db=db)
-        self.outbox = SQLAlchemyOutbox(db=db)
 
 
 @router.post(
@@ -102,7 +89,7 @@ def learner_explanation(
                 explanation=request.explanation,
                 idempotency_key=key,
             ),
-            deps=_SessionExplanationDeps(db=db),
+            deps=build_session_explanation_deps(db=db),
         )
         if result is None:
             return session_not_found(str(session_id))
