@@ -1,15 +1,10 @@
-export type LabDifficulty = "easy" | "medium";
+import type {
+  GetLabsResponse,
+  LabCatalogItemResponse,
+} from "../../../contracts/ts/index";
 
-export type LabCatalogItem = {
-  id: string;
-  slug: string;
-  name: string;
-  summary: string;
-  capabilities: {
-    supports_resume: boolean;
-    supports_uploads: boolean;
-  };
-};
+export type LabDifficulty = "easy" | "medium";
+export type LabCatalogItem = LabCatalogItemResponse;
 
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
@@ -65,11 +60,7 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
     throw new Error(`Lab catalog request failed (HTTP ${response.status})`);
   }
 
-  const payload = (await response.json()) as unknown;
-  if (typeof payload !== "object" || payload === null || !("labs" in payload)) {
-    throw new Error("Lab catalog response did not include labs[]");
-  }
-
+  const payload = (await response.json()) as GetLabsResponse;
   const rawLabs = payload.labs;
   if (!Array.isArray(rawLabs)) {
     throw new Error("Lab catalog response has invalid labs[] shape");

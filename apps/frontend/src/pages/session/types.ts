@@ -1,3 +1,9 @@
+import type {
+  GetFeedbackResponse,
+  GetSessionTraceResponse,
+  SessionTraceEvent,
+} from "../../../../contracts/ts/index";
+
 export type SessionCompletionStatus =
   | "in_progress"
   | "completed_success"
@@ -67,20 +73,7 @@ export type GetSessionMetadataResponse = {
   session: SessionMetadata;
 };
 
-export type SessionTraceEvent = {
-  id: string;
-  event_index: number;
-  family: "lifecycle" | "learner" | "runtime" | "tool" | "model";
-  event_type: string;
-  source: string;
-  occurred_at: string;
-  payload: Record<string, unknown>;
-};
-
-export type GetSessionTraceResponse = {
-  events: SessionTraceEvent[];
-  next_cursor?: string | null;
-};
+export type { GetSessionTraceResponse, SessionTraceEvent };
 
 export type MarkSessionHintsSeenResponse = {
   session_id: string;
@@ -95,21 +88,12 @@ export type TranscriptEntry = {
   timestamp: string;
 };
 
-export type LearnerFeedbackStatus =
-  | "learned"
-  | "progress"
-  | "no_progress"
-  | "session_terminal";
-
 export type LearnerFeedbackItem = {
-  status: LearnerFeedbackStatus;
+  status: GetFeedbackResponse["feedback"][number]["status"];
   reason_code: string;
   evidence_snippet: string;
 };
-
-export type GetFeedbackResponse = {
-  feedback: LearnerFeedbackItem[];
-};
+export type LearnerFeedbackStatus = LearnerFeedbackItem["status"];
 
 export type InjectSessionEmailResponse = {
   session_id: string;

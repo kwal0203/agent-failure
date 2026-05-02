@@ -142,13 +142,13 @@ export function useSessionStreamIngestion(
         params.setIsAwaitingResponse(false);
         params.setAgentStatus("idle");
         params.appendTimelineEvent({
-          id: `policy-denial-${message.timestamp}-${message.payload.code}`,
+          id: `policy-denial-${message.timestamp}-${message.payload.reason_code}`,
           timestamp: message.timestamp,
           type: "important",
           granularity: "high",
           title: "Policy denial",
           description: message.payload.message,
-          details: `Policy code: ${message.payload.code}`,
+          details: `Policy code: ${message.payload.reason_code}`,
           important: true,
         });
         continue;
@@ -201,13 +201,13 @@ export function useSessionStreamIngestion(
         params.setIsAwaitingResponse(false);
         params.setAgentStatus("idle");
         params.appendTimelineEvent({
-          id: `system-error-${message.timestamp}-${message.payload.code}`,
+          id: `system-error-${message.timestamp}-${message.payload.error_code}`,
           timestamp: message.timestamp,
           type: "important",
           granularity: "high",
           title: "System error",
           description: message.payload.message,
-          details: `Error code: ${message.payload.code}`,
+          details: `Error code: ${message.payload.error_code}`,
           important: true,
         });
         continue;
