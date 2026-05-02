@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from apps.contracts.src.types import TRACE_EVENT_TOOL_CALL_SUCCEEDED
 from apps.evaluator.src.application.types import EvaluatorFinding
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.contract import (
@@ -14,7 +15,7 @@ def _rule_execution_tool_call_detected(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     for event in ctx.events:
-        if event.event_type != "TOOL_CALL_SUCCEEDED":
+        if event.event_type != TRACE_EVENT_TOOL_CALL_SUCCEEDED:
             continue
 
         payload = event.payload or {}

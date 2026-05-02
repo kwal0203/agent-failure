@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED
 
 from apps.control_plane.src.application.session_objectives.ports import (
     OutboxSessionObjectiveCompletedPort,
@@ -16,8 +17,6 @@ from apps.control_plane.src.application.session_objectives.types import (
 )
 
 from .models import OutboxEventModel
-
-EVENT_TYPE_SESSION_OBJECTIVE_COMPLETED = "session.objective.completed.v1"
 
 
 class SQLAlchemyOutboxSessionObjectiveCompleted(OutboxSessionObjectiveCompletedPort):
@@ -34,7 +33,7 @@ class SQLAlchemyOutboxSessionObjectiveCompleted(OutboxSessionObjectiveCompletedP
                 select(OutboxEventModel)
                 .where(
                     OutboxEventModel.event_type
-                    == EVENT_TYPE_SESSION_OBJECTIVE_COMPLETED,
+                    == OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )

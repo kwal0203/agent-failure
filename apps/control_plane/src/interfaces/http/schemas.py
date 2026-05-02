@@ -3,13 +3,14 @@ from uuid import UUID
 from datetime import datetime
 from typing import Literal, Any
 
+from apps.contracts.src.types import TraceFamily
 from apps.control_plane.src.application.session_query.types import CompletionStatus
 
 
 EvaluatorFeedbackStatusType = Literal[
     "learned", "progress", "no_progress", "session_terminal"
 ]
-TraceFamilyType = Literal["lifecycle", "learner", "runtime", "tool", "model"]
+TraceFamilyType = TraceFamily
 
 
 class SessionProgressChipResponse(BaseModel):

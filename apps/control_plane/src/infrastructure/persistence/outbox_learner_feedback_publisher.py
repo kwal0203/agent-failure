@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from uuid import UUID
 from typing import Any
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK
 from apps.control_plane.src.application.evaluator_feedback.ports import (
     OutboxLearnerFeedbackPublishPort,
 )
@@ -39,7 +40,8 @@ class SQLAlchemyOutboxLearnerFeedbackPublisher(OutboxLearnerFeedbackPublishPort)
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == "session.publish.feedback.v1",
+                    OutboxEventModel.event_type
+                    == OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )

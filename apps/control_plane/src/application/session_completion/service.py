@@ -1,6 +1,7 @@
 from pydantic import ValidationError
 
 from apps.contracts.src.schemas import SessionCompletedOutboxEvent
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_COMPLETED
 
 from .ports import OutboxSessionCompletedPort, SessionCompletionWriterPort
 from .types import SessionCompletionProjectionOnceResult
@@ -21,7 +22,7 @@ def process_pending_session_completed_once(
         try:
             outbox_event = SessionCompletedOutboxEvent.model_validate(
                 {
-                    "event_type": "session.completed.v1",
+                    "event_type": OUTBOX_EVENT_SESSION_COMPLETED,
                     "aggregate_id": event.session_id,
                     "payload": event.payload,
                 }

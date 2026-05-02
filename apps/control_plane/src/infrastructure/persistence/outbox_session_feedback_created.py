@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import SessionFeedbackCreatedEventPayload
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_FEEDBACK_CREATED
 from apps.control_plane.src.application.session_feedback.ports import (
     OutboxSessionFeedbackCreatedPort,
 )
@@ -14,8 +15,6 @@ from apps.control_plane.src.application.session_feedback.types import (
 )
 
 from .models import OutboxEventModel
-
-EVENT_TYPE_SESSION_FEEDBACK_CREATED = "session.feedback.created.v1"
 
 
 class SQLAlchemyOutboxSessionFeedbackCreated(OutboxSessionFeedbackCreatedPort):
@@ -30,7 +29,8 @@ class SQLAlchemyOutboxSessionFeedbackCreated(OutboxSessionFeedbackCreatedPort):
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == EVENT_TYPE_SESSION_FEEDBACK_CREATED,
+                    OutboxEventModel.event_type
+                    == OUTBOX_EVENT_SESSION_FEEDBACK_CREATED,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )

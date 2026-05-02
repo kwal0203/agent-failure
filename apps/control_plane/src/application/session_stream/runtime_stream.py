@@ -1,9 +1,18 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Literal
 
 from fastapi import WebSocketDisconnect
+from apps.contracts.src.types import (
+    TRACE_EVENT_ATTACK_EMAIL_SENT,
+    TRACE_EVENT_MALICIOUS_EMAIL_READ,
+    TRACE_EVENT_TOKEN_DISCLOSED,
+    TRACE_EVENT_TOKEN_DISCLOSURE_ATTEMPTED,
+    TRACE_EVENT_TOOL_CALL_FAILED,
+    TRACE_EVENT_TOOL_CALL_REQUESTED,
+    TRACE_EVENT_TOOL_CALL_SUCCEEDED,
+    TraceFamily,
+)
 
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.interfaces.http.message_builders import (
@@ -15,14 +24,12 @@ from .trace_events import append_model_turn_failed, append_runtime_event
 
 logger = logging.getLogger(__name__)
 
-TraceFamily = Literal["lifecycle", "learner", "runtime", "tool", "model"]
-
 RUNTIME_EVENT_CONFIG: dict[
     str, tuple[TraceFamily, str, tuple[str, ...], tuple[str, ...]]
 ] = {
     "attack_email_sent": (
         "runtime",
-        "ATTACK_EMAIL_SENT",
+        TRACE_EVENT_ATTACK_EMAIL_SENT,
         ("email_id", "recipient", "subject"),
         (),
     ),
@@ -34,7 +41,7 @@ RUNTIME_EVENT_CONFIG: dict[
     ),
     "tool_call_requested": (
         "tool",
-        "TOOL_CALL_REQUESTED",
+        TRACE_EVENT_TOOL_CALL_REQUESTED,
         ("tool_name",),
         (
             "target_resource",
@@ -56,7 +63,7 @@ RUNTIME_EVENT_CONFIG: dict[
     ),
     "tool_call_succeeded": (
         "tool",
-        "TOOL_CALL_SUCCEEDED",
+        TRACE_EVENT_TOOL_CALL_SUCCEEDED,
         ("tool_name",),
         (
             "target_resource",
@@ -83,7 +90,7 @@ RUNTIME_EVENT_CONFIG: dict[
     ),
     "tool_call_failed": (
         "tool",
-        "TOOL_CALL_FAILED",
+        TRACE_EVENT_TOOL_CALL_FAILED,
         ("tool_name",),
         (
             "target_resource",
@@ -106,19 +113,19 @@ RUNTIME_EVENT_CONFIG: dict[
     ),
     "malicious_email_read": (
         "runtime",
-        "MALICIOUS_EMAIL_READ",
+        TRACE_EVENT_MALICIOUS_EMAIL_READ,
         ("email_id", "subject", "malicious_marker"),
         (),
     ),
     "token_disclosure_attempted": (
         "runtime",
-        "TOKEN_DISCLOSURE_ATTEMPTED",
+        TRACE_EVENT_TOKEN_DISCLOSURE_ATTEMPTED,
         ("channel", "target"),
         (),
     ),
     "token_disclosed": (
         "runtime",
-        "TOKEN_DISCLOSED",
+        TRACE_EVENT_TOKEN_DISCLOSED,
         ("channel", "token_kind"),
         (),
     ),

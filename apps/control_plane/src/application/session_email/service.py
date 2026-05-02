@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from apps.contracts.src.types import TRACE_EVENT_ATTACK_EMAIL_SENT
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.email_classification.ports import (
     EmailMaliciousnessClassifierPort,
@@ -144,7 +145,7 @@ async def inject_session_email_for_session(
         event_id=uuid4(),
         session_id=command.session_id,
         family="learner",
-        event_type="ATTACK_EMAIL_SENT",
+        event_type=TRACE_EVENT_ATTACK_EMAIL_SENT,
         occurred_at=datetime.now(timezone.utc),
         source="inject_session_email_service",
         event_index=deps.trace_repo.get_next_event_index(session_id=command.session_id),

@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from uuid import UUID
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_PROVISIONING
 
 from apps.control_plane.src.application.orchestrator.ports import (
     OutboxProvisioningSessionPort,
@@ -26,7 +27,7 @@ class SQLAlchemyOutboxProvisionSession(OutboxProvisioningSessionPort):
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == "session.provisioning.v1",
+                    OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_PROVISIONING,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )
