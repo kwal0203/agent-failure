@@ -14,6 +14,9 @@ from apps.control_plane.src.application.session_query.errors import (
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
+from apps.control_plane.src.application.session_stream.ports import (
+    SessionStreamManagerPort,
+)
 from apps.control_plane.src.application.session_stream.service import handle_user_prompt
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
@@ -27,6 +30,7 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_authority_bulletin_classifier,
     get_runtime_client_factory,
     get_session_metadata_repository,
+    get_ws_session_manager,
 )
 from apps.control_plane.src.interfaces.http.message_builders import (
     build_policy_denial_message,
@@ -36,12 +40,6 @@ from apps.control_plane.src.interfaces.http.stream_messages import UserPromptMes
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _ws_manager():
-    from apps.control_plane.src.interfaces.http import main as main_module
-
-    return main_module.ws_manager
 
 
 @router.websocket("/api/v1/sessions/{session_id}/stream")
@@ -58,6 +56,7 @@ async def session_stream_ws(
     bulletin_classifier: AuthorityBulletinClassifierPort = Depends(
         get_authority_bulletin_classifier
     ),
+    session_manager: SessionStreamManagerPort = Depends(get_ws_session_manager),
 ):
     try:
         principal = get_current_principal_ws(websocket=websocket)
@@ -83,12 +82,12 @@ async def session_stream_ws(
         await websocket.close(code=1008, reason="session not found")
         return
 
-    await _ws_manager().connect(session_id=session_id, websocket=websocket)
+    await session_manager.connect(session_id=session_id, websocket=websocket)
     logger.info(
         f"session stream connect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
     )
     try:
-        await _ws_manager().send_to(
+        await session_manager.send_to(
             websocket,
             build_session_status_message(
                 session_id,
@@ -103,7 +102,7 @@ async def session_stream_ws(
             try:
                 prompt_msg = UserPromptMessage.model_validate(incoming)
             except Exception:
-                await _ws_manager().send_to(
+                await session_manager.send_to(
                     websocket,
                     build_policy_denial_message(
                         session_id, "INVALID_MESSAGE", "Invalid websocket message shape"
@@ -115,7 +114,7 @@ async def session_stream_ws(
                 continue
 
             if prompt_msg.session_id != session_id:
-                await _ws_manager().send_to(
+                await session_manager.send_to(
                     websocket,
                     build_policy_denial_message(
                         session_id,
@@ -133,12 +132,13 @@ async def session_stream_ws(
                 db=db,
                 runtime_client_factory=runtime_client_factory,
                 bulletin_classifier=bulletin_classifier,
+                session_manager=session_manager,
             )
 
     except WebSocketDisconnect:
         pass
     finally:
-        _ws_manager().disconnect(session_id=session_id, websocket=websocket)
+        session_manager.disconnect(session_id=session_id, websocket=websocket)
         logger.info(
             f"session stream disconnect session_id={session_id}, user_id={str(principal.user_id)}, role={principal.role}"
         )

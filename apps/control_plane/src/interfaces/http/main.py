@@ -4,12 +4,11 @@ from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_reposito
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
 )
+from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
 
 from .app import app
-from .session_manager import WebSocketSessionManager
 
 # Backward-compatible seams used by integration tests.
-ws_manager: WebSocketSessionManager = WebSocketSessionManager()
 
 __all__ = [
     "app",

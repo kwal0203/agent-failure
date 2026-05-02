@@ -27,6 +27,9 @@ from apps.control_plane.src.application.prompt_classification.types import (
     AuthorityBulletinClassificationInput,
     AuthorityBulletinClassificationResult,
 )
+from apps.control_plane.src.application.session_stream.ports import (
+    SessionStreamManagerPort,
+)
 from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
@@ -64,6 +67,7 @@ from apps.control_plane.src.infrastructure.classification.openrouter_email_class
 from apps.control_plane.src.infrastructure.classification.openrouter_authority_bulletin_classifier import (
     OpenRouterAuthorityBulletinClassifier,
 )
+from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
 
 
 import os
@@ -71,6 +75,10 @@ import os
 
 class AdmissionPolicyStub:
     pass
+
+
+def get_ws_session_manager() -> SessionStreamManagerPort:
+    return ws_manager
 
 
 @dataclass(frozen=True)
@@ -250,9 +258,3 @@ def get_authority_bulletin_classifier() -> AuthorityBulletinClassifierPort:
         model=config.model_name,
         timeout_seconds=config.model_timeout,
     )
-
-
-# def get_runtime_client(
-#     config: RuntimeClientConfig = Depends(get_runtime_client_config),
-# ) -> RuntimeClientPort:
-#     return RuntimeHttpClient(config=config)

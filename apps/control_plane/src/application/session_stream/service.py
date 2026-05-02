@@ -21,6 +21,9 @@ from apps.control_plane.src.application.prompt_classification.types import (
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
 from apps.control_plane.src.application.runtime.types import RunTurnInput
+from apps.control_plane.src.application.session_stream.ports import (
+    SessionStreamManagerPort,
+)
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
@@ -50,12 +53,6 @@ LAB2_AUTHORITY_SIGNER = "Morgan Hale"
 logger = logging.getLogger(__name__)
 
 
-def _ws_manager():
-    from apps.control_plane.src.interfaces.http import main as main_module
-
-    return main_module.ws_manager
-
-
 async def handle_user_prompt(
     websocket: WebSocket,
     session_id: UUID,
@@ -64,13 +61,14 @@ async def handle_user_prompt(
     db: Session,
     runtime_client_factory: RuntimeClientFactoryPort,
     bulletin_classifier: AuthorityBulletinClassifierPort,
+    session_manager: SessionStreamManagerPort,
 ):
     repo = SQLAlchemySessionMetadataRepository(db=db)
     outbox_repo = SQLAlchemyOutbox(db=db)
     runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
 
-    if not _ws_manager().try_begin_turn(session_id=session_id):
-        await _ws_manager().send_to(
+    if not session_manager.try_begin_turn(session_id=session_id):
+        await session_manager.send_to(
             websocket,
             build_policy_denial_message(
                 session_id, "TURN_IN_PROGRESS", "Turn in progress"
@@ -85,7 +83,7 @@ async def handle_user_prompt(
             repo=repo,
         )
         if metadata is None:
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_policy_denial_message(
                     session_id, "SESSION_NOT_FOUND", "Session not found"
@@ -94,7 +92,7 @@ async def handle_user_prompt(
             return
 
         if not metadata.interactive:
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_policy_denial_message(
                     session_id, "SESSION_NOT_INTERACTIVE", "Session not interactive"
@@ -103,7 +101,7 @@ async def handle_user_prompt(
             return
 
         if metadata.lab_id is None or metadata.lab_version_id is None:
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_policy_denial_message(
                     session_id,
@@ -130,7 +128,7 @@ async def handle_user_prompt(
                     "lab_difficulty": metadata.lab_difficulty,
                 },
             )
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_policy_denial_message(
                     session_id=session_id,
@@ -213,12 +211,12 @@ async def handle_user_prompt(
         append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
 
         try:
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_trace_event_message(session_id, "TURN_STARTED", "Turn started"),
             )
 
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_trace_event_message(
                     session_id, "MODEL_REQUEST_STARTED", "Model request started"
@@ -271,7 +269,7 @@ async def handle_user_prompt(
                 if event.type == "text_chunk":
                     try:
                         await asyncio.wait_for(
-                            _ws_manager().send_to(
+                            session_manager.send_to(
                                 websocket,
                                 build_agent_text_chunk_message(
                                     session_id=session_id,
@@ -296,7 +294,7 @@ async def handle_user_prompt(
                                 "lab_difficulty": metadata.lab_difficulty,
                             },
                         )
-                        await _ws_manager().send_to(
+                        await session_manager.send_to(
                             websocket,
                             build_system_error_message(
                                 session_id=session_id,
@@ -358,7 +356,7 @@ async def handle_user_prompt(
                                 "lab_difficulty": metadata.lab_difficulty,
                             },
                         )
-                        await _ws_manager().send_to(
+                        await session_manager.send_to(
                             websocket,
                             build_system_error_message(
                                 session_id,
@@ -442,7 +440,7 @@ async def handle_user_prompt(
                         if first_chunk_emitted
                         else "The assistant failed before responding. Please resend your prompt."
                     )
-                    await _ws_manager().send_to(
+                    await session_manager.send_to(
                         websocket,
                         build_system_error_message(
                             session_id=session_id,
@@ -823,7 +821,7 @@ async def handle_user_prompt(
                 },
             )
 
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_system_error_message(
                     session_id=session_id,
@@ -837,7 +835,7 @@ async def handle_user_prompt(
         except Exception:
             db.rollback()
             logger.exception(f"session prompt handling failed session_id={session_id}")
-            await _ws_manager().send_to(
+            await session_manager.send_to(
                 websocket,
                 build_system_error_message(
                     session_id, "INTERNAL_ERROR", "Unexpected server error"
@@ -846,4 +844,4 @@ async def handle_user_prompt(
             return
 
     finally:
-        _ws_manager().end_turn(session_id=session_id)
+        session_manager.end_turn(session_id=session_id)
