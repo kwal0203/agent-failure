@@ -9,12 +9,20 @@ from .types import K8sProvisionerConfig
 
 import subprocess
 import json
-import os
+from apps.control_plane.src.infrastructure.config.settings import (
+    RuntimePodEnvSettings,
+    get_runtime_pod_env_settings,
+)
 
 
 class K8sRuntimeProvisioner(RuntimeProvisionerPort):
-    def __init__(self, config: K8sProvisionerConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: K8sProvisionerConfig | None = None,
+        runtime_env: RuntimePodEnvSettings | None = None,
+    ) -> None:
         self._config = config or K8sProvisionerConfig()
+        self._runtime_env = runtime_env or get_runtime_pod_env_settings()
 
     def provision(self, request: RuntimeProvisionRequest) -> ProvisionResult:
         pod_name = f"session-{str(request.session_id)[:8]}"
@@ -110,25 +118,23 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
         runtime_env: list[dict[str, object]] = [
             {
                 "name": "RUNTIME_SHARED_TOKEN",
-                "value": os.getenv("RUNTIME_SHARED_TOKEN", ""),
+                "value": self._runtime_env.runtime_shared_token,
             },
             {
                 "name": "MODEL_CLIENT_MODE",
-                "value": os.getenv("MODEL_CLIENT_MODE", "gateway"),
+                "value": self._runtime_env.model_client_mode,
             },
             {
                 "name": "PROVIDER_ENDPOINT",
-                "value": os.getenv(
-                    "PROVIDER_ENDPOINT", "https://openrouter.ai/api/v1/chat/completions"
-                ),
+                "value": self._runtime_env.provider_endpoint,
             },
             {
                 "name": "MODEL_NAME",
-                "value": os.getenv("MODEL_NAME", "deepseek/deepseek-v3.2"),
+                "value": self._runtime_env.model_name,
             },
             {
                 "name": "OPENROUTER_API_KEY",
-                "value": os.getenv("OPENROUTER_API_KEY", ""),
+                "value": self._runtime_env.openrouter_api_key,
             },
             {"name": "LAB_DIFFICULTY", "value": request.lab_difficulty},
         ]

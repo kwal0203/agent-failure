@@ -3,16 +3,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from collections.abc import Generator
 
-import os
+from apps.control_plane.src.infrastructure.config.settings import get_database_url
 
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable not set.")
-
-engine = create_engine(url=DATABASE_URL, future=True, pool_pre_ping=True)
+engine = create_engine(url=get_database_url(), future=True, pool_pre_ping=True)
 SessionFactory: sessionmaker[Session] = sessionmaker(
     bind=engine,
     class_=Session,

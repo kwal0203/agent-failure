@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 # from fastapi import Depends, HTTPException, status
 from fastapi import Depends, Request
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
@@ -93,9 +93,12 @@ from apps.control_plane.src.infrastructure.classification.openrouter_authority_b
     OpenRouterAuthorityBulletinClassifier,
 )
 from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
-
-
-import os
+from apps.control_plane.src.infrastructure.config.settings import (
+    EmailClassifierSettings,
+    get_auth_verifier_config as load_auth_verifier_config,
+    get_email_classifier_settings,
+    get_runtime_client_config as load_runtime_client_config,
+)
 
 
 class AdmissionPolicyStub:
@@ -104,14 +107,6 @@ class AdmissionPolicyStub:
 
 def get_ws_session_manager() -> SessionStreamManagerPort:
     return ws_manager
-
-
-@dataclass(frozen=True)
-class EmailClassifierConfig:
-    openrouter_api_key: str
-    provider_endpoint: str
-    model_name: str
-    model_timeout: float
 
 
 def get_admission_policy() -> AdmissionPolicy:
@@ -199,71 +194,17 @@ def get_session_explanation_deps(
 
 
 def get_runtime_client_config() -> RuntimeClientConfig:
-    timeout_raw = os.getenv("RUNTIME_TIMEOUT_SECONDS", "").strip()
-    auth_token = os.getenv("RUNTIME_AUTH_TOKEN", "").strip()
-
-    try:
-        timeout_seconds = float(timeout_raw)
-    except ValueError:
-        timeout_seconds = 10.0
-
-    return RuntimeClientConfig(
-        base_url="http://placeholder",
-        timeout_seconds=timeout_seconds,
-        auth_token=auth_token or None,
-    )
-
-
-def _require_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
-def _get_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-
-    try:
-        value = float(raw)
-    except ValueError as exc:
-        raise RuntimeError(f"Invalid float for {name}: {raw!r}") from exc
-
-    if value <= 0:
-        raise RuntimeError(f"{name} must be > 0")
-
-    return value
+    return load_runtime_client_config()
 
 
 @lru_cache(maxsize=1)
-def get_email_classifier_config() -> EmailClassifierConfig:
-    return EmailClassifierConfig(
-        openrouter_api_key=_require_env("OPENROUTER_API_KEY"),
-        provider_endpoint=_require_env("PROVIDER_ENDPOINT"),
-        model_name=_require_env("MODEL_NAME"),
-        model_timeout=_get_float_env("MODEL_TIMEOUT", 30.0),
-    )
+def get_email_classifier_config() -> EmailClassifierSettings:
+    return get_email_classifier_settings()
 
 
 @lru_cache(maxsize=1)
 def get_auth_verifier_config() -> AuthVerifierConfig:
-    issuer = os.getenv("AUTH_ISSUER", "").strip()
-    audience = os.getenv("AUTH_AUDIENCE", "").strip()
-    jwks_uri = os.getenv("AUTH_JWKS_URI", "").strip()
-    cache_ttl_raw = os.getenv("AUTH_JWKS_CACHE_TTL_SECONDS", "").strip()
-    try:
-        cache_ttl_seconds = int(cache_ttl_raw) if cache_ttl_raw else 300
-    except ValueError:
-        cache_ttl_seconds = 300
-
-    return AuthVerifierConfig(
-        issuer=issuer,
-        audience=audience,
-        jwks_uri=jwks_uri,
-        jwks_cache_ttl_seconds=cache_ttl_seconds,
-    )
+    return load_auth_verifier_config()
 
 
 @lru_cache(maxsize=1)

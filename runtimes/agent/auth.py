@@ -1,13 +1,13 @@
 from fastapi import Header, HTTPException, status
 
-import os
+from runtimes.agent.config.settings import get_runtime_shared_token
 
 
 def require_internal_auth(
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> None:
-    expected = os.getenv("RUNTIME_SHARED_TOKEN", "").strip()
-    if not os.getenv("RUNTIME_SHARED_TOKEN", "").strip():
+    expected = get_runtime_shared_token()
+    if not expected:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="runtime auth not configured",

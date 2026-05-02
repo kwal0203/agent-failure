@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from pathlib import Path
 from datetime import datetime, timezone
@@ -28,6 +27,9 @@ from apps.control_plane.src.application.common.observability import (
     reset_correlation_id,
     set_correlation_id,
 )
+from apps.control_plane.src.infrastructure.config.settings import (
+    get_runtime_pod_env_settings,
+)
 
 logger = logging.getLogger(__name__)
 WORKER_NAME = "provisioning_worker"
@@ -38,27 +40,24 @@ DOTENV_PATH = REPO_ROOT / ".env"
 def _load_worker_env() -> None:
     # Load repo-root .env regardless of current working directory.
     load_dotenv(dotenv_path=DOTENV_PATH, override=False)
-
-    # Keep backward compatibility with existing local setups that only define
-    # RUNTIME_AUTH_TOKEN while k8s runtime pods need RUNTIME_SHARED_TOKEN.
-    if not os.getenv("RUNTIME_SHARED_TOKEN") and os.getenv("RUNTIME_AUTH_TOKEN"):
-        os.environ["RUNTIME_SHARED_TOKEN"] = os.environ["RUNTIME_AUTH_TOKEN"] or ""
-        logger.info(
-            "provisioning worker env: using RUNTIME_AUTH_TOKEN as RUNTIME_SHARED_TOKEN fallback",
-            extra={**log_fields(), "worker_name": WORKER_NAME},
-        )
-
     _validate_required_env()
 
 
 def _validate_required_env() -> None:
-    model_mode = (os.getenv("MODEL_CLIENT_MODE") or "").strip() or "gateway"
+    settings = get_runtime_pod_env_settings()
+    model_mode = settings.model_client_mode
 
-    required = ["RUNTIME_SHARED_TOKEN", "MODEL_CLIENT_MODE", "MODEL_NAME"]
+    missing: list[str] = []
+    if not settings.runtime_shared_token.strip():
+        missing.append("RUNTIME_SHARED_TOKEN|RUNTIME_AUTH_TOKEN")
+    if not settings.model_name.strip():
+        missing.append("MODEL_NAME")
     if model_mode == "gateway":
-        required.extend(["PROVIDER_ENDPOINT", "OPENROUTER_API_KEY"])
+        if not settings.provider_endpoint.strip():
+            missing.append("PROVIDER_ENDPOINT")
+        if not settings.openrouter_api_key.strip():
+            missing.append("OPENROUTER_API_KEY")
 
-    missing = [name for name in required if not (os.getenv(name) or "").strip()]
     if missing:
         joined = ", ".join(sorted(missing))
         raise RuntimeError(
