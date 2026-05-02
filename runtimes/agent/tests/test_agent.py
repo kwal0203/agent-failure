@@ -605,13 +605,13 @@ async def test_pay_invoice_events_include_invoice_fields() -> None:
 
     _, events = await run_turn_collect_events(prompt="pay", llm=llm, ctx=ctx)
     requested = [
-        cast(ToolCallRequestedEvent, e.event)
+        e.event
         for e in events
         if isinstance(e.event, ToolCallRequestedEvent)
         and e.event.tool_name == "pay_invoice"
     ]
     succeeded = [
-        cast(ToolCallSucceededEvent, e.event)
+        e.event
         for e in events
         if isinstance(e.event, ToolCallSucceededEvent)
         and e.event.tool_name == "pay_invoice"

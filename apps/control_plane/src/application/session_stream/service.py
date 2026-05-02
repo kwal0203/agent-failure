@@ -51,7 +51,7 @@ async def handle_user_prompt(
     runtime_client_factory: RuntimeClientFactoryPort,
     bulletin_classifier: AuthorityBulletinClassifierPort,
     session_manager: SessionStreamManagerPort,
-):
+) -> None:
     outbox_repo = SQLAlchemyOutbox(db=db)
 
     if not session_manager.try_begin_turn(session_id=session_id):

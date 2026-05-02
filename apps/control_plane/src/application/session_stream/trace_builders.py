@@ -1,8 +1,12 @@
 from datetime import datetime, timezone
+from collections.abc import Mapping
 from uuid import UUID, uuid4
 
 from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
+from apps.control_plane.src.application.session_stream.payloads import (
+    ModelTurnFailedPayload,
+)
 
 
 def build_trace_event(
@@ -12,7 +16,7 @@ def build_trace_event(
     family: TraceFamily,
     event_type: str,
     source: str,
-    payload: dict[str, object],
+    payload: Mapping[str, object],
     correlation_id: UUID | None = None,
     request_id: UUID | None = None,
     actor_user_id: UUID | None = None,
@@ -46,7 +50,7 @@ def build_model_turn_failed_payload(
     turn_start: datetime,
     chunks_emitted: int,
     provider: str = "openrouter",
-) -> dict[str, object]:
+) -> ModelTurnFailedPayload:
     return {
         "provider": provider,
         "error_code": error_code,

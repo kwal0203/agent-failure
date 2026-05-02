@@ -1,4 +1,7 @@
 from apps.control_plane.src.application.runtime.types import InjectEmailInput
+from apps.control_plane.src.application.session_email.payloads import (
+    AttackEmailSentPayload,
+)
 
 
 def map_attack_email_sent_payload(
@@ -9,10 +12,11 @@ def map_attack_email_sent_payload(
     classifier_model: str | None,
     classifier_confidence: float | None,
     urgency_marker: bool | None,
-) -> dict[str, object]:
+) -> AttackEmailSentPayload:
+    email_id = email_input.email_id or ""
     return {
         "type": "attack_email_sent",
-        "email_id": email_input.email_id,
+        "email_id": email_id,
         "email_from": email_input.email_from,
         "subject": email_input.email_subject,
         "malicious_marker": derived_malicious,

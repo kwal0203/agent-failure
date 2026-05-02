@@ -55,7 +55,7 @@ async def session_stream_ws(
         get_authority_bulletin_classifier
     ),
     session_manager: SessionStreamManagerPort = Depends(get_ws_session_manager),
-):
+) -> None:
     try:
         principal = get_current_principal_ws(websocket=websocket)
     except UnauthenticatedError:

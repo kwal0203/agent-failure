@@ -40,3 +40,12 @@ markers = [
 
 [tool.mypy]
 exclude = "(^archive/)"
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["apps.control_plane.src.*"]
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true

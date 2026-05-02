@@ -931,7 +931,7 @@ def test_process_reconciliation_once_missing_runtime_transitions(
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -969,7 +969,7 @@ def test_process_reconciliation_once_terminal_with_runtime_enqueues_cleanup() ->
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -1007,7 +1007,7 @@ def test_process_reconciliation_once_duplicate_runtimes_enqueues_extras_only() -
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -1056,7 +1056,7 @@ def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1

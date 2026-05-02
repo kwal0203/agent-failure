@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import logging
+from typing import Protocol
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -49,6 +50,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class _HeartbeatRecord(Protocol):
+    last_tick_at: datetime | None
+
+
+class WorkerHeartbeatRepositoryPort(Protocol):
+    def read_heartbeat(self, worker_name: str) -> _HeartbeatRecord | None: ...
+
+
 def _as_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
@@ -70,7 +79,9 @@ async def get_metadata(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
     repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
-    heartbeat_repo=Depends(get_worker_heartbeat_repository),
+    heartbeat_repo: WorkerHeartbeatRepositoryPort = Depends(
+        get_worker_heartbeat_repository
+    ),
     runtime_binding_repo: RuntimeBindingReaderPort = Depends(
         get_runtime_binding_repository
     ),

@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID, uuid4
+from sqlalchemy.orm import Session
 
+from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
+from apps.control_plane.src.application.trace.ports import (
+    TraceEventPort,
+    TraceOutboxPort,
+)
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
@@ -11,16 +18,22 @@ from apps.control_plane.src.application.session_stream.trace_builders import (
     build_model_turn_failed_payload,
     build_trace_event,
 )
+from apps.control_plane.src.application.session_stream.payloads import (
+    LearnerPromptSubmittedPayload,
+    ModelTurnCompletedPayload,
+    ModelTurnStartedPayload,
+    RuntimeEventPayload,
+)
 
 
 def append_learner_prompt_trace(
     *,
-    db,
-    outbox_repo,
+    db: Session,
+    outbox_repo: TraceOutboxPort,
     session_id: UUID,
     prompt_content: str,
-    principal,
-    metadata,
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
     authority_bulletin_passed: bool,
     authority_bulletin_runbook_action_type: str | None,
     authority_bulletin_destructive_db_delete: bool | None,
@@ -28,7 +41,7 @@ def append_learner_prompt_trace(
 ) -> SQLAlchemyTraceEventRepository:
     trace_repo = SQLAlchemyTraceEventRepository(db=db)
 
-    learner_payload: dict[str, object] = {
+    learner_payload: LearnerPromptSubmittedPayload = {
         "content": prompt_content,
         "role": "user",
         "channel": "websocket",
@@ -66,24 +79,24 @@ def append_learner_prompt_trace(
 
 def append_model_turn_started(
     *,
-    trace_repo,
-    outbox_repo,
+    trace_repo: TraceEventPort,
+    outbox_repo: TraceOutboxPort,
     session_id: UUID,
     prompt_content: str,
-    principal,
-    metadata,
-):
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
+) -> None:
     trace_event_model_started = build_trace_event(
         trace_repo=trace_repo,
         session_id=session_id,
         family="model",
         event_type="MODEL_TURN_STARTED",
         source="session_stream_service",
-        payload={
-            "provider": "openrouter",
-            "message_type": "USER_PROMPT",
-            "prompt_chars": len(prompt_content),
-        },
+        payload=ModelTurnStartedPayload(
+            provider="openrouter",
+            message_type="USER_PROMPT",
+            prompt_chars=len(prompt_content),
+        ),
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
@@ -96,16 +109,16 @@ def append_model_turn_started(
 
 def append_model_turn_failed(
     *,
-    trace_repo,
-    outbox_repo,
+    trace_repo: TraceEventPort,
+    outbox_repo: TraceOutboxPort,
     session_id: UUID,
-    principal,
-    metadata,
-    turn_start,
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
+    turn_start: datetime,
     error_code: str,
     phase: str,
     chunks_emitted: int,
-):
+) -> None:
     payload = build_model_turn_failed_payload(
         error_code=error_code,
         phase=phase,
@@ -131,31 +144,31 @@ def append_model_turn_failed(
 
 def append_model_turn_completed(
     *,
-    trace_repo,
-    outbox_repo,
+    trace_repo: TraceEventPort,
+    outbox_repo: TraceOutboxPort,
     session_id: UUID,
-    principal,
-    metadata,
-    turn_start,
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
+    turn_start: datetime,
     chunks_emitted: int,
     first_chunk_emitted: bool,
     full_response_text_parts: list[str],
-):
+) -> None:
     trace_event_model_completed = build_trace_event(
         trace_repo=trace_repo,
         session_id=session_id,
         family="model",
         event_type="MODEL_TURN_COMPLETED",
         source="session_stream_service",
-        payload={
-            "status": "succeeded",
-            "chunks_emitted": chunks_emitted,
-            "duration_ms": int(
+        payload=ModelTurnCompletedPayload(
+            status="succeeded",
+            chunks_emitted=chunks_emitted,
+            duration_ms=int(
                 (datetime.now(timezone.utc) - turn_start).total_seconds() * 1000
             ),
-            "first_chunk_emitted": first_chunk_emitted,
-            "content": "".join(full_response_text_parts),
-        },
+            first_chunk_emitted=first_chunk_emitted,
+            content="".join(full_response_text_parts),
+        ),
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
@@ -168,15 +181,15 @@ def append_model_turn_completed(
 
 def append_runtime_event(
     *,
-    trace_repo,
-    outbox_repo,
+    trace_repo: TraceEventPort,
+    outbox_repo: TraceOutboxPort,
     session_id: UUID,
-    principal,
-    metadata,
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
     family: Literal["lifecycle", "learner", "runtime", "tool", "model"],
     event_type: str,
-    payload: dict[str, object],
-):
+    payload: RuntimeEventPayload,
+) -> None:
     trace_event = build_trace_event(
         trace_repo=trace_repo,
         session_id=session_id,

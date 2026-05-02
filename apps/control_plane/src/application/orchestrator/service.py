@@ -114,7 +114,7 @@ def _invalid_outbox_payload(
     uow: ProcessPendingOnceUnitOfWork,
     outbox_event_id: UUID,
     error_message: str = "INVALID_OUTBOX_PAYLOAD",
-):
+) -> None:
     uow.outbox.mark_terminal_failure(
         outbox_event_id=outbox_event_id,
         error_message=error_message,

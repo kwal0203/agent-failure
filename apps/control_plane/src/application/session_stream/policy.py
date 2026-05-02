@@ -12,6 +12,9 @@ from apps.control_plane.src.application.prompt_classification.ports import (
 from apps.control_plane.src.application.prompt_classification.types import (
     AuthorityBulletinClassificationInput,
 )
+from apps.control_plane.src.application.session_stream.messages import (
+    ServerMessageEnvelope,
+)
 from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
@@ -89,7 +92,7 @@ def runtime_not_ready_message(
     session_id: UUID,
     runtime_binding: SessionRuntimeBinding | None,
     lab_difficulty: str | None,
-):
+) -> ServerMessageEnvelope:
     current_status = (
         runtime_binding.status if runtime_binding is not None else "missing"
     )

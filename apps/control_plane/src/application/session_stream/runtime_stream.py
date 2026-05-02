@@ -1,8 +1,13 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import cast
+from uuid import UUID
 
+from fastapi import WebSocket
 from fastapi import WebSocketDisconnect
+from sqlalchemy.orm import Session
+from apps.contracts.src.schemas import RuntimeStreamEvent
 from apps.contracts.src.types import (
     TRACE_EVENT_ATTACK_EMAIL_SENT,
     TRACE_EVENT_MALICIOUS_EMAIL_READ,
@@ -15,9 +20,23 @@ from apps.contracts.src.types import (
 )
 
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
+from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
+from apps.control_plane.src.application.runtime.types import RunTurnInput
+from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
+from apps.control_plane.src.application.trace.ports import (
+    TraceEventPort,
+    TraceOutboxPort,
+)
+from apps.control_plane.src.application.session_stream.ports import (
+    SessionStreamManagerPort,
+)
 from apps.control_plane.src.application.session_stream.messages import (
     build_agent_text_chunk_message,
     build_system_error_message,
+)
+from apps.control_plane.src.application.session_stream.payloads import (
+    RuntimeEventPayload,
 )
 
 from .trace_events import append_model_turn_failed, append_runtime_event
@@ -132,10 +151,10 @@ RUNTIME_EVENT_CONFIG: dict[
 }
 
 
-def _build_event_payload(event) -> dict[str, object]:
+def _build_event_payload(event: RuntimeStreamEvent) -> RuntimeEventPayload:
     config = RUNTIME_EVENT_CONFIG.get(event.type)
     if config is None:
-        return {}
+        return RuntimeEventPayload(type=event.type)
     _, _, required_fields, optional_fields = config
     payload: dict[str, object] = {"type": event.type}
     for name in required_fields:
@@ -144,22 +163,22 @@ def _build_event_payload(event) -> dict[str, object]:
         value = getattr(event, name, None)
         if value is not None:
             payload[name] = value
-    return payload
+    return cast(RuntimeEventPayload, payload)
 
 
 async def stream_runtime_turn(
     *,
-    websocket,
-    session_id,
-    principal,
-    metadata,
-    runtime_client,
-    turn,
-    turn_start,
-    trace_repo,
-    outbox_repo,
-    db,
-    session_manager,
+    websocket: WebSocket,
+    session_id: UUID,
+    principal: PrincipalContext,
+    metadata: SessionMetadataDTO,
+    runtime_client: RuntimeClientPort,
+    turn: RunTurnInput,
+    turn_start: datetime,
+    trace_repo: TraceEventPort,
+    outbox_repo: TraceOutboxPort,
+    db: Session,
+    session_manager: SessionStreamManagerPort,
 ) -> tuple[bool, int, list[str]]:
     first_chunk_emitted = False
     chunks_emitted = 0

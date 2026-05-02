@@ -128,7 +128,7 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
                 event_type=event.event_type,
                 source=event.source,
                 occurred_at=event.occurred_at,
-                payload=event.payload,
+                payload=dict(event.payload),
             )
             for event in events
         )
