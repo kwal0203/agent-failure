@@ -1,4 +1,10 @@
 from apps.evaluator.src.application.ports import EvaluatorOutboxPort
+from apps.contracts.src.types import (
+    OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,
+    OUTBOX_EVENT_SESSION_FEEDBACK_CREATED,
+    OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
+    OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
+)
 from apps.evaluator.src.application.types import (
     PendingEvaluatorEvent,
     EvaluatorTaskInput,
@@ -6,7 +12,7 @@ from apps.evaluator.src.application.types import (
     SessionFeedbackCreatedEvent,
 )
 from apps.control_plane.src.infrastructure.persistence.models import OutboxEventModel
-from apps.evaluator.src.application.schemas import EvaluatorRequestedPayload
+from apps.contracts.src.schemas import SessionEvaluateRequestedPayload
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -27,7 +33,8 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == "session.evaluate.requested.v1",
+                    OutboxEventModel.event_type
+                    == OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )
@@ -47,7 +54,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
             row.last_error = None
 
             try:
-                p = EvaluatorRequestedPayload.model_validate(row.payload)
+                p = SessionEvaluateRequestedPayload.model_validate(row.payload)
                 task = EvaluatorTaskInput(
                     session_id=row.aggregate_id,
                     lab_id=p.lab_id,
@@ -113,7 +120,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         }
 
         event = OutboxEventModel(
-            event_type="session.publish.feedback.v1",
+            event_type=OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -126,7 +133,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         existing = self._db.execute(
             select(OutboxEventModel.id)
             .where(
-                OutboxEventModel.event_type == "session.objective.completed.v1",
+                OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
                 OutboxEventModel.aggregate_id == event.session_id,
                 OutboxEventModel.payload["idempotency_key"].astext
                 == event.idempotency_key,
@@ -150,7 +157,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         }
 
         outbox_event = OutboxEventModel(
-            event_type="session.objective.completed.v1",
+            event_type=OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
             aggregate_id=event.session_id,
             payload=payload,
         )
@@ -162,7 +169,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         existing = self._db.execute(
             select(OutboxEventModel.id)
             .where(
-                OutboxEventModel.event_type == "session.feedback.created.v1",
+                OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_FEEDBACK_CREATED,
                 OutboxEventModel.aggregate_id == event.session_id,
                 OutboxEventModel.payload["idempotency_key"].astext
                 == event.idempotency_key,
@@ -186,7 +193,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
         }
 
         outbox_event = OutboxEventModel(
-            event_type="session.feedback.created.v1",
+            event_type=OUTBOX_EVENT_SESSION_FEEDBACK_CREATED,
             aggregate_id=event.session_id,
             payload=payload,
         )

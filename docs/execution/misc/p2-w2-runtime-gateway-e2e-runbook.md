@@ -23,7 +23,7 @@ This runbook validates the runtime streaming path end-to-end:
 ## 1. Build Runtime Image (Repo Root)
 
 ```bash
-docker build -f runtimes/baseline/Dockerfile -t ghcr.io/kane/agent-failure-runtime-v1:v1-baseline-0.1.0 .
+docker build -f archive/runtimes/baseline/Dockerfile -t ghcr.io/kane/agent-failure-runtime-v1:v1-baseline-0.1.0 .
 ```
 
 ## 2. Run Runtime Container (Gateway Mode)

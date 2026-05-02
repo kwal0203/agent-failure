@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import SessionCompletedEventPayload
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_COMPLETED
 from apps.control_plane.src.application.session_completion.ports import (
     OutboxSessionCompletedPort,
 )
@@ -14,8 +15,6 @@ from apps.control_plane.src.application.session_completion.types import (
 )
 
 from .models import OutboxEventModel
-
-EVENT_TYPE_SESSION_COMPLETED = "session.completed.v1"
 
 
 class SQLAlchemyOutboxSessionCompleted(OutboxSessionCompletedPort):
@@ -30,7 +29,7 @@ class SQLAlchemyOutboxSessionCompleted(OutboxSessionCompletedPort):
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == EVENT_TYPE_SESSION_COMPLETED,
+                    OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_COMPLETED,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )

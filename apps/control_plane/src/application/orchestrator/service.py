@@ -46,6 +46,15 @@ from .types import (
     UpsertSessionRuntimeBindingInput,
 )
 from .schemas import ProvisioningPayload
+from .idempotency import (
+    build_expired_provisioning_transition_idempotency_key,
+    build_expired_session_transition_idempotency_key,
+    build_provision_request_idempotency_key,
+    build_provisioning_failed_transition_idempotency_key,
+    build_provisioning_succeeded_transition_idempotency_key,
+    build_reconcile_failed_runtime_transition_idempotency_key,
+    build_reconcile_missing_runtime_transition_idempotency_key,
+)
 
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
@@ -105,7 +114,7 @@ def _invalid_outbox_payload(
     uow: ProcessPendingOnceUnitOfWork,
     outbox_event_id: UUID,
     error_message: str = "INVALID_OUTBOX_PAYLOAD",
-):
+) -> None:
     uow.outbox.mark_terminal_failure(
         outbox_event_id=outbox_event_id,
         error_message=error_message,
@@ -171,7 +180,10 @@ def process_pending_once(
                             "outbox_event_id": str(outbox_event_id),
                             "attempt_count": attempt_count,
                             "requested_by": "control-plane-outbox-worker",
-                            "idempotency_key": f"provision:{event.session_id}:{outbox_event_id}",
+                            "idempotency_key": build_provision_request_idempotency_key(
+                                session_id=event.session_id,
+                                outbox_event_id=outbox_event_id,
+                            ),
                         },
                     )
 
@@ -253,7 +265,10 @@ def process_pending_once(
                                 trigger=Trigger.PROVISIONING_SUCCEEDED,
                                 actor="orchestrator_worker",
                                 metadata={"outbox_event_id": str(outbox_event_id)},
-                                idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:succeeded",
+                                idempotency_key=build_provisioning_succeeded_transition_idempotency_key(
+                                    session_id=session_id,
+                                    outbox_event_id=outbox_event_id,
+                                ),
                                 uow=uow.lifecycle_uow,
                             )
 
@@ -394,7 +409,10 @@ def process_pending_once(
                                     "k8s_event_excerpt"
                                 ),
                             },
-                            idempotency_key=f"provisioning:{session_id}:{outbox_event_id}:failed",
+                            idempotency_key=build_provisioning_failed_transition_idempotency_key(
+                                session_id=session_id,
+                                outbox_event_id=outbox_event_id,
+                            ),
                             uow=uow.lifecycle_uow,
                         )
 
@@ -710,7 +728,10 @@ def process_reconciliation_once(
                         "inspector_phase": inspection_result.phase,
                         "inspector_reason": inspection_result.reason,
                     },
-                    idempotency_key=f"reconcile:{session_id}:missing-runtime:{state}",
+                    idempotency_key=build_reconcile_missing_runtime_transition_idempotency_key(
+                        session_id=session_id,
+                        state=state,
+                    ),
                     uow=uow,
                 )
                 succeeded_count += 1
@@ -777,7 +798,10 @@ def process_reconciliation_once(
                         "inspector_phase": inspection_result.phase,
                         "inspector_reason": inspection_result.reason,
                     },
-                    idempotency_key=f"reconcile:{session_id}:failed-runtime:{state}",
+                    idempotency_key=build_reconcile_failed_runtime_transition_idempotency_key(
+                        session_id=session_id,
+                        state=state,
+                    ),
                     uow=uow,
                 )
                 succeeded_count += 1
@@ -834,7 +858,10 @@ def process_expiry_once(
                         "reason_code": "PROVISIONING_TIMEOUT",
                         "state_before": state,
                     },
-                    idempotency_key=f"expiry:{session_id}:expired-provisioning:{state}",
+                    idempotency_key=build_expired_provisioning_transition_idempotency_key(
+                        session_id=session_id,
+                        state=state,
+                    ),
                     uow=uow,
                 )
                 succeeded_count += 1
@@ -853,7 +880,10 @@ def process_expiry_once(
                         "reason_code": "SESSION_MAX_TIME_TIMEOUT",
                         "state_before": state,
                     },
-                    idempotency_key=f"expiry:{session_id}:expired-session:{state}",
+                    idempotency_key=build_expired_session_transition_idempotency_key(
+                        session_id=session_id,
+                        state=state,
+                    ),
                     uow=uow,
                 )
                 succeeded_count += 1

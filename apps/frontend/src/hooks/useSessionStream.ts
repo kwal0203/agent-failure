@@ -1,78 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ServerMessage } from "../../../contracts/ts/index";
+
+export type { ServerMessage } from "../../../contracts/ts/index";
 
 type ConnectionState = "idle" | "connecting" | "open" | "closed" | "error";
-
-type SessionStatusMessage = {
-  type: "SESSION_STATUS";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    state: string;
-    runtime_substate: string | null;
-    interactive: boolean;
-  };
-};
-
-type AgentTextChunkMessage = {
-  type: "AGENT_TEXT_CHUNK";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    content: string;
-    final: boolean;
-  };
-};
-
-type PolicyDenialMessage = {
-  type: "POLICY_DENIAL";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    code: string;
-    message: string;
-  };
-};
-
-type TraceEventMessage = {
-  type: "TRACE_EVENT";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    event_code: string;
-    message: string;
-  };
-};
-
-type SystemErrorMessage = {
-  type: "SYSTEM_ERROR";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    code: string;
-    message: string;
-  };
-};
-
-type LearnerFeedbackMessage = {
-  type: "LEARNER_FEEDBACK";
-  session_id: string;
-  timestamp: string;
-  payload: {
-    feedback: Array<{
-      status: "learned" | "progress" | "no_progress" | "session_terminal";
-      reason_code: string;
-      evidence_snippet: string;
-    }>;
-  };
-};
-
-export type ServerMessage =
-  | SessionStatusMessage
-  | AgentTextChunkMessage
-  | TraceEventMessage
-  | PolicyDenialMessage
-  | SystemErrorMessage
-  | LearnerFeedbackMessage;
 
 export function useSessionStream(sessionId?: string) {
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";

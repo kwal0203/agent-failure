@@ -17,10 +17,16 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
 
 import asyncio
 import logging
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "learner_feedback_worker"
 
 
 async def run_once(*, session_manager: WebSocketSessionManager) -> None:
@@ -42,6 +48,7 @@ async def run_once(*, session_manager: WebSocketSessionManager) -> None:
             result.succeeded_count,
             result.failed_count,
             result.retried_count,
+            extra={**log_fields(), "worker_name": WORKER_NAME},
         )
 
 
@@ -49,5 +56,9 @@ async def run_forever(
     *, session_manager: WebSocketSessionManager, polling_interval_seconds: float = 10.0
 ) -> None:
     while True:
-        await run_once(session_manager=session_manager)
+        token = set_correlation_id(None)
+        try:
+            await run_once(session_manager=session_manager)
+        finally:
+            reset_correlation_id(token)
         await asyncio.sleep(polling_interval_seconds)

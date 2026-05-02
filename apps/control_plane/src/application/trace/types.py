@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections.abc import Mapping
 from uuid import UUID
 from datetime import datetime
 from apps.contracts.src.types import TraceFamily
@@ -13,7 +14,7 @@ class TraceEvent:
     occurred_at: datetime
     source: str
     event_index: int
-    payload: dict[str, object]
+    payload: Mapping[str, object]
     trace_version: int = 1
 
     correlation_id: UUID | None = None

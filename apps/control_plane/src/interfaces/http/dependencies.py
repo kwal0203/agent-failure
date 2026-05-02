@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 # from fastapi import Depends, HTTPException, status
 from fastapi import Depends, Request
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from apps.control_plane.src.application.session_create.ports import (
     AdmissionPolicy,
@@ -27,7 +27,12 @@ from apps.control_plane.src.application.prompt_classification.types import (
     AuthorityBulletinClassificationInput,
     AuthorityBulletinClassificationResult,
 )
-from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
+from apps.control_plane.src.application.session_stream.ports import (
+    SessionStreamManagerPort,
+)
+from apps.control_plane.src.infrastructure.policy.admission_policy import (
+    StubAdmissionPolicy,
+)
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
 )
@@ -40,7 +45,10 @@ from apps.control_plane.src.infrastructure.persistence.lab_repository import (
 )
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyCreateSessionRepository,
+    SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionMetadataRepository,
+    SQLAlchemySessionRuntimeBindingRepository,
+    SQLAlchemyTraceEventRepository,
 )
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
@@ -55,6 +63,26 @@ from apps.control_plane.src.infrastructure.persistence.idempotency_store import 
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
 )
+from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
+    SQLAlchemySessionFeedbackRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
+    SQLAlchemySessionHintSeenRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
+    SQLAlchemyUnitOfWork,
+)
+from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
+    SQLAlchemyWorkerHeartbeatRepository,
+)
+from apps.control_plane.src.infrastructure.session_email.deps import (
+    SessionEmailDeps,
+    build_session_email_deps,
+)
+from apps.control_plane.src.infrastructure.session_explanation_submission.deps import (
+    SessionExplanationDeps,
+    build_session_explanation_deps,
+)
 
 # from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
 from apps.control_plane.src.infrastructure.runtime.client import RuntimeHttpClient
@@ -64,21 +92,21 @@ from apps.control_plane.src.infrastructure.classification.openrouter_email_class
 from apps.control_plane.src.infrastructure.classification.openrouter_authority_bulletin_classifier import (
     OpenRouterAuthorityBulletinClassifier,
 )
-
-
-import os
+from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
+from apps.control_plane.src.infrastructure.config.settings import (
+    EmailClassifierSettings,
+    get_auth_verifier_config as load_auth_verifier_config,
+    get_email_classifier_settings,
+    get_runtime_client_config as load_runtime_client_config,
+)
 
 
 class AdmissionPolicyStub:
     pass
 
 
-@dataclass(frozen=True)
-class EmailClassifierConfig:
-    openrouter_api_key: str
-    provider_endpoint: str
-    model_name: str
-    model_timeout: float
+def get_ws_session_manager() -> SessionStreamManagerPort:
+    return ws_manager
 
 
 def get_admission_policy() -> AdmissionPolicy:
@@ -89,6 +117,10 @@ def get_idempotency_store(
     db: Session = Depends(get_db_session),
 ) -> IdempotencyStore[CreateSessionResult]:
     return SQLAlchemyCreateSessionIdempotencyStore(db=db)
+
+
+def get_request_db_session(db: Session = Depends(get_db_session)) -> Session:
+    return db
 
 
 def get_lab_repository(db: Session = Depends(get_db_session)) -> LabRepository:
@@ -111,72 +143,68 @@ def get_session_metadata_repository(
     return SQLAlchemySessionMetadataRepository(db=db)
 
 
+def get_evaluator_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemyEvaluatorRepository:
+    return SQLAlchemyEvaluatorRepository(db=db)
+
+
+def get_trace_event_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemyTraceEventRepository:
+    return SQLAlchemyTraceEventRepository(db=db)
+
+
+def get_runtime_binding_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionRuntimeBindingRepository:
+    return SQLAlchemySessionRuntimeBindingRepository(db=db)
+
+
+def get_worker_heartbeat_repository() -> SQLAlchemyWorkerHeartbeatRepository:
+    return SQLAlchemyWorkerHeartbeatRepository()
+
+
+def get_session_feedback_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionFeedbackRepository:
+    return SQLAlchemySessionFeedbackRepository(db=db)
+
+
+def get_session_hint_seen_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionHintSeenRepository:
+    return SQLAlchemySessionHintSeenRepository(db=db)
+
+
+def get_session_lifecycle_uow() -> SQLAlchemyUnitOfWork:
+    return SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+
+
+def get_session_email_deps(
+    db: Session = Depends(get_db_session),
+) -> SessionEmailDeps:
+    return build_session_email_deps(db=db)
+
+
+def get_session_explanation_deps(
+    db: Session = Depends(get_db_session),
+) -> SessionExplanationDeps:
+    return build_session_explanation_deps(db=db)
+
+
 def get_runtime_client_config() -> RuntimeClientConfig:
-    timeout_raw = os.getenv("RUNTIME_TIMEOUT_SECONDS", "").strip()
-    auth_token = os.getenv("RUNTIME_AUTH_TOKEN", "").strip()
-
-    try:
-        timeout_seconds = float(timeout_raw)
-    except ValueError:
-        timeout_seconds = 10.0
-
-    return RuntimeClientConfig(
-        base_url="http://placeholder",
-        timeout_seconds=timeout_seconds,
-        auth_token=auth_token or None,
-    )
-
-
-def _require_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
-def _get_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-
-    try:
-        value = float(raw)
-    except ValueError as exc:
-        raise RuntimeError(f"Invalid float for {name}: {raw!r}") from exc
-
-    if value <= 0:
-        raise RuntimeError(f"{name} must be > 0")
-
-    return value
+    return load_runtime_client_config()
 
 
 @lru_cache(maxsize=1)
-def get_email_classifier_config() -> EmailClassifierConfig:
-    return EmailClassifierConfig(
-        openrouter_api_key=_require_env("OPENROUTER_API_KEY"),
-        provider_endpoint=_require_env("PROVIDER_ENDPOINT"),
-        model_name=_require_env("MODEL_NAME"),
-        model_timeout=_get_float_env("MODEL_TIMEOUT", 30.0),
-    )
+def get_email_classifier_config() -> EmailClassifierSettings:
+    return get_email_classifier_settings()
 
 
 @lru_cache(maxsize=1)
 def get_auth_verifier_config() -> AuthVerifierConfig:
-    issuer = os.getenv("AUTH_ISSUER", "").strip()
-    audience = os.getenv("AUTH_AUDIENCE", "").strip()
-    jwks_uri = os.getenv("AUTH_JWKS_URI", "").strip()
-    cache_ttl_raw = os.getenv("AUTH_JWKS_CACHE_TTL_SECONDS", "").strip()
-    try:
-        cache_ttl_seconds = int(cache_ttl_raw) if cache_ttl_raw else 300
-    except ValueError:
-        cache_ttl_seconds = 300
-
-    return AuthVerifierConfig(
-        issuer=issuer,
-        audience=audience,
-        jwks_uri=jwks_uri,
-        jwks_cache_ttl_seconds=cache_ttl_seconds,
-    )
+    return load_auth_verifier_config()
 
 
 @lru_cache(maxsize=1)
@@ -250,9 +278,3 @@ def get_authority_bulletin_classifier() -> AuthorityBulletinClassifierPort:
         model=config.model_name,
         timeout_seconds=config.model_timeout,
     )
-
-
-# def get_runtime_client(
-#     config: RuntimeClientConfig = Depends(get_runtime_client_config),
-# ) -> RuntimeClientPort:
-#     return RuntimeHttpClient(config=config)

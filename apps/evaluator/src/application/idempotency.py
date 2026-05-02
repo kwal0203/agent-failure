@@ -1,3 +1,4 @@
+from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTaskInput
 from uuid import UUID
 
 
@@ -27,4 +28,18 @@ def build_feedback_event_idempotency_key(
     return (
         f"feedback:v1:{session_id}:{normalized_feedback_key}:"
         f"{normalized_reason_code}:{normalized_trigger}"
+    )
+
+
+def build_result_idempotency_key(
+    *, task: EvaluatorTaskInput, finding: EvaluatorFinding
+) -> str:
+    trigger_ref = (
+        str(finding.trigger_event_index)
+        if finding.trigger_event_index is not None
+        else f"{finding.trigger_start_event_index}:{finding.trigger_end_event_index}"
+    )
+    return (
+        f"eval:{task.session_id}:{task.lab_version_id}:{task.evaluator_version}:"
+        f"{finding.code}:{trigger_ref}"
     )

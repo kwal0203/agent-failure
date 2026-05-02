@@ -3,6 +3,7 @@ from pydantic import ValidationError
 from uuid import UUID
 
 from apps.contracts.src.schemas import SessionFeedbackCreatedOutboxEvent
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_FEEDBACK_CREATED
 from apps.control_plane.src.application.common.types import PrincipalContext
 
 from .ports import OutboxSessionFeedbackCreatedPort, SessionFeedbackRepositoryPort
@@ -31,7 +32,7 @@ def process_pending_session_feedback_created_once(
         try:
             outbox_event = SessionFeedbackCreatedOutboxEvent.model_validate(
                 {
-                    "event_type": "session.feedback.created.v1",
+                    "event_type": OUTBOX_EVENT_SESSION_FEEDBACK_CREATED,
                     "aggregate_id": event.session_id,
                     "payload": event.payload,
                 }

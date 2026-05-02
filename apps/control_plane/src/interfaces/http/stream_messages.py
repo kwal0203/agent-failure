@@ -1,85 +1,31 @@
-from pydantic import BaseModel
-from uuid import UUID
-from datetime import datetime
-from typing import Literal
-
-
-ServerMessageType = Literal[
-    "SESSION_STATUS",
-    "AGENT_TEXT_CHUNK",
-    "TRACE_EVENT",
-    "POLICY_DENIAL",
-    "SYSTEM_ERROR",
-    "USER_PROMPT",
-    "LEARNER_FEEDBACK",
-]
-LearnerStatusType = Literal["learned", "progress", "no_progress", "session_terminal"]
-
-
-class SessionStatusPayload(BaseModel):
-    state: str
-    runtime_substate: str | None
-    interactive: bool
-
-
-class UserPromptPayload(BaseModel):
-    content: str
-
-
-class UserPromptMessage(BaseModel):
-    type: Literal["USER_PROMPT"]
-    session_id: UUID
-    timestamp: datetime
-    payload: UserPromptPayload
-
-
-class PolicyDenialPayload(BaseModel):
-    reason_code: str
-    message: str
-
-
-class AgentTextChunkPayload(BaseModel):
-    content: str
-    final: bool
-
-
-class TraceEventPayload(BaseModel):
-    event_code: str
-    message: str
-
-
-class SystemErrorPayload(BaseModel):
-    error_code: str
-    message: str
-
-
-class LearnerFeedbackItem(BaseModel):
-    status: LearnerStatusType
-    reason_code: str
-    evidence_snippet: str
-
-
-class LearnerFeedbackPayload(BaseModel):
-    feedback: list[LearnerFeedbackItem]
-
-
-ServerPayload = (
-    SessionStatusPayload
-    | AgentTextChunkPayload
-    | PolicyDenialPayload
-    | TraceEventPayload
-    | SystemErrorPayload
-    | UserPromptPayload
-    | LearnerFeedbackPayload
+from apps.control_plane.src.application.session_stream.messages import (
+    AgentTextChunkPayload,
+    LearnerFeedbackItem,
+    LearnerFeedbackPayload,
+    LearnerStatusType,
+    PolicyDenialPayload,
+    ServerMessageEnvelope,
+    ServerMessageType,
+    ServerPayload,
+    SessionStatusPayload,
+    SystemErrorPayload,
+    TraceEventPayload,
+    UserPromptMessage,
+    UserPromptPayload,
 )
 
-
-class ServerMessageEnvelope(BaseModel):
-    type: ServerMessageType
-    session_id: UUID
-    timestamp: datetime
-    payload: ServerPayload
-    event_index: int | None = None
-    request_id: UUID | None = None
-    correlation_id: UUID | None = None
-    final: bool | None = None
+__all__ = [
+    "AgentTextChunkPayload",
+    "LearnerFeedbackItem",
+    "LearnerFeedbackPayload",
+    "LearnerStatusType",
+    "PolicyDenialPayload",
+    "ServerMessageEnvelope",
+    "ServerMessageType",
+    "ServerPayload",
+    "SessionStatusPayload",
+    "SystemErrorPayload",
+    "TraceEventPayload",
+    "UserPromptMessage",
+    "UserPromptPayload",
+]

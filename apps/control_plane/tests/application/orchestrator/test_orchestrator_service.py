@@ -127,7 +127,7 @@ class _FakeLabRepository:
         self, lab_id: UUID, lab_version_id: UUID
     ) -> LabRuntimeBinding:
         _ = (lab_id, lab_version_id)
-        return LabRuntimeBinding(lab_slug="baseline", lab_version="0.1.0")
+        return LabRuntimeBinding(lab_slug="agent-prompt-injection", lab_version="v1")
 
     def get_active_version_id(self, lab_id: UUID) -> UUID | None:
         _ = lab_id
@@ -931,7 +931,7 @@ def test_process_reconciliation_once_missing_runtime_transitions(
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -969,7 +969,7 @@ def test_process_reconciliation_once_terminal_with_runtime_enqueues_cleanup() ->
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -1007,7 +1007,7 @@ def test_process_reconciliation_once_duplicate_runtimes_enqueues_extras_only() -
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1
@@ -1056,7 +1056,7 @@ def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
     result = process_reconciliation_once(
         session_query_repo=repo,
         uow=uow,  # type: ignore[arg-type]
-        inspector=inspector,  # type: ignore[arg-type]
+        inspector=inspector,
     )
 
     assert result.claimed_count == 1

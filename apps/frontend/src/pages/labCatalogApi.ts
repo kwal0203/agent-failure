@@ -1,34 +1,17 @@
-export type LabDifficulty = "easy" | "medium";
+import type {
+  GetLabsResponse,
+  LabCatalogItemResponse,
+} from "../../../contracts/ts/index";
 
-export type LabCatalogItem = {
-  id: string;
-  slug: string;
-  name: string;
-  summary: string;
-  capabilities: {
-    supports_resume: boolean;
-    supports_uploads: boolean;
-  };
-};
+export type LabDifficulty = "easy" | "medium";
+export type LabCatalogItem = LabCatalogItemResponse;
 
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
 ).toLowerCase();
-const HIDDEN_LAB_SLUGS = new Set<string>(["prompt-injection", "tool-misuse"]);
 const PINNED_FIRST_LAB_SLUG = "agent-prompt-injection";
 
 const STUB_LABS: LabCatalogItem[] = [
-  {
-    id: "11111111-1111-1111-1111-111111111111",
-    slug: "prompt-injection",
-    name: "Indirect Prompt Injection",
-    summary:
-      "Practice indirect prompt-injection attack patterns against a baseline runtime.",
-    capabilities: {
-      supports_resume: true,
-      supports_uploads: false,
-    },
-  },
   {
     id: "44444444-4444-4444-4444-444444444444",
     slug: "agent-prompt-injection",
@@ -77,11 +60,7 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
     throw new Error(`Lab catalog request failed (HTTP ${response.status})`);
   }
 
-  const payload = (await response.json()) as unknown;
-  if (typeof payload !== "object" || payload === null || !("labs" in payload)) {
-    throw new Error("Lab catalog response did not include labs[]");
-  }
-
+  const payload = (await response.json()) as GetLabsResponse;
   const rawLabs = payload.labs;
   if (!Array.isArray(rawLabs)) {
     throw new Error("Lab catalog response has invalid labs[] shape");
@@ -129,15 +108,14 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
 }
 
 function normalizeLabCatalog(labs: LabCatalogItem[]): LabCatalogItem[] {
-  const visible = labs.filter((lab) => !HIDDEN_LAB_SLUGS.has(lab.slug));
-  const pinnedIndex = visible.findIndex(
+  const pinnedIndex = labs.findIndex(
     (lab) => lab.slug === PINNED_FIRST_LAB_SLUG,
   );
   if (pinnedIndex <= 0) {
-    return visible;
+    return labs;
   }
-  const pinned = visible[pinnedIndex];
-  const rest = visible.filter((_, index) => index !== pinnedIndex);
+  const pinned = labs[pinnedIndex];
+  const rest = labs.filter((_, index) => index !== pinnedIndex);
   return [pinned, ...rest];
 }
 

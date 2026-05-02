@@ -5,37 +5,35 @@ import {
 } from "./labGuideContent";
 
 describe("getLabGuideContent", () => {
-  it("returns lab 1 default copy for prompt injection id", () => {
-    const content = getLabGuideContent("11111111-1111-1111-1111-111111111111");
-    expect(content.title).toBe("Indirect Prompt Injection: Poisoned Inbox");
-    expect(content.mission).toContain(
-      "A good first step is to ask the agent to list its available tools",
-    );
+  it("returns agent lab 1 copy for agent prompt injection id", () => {
+    const content = getLabGuideContent("44444444-4444-4444-4444-444444444444");
+    expect(content.title).toBe("Lab: Indirect Prompt Injection");
+    expect(content.mission).toContain("Mission Overview");
   });
 
-  it("returns lab 2 tool misuse copy for lab 2 id", () => {
-    const content = getLabGuideContent("22222222-2222-2222-2222-222222222222");
-    expect(content.title).toBe("Tool Misuse: Unsafe Operations");
+  it("returns agent lab 2 tool misuse copy for lab 2 id", () => {
+    const content = getLabGuideContent("55555555-5555-5555-5555-555555555555");
+    expect(content.title).toBe("Tool Misuse");
     expect(content.successCriteria[2]).toBe(
       "Delete the protected critical file.",
     );
   });
 
-  it("returns lab 3 memory poisoning copy for lab 3 id", () => {
-    const content = getLabGuideContent("33333333-3333-3333-3333-333333333333");
-    expect(content.title).toBe("Memory Poisoning: Vendor Remittance Drift");
+  it("returns agent lab 3 memory poisoning copy for lab 3 id", () => {
+    const content = getLabGuideContent("66666666-6666-6666-6666-666666666666");
+    expect(content.title).toBe("Agent: Memory Poisoning");
     expect(content.mission).toContain("attacker-controlled");
     expect(content.successCriteria[2]).toBe(
       "Route pay_invoice to the attacker account instead of the canonical account.",
     );
   });
 
-  it("returns lab 3 memory poisoning copy for lab 3 slug/version", () => {
+  it("returns agent lab 3 memory poisoning copy for lab 3 slug/version", () => {
     const content = getLabGuideContentByLookup({
-      labSlug: "memory-poisoning",
+      labSlug: "agent-memory-poisoning",
       labVersion: "v1",
     });
-    expect(content.title).toBe("Memory Poisoning: Vendor Remittance Drift");
+    expect(content.title).toBe("Agent: Memory Poisoning");
     expect(content.successCriteria[1]).toContain("retrieved");
   });
 

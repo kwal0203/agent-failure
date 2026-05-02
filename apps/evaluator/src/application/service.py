@@ -4,6 +4,10 @@ from .ports import (
     EvaluatorOutboxPort,
     ExplanationClassifierPort,
 )
+from .feedback import (
+    is_no_objective_reason_code,
+    map_finding_to_feedback,
+)
 from .types import (
     EvaluatorTaskInput,
     EvaluatorFinding,
@@ -20,22 +24,15 @@ from .types import (
 from .idempotency import (
     build_feedback_event_idempotency_key,
     build_objective_event_idempotency_key,
+    build_result_idempotency_key,
 )
 from apps.evaluator.src.application.rules.registry import resolve_bundle
-from apps.evaluator.src.application.rules.contract import (
-    REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
-    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
-    REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
-    REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
-    REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
-    REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
-    REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-    REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-    REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-    REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
+from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
+    matches_manager_disclosure_regex,
 )
-from apps.contracts.src.types import FeedbackSeverity
-from dataclasses import dataclass
+from typing import Callable, cast
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+import hashlib
 
 from uuid import UUID
 from datetime import datetime, timezone
@@ -43,138 +40,105 @@ from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
+DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD = 0.6
 
 
-_NO_OBJECTIVE_REASON_CODES: frozenset[str] = frozenset(
-    {
-        REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
-        REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
-        REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
-        REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-        REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-        REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
-        REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-        REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
-        REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
-        REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
-    }
-)
+class _LearnerPromptPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    content: str
 
 
-@dataclass(frozen=True)
-class FeedbackMappedResult:
-    feedback_key: str
-    message: str
-    severity: FeedbackSeverity
-    reason_code: str
+class _DisclosureClassification(BaseModel):
+    is_disclosure_attempt: bool
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
-@dataclass(frozen=True)
-class _FeedbackTemplate:
-    feedback_key: str
-    message: str
-    severity: FeedbackSeverity
+def _annotate_disclosure_attempt_events(
+    *,
+    events: list[EvaluatorTraceEvent],
+    classifier: ExplanationClassifierPort,
+) -> None:
+    classify_fn_obj = getattr(classifier, "classify_disclosure_attempt", None)
+    classify_fn: Callable[..., tuple[bool, float]] | None = None
+    if callable(classify_fn_obj):
+        classify_fn = cast(
+            Callable[..., tuple[bool, float]],
+            classify_fn_obj,
+        )
 
+    for event in events:
+        if event.family != "learner" or event.event_type != "USER_PROMPT_SUBMITTED":
+            continue
 
-_FEEDBACK_TEMPLATE_BY_REASON_CODE: dict[str, _FeedbackTemplate] = {
-    REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS: _FeedbackTemplate(
-        feedback_key="lab1_benign_email_not_progressing",
-        message=(
-            "That email did not include prompt-injection cues, so it won't progress "
-            "this objective. Try crafting an instruction that attempts override or "
-            "secret disclosure."
-        ),
-        severity="info",
-    ),
-    REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET: _FeedbackTemplate(
-        feedback_key="lab1_malicious_email_not_read_yet",
-        message=(
-            "Great job, you sent the malicious email. How can you get the malicious "
-            "instructions into the agent context?"
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE: _FeedbackTemplate(
-        feedback_key="lab1_malicious_email_read_no_disclosure",
-        message=(
-            "The malicious instructions were read, but private information was not "
-            "revealed. Try guiding the agent toward disclosure behavior."
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED: _FeedbackTemplate(
-        feedback_key="lab2_authority_bulletin_rejected",
-        message=(
-            "Your operations bulletin did not pass authority checks so the runbook "
-            "wasn't updated. Try using an authority style role play prompt "
-            "injection attack (think about which authority you should spoof)."
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE: _FeedbackTemplate(
-        feedback_key="lab2_runbook_altered_not_destructive",
-        message=(
-            "The runbook was altered, but your alteration does not specify a "
-            "destructive action against the production database."
-        ),
-        severity="info",
-    ),
-    REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE: _FeedbackTemplate(
-        feedback_key="lab2_qualifying_log_without_delete",
-        message=(
-            "You successfully caused a system error and created a system log but the "
-            "production database was not deleted. Try altering the runbook to perform a "
-            "destructive database action for a given system error."
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT: _FeedbackTemplate(
-        feedback_key="lab2_manual_db_delete_attempt",
-        message=(
-            "Since the agent refuses to delete the database when asked in a chat "
-            "message, is there another place you could put this instruction that "
-            "the agent trusts?"
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL: _FeedbackTemplate(
-        feedback_key="lab3_requested_account_mismatch_canonical",
-        message=(
-            "Requested account does not match vendor master. Payment was blocked. "
-            "Use lookup_vendor_master and align the pay_invoice account_number with "
-            "the canonical vendor account."
-        ),
-        severity="warning",
-    ),
-    REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT: _FeedbackTemplate(
-        feedback_key="lab3_successful_invoice_payment",
-        message=(
-            "Great you paid an invoice! How can you divert the payment to your own "
-            "account?"
-        ),
-        severity="info",
-    ),
-    REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED: _FeedbackTemplate(
-        feedback_key="lab3_vendor_profile_memory_write_blocked",
-        message=(
-            "Writing to the vendor master list is blocked by default. Only the CEO "
-            "may change this list. What other memory can you poison?"
-        ),
-        severity="warning",
-    ),
-}
+        try:
+            prompt_payload = _LearnerPromptPayload.model_validate(event.payload)
+        except ValidationError:
+            continue
 
+        text = prompt_payload.content.strip()
+        if not text:
+            continue
 
-def _map_finding_to_feedback(finding: EvaluatorFinding) -> FeedbackMappedResult | None:
-    template = _FEEDBACK_TEMPLATE_BY_REASON_CODE.get(finding.reason_code)
-    if template is None:
-        return None
-    return FeedbackMappedResult(
-        feedback_key=template.feedback_key,
-        message=template.message,
-        severity=template.severity,
-        reason_code=finding.reason_code,
-    )
+        prompt_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+        if matches_manager_disclosure_regex(text):
+            event.payload["disclosure_attempt"] = True
+            event.payload["disclosure_attempt_source"] = "regex"
+            event.payload["disclosure_attempt_confidence"] = 1.0
+            event.payload["disclosure_attempt_threshold"] = (
+                DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD
+            )
+            logger.info(
+                "disclosure attempt classified",
+                extra={
+                    "event": "disclosure_attempt_classified",
+                    "event_index": event.event_index,
+                    "source": "regex",
+                    "is_disclosure_attempt": True,
+                    "confidence": 1.0,
+                    "threshold": DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD,
+                    "prompt_hash": prompt_hash,
+                },
+            )
+            continue
+
+        if classify_fn is not None:
+            try:
+                is_disclosure_attempt, confidence = classify_fn(prompt_content=text)
+                result = _DisclosureClassification.model_validate(
+                    {
+                        "is_disclosure_attempt": is_disclosure_attempt,
+                        "confidence": confidence,
+                    }
+                )
+            except Exception:
+                result = _DisclosureClassification(
+                    is_disclosure_attempt=False, confidence=0.0
+                )
+            effective_disclosure_attempt = bool(
+                result.is_disclosure_attempt
+                and result.confidence >= DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD
+            )
+            event.payload["disclosure_attempt"] = effective_disclosure_attempt
+            event.payload["disclosure_attempt_raw"] = result.is_disclosure_attempt
+            event.payload["disclosure_attempt_source"] = "classifier"
+            event.payload["disclosure_attempt_confidence"] = result.confidence
+            event.payload["disclosure_attempt_threshold"] = (
+                DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD
+            )
+            logger.info(
+                "disclosure attempt classified",
+                extra={
+                    "event": "disclosure_attempt_classified",
+                    "event_index": event.event_index,
+                    "source": "classifier",
+                    "is_disclosure_attempt": effective_disclosure_attempt,
+                    "raw_is_disclosure_attempt": result.is_disclosure_attempt,
+                    "confidence": result.confidence,
+                    "threshold": DISCLOSURE_ATTEMPT_CONFIDENCE_THRESHOLD,
+                    "prompt_hash": prompt_hash,
+                },
+            )
 
 
 def _build_session_feedback_created_event(
@@ -183,7 +147,7 @@ def _build_session_feedback_created_event(
     finding: EvaluatorFinding,
     created_at: datetime,
 ) -> SessionFeedbackCreatedEvent | None:
-    mapped = _map_finding_to_feedback(finding=finding)
+    mapped = map_finding_to_feedback(finding=finding)
     if mapped is None:
         return None
     trigger_event_index = _extract_trigger_event_index(finding)
@@ -207,7 +171,7 @@ def _build_session_feedback_created_event(
 
 
 def _map_finding_to_objective_key(finding: EvaluatorFinding) -> str | None:
-    if finding.reason_code in _NO_OBJECTIVE_REASON_CODES:
+    if is_no_objective_reason_code(finding.reason_code):
         return None
     reason = finding.reason_code.upper()
     if "IMP_MALICIOUS_VENDOR_MEMORY_WRITTEN" in reason:
@@ -256,17 +220,6 @@ def _validate_event_scope(event: EvaluatorTraceEvent, task: EvaluatorTaskInput) 
         )
 
 
-def build_result_idempotency_key(
-    task: EvaluatorTaskInput, finding: EvaluatorFinding
-) -> str:
-    trigger_ref = (
-        str(finding.trigger_event_index)
-        if finding.trigger_event_index is not None
-        else f"{finding.trigger_start_event_index}:{finding.trigger_end_event_index}"
-    )
-    return f"eval:{task.session_id}:{task.lab_version_id}:{task.evaluator_version}:{finding.code}:{trigger_ref}"
-
-
 def evaluate_trace_window_once(
     task: EvaluatorTaskInput,
     repo: EvaluatorPort,
@@ -295,6 +248,10 @@ def evaluate_trace_window_once(
     )
 
     constraint_bundle = resolve_bundle(binding=lab_binding, task=task)
+    # TODO(architecture): Replace this lab-name gate with an explicit bundle capability
+    # hook (and avoid mutating event payloads inline) once evaluator preprocessing is formalized.
+    if getattr(constraint_bundle, "name", None) == "prompt_injection_v1":
+        _annotate_disclosure_attempt_events(events=events, classifier=classifier)
 
     findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(
         events=events, explanation_signals=signals

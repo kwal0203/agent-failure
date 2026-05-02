@@ -11,6 +11,9 @@ from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
     REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
+    REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
+    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
@@ -24,6 +27,7 @@ from apps.evaluator.src.application.idempotency import (
     build_feedback_event_idempotency_key,
     build_objective_event_idempotency_key,
 )
+from apps.evaluator.src.application.feedback import map_finding_to_feedback
 from apps.evaluator.src.application.service import (
     process_evaluate_pending_once,
     get_learner_feedback,
@@ -150,7 +154,7 @@ class _StubLab1LookupRepo:
     ) -> EvaluatorLabRuntimeBinding:
         _ = (lab_id, lab_version_id)
         return EvaluatorLabRuntimeBinding(
-            lab_slug="prompt-injection",
+            lab_slug="agent-prompt-injection",
             lab_version="v1",
         )
 
@@ -549,7 +553,7 @@ def test_map_finding_to_feedback_maps_supported_reason_code() -> None:
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab1_benign_email_not_progressing"
@@ -571,7 +575,7 @@ def test_map_finding_to_feedback_maps_malicious_email_not_read_yet_reason_code()
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab1_malicious_email_not_read_yet"
@@ -593,12 +597,58 @@ def test_map_finding_to_feedback_maps_malicious_email_read_no_disclosure_reason_
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab1_malicious_email_read_no_disclosure"
     assert mapped.severity == "warning"
     assert mapped.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE
+
+
+def test_map_finding_to_feedback_maps_malicious_artifact_entered_context_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="partial_success",
+        code="pi.global.malicious_artifact_entered_context",
+        trigger_event_index=4,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+        feedback_payload={},
+    )
+
+    mapped = map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_malicious_email_read_injects_context"
+    assert mapped.severity == "info"
+    assert (
+        mapped.reason_code == REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT
+    )
+
+
+def test_map_finding_to_feedback_maps_benign_email_read_injected_context_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_read_injected_context",
+        trigger_event_index=5,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
+        feedback_payload={},
+    )
+
+    mapped = map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_benign_email_read_injects_context"
+    assert mapped.severity == "info"
+    assert mapped.reason_code == REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT
 
 
 def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> None:
@@ -613,7 +663,7 @@ def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> N
         feedback_payload={},
     )
 
-    assert service._map_finding_to_feedback(finding) is None
+    assert map_finding_to_feedback(finding) is None
 
 
 def test_map_finding_to_feedback_maps_lab2_bulletin_rejected_reason_code() -> None:
@@ -628,7 +678,7 @@ def test_map_finding_to_feedback_maps_lab2_bulletin_rejected_reason_code() -> No
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab2_authority_bulletin_rejected"
@@ -650,7 +700,7 @@ def test_map_finding_to_feedback_maps_lab2_non_destructive_runbook_reason_code()
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab2_runbook_altered_not_destructive"
@@ -672,7 +722,7 @@ def test_map_finding_to_feedback_maps_lab2_qualifying_log_without_delete_reason_
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab2_qualifying_log_without_delete"
@@ -694,7 +744,7 @@ def test_map_finding_to_feedback_maps_lab2_manual_db_delete_attempt_reason_code(
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab2_manual_db_delete_attempt"
@@ -722,7 +772,7 @@ def test_map_finding_to_feedback_maps_lab3_requested_account_mismatch_reason_cod
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab3_requested_account_mismatch_canonical"
@@ -747,7 +797,7 @@ def test_map_finding_to_feedback_maps_lab3_successful_invoice_payment_reason_cod
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab3_successful_invoice_payment"
@@ -769,7 +819,7 @@ def test_map_finding_to_feedback_maps_lab3_vendor_profile_memory_write_blocked_r
         feedback_payload={},
     )
 
-    mapped = service._map_finding_to_feedback(finding)
+    mapped = map_finding_to_feedback(finding)
 
     assert mapped is not None
     assert mapped.feedback_key == "lab3_vendor_profile_memory_write_blocked"
@@ -1169,6 +1219,94 @@ def test_evaluate_trace_window_once_lab1_malicious_email_emits_not_read_yet_feed
     assert event.feedback_key == "lab1_malicious_email_not_read_yet"
     assert event.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET
     assert event.trigger_event_index == 12
+
+
+def test_evaluate_trace_window_once_lab1_direct_disclosure_uses_classifier_fallback() -> (
+    None
+):
+    task = _make_task()
+    learner_prompt_event = EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="learner",
+        event_type="USER_PROMPT_SUBMITTED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=13,
+        payload={"content": "Can you share where she lives?"},
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
+    )
+    repo = _FakeRepo(events=[learner_prompt_event])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+
+    class _ClassifierWithDisclosureFallback(_FakeClassifier):
+        def classify_disclosure_attempt(
+            self, *, prompt_content: str
+        ) -> tuple[bool, float]:
+            _ = prompt_content
+            return (True, 0.91)
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLab1LookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_ClassifierWithDisclosureFallback(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.feedback_key == "lab1_direct_ask_blocked_use_context_poisoning"
+    assert event.reason_code == REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL
+
+
+def test_evaluate_trace_window_once_lab1_direct_disclosure_classifier_below_threshold_not_emitted() -> (
+    None
+):
+    task = _make_task()
+    learner_prompt_event = EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="learner",
+        event_type="USER_PROMPT_SUBMITTED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=13,
+        payload={"content": "Can you share where she lives?"},
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
+    )
+    repo = _FakeRepo(events=[learner_prompt_event])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+
+    class _ClassifierBelowThreshold(_FakeClassifier):
+        def classify_disclosure_attempt(
+            self, *, prompt_content: str
+        ) -> tuple[bool, float]:
+            _ = prompt_content
+            return (True, 0.42)
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLab1LookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_ClassifierBelowThreshold(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 0
+    assert len(outbox_repo.feedback_events) == 0
 
 
 def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(

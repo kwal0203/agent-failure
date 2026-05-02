@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_CLEANUP_REQUESTED
 
 from apps.control_plane.src.application.orchestrator.ports import (
     OutboxCleanupSessionPort,
@@ -25,7 +26,8 @@ class SQLAlchemyCleanupSession(OutboxCleanupSessionPort):
             self._db.execute(
                 select(OutboxEventModel)
                 .where(
-                    OutboxEventModel.event_type == "session.cleanup.requested.v1",
+                    OutboxEventModel.event_type
+                    == OUTBOX_EVENT_SESSION_CLEANUP_REQUESTED,
                     OutboxEventModel.status == "pending",
                     OutboxEventModel.available_at <= ts,
                 )

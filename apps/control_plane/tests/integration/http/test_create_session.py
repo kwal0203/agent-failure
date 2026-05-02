@@ -16,9 +16,6 @@ from apps.control_plane.src.infrastructure.persistence.models import (
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
 )
-from apps.control_plane.src.infrastructure.persistence.lab_repository import (
-    SQLAlchemyLabRepository,
-)
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import get_create_session_uow
@@ -326,19 +323,10 @@ def test_create_session_invalid_idempotency_key_returns_typed_error() -> None:
 
 
 @pytest.mark.usefixtures("engine")
-def test_create_session_lab_unavailable_returns_typed_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_create_session_lab_unavailable_returns_typed_error() -> None:
     principal_id = uuid4()
     lab_id = uuid4()
-    _seed_lab_with_active_version(lab_id=lab_id)
     key = "create-session-key-3"
-
-    def _always_unavailable(self: SQLAlchemyLabRepository, lab_id: UUID) -> bool:
-        _ = lab_id
-        return False
-
-    monkeypatch.setattr(SQLAlchemyLabRepository, "validate_lab", _always_unavailable)
 
     app.dependency_overrides[get_current_principal] = _override_principal(
         user_id=principal_id, role="learner"

@@ -32,7 +32,9 @@ from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_sessi
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_outbox_pending import (
     SQLAlchemyProcessPendingOnceUnitOfWork,
 )
-from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
+from apps.control_plane.src.infrastructure.policy.admission_policy import (
+    StubAdmissionPolicy,
+)
 
 AGENT_LAB_2_ID = UUID("55555555-5555-5555-5555-555555555555")
 AGENT_LAB_2_VERSION_ID = UUID("55555555-5555-5555-5555-aaaaaaaaaaa2")

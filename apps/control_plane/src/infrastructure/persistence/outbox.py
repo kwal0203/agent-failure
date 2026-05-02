@@ -4,10 +4,20 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.contracts.src.schemas import (
+    SessionEvaluateRequestedPayload,
     SessionCompletedEventPayload,
     SessionCompletedOutboxEvent,
 )
-from apps.contracts.src.types import CompletionOutcome
+from apps.contracts.src.types import (
+    CompletionOutcome,
+    OUTBOX_EVENT_SESSION_CLEANUP_REQUESTED,
+    OUTBOX_EVENT_SESSION_COMPLETED,
+    OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,
+    OUTBOX_EVENT_SESSION_HINT_UNLOCKED,
+    OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
+    OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
+    OUTBOX_EVENT_SESSION_TRANSITIONED,
+)
 
 from apps.control_plane.src.application.session_hints.schemas import (
     HintUnlockedEventPayload,
@@ -43,7 +53,7 @@ class SQLAlchemyOutbox(Outbox):
         }
 
         event = OutboxEventModel(
-            event_type="session.transitioned.v1",
+            event_type=OUTBOX_EVENT_SESSION_TRANSITIONED,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -66,7 +76,7 @@ class SQLAlchemyOutbox(Outbox):
         }
 
         event = OutboxEventModel(
-            event_type="session.cleanup.requested.v1",
+            event_type=OUTBOX_EVENT_SESSION_CLEANUP_REQUESTED,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -85,18 +95,18 @@ class SQLAlchemyOutbox(Outbox):
         end_event_index: int,
         requested_at: datetime | None = None,
     ) -> None:
-        payload: dict[str, object] = {
-            "lab_id": str(lab_id),
-            "lab_version_id": str(lab_version_id),
-            "lab_difficulty": lab_difficulty,
-            "evaluator_version": evaluator_version,
-            "start_event_index": start_event_index,
-            "end_event_index": end_event_index,
-            "requested_at": requested_at.isoformat() if requested_at else None,
-        }
+        payload_model = SessionEvaluateRequestedPayload(
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            lab_difficulty=lab_difficulty,
+            evaluator_version=evaluator_version,
+            start_event_index=start_event_index,
+            end_event_index=end_event_index,
+        )
+        payload: dict[str, object] = payload_model.model_dump(mode="json")
 
         event = OutboxEventModel(
-            event_type="session.evaluate.requested.v1",
+            event_type=OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -115,7 +125,7 @@ class SQLAlchemyOutbox(Outbox):
         }
 
         event = OutboxEventModel(
-            event_type="session.publish.feedback.v1",
+            event_type=OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -139,7 +149,8 @@ class SQLAlchemyOutbox(Outbox):
         existing = (
             self._db.execute(
                 select(OutboxEventModel.id).where(
-                    OutboxEventModel.event_type == "session.objective.completed.v1",
+                    OutboxEventModel.event_type
+                    == OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
                     OutboxEventModel.aggregate_id == session_id,
                     OutboxEventModel.payload["idempotency_key"].astext
                     == idempotency_key,
@@ -165,7 +176,7 @@ class SQLAlchemyOutbox(Outbox):
         }
 
         event = OutboxEventModel(
-            event_type="session.objective.completed.v1",
+            event_type=OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -184,7 +195,7 @@ class SQLAlchemyOutbox(Outbox):
         existing = (
             self._db.execute(
                 select(OutboxEventModel.id).where(
-                    OutboxEventModel.event_type == "session.hint.unlocked.v1",
+                    OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_HINT_UNLOCKED,
                     OutboxEventModel.aggregate_id == session_id,
                     OutboxEventModel.payload["idempotency_key"].astext
                     == idempotency_key,
@@ -207,7 +218,7 @@ class SQLAlchemyOutbox(Outbox):
         payload = payload_model.model_dump(mode="json")
 
         event = OutboxEventModel(
-            event_type="session.hint.unlocked.v1",
+            event_type=OUTBOX_EVENT_SESSION_HINT_UNLOCKED,
             aggregate_id=session_id,
             payload=payload,
         )
@@ -228,7 +239,7 @@ class SQLAlchemyOutbox(Outbox):
         existing = (
             self._db.execute(
                 select(OutboxEventModel.id).where(
-                    OutboxEventModel.event_type == "session.completed.v1",
+                    OutboxEventModel.event_type == OUTBOX_EVENT_SESSION_COMPLETED,
                     OutboxEventModel.aggregate_id == session_id,
                     OutboxEventModel.payload["idempotency_key"].astext
                     == idempotency_key,

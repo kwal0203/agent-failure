@@ -14,12 +14,11 @@ from apps.agent_harness.src.infrastructure.model.gateway_client import (
     GatewayModelClient,
 )
 from apps.agent_harness.src.infrastructure.model.config import load_gateway_config
-
-import os
+from apps.agent_harness.src.infrastructure.config.settings import get_model_client_mode
 
 
 def get_model_client() -> ModelClientPort:
-    mode = os.getenv("MODEL_CLIENT_MODE", "fake").strip().lower()
+    mode = get_model_client_mode()
     if mode == "gateway":
         return GatewayModelClient(config=load_gateway_config())
     return LocalV1ModelClient()

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the agent runtime (`runtimes/agent/`) emit the same structured ndjson events as the baseline runtime (`runtimes/baseline/`), so the control plane can persist trace events and the evaluator can score sessions.
+Make the agent runtime (`runtimes/agent/`) emit the same structured ndjson events as the baseline runtime (`archive/runtimes/baseline/`), so the control plane can persist trace events and the evaluator can score sessions.
 
 ## Current State
 
@@ -38,7 +38,7 @@ service.py   →  stream_items() yields RuntimeExecutorItem
 main.py      →  event_stream() serializes each RuntimeStreamEvent as ndjson line
 ```
 
-Key types (from `runtimes/baseline/types.py`):
+Key types (from `archive/runtimes/baseline/types.py`):
 ```python
 @dataclass(frozen=True)
 class TextItem:
@@ -92,7 +92,7 @@ class EventItem:
 AgentTurnItem = TextItem | EventItem
 ```
 
-This mirrors the baseline's `RuntimeExecutorItem = TextItem | EventItem` from `runtimes/baseline/types.py`.
+This mirrors the baseline's `RuntimeExecutorItem = TextItem | EventItem` from `archive/runtimes/baseline/types.py`.
 
 ### Step 2: Update `run_agent_turn()` yield type
 
@@ -314,7 +314,7 @@ async def test_unknown_tool_emits_failed_event():
 ### Step 7: Run all tests
 
 ```bash
-.venv/bin/python -m pytest runtimes/agent/tests/ runtimes/baseline/tests/ -v
+.venv/bin/python -m pytest runtimes/agent/tests/ archive/runtimes/baseline/tests/ -v
 ```
 
 ---
@@ -399,7 +399,7 @@ Each lab config module defines its hooks class and attaches it.
 - `on_text_output()` — scan text for `LAB1_PROTECTED_SECRET_VALUE`, emit `TokenDisclosedEvent` if found (only once)
 - `seed()` — no-op (the secret is in the system prompt)
 
-Baseline reference: `runtimes/baseline/labs/lab1_hooks.py` — the `pre_dispatch` method forces secret disclosure by hijacking non-email tool calls. In the agent runtime, the vulnerability is more natural: the LLM itself outputs the secret because the system prompt tells it to under compliance urgency. We just need to detect when it happens.
+Baseline reference: `archive/runtimes/baseline/labs/lab1_hooks.py` — the `pre_dispatch` method forces secret disclosure by hijacking non-email tool calls. In the agent runtime, the vulnerability is more natural: the LLM itself outputs the secret because the system prompt tells it to under compliance urgency. We just need to detect when it happens.
 
 ### Step 2.5: Lab 2 — Tool Misuse hooks
 
@@ -409,7 +409,7 @@ Baseline reference: `runtimes/baseline/labs/lab1_hooks.py` — the `pre_dispatch
 - `on_tool_dispatch()` for `read_file` failures — emit `ToolCallFailedEvent` with `qualifying_log=True` and `log_case="missing_recovery_artifact"`
 - Authority bulletin handling — this is triggered by `RunTurnStreamRequest.authority_bulletin_passed`. The hook should overwrite the runbook with poisoned content when this flag is set. This may need to be a separate hook method or handled in `seed()`.
 
-Baseline reference: `runtimes/baseline/labs/lab2_hooks.py` — `pre_dispatch` handles the authority bulletin overwrite, `on_read_file_error` handles the autonomous delete.
+Baseline reference: `archive/runtimes/baseline/labs/lab2_hooks.py` — `pre_dispatch` handles the authority bulletin overwrite, `on_read_file_error` handles the autonomous delete.
 
 ### Step 2.6: Lab 3 — Memory Poisoning hooks
 
@@ -419,7 +419,7 @@ Baseline reference: `runtimes/baseline/labs/lab2_hooks.py` — `pre_dispatch` ha
 - `on_tool_dispatch()` for `read_email` — detect authoritative remittance update emails and write memory
 - Add `pay_invoice` tool to `TOOLS` and `dispatch` — port the `PayInvoiceHandler` logic
 
-Baseline reference: `runtimes/baseline/labs/lab3_hooks.py` — `on_email_read` writes authoritative remittance memory, `get_handlers` provides `PayInvoiceHandler`.
+Baseline reference: `archive/runtimes/baseline/labs/lab3_hooks.py` — `on_email_read` writes authoritative remittance memory, `get_handlers` provides `PayInvoiceHandler`.
 
 ### Step 2.7: Wire seeding into `main.py`
 
@@ -443,10 +443,10 @@ Track seeded sessions with a `set[UUID]`. On each turn, call `hooks.seed(ctx)` i
 | Lab 3 config | `runtimes/agent/lab_configs/lab_003_memory_poisoning.py` |
 | Test helpers (to update) | `runtimes/agent/tests/conftest.py` |
 | Agent tests (to update + add) | `runtimes/agent/tests/test_agent.py` |
-| Baseline types pattern (reference) | `runtimes/baseline/types.py` |
-| Baseline event emission pattern (reference) | `runtimes/baseline/handlers.py` |
-| Baseline streaming pattern (reference) | `runtimes/baseline/service.py:248-300` |
-| Baseline lab hooks (reference) | `runtimes/baseline/labs/lab1_hooks.py`, `lab2_hooks.py`, `lab3_hooks.py` |
+| Baseline types pattern (reference) | `archive/runtimes/baseline/types.py` |
+| Baseline event emission pattern (reference) | `archive/runtimes/baseline/handlers.py` |
+| Baseline streaming pattern (reference) | `archive/runtimes/baseline/service.py:248-300` |
+| Baseline lab hooks (reference) | `archive/runtimes/baseline/labs/lab1_hooks.py`, `lab2_hooks.py`, `lab3_hooks.py` |
 | Event schemas (all event types) | `apps/contracts/src/schemas.py` |
 | Lab secrets | `apps/contracts/src/lab_secrets.py` |
 | Control plane event persistence | `apps/control_plane/src/interfaces/http/main.py` (handle_user_prompt) |

@@ -1,50 +1,6 @@
 from pydantic import BaseModel, Field
 from uuid import UUID
 from datetime import datetime
-from typing import Literal, Any
-
-from apps.control_plane.src.application.session_query.types import CompletionStatus
-
-
-EvaluatorFeedbackStatusType = Literal[
-    "learned", "progress", "no_progress", "session_terminal"
-]
-TraceFamilyType = Literal["lifecycle", "learner", "runtime", "tool", "model"]
-
-
-class SessionProgressChipResponse(BaseModel):
-    objective_key: str
-    label: str
-    status: Literal["pending", "complete"]
-    completed_at: datetime | None
-    updated_at: datetime
-
-
-class SessionHintResponse(BaseModel):
-    hint_key: str
-    text: str
-    sort_order: int
-    status: Literal["pending", "unlocked"]
-    unlock_at: datetime
-    unlocked_at: datetime | None
-    seen_at: datetime | None
-
-
-class SessionFeedbackResponse(BaseModel):
-    id: UUID
-    feedback_key: str
-    reason_code: str
-    message: str
-    severity: Literal["info", "warning", "error"]
-    trigger_event_index: int | None
-    created_at: datetime
-    seen_at: datetime | None
-
-
-class SessionRuntimeFileResponse(BaseModel):
-    path: str
-    content: str
-    updated_at: datetime
 
 
 class MarkSessionHintsSeenResponse(BaseModel):
@@ -61,38 +17,6 @@ class StopSessionResponse(BaseModel):
     session_id: UUID
     accepted: bool = True
     state: str
-
-
-class SessionMetadataResponse(BaseModel):
-    id: UUID
-    lab_id: UUID | None
-    lab_version_id: UUID | None
-    lab_difficulty: str = "medium"
-    state: str
-    runtime_substate: str | None
-    resume_mode: str
-    last_transition_reason: str | None
-    interactive: bool
-    created_at: datetime
-    started_at: datetime | None
-    ended_at: datetime | None
-    completion_status: CompletionStatus = "in_progress"
-    completed_at: datetime | None = None
-    completion_reason_code: str | None = None
-    provisioning_stalled: bool = False
-    provisioning_stall_reason_code: str | None
-    progress_chips: list[SessionProgressChipResponse] = []
-    hints: list[SessionHintResponse] = []
-    unread_hint_count: int = 0
-    feedback_items: list[SessionFeedbackResponse] = []
-    # Backward-compat alias; new clients should use feedback_items.
-    feedback: list[SessionFeedbackResponse] = []
-    unread_feedback_count: int = 0
-    runtime_files: list[SessionRuntimeFileResponse] = []
-
-
-class GetSessionMetadataResponse(BaseModel):
-    session: SessionMetadataResponse
 
 
 class SessionResponse(BaseModel):
@@ -113,48 +37,6 @@ class CreateSessionResponse(BaseModel):
 class CreateSessionRequest(BaseModel):
     lab_id: UUID
     lab_difficulty: str = "medium"
-
-
-class LabCapabilitiesResponse(BaseModel):
-    supports_resume: bool
-    supports_uploads: bool
-
-
-class LabCatalogItemResponse(BaseModel):
-    id: UUID
-    slug: str
-    name: str
-    summary: str
-    capabilities: LabCapabilitiesResponse
-
-
-class GetLabsResponse(BaseModel):
-    labs: list[LabCatalogItemResponse]
-
-
-class EvaluatorFeedbackResponse(BaseModel):
-    status: EvaluatorFeedbackStatusType
-    reason_code: str
-    evidence_snippet: str
-
-
-class GetFeedbackResponse(BaseModel):
-    feedback: tuple[EvaluatorFeedbackResponse, ...]
-
-
-class SessionTraceEvent(BaseModel):
-    id: UUID
-    event_index: int
-    family: TraceFamilyType
-    event_type: str
-    source: str
-    occurred_at: datetime
-    payload: dict[str, Any]
-
-
-class GetSessionTraceResponse(BaseModel):
-    events: tuple[SessionTraceEvent, ...]
-    next_cursor: str | None = None
 
 
 class InjectSessionEmailResponse(BaseModel):

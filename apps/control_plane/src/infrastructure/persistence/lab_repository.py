@@ -25,22 +25,6 @@ class SQLAlchemyLabRepository(LabRepository):
         # a labs table (published + launchable rows) once lab metadata is persisted.
         lab_rows: list[GetLabCatalogRow] = [
             GetLabCatalogRow(
-                lab_id=UUID("11111111-1111-1111-1111-111111111111"),
-                slug="prompt-injection",
-                name="Indirect Prompt Injection",
-                summary="Practice identifying and exploiting indirect prompt-injection paths, then apply guardrails to contain them.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
-            GetLabCatalogRow(
-                lab_id=UUID("33333333-3333-3333-3333-333333333333"),
-                slug="memory-poisoning",
-                name="Memory Poisoning",
-                summary="Poison memory signals to reroute invoice payment decisions.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
-            GetLabCatalogRow(
                 lab_id=UUID("44444444-4444-4444-4444-444444444444"),
                 slug="agent-prompt-injection",
                 name="Indirect Prompt Injection",

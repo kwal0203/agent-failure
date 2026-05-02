@@ -9,8 +9,14 @@ from apps.control_plane.src.application.orchestrator.service import process_expi
 
 import time
 import logging
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 logger = logging.getLogger(__name__)
+WORKER_NAME = "expiry_worker"
 
 
 def run_once() -> None:
@@ -24,6 +30,7 @@ def run_once() -> None:
             result.succeeded_count,
             result.failed_count,
             result.retried_count,
+            extra={**log_fields(), "worker_name": WORKER_NAME},
         )
 
 
@@ -31,7 +38,11 @@ def run_forever(polling_interval_seconds: float = 1.0) -> None:
     # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
     # so unexpected per-tick exceptions are logged and do not kill the process.
     while True:
-        run_once()
+        token = set_correlation_id(None)
+        try:
+            run_once()
+        finally:
+            reset_correlation_id(token)
         time.sleep(polling_interval_seconds)
 
 

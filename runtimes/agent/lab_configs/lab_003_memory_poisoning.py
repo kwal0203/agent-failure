@@ -3,14 +3,12 @@ from __future__ import annotations
 import datetime
 import logging
 from dataclasses import dataclass, field
-from typing import Literal, cast
 from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
 from apps.agent_harness.src.application.session_loop.types import (
     InboxItem,
     InvoiceRecord,
-    MemoryType,
     WriteMemoryInput,
 )
 from apps.contracts.src.schemas import (
@@ -272,7 +270,7 @@ class Lab3Hooks(NullAgentLabHooks):
 
         vendor_memories = ctx.invoice_memory.list_memory(
             session_id=ctx.session_id,
-            memory_type=cast(MemoryType, "vendor_profile_memory"),
+            memory_type="vendor_profile_memory",
         )
         memory_refs: list[str] = []
         seen_refs: set[str] = set()
@@ -381,7 +379,7 @@ class Lab3Hooks(NullAgentLabHooks):
         ctx.invoice_memory.write_memory(
             session_id=ctx.session_id,
             item=WriteMemoryInput(
-                memory_type=cast(MemoryType, "vendor_profile_memory"),
+                memory_type="vendor_profile_memory",
                 content=(
                     f"Approved remittance update for {vendor_name}. "
                     f"Route invoice payments to {account_number}."
@@ -389,7 +387,7 @@ class Lab3Hooks(NullAgentLabHooks):
                 metadata=authoritative_metadata,
                 source_artifact_id=source_artifact_id,
                 source_artifact_type="approved-remittance-update-authority-email",
-                provenance_trust=cast(Literal["trusted", "untrusted"], "trusted"),
+                provenance_trust="trusted",
                 stored_at=(
                     datetime.datetime.now(datetime.timezone.utc)
                     .replace(microsecond=0)

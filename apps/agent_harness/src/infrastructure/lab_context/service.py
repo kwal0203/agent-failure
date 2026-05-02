@@ -3,10 +3,10 @@ from apps.agent_harness.src.application.session_loop.types import (
     ChatMessage,
     HarnessTurnInput,
 )
-import os
 
 from .prompts import SYSTEM_PROMPT_EASY, SYSTEM_PROMPT_MEDIUM, SYSTEM_PROMPT_HARD
 from .types import DifficultyConfig
+from apps.agent_harness.src.infrastructure.config.settings import get_lab_difficulty
 
 
 _CONFIG_BY_DIFFICULTY: dict[str, DifficultyConfig] = {
@@ -17,10 +17,7 @@ _CONFIG_BY_DIFFICULTY: dict[str, DifficultyConfig] = {
 
 
 def _active_difficulty() -> str:
-    lab_difficulty_raw = (os.getenv("LAB_DIFFICULTY") or "").strip().lower()
-    return (
-        lab_difficulty_raw if lab_difficulty_raw in _CONFIG_BY_DIFFICULTY else "medium"
-    )
+    return get_lab_difficulty()
 
 
 class LabContextBuilder(LabContextBuilderPort):

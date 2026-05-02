@@ -6,6 +6,9 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from apps.control_plane.src.application.evaluator_feedback import (
+    service as evaluator_feedback_service,
+)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     EvaluatorResultModel,
@@ -13,7 +16,6 @@ from apps.control_plane.src.infrastructure.persistence.models import (
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
-import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -192,7 +194,11 @@ def test_get_evaluator_feedback_returns_500_on_unexpected_error(
         _ = kwargs
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(main_module, "get_session_evaluator_feedback", _boom)
+    monkeypatch.setattr(
+        evaluator_feedback_service,
+        "get_session_evaluator_feedback",
+        _boom,
+    )
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     try:

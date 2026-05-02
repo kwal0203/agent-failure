@@ -9,6 +9,26 @@ CompletionOutcome = Literal["completed_success", "completed_failure"]
 FeedbackSeverity = Literal["info", "warning", "error"]
 OutboxEventName = Literal["session.completed.v1", "session.feedback.created.v1"]
 
+# Shared outbox event names across control-plane/evaluator.
+OUTBOX_EVENT_SESSION_TRANSITIONED = "session.transitioned.v1"
+OUTBOX_EVENT_SESSION_PROVISIONING = "session.provisioning.v1"
+OUTBOX_EVENT_SESSION_CLEANUP_REQUESTED = "session.cleanup.requested.v1"
+OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED = "session.evaluate.requested.v1"
+OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK = "session.publish.feedback.v1"
+OUTBOX_EVENT_SESSION_OBJECTIVE_COMPLETED = "session.objective.completed.v1"
+OUTBOX_EVENT_SESSION_HINT_UNLOCKED = "session.hint.unlocked.v1"
+OUTBOX_EVENT_SESSION_COMPLETED = "session.completed.v1"
+OUTBOX_EVENT_SESSION_FEEDBACK_CREATED = "session.feedback.created.v1"
+
+# Shared runtime/tool trace event names across control-plane/evaluator.
+TRACE_EVENT_ATTACK_EMAIL_SENT = "ATTACK_EMAIL_SENT"
+TRACE_EVENT_MALICIOUS_EMAIL_READ = "MALICIOUS_EMAIL_READ"
+TRACE_EVENT_TOKEN_DISCLOSURE_ATTEMPTED = "TOKEN_DISCLOSURE_ATTEMPTED"
+TRACE_EVENT_TOKEN_DISCLOSED = "TOKEN_DISCLOSED"
+TRACE_EVENT_TOOL_CALL_REQUESTED = "TOOL_CALL_REQUESTED"
+TRACE_EVENT_TOOL_CALL_SUCCEEDED = "TOOL_CALL_SUCCEEDED"
+TRACE_EVENT_TOOL_CALL_FAILED = "TOOL_CALL_FAILED"
+
 
 JSONScalar: TypeAlias = str | int | float | bool | None
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]

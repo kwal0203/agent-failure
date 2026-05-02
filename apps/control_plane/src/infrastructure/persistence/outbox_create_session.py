@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.orm import Session
+from apps.contracts.src.types import OUTBOX_EVENT_SESSION_PROVISIONING
 from apps.control_plane.src.application.session_create.ports import OutboxCreateSession
 
 from .models import OutboxEventModel
@@ -41,7 +42,7 @@ class SQLAlchemyOutboxCreateSession(OutboxCreateSession):
         }
 
         event = OutboxEventModel(
-            event_type="session.provisioning.v1",
+            event_type=OUTBOX_EVENT_SESSION_PROVISIONING,
             aggregate_id=session_id,
             payload=payload,
         )
