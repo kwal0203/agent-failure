@@ -21,12 +21,15 @@ from apps.control_plane.src.application.session_explanation_submission.service i
     SubmitLearnerExplanationCommand,
     submit_learner_explanation,
 )
+from apps.control_plane.src.application.session_explanation_submission.ports import (
+    SessionExplanationDeps,
+)
 from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.session_explanation_submission.deps import (
-    build_session_explanation_deps,
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_request_db_session,
+    get_session_explanation_deps,
 )
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.errors import (
@@ -59,7 +62,8 @@ def learner_explanation(
     session_id: UUID,
     request: LearnerExplanationRequest,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    deps: SessionExplanationDeps = Depends(get_session_explanation_deps),
+    db: Session = Depends(get_request_db_session),
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
 ) -> LearnerExplanationResponse | JSONResponse:
     key = idempotency_key.strip()
@@ -89,7 +93,7 @@ def learner_explanation(
                 explanation=request.explanation,
                 idempotency_key=key,
             ),
-            deps=build_session_explanation_deps(db=db),
+            deps=deps,
         )
         if result is None:
             return session_not_found(str(session_id))

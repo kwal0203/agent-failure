@@ -4,10 +4,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import ApiErrorEnvelope
 from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.session_email.ports import (
+    RuntimeBindingReaderPort,
+)
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
+)
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
 from apps.control_plane.src.application.runtime.types import ReadRuntimeFileInput
 from apps.control_plane.src.application.session_query.errors import (
@@ -16,17 +21,12 @@ from apps.control_plane.src.application.session_query.errors import (
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemySessionMetadataRepository,
-    SQLAlchemySessionRuntimeBindingRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
-    SQLAlchemyWorkerHeartbeatRepository,
-)
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
+    get_runtime_binding_repository,
     get_runtime_client_factory,
+    get_session_metadata_repository,
+    get_worker_heartbeat_repository,
 )
 from apps.control_plane.src.interfaces.http.errors import (
     forbidden,
@@ -69,14 +69,15 @@ def _as_utc(dt: datetime | None) -> datetime | None:
 async def get_metadata(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
+    heartbeat_repo=Depends(get_worker_heartbeat_repository),
+    runtime_binding_repo: RuntimeBindingReaderPort = Depends(
+        get_runtime_binding_repository
+    ),
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),
 ) -> GetSessionMetadataResponse | JSONResponse:
-    repo = SQLAlchemySessionMetadataRepository(db=db)
-    heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
-
     try:
         session_metadata = get_session_metadata(
             session_id=session_id,
@@ -114,7 +115,6 @@ async def get_metadata(
         runtime_files: list[SessionRuntimeFileResponse] = []
         if session_metadata.lab_id == AGENT_LAB_2_TOOL_MISUSE_ID:
             try:
-                runtime_binding_repo = SQLAlchemySessionRuntimeBindingRepository(db=db)
                 runtime_binding = runtime_binding_repo.get_by_session_id(
                     session_id=session_id
                 )

@@ -14,20 +14,20 @@ from apps.control_plane.src.application.session_query.errors import (
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
+)
 from apps.control_plane.src.application.session_stream.ports import (
     SessionStreamManagerPort,
 )
 from apps.control_plane.src.application.session_stream.service import handle_user_prompt
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemySessionMetadataRepository,
-)
 from apps.control_plane.src.interfaces.http.auth import (
     UnauthenticatedError,
     get_current_principal_ws,
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_authority_bulletin_classifier,
+    get_request_db_session,
     get_runtime_client_factory,
     get_session_metadata_repository,
     get_ws_session_manager,
@@ -46,10 +46,8 @@ router = APIRouter()
 async def session_stream_ws(
     websocket: WebSocket,
     session_id: UUID,
-    repo: SQLAlchemySessionMetadataRepository = Depends(
-        get_session_metadata_repository
-    ),
-    db: Session = Depends(get_db_session),
+    repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
+    db: Session = Depends(get_request_db_session),
     runtime_client_factory: RuntimeClientFactoryPort = Depends(
         get_runtime_client_factory
     ),

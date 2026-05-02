@@ -1,0 +1,31 @@
+[importlinter]
+root_package = apps
+
+[importlinter:layers]
+name = Core layering (domain/application/interfaces)
+type = layers
+containers =
+    apps.control_plane.src
+layers =
+    interfaces
+    application
+    domain
+
+[importlinter:forbidden]
+name = Domain must stay pure
+type = forbidden
+source_modules =
+    apps.control_plane.src.domain
+forbidden_modules =
+    apps.control_plane.src.application
+    apps.control_plane.src.interfaces
+    apps.control_plane.src.infrastructure
+
+[importlinter:http_routes_no_infra]
+name = HTTP routes must not import infrastructure directly
+type = forbidden
+allow_indirect_imports = true
+source_modules =
+    apps.control_plane.src.interfaces.http.routes
+forbidden_modules =
+    apps.control_plane.src.infrastructure

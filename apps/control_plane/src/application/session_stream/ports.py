@@ -2,7 +2,9 @@ from typing import Protocol
 from uuid import UUID
 
 from fastapi import WebSocket
-from apps.control_plane.src.interfaces.http.stream_messages import ServerMessageEnvelope
+from apps.control_plane.src.application.session_stream.messages import (
+    ServerMessageEnvelope,
+)
 
 
 class SessionStreamManagerPort(Protocol):

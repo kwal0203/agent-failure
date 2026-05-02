@@ -20,7 +20,7 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemySessionMetadataRepository,
     SQLAlchemySessionRuntimeBindingRepository,
 )
-from apps.control_plane.src.interfaces.http.message_builders import (
+from apps.control_plane.src.application.session_stream.messages import (
     build_policy_denial_message,
 )
 

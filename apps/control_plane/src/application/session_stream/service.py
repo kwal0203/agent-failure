@@ -18,7 +18,7 @@ from apps.control_plane.src.application.session_stream.ports import (
     SessionStreamManagerPort,
 )
 from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
-from apps.control_plane.src.interfaces.http.message_builders import (
+from apps.control_plane.src.application.session_stream.messages import (
     build_policy_denial_message,
     build_system_error_message,
     build_trace_event_message,

@@ -5,13 +5,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import ApiErrorEnvelope
 from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
+)
+from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
+from apps.control_plane.src.application.session_query.ports import (
+    SessionMetadataRepository,
 )
 from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
@@ -22,13 +25,13 @@ from apps.control_plane.src.application.session_query.service import (
 from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.session_repository import (
-    SQLAlchemyEvaluatorRepository,
-    SQLAlchemySessionMetadataRepository,
-    SQLAlchemyTraceEventRepository,
-)
+from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_evaluator_repository,
+    get_session_metadata_repository,
+    get_trace_event_repository,
+)
 from apps.control_plane.src.interfaces.http.errors import (
     forbidden,
     internal_error,
@@ -59,10 +62,8 @@ router = APIRouter()
 def evaluator_feedback(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    repo: EvaluatorPort = Depends(get_evaluator_repository),
 ) -> GetFeedbackResponse | JSONResponse:
-    repo = SQLAlchemyEvaluatorRepository(db=db)
-
     try:
         evaluator_feedback_item = get_session_evaluator_feedback(
             principal=principal, session_id=session_id, repo=repo
@@ -92,12 +93,9 @@ def evaluator_feedback(
 def get_session_trace(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    repo: TraceEventPort = Depends(get_trace_event_repository),
+    metadata_repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
 ) -> GetSessionTraceResponse | JSONResponse:
-
-    repo = SQLAlchemyTraceEventRepository(db=db)
-    metadata_repo = SQLAlchemySessionMetadataRepository(db=db)
-
     try:
         session_metadata = get_session_metadata(
             session_id=session_id,

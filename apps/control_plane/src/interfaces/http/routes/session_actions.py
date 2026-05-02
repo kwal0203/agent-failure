@@ -12,13 +12,18 @@ from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_feedback.service import (
     mark_session_feedback_seen,
 )
+from apps.control_plane.src.application.session_feedback.ports import (
+    SessionFeedbackRepositoryPort,
+)
 from apps.control_plane.src.application.session_hints.service import (
     mark_session_hints_seen,
 )
+from apps.control_plane.src.application.session_hints.ports import SessionHintSeenPort
 from apps.control_plane.src.application.session_lifecycle.errors import SessionNotFound
 from apps.control_plane.src.application.session_lifecycle.idempotency import (
     build_stop_session_transition_idempotency_key,
 )
+from apps.control_plane.src.application.session_lifecycle.ports import UnitOfWork
 from apps.control_plane.src.application.session_lifecycle.service import (
     transition_session,
 )
@@ -29,21 +34,12 @@ from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
 from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
-from apps.control_plane.src.infrastructure.persistence.db import (
-    SessionFactory,
-    get_db_session,
-)
-from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
-    SQLAlchemySessionFeedbackRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
-    SQLAlchemySessionHintSeenRepository,
-)
-from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
-    SQLAlchemyUnitOfWork,
-)
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
+    get_request_db_session,
+    get_session_feedback_repository,
+    get_session_hint_seen_repository,
+    get_session_lifecycle_uow,
     get_session_metadata_repository,
 )
 from apps.control_plane.src.interfaces.http.errors import session_not_found
@@ -78,6 +74,7 @@ def stop_session_endpoint(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
     metadata_repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
+    uow: UnitOfWork = Depends(get_session_lifecycle_uow),
 ) -> StopSessionResponse | JSONResponse:
     try:
         session_metadata = get_session_metadata(
@@ -95,7 +92,6 @@ def stop_session_endpoint(
                 state=session_metadata.state,
             )
 
-        uow = SQLAlchemyUnitOfWork(session_factory=SessionFactory)
         transition_session(
             session_id=session_id,
             trigger=Trigger.ADMIN_CANCELLED,
@@ -139,9 +135,9 @@ def stop_session_endpoint(
 def mark_hints_seen_endpoint(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    seen_repo: SessionHintSeenPort = Depends(get_session_hint_seen_repository),
+    db: Session = Depends(get_request_db_session),
 ) -> MarkSessionHintsSeenResponse | JSONResponse:
-    seen_repo = SQLAlchemySessionHintSeenRepository(db=db)
     try:
         updated_count = mark_session_hints_seen(
             session_id=session_id,
@@ -173,9 +169,11 @@ def mark_hints_seen_endpoint(
 def mark_feedback_seen_endpoint(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    feedback_repo: SessionFeedbackRepositoryPort = Depends(
+        get_session_feedback_repository
+    ),
+    db: Session = Depends(get_request_db_session),
 ) -> MarkSessionFeedbackSeenResponse | JSONResponse:
-    feedback_repo = SQLAlchemySessionFeedbackRepository(db=db)
     try:
         updated_count = mark_session_feedback_seen(
             session_id=session_id,

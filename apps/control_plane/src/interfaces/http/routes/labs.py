@@ -1,18 +1,14 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-
 from apps.contracts.src.schemas import ApiErrorEnvelope
 from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
 )
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.lab_repository import (
-    SQLAlchemyLabRepository,
-)
+from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
+from apps.control_plane.src.interfaces.http.dependencies import get_lab_repository
 from apps.control_plane.src.interfaces.http.errors import forbidden, internal_error
 from apps.control_plane.src.interfaces.http.schemas import (
     GetLabsResponse,
@@ -34,10 +30,8 @@ router = APIRouter()
 )
 def get_labs(
     principal: PrincipalContext = Depends(get_current_principal),
-    db: Session = Depends(get_db_session),
+    lab_repo: LabRepository = Depends(get_lab_repository),
 ) -> GetLabsResponse | JSONResponse:
-    lab_repo = SQLAlchemyLabRepository(db=db)
-
     try:
         labs_for_principal = get_labs_for_principal(
             principal=principal, lab_repo=lab_repo

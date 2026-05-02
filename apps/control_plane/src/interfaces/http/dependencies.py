@@ -43,7 +43,10 @@ from apps.control_plane.src.infrastructure.persistence.lab_repository import (
 )
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyCreateSessionRepository,
+    SQLAlchemyEvaluatorRepository,
     SQLAlchemySessionMetadataRepository,
+    SQLAlchemySessionRuntimeBindingRepository,
+    SQLAlchemyTraceEventRepository,
 )
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
@@ -57,6 +60,26 @@ from apps.control_plane.src.infrastructure.persistence.idempotency_store import 
 )
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_create_session import (
     SQLAlchemyCreateSessionUnitOfWork,
+)
+from apps.control_plane.src.infrastructure.persistence.session_feedback_repository import (
+    SQLAlchemySessionFeedbackRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
+    SQLAlchemySessionHintSeenRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
+    SQLAlchemyUnitOfWork,
+)
+from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
+    SQLAlchemyWorkerHeartbeatRepository,
+)
+from apps.control_plane.src.infrastructure.session_email.deps import (
+    SessionEmailDeps,
+    build_session_email_deps,
+)
+from apps.control_plane.src.infrastructure.session_explanation_submission.deps import (
+    SessionExplanationDeps,
+    build_session_explanation_deps,
 )
 
 # from apps.control_plane.src.application.runtime.ports import RuntimeClientPort
@@ -99,6 +122,10 @@ def get_idempotency_store(
     return SQLAlchemyCreateSessionIdempotencyStore(db=db)
 
 
+def get_request_db_session(db: Session = Depends(get_db_session)) -> Session:
+    return db
+
+
 def get_lab_repository(db: Session = Depends(get_db_session)) -> LabRepository:
     return SQLAlchemyLabRepository(db=db)
 
@@ -117,6 +144,56 @@ def get_session_metadata_repository(
     db: Session = Depends(get_db_session),
 ) -> SessionMetadataRepository:
     return SQLAlchemySessionMetadataRepository(db=db)
+
+
+def get_evaluator_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemyEvaluatorRepository:
+    return SQLAlchemyEvaluatorRepository(db=db)
+
+
+def get_trace_event_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemyTraceEventRepository:
+    return SQLAlchemyTraceEventRepository(db=db)
+
+
+def get_runtime_binding_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionRuntimeBindingRepository:
+    return SQLAlchemySessionRuntimeBindingRepository(db=db)
+
+
+def get_worker_heartbeat_repository() -> SQLAlchemyWorkerHeartbeatRepository:
+    return SQLAlchemyWorkerHeartbeatRepository()
+
+
+def get_session_feedback_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionFeedbackRepository:
+    return SQLAlchemySessionFeedbackRepository(db=db)
+
+
+def get_session_hint_seen_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionHintSeenRepository:
+    return SQLAlchemySessionHintSeenRepository(db=db)
+
+
+def get_session_lifecycle_uow() -> SQLAlchemyUnitOfWork:
+    return SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+
+
+def get_session_email_deps(
+    db: Session = Depends(get_db_session),
+) -> SessionEmailDeps:
+    return build_session_email_deps(db=db)
+
+
+def get_session_explanation_deps(
+    db: Session = Depends(get_db_session),
+) -> SessionExplanationDeps:
+    return build_session_explanation_deps(db=db)
 
 
 def get_runtime_client_config() -> RuntimeClientConfig:

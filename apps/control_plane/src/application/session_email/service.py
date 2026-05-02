@@ -22,7 +22,7 @@ from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.session_email.idempotency import (
     build_malicious_email_objective_idempotency_key,
 )
-from apps.control_plane.src.interfaces.http.mappers.session_email_mapper import (
+from apps.control_plane.src.application.session_email.mappers import (
     map_attack_email_sent_payload,
 )
 from .ports import SessionEmailDeps

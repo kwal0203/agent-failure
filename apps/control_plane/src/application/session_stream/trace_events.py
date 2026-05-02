@@ -7,7 +7,7 @@ from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
     SQLAlchemyTraceEventRepository,
 )
-from apps.control_plane.src.interfaces.http.helpers import (
+from apps.control_plane.src.application.session_stream.trace_builders import (
     build_model_turn_failed_payload,
     build_trace_event,
 )

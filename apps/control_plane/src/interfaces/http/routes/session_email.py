@@ -19,17 +19,16 @@ from apps.control_plane.src.application.session_email.service import (
     SessionEmailPolicyError,
     inject_session_email_for_session,
 )
+from apps.control_plane.src.application.session_email.ports import SessionEmailDeps
 from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
-)
-from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.session_email.deps import (
-    build_session_email_deps,
 )
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_email_maliciousness_classifier,
+    get_request_db_session,
     get_runtime_client_factory,
+    get_session_email_deps,
 )
 from apps.control_plane.src.interfaces.http.errors import (
     api_error,
@@ -65,7 +64,8 @@ async def inject_session_email(
     email_classifier: EmailMaliciousnessClassifierPort = Depends(
         get_email_maliciousness_classifier
     ),
-    db: Session = Depends(get_db_session),
+    deps: SessionEmailDeps = Depends(get_session_email_deps),
+    db: Session = Depends(get_request_db_session),
 ) -> InjectSessionEmailResponse | JSONResponse:
     try:
         result = await inject_session_email_for_session(
@@ -78,7 +78,7 @@ async def inject_session_email(
                 email_id=request.email_id,
                 source=request.source,
             ),
-            deps=build_session_email_deps(db=db),
+            deps=deps,
             runtime_client_factory=runtime_client_factory,
             email_classifier=email_classifier,
         )

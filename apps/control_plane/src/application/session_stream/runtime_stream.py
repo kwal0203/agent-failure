@@ -15,7 +15,7 @@ from apps.contracts.src.types import (
 )
 
 from apps.control_plane.src.application.runtime.errors import RuntimeClientError
-from apps.control_plane.src.interfaces.http.message_builders import (
+from apps.control_plane.src.application.session_stream.messages import (
     build_agent_text_chunk_message,
     build_system_error_message,
 )
