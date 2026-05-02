@@ -301,3 +301,14 @@ OutboxEvent = Annotated[
 ]
 
 OutboxEventType = OutboxEventName
+
+
+class SessionEvaluateRequestedPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lab_id: UUID
+    lab_version_id: UUID
+    lab_difficulty: str = "medium"
+    evaluator_version: int
+    start_event_index: int
+    end_event_index: int

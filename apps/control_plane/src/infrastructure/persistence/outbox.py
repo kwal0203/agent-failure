@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.contracts.src.schemas import (
+    SessionEvaluateRequestedPayload,
     SessionCompletedEventPayload,
     SessionCompletedOutboxEvent,
 )
@@ -94,15 +95,18 @@ class SQLAlchemyOutbox(Outbox):
         end_event_index: int,
         requested_at: datetime | None = None,
     ) -> None:
-        payload: dict[str, object] = {
-            "lab_id": str(lab_id),
-            "lab_version_id": str(lab_version_id),
-            "lab_difficulty": lab_difficulty,
-            "evaluator_version": evaluator_version,
-            "start_event_index": start_event_index,
-            "end_event_index": end_event_index,
-            "requested_at": requested_at.isoformat() if requested_at else None,
-        }
+        payload_model = SessionEvaluateRequestedPayload(
+            lab_id=lab_id,
+            lab_version_id=lab_version_id,
+            lab_difficulty=lab_difficulty,
+            evaluator_version=evaluator_version,
+            start_event_index=start_event_index,
+            end_event_index=end_event_index,
+        )
+        payload: dict[str, object] = payload_model.model_dump(mode="json")
+        payload["requested_at"] = (
+            requested_at.isoformat() if requested_at is not None else None
+        )
 
         event = OutboxEventModel(
             event_type=OUTBOX_EVENT_SESSION_EVALUATE_REQUESTED,

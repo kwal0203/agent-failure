@@ -12,7 +12,7 @@ from apps.evaluator.src.application.types import (
     SessionFeedbackCreatedEvent,
 )
 from apps.control_plane.src.infrastructure.persistence.models import OutboxEventModel
-from apps.evaluator.src.application.schemas import EvaluatorRequestedPayload
+from apps.contracts.src.schemas import SessionEvaluateRequestedPayload
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -54,7 +54,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
             row.last_error = None
 
             try:
-                p = EvaluatorRequestedPayload.model_validate(row.payload)
+                p = SessionEvaluateRequestedPayload.model_validate(row.payload)
                 task = EvaluatorTaskInput(
                     session_id=row.aggregate_id,
                     lab_id=p.lab_id,
