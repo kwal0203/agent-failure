@@ -13,7 +13,7 @@ from apps.control_plane.src.infrastructure.persistence.models import (
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
-import apps.control_plane.src.interfaces.http.main as main_module
+import apps.control_plane.src.interfaces.http.routes.sessions as sessions_routes
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -192,7 +192,7 @@ def test_get_evaluator_feedback_returns_500_on_unexpected_error(
         _ = kwargs
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(main_module, "get_session_evaluator_feedback", _boom)
+    monkeypatch.setattr(sessions_routes, "get_session_evaluator_feedback", _boom)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     try:
