@@ -5,36 +5,28 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import ApiErrorEnvelope
-from apps.control_plane.src.application.common.errors import (
-    DuplicateIdempotencyKeyError,
-)
 from apps.control_plane.src.application.common.types import PrincipalContext
-from apps.control_plane.src.application.learner_explanation.errors import (
-    InvalidLearnerExplanationError,
-)
 from apps.control_plane.src.application.session_explanation_submission.service import (
-    SessionExplanationPolicyError,
     SubmitLearnerExplanationCommand,
     submit_learner_explanation,
 )
 from apps.control_plane.src.application.session_explanation_submission.ports import (
     SessionExplanationDeps,
 )
-from apps.control_plane.src.application.session_query.errors import (
-    ForbiddenErrorSessionQuery,
-)
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_request_db_session,
     get_session_explanation_deps,
 )
+from apps.control_plane.src.interfaces.http.error_mapping import (
+    map_exception_to_http_response,
+    map_unexpected_exception,
+)
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.errors import (
     api_error,
-    forbidden,
     session_not_found,
 )
 from apps.control_plane.src.interfaces.http.schemas import (
@@ -102,46 +94,9 @@ def learner_explanation(
             explanation_id=result.explanation_id,
             accepted=True,
         )
-    except SessionExplanationPolicyError as exc:
-        return api_error(
-            code=exc.code,
-            message=exc.message,
-            retryable=exc.retryable,
-            status_code=exc.status_code,
-            details=exc.details,
-        )
-    except InvalidLearnerExplanationError as exc:
-        return api_error(
-            code=exc.code,
-            message=exc.message,
-            retryable=False,
-            status_code=400,
-            details=exc.details,
-        )
-    except ForbiddenErrorSessionQuery as exc:
-        return forbidden(exc.message, exc.details)
-    except ValidationError:
-        return api_error(
-            code="SESSION_METADATA_INVALID",
-            message="Invalid lab difficulty on session_metadata",
-            retryable=False,
-            status_code=500,
-            details={"session_id": str(session_id)},
-        )
-    except DuplicateIdempotencyKeyError as exc:
-        return api_error(
-            code=exc.code,
-            message=exc.message,
-            retryable=False,
-            status_code=500,
-            details=exc.details,
-        )
-    except Exception:
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
         logger.exception("learner explanation endpoint failed")
-        return api_error(
-            code="INTERNAL_SERVER_ERROR",
-            message="Unknown error in explanation endpoint",
-            retryable=False,
-            status_code=500,
-            details={"session_id": str(session_id)},
-        )
+        return map_unexpected_exception(session_id=session_id)

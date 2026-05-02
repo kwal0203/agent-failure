@@ -17,14 +17,15 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_admission_policy,
     get_create_session_uow,
 )
-from apps.control_plane.src.interfaces.http.errors import api_error, internal_error
+from apps.control_plane.src.interfaces.http.error_mapping import (
+    map_exception_to_http_response,
+    map_unexpected_exception,
+)
+from apps.control_plane.src.interfaces.http.errors import api_error
 from apps.control_plane.src.interfaces.http.schemas import (
     CreateSessionRequest,
     CreateSessionResponse,
     SessionResponse,
-)
-from apps.control_plane.src.interfaces.http.translators import (
-    translate_create_session_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,18 +101,18 @@ def create_session_endpoint(
 
         return CreateSessionResponse(session=session)
     except Exception as exc:
-        try:
-            return translate_create_session_error(exc)
-        except TypeError:
-            safe_idempo = f"{key[:8]}..." if key else None
-            logger.exception(
-                "create session endpoint failed",
-                extra={
-                    "event": "create_session_failed",
-                    "lab_id": str(request.lab_id),
-                    "lab_difficulty": request.lab_difficulty,
-                    "user_id": str(application_principal.user_id),
-                    "idempotency_key_prefix": safe_idempo,
-                },
-            )
-            return internal_error()
+        mapped = map_exception_to_http_response(exc)
+        if mapped is not None:
+            return mapped
+        safe_idempo = f"{key[:8]}..." if key else None
+        logger.exception(
+            "create session endpoint failed",
+            extra={
+                "event": "create_session_failed",
+                "lab_id": str(request.lab_id),
+                "lab_difficulty": request.lab_difficulty,
+                "user_id": str(application_principal.user_id),
+                "idempotency_key_prefix": safe_idempo,
+            },
+        )
+        return map_unexpected_exception()

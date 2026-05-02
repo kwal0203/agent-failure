@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from apps.contracts.src.schemas import ApiErrorEnvelope
-from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
@@ -15,9 +14,6 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
 from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
 from apps.control_plane.src.application.session_query.ports import (
     SessionMetadataRepository,
-)
-from apps.control_plane.src.application.session_query.errors import (
-    ForbiddenErrorSessionQuery,
 )
 from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
@@ -32,11 +28,11 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_session_metadata_repository,
     get_trace_event_repository,
 )
-from apps.control_plane.src.interfaces.http.errors import (
-    forbidden,
-    internal_error,
-    session_not_found,
+from apps.control_plane.src.interfaces.http.error_mapping import (
+    map_exception_to_http_response,
+    map_unexpected_exception,
 )
+from apps.control_plane.src.interfaces.http.errors import session_not_found
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
@@ -70,14 +66,14 @@ def evaluator_feedback(
         )
         return map_evaluator_feedback_response(evaluator_feedback_item)
 
-    except ForbiddenError as exc:
-        return forbidden(exc.message, exc.details)
-
-    except Exception:
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
         logger.exception(
             "get evaluator feedback endpoint failed for session=%s", str(session_id)
         )
-        return internal_error()
+        return map_unexpected_exception(session_id=session_id)
 
 
 @router.get(
@@ -110,10 +106,11 @@ def get_session_trace(
 
         return map_session_trace_response(learner_events)
 
-    except ForbiddenErrorSessionQuery as exc:
-        return forbidden(exc.message, exc.details)
-    except Exception:
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
         logger.exception(
             "get session trace endpoint failed for session=%s", str(session_id)
         )
-        return internal_error()
+        return map_unexpected_exception(session_id=session_id)

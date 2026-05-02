@@ -12,17 +12,12 @@ from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.email_classification.ports import (
     EmailMaliciousnessClassifierPort,
 )
-from apps.control_plane.src.application.runtime.errors import RuntimeClientError
 from apps.control_plane.src.application.runtime.ports import RuntimeClientFactoryPort
 from apps.control_plane.src.application.session_email.service import (
     InjectSessionEmailCommand,
-    SessionEmailPolicyError,
     inject_session_email_for_session,
 )
 from apps.control_plane.src.application.session_email.ports import SessionEmailDeps
-from apps.control_plane.src.application.session_query.errors import (
-    ForbiddenErrorSessionQuery,
-)
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_email_maliciousness_classifier,
@@ -30,12 +25,11 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_runtime_client_factory,
     get_session_email_deps,
 )
-from apps.control_plane.src.interfaces.http.errors import (
-    api_error,
-    forbidden,
-    internal_error,
-    session_not_found,
+from apps.control_plane.src.interfaces.http.error_mapping import (
+    map_exception_to_http_response,
+    map_unexpected_exception,
 )
+from apps.control_plane.src.interfaces.http.errors import api_error, session_not_found
 from apps.control_plane.src.interfaces.http.schemas import InjectSessionEmailResponse
 
 logger = logging.getLogger(__name__)
@@ -86,27 +80,6 @@ async def inject_session_email(
             return session_not_found(str(session_id))
         return InjectSessionEmailResponse(session_id=result.session_id)
 
-    except ForbiddenErrorSessionQuery as exc:
-        return forbidden(exc.message, exc.details)
-    except SessionEmailPolicyError as exc:
-        db.rollback()
-        return api_error(
-            code=exc.code,
-            message=exc.message,
-            retryable=exc.retryable,
-            status_code=exc.status_code,
-            details=exc.details,
-        )
-
-    except RuntimeClientError as exc:
-        db.rollback()
-        return api_error(
-            code=exc.code,
-            message=exc.message,
-            retryable=exc.retryable,
-            status_code=502,
-            details={"session_id": str(session_id)},
-        )
     except RuntimeError as exc:
         db.rollback()
         return api_error(
@@ -116,9 +89,10 @@ async def inject_session_email(
             status_code=502,
             details={"session_id": str(session_id)},
         )
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
         logger.exception("inject session email failed")
-        return internal_error(
-            "Unexpected server error", details={"session_id": str(session_id)}
-        )
+        return map_unexpected_exception(session_id=session_id)

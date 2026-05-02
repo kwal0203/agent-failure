@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from apps.contracts.src.schemas import ApiErrorEnvelope
-from apps.control_plane.src.application.common.errors import ForbiddenError
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
@@ -9,7 +8,10 @@ from apps.control_plane.src.application.lab_catalog.service import (
 from apps.control_plane.src.application.session_create.ports import LabRepository
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import get_lab_repository
-from apps.control_plane.src.interfaces.http.errors import forbidden, internal_error
+from apps.control_plane.src.interfaces.http.error_mapping import (
+    map_exception_to_http_response,
+    map_unexpected_exception,
+)
 from apps.control_plane.src.interfaces.http.schemas import (
     GetLabsResponse,
     LabCapabilitiesResponse,
@@ -53,12 +55,13 @@ def get_labs(
             )
         return GetLabsResponse(labs=result)
 
-    except ForbiddenError as exc:
-        return forbidden(exc.message, exc.details)
-    except Exception:
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc)
+        if mapped is not None:
+            return mapped
         logger.exception(
             "get labs endpoint failed user_id=%s role=%s",
             str(principal.user_id),
             principal.role,
         )
-        return internal_error()
+        return map_unexpected_exception()
