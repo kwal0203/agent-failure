@@ -30,7 +30,9 @@ from apps.control_plane.src.application.prompt_classification.types import (
 from apps.control_plane.src.application.session_stream.ports import (
     SessionStreamManagerPort,
 )
-from apps.control_plane.src.infrastructure.policy.admission import StubAdmissionPolicy
+from apps.control_plane.src.infrastructure.policy.admission_policy import (
+    StubAdmissionPolicy,
+)
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
 )

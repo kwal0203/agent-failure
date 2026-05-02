@@ -1,4 +1,4 @@
-from apps.control_plane.src.application.session_email.mappers import (
+from apps.control_plane.src.application.session_email.mapper import (
     map_attack_email_sent_payload,
 )
 
