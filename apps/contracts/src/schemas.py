@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from uuid import UUID
-from typing import Literal, Annotated
+from typing import Literal, Annotated, Any
 from datetime import datetime
 
 from .types import (
@@ -9,6 +9,7 @@ from .types import (
     OutboxEventName,
     SessionCompletedEventName,
     SessionFeedbackCreatedEventName,
+    TraceFamily,
 )
 
 
@@ -312,3 +313,50 @@ class SessionEvaluateRequestedPayload(BaseModel):
     evaluator_version: int
     start_event_index: int
     end_event_index: int
+
+
+EvaluatorFeedbackStatusType = Literal[
+    "learned", "progress", "no_progress", "session_terminal"
+]
+
+
+class LabCapabilitiesResponse(BaseModel):
+    supports_resume: bool
+    supports_uploads: bool
+
+
+class LabCatalogItemResponse(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+    summary: str
+    capabilities: LabCapabilitiesResponse
+
+
+class GetLabsResponse(BaseModel):
+    labs: list[LabCatalogItemResponse]
+
+
+class EvaluatorFeedbackResponse(BaseModel):
+    status: EvaluatorFeedbackStatusType
+    reason_code: str
+    evidence_snippet: str
+
+
+class GetFeedbackResponse(BaseModel):
+    feedback: tuple[EvaluatorFeedbackResponse, ...]
+
+
+class SessionTraceEvent(BaseModel):
+    id: UUID
+    event_index: int
+    family: TraceFamily
+    event_type: str
+    source: str
+    occurred_at: datetime
+    payload: dict[str, Any]
+
+
+class GetSessionTraceResponse(BaseModel):
+    events: tuple[SessionTraceEvent, ...]
+    next_cursor: str | None = None

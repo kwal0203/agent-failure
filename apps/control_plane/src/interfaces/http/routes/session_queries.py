@@ -6,7 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from apps.contracts.src.schemas import ApiErrorEnvelope
+from apps.contracts.src.schemas import (
+    ApiErrorEnvelope,
+    GetFeedbackResponse,
+    GetSessionTraceResponse,
+)
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.evaluator_feedback.service import (
     get_session_evaluator_feedback,
@@ -36,10 +40,6 @@ from apps.control_plane.src.interfaces.http.errors import session_not_found
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
-)
-from apps.control_plane.src.interfaces.http.schemas import (
-    GetFeedbackResponse,
-    GetSessionTraceResponse,
 )
 
 logger = logging.getLogger(__name__)

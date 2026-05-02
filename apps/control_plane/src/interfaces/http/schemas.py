@@ -1,16 +1,9 @@
 from pydantic import BaseModel, Field
 from uuid import UUID
 from datetime import datetime
-from typing import Literal, Any
+from typing import Literal
 
-from apps.contracts.src.types import TraceFamily
 from apps.control_plane.src.application.session_query.types import CompletionStatus
-
-
-EvaluatorFeedbackStatusType = Literal[
-    "learned", "progress", "no_progress", "session_terminal"
-]
-TraceFamilyType = TraceFamily
 
 
 class SessionProgressChipResponse(BaseModel):
@@ -114,48 +107,6 @@ class CreateSessionResponse(BaseModel):
 class CreateSessionRequest(BaseModel):
     lab_id: UUID
     lab_difficulty: str = "medium"
-
-
-class LabCapabilitiesResponse(BaseModel):
-    supports_resume: bool
-    supports_uploads: bool
-
-
-class LabCatalogItemResponse(BaseModel):
-    id: UUID
-    slug: str
-    name: str
-    summary: str
-    capabilities: LabCapabilitiesResponse
-
-
-class GetLabsResponse(BaseModel):
-    labs: list[LabCatalogItemResponse]
-
-
-class EvaluatorFeedbackResponse(BaseModel):
-    status: EvaluatorFeedbackStatusType
-    reason_code: str
-    evidence_snippet: str
-
-
-class GetFeedbackResponse(BaseModel):
-    feedback: tuple[EvaluatorFeedbackResponse, ...]
-
-
-class SessionTraceEvent(BaseModel):
-    id: UUID
-    event_index: int
-    family: TraceFamilyType
-    event_type: str
-    source: str
-    occurred_at: datetime
-    payload: dict[str, Any]
-
-
-class GetSessionTraceResponse(BaseModel):
-    events: tuple[SessionTraceEvent, ...]
-    next_cursor: str | None = None
 
 
 class InjectSessionEmailResponse(BaseModel):

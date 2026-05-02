@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from apps.contracts.src.schemas import ApiErrorEnvelope
+from apps.contracts.src.schemas import (
+    ApiErrorEnvelope,
+    GetLabsResponse,
+    LabCapabilitiesResponse,
+    LabCatalogItemResponse,
+)
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.lab_catalog.service import (
     get_labs_for_principal,
@@ -12,12 +17,6 @@ from apps.control_plane.src.interfaces.http.error_mapping import (
     map_exception_to_http_response,
     map_unexpected_exception,
 )
-from apps.control_plane.src.interfaces.http.schemas import (
-    GetLabsResponse,
-    LabCapabilitiesResponse,
-    LabCatalogItemResponse,
-)
-
 import logging
 
 logger = logging.getLogger(__name__)
