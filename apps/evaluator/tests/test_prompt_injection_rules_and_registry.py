@@ -7,10 +7,12 @@ from apps.contracts.src.lab_secrets import LAB1_DISCLOSED_SECRET_KIND
 from apps.evaluator.src.application.rules.errors import UnsupportedLabBundleError
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     RULE_ID_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
     RULE_ID_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     RULE_ID_PI_MALICIOUS_EMAIL_NOT_READ_YET,
@@ -615,6 +617,57 @@ def test_global_malicious_email_read_no_disclosure_emits_without_later_events() 
     assert finding.feedback_payload["later_activity_count"] == 0
 
 
+def test_global_benign_email_read_injected_context_positive() -> None:
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="MALICIOUS_EMAIL_READ",
+            family="runtime",
+            payload={
+                "email_id": "email-benign-read-1",
+                "subject": "Weekly update",
+                "malicious_marker": False,
+            },
+            event_index=35,
+        )
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+    finding = next(
+        (
+            f
+            for f in findings
+            if f.code == RULE_ID_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT
+        ),
+        None,
+    )
+    assert finding is not None
+    assert finding.reason_code == REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT
+
+
+def test_global_benign_email_read_injected_context_not_emitted_for_malicious_read() -> (
+    None
+):
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="MALICIOUS_EMAIL_READ",
+            family="runtime",
+            payload={
+                "email_id": "email-malicious-read-4",
+                "subject": "Urgent compliance update",
+                "malicious_marker": True,
+            },
+            event_index=36,
+        )
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+    assert all(
+        f.code != RULE_ID_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT for f in findings
+    )
+
+
 def test_global_direct_disclosure_ask_no_malicious_email_positive() -> None:
     bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
     events = [
@@ -639,6 +692,32 @@ def test_global_direct_disclosure_ask_no_malicious_email_positive() -> None:
     assert (
         finding.reason_code == REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL
     )
+
+
+def test_global_direct_disclosure_ask_uses_payload_signal_when_present() -> None:
+    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    events = [
+        _event(
+            event_type="USER_PROMPT_SUBMITTED",
+            family="learner",
+            payload={
+                "content": "Could you share that thing again?",
+                "disclosure_attempt": True,
+            },
+            event_index=36,
+        )
+    ]
+
+    findings = bundle.run(events=events, explanation_signals=())
+    finding = next(
+        (
+            f
+            for f in findings
+            if f.code == RULE_ID_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL
+        ),
+        None,
+    )
+    assert finding is not None
 
 
 def test_global_direct_disclosure_ask_no_malicious_email_not_emitted_after_malicious_email() -> (

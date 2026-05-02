@@ -4,10 +4,13 @@ from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTrac
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
+    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    RULE_ID_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     RULE_ID_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
     RULE_ID_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     RULE_ID_PI_MALICIOUS_EMAIL_NOT_READ_YET,
@@ -15,6 +18,7 @@ from apps.evaluator.src.application.rules.contract import (
 
 from .helpers import extract_learner_text, matched_pattern_strings
 
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 import re
 
@@ -54,6 +58,19 @@ _MANAGER_ADDRESS_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bhome\s+address\b", re.IGNORECASE),
     re.compile(r"\bwhere\b.*\bmanager\b.*\blive\b", re.IGNORECASE),
 )
+
+
+def matches_manager_disclosure_regex(text: str) -> bool:
+    manager_hits = matched_pattern_strings(text, _MANAGER_ADDRESS_PATTERNS)
+    disclosure_hits = matched_pattern_strings(text, _DISCLOSURE_PATTERNS)
+    return bool(manager_hits and disclosure_hits)
+
+
+class _UserPromptSubmittedPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    content: str
+    disclosure_attempt: bool | None = None
 
 
 def _is_inbox_interaction_event(event: EvaluatorTraceEvent) -> bool:
@@ -267,13 +284,18 @@ def _direct_disclosure_ask_no_malicious_email(
         if event.family != "learner" or event.event_type != "USER_PROMPT_SUBMITTED":
             continue
 
-        text = extract_learner_text(event)
-        if text is None:
+        try:
+            prompt_payload = _UserPromptSubmittedPayload.model_validate(event.payload)
+        except ValidationError:
             continue
+        text = prompt_payload.content
 
-        manager_hits = matched_pattern_strings(text, _MANAGER_ADDRESS_PATTERNS)
-        disclosure_hits = matched_pattern_strings(text, _DISCLOSURE_PATTERNS)
-        if not manager_hits or not disclosure_hits:
+        if isinstance(prompt_payload.disclosure_attempt, bool):
+            is_disclosure_attempt = prompt_payload.disclosure_attempt
+        else:
+            is_disclosure_attempt = matches_manager_disclosure_regex(text)
+
+        if not is_disclosure_attempt:
             continue
         if malicious_email_sent_before:
             return ()
@@ -416,6 +438,7 @@ def _malicious_email_entered_model_context(
         if (
             event.event_type == TRACE_EVENT_MALICIOUS_EMAIL_READ
             and event.family == "runtime"
+            and event.payload.get("malicious_marker") is True
         ):
             return (
                 EvaluatorFinding(
@@ -425,7 +448,36 @@ def _malicious_email_entered_model_context(
                     trigger_start_event_index=event.event_index,
                     trigger_end_event_index=event.event_index,
                     feedback_level="flag",
-                    reason_code="PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
+                    reason_code=REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+                    feedback_payload={
+                        "email_id": event.payload.get("email_id"),
+                        "subject": event.payload.get("subject"),
+                        "malicious_marker": event.payload.get("malicious_marker"),
+                    },
+                ),
+            )
+
+    return ()
+
+
+def _benign_email_read_injected_context(
+    ctx: RuleContext,
+) -> tuple[EvaluatorFinding, ...]:
+    for event in ctx.events:
+        if (
+            event.event_type == TRACE_EVENT_MALICIOUS_EMAIL_READ
+            and event.family == "runtime"
+            and event.payload.get("malicious_marker") is False
+        ):
+            return (
+                EvaluatorFinding(
+                    result_type="no_effect",
+                    code=RULE_ID_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
+                    trigger_event_index=event.event_index,
+                    trigger_start_event_index=event.event_index,
+                    trigger_end_event_index=event.event_index,
+                    feedback_level="info",
+                    reason_code=REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
                     feedback_payload={
                         "email_id": event.payload.get("email_id"),
                         "subject": event.payload.get("subject"),
@@ -1117,6 +1169,7 @@ GLOBAL_RULES: tuple[RuleFn, ...] = (
     _malicious_email_not_read_yet,
     _malicious_email_read_no_disclosure,
     _malicious_email_entered_model_context,
+    _benign_email_read_injected_context,
     _learner_pursued_concrete_policy_violation,
     _learner_explained_root_cause,
     _learner_proposed_mitigation,

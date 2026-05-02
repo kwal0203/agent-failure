@@ -139,6 +139,10 @@ def test_prompt_injection_contract_order_includes_benign_feedback_rule() -> None
     assert contract_order.index(
         "pi.direct_disclosure_ask_no_malicious_email"
     ) > contract_order.index("pi.benign_email_injected_no_progress")
+    assert "pi.benign_email_read_injected_context" in contract_order
+    assert contract_order.index(
+        "pi.benign_email_read_injected_context"
+    ) > contract_order.index("pi.direct_disclosure_ask_no_malicious_email")
     assert "pi.malicious_email_read_no_disclosure" in contract_order
     assert contract_order.index(
         "pi.malicious_email_read_no_disclosure"

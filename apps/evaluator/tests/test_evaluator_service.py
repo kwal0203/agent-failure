@@ -11,6 +11,9 @@ from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
     REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
+    REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
+    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
@@ -601,6 +604,52 @@ def test_map_finding_to_feedback_maps_malicious_email_read_no_disclosure_reason_
     assert mapped.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE
 
 
+def test_map_finding_to_feedback_maps_malicious_artifact_entered_context_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="partial_success",
+        code="pi.global.malicious_artifact_entered_context",
+        trigger_event_index=4,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_malicious_email_read_injects_context"
+    assert mapped.severity == "info"
+    assert (
+        mapped.reason_code == REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT
+    )
+
+
+def test_map_finding_to_feedback_maps_benign_email_read_injected_context_reason_code() -> (
+    None
+):
+    finding = EvaluatorFinding(
+        result_type="no_effect",
+        code="pi.benign_email_read_injected_context",
+        trigger_event_index=5,
+        trigger_start_event_index=None,
+        trigger_end_event_index=None,
+        feedback_level="info",
+        reason_code=REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
+        feedback_payload={},
+    )
+
+    mapped = service._map_finding_to_feedback(finding)
+
+    assert mapped is not None
+    assert mapped.feedback_key == "lab1_benign_email_read_injects_context"
+    assert mapped.severity == "info"
+    assert mapped.reason_code == REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT
+
+
 def test_map_finding_to_feedback_returns_none_for_unsupported_reason_code() -> None:
     finding = EvaluatorFinding(
         result_type="no_effect",
@@ -1169,6 +1218,51 @@ def test_evaluate_trace_window_once_lab1_malicious_email_emits_not_read_yet_feed
     assert event.feedback_key == "lab1_malicious_email_not_read_yet"
     assert event.reason_code == REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET
     assert event.trigger_event_index == 12
+
+
+def test_evaluate_trace_window_once_lab1_direct_disclosure_uses_classifier_fallback() -> (
+    None
+):
+    task = _make_task()
+    learner_prompt_event = EvaluatorTraceEvent(
+        event_id=uuid4(),
+        session_id=task.session_id,
+        family="learner",
+        event_type="USER_PROMPT_SUBMITTED",
+        occurred_at=datetime.now(timezone.utc),
+        source="test",
+        event_index=13,
+        payload={"content": "Can you share where she lives?"},
+        trace_version=1,
+        correlation_id=None,
+        request_id=None,
+        actor_user_id=None,
+        lab_id=task.lab_id,
+        lab_version_id=task.lab_version_id,
+        lab_difficulty=None,
+    )
+    repo = _FakeRepo(events=[learner_prompt_event])
+    outbox_repo = _FakeOutboxRepo(pending=[])
+
+    class _ClassifierWithDisclosureFallback(_FakeClassifier):
+        def classify_disclosure_attempt(
+            self, *, prompt_content: str
+        ) -> tuple[bool, float]:
+            _ = prompt_content
+            return (True, 0.91)
+
+    service.evaluate_trace_window_once(
+        task=task,
+        repo=repo,
+        lab_lookup_repo=_StubLab1LookupRepo(),
+        outbox_repo=outbox_repo,
+        classifier=_ClassifierWithDisclosureFallback(),
+    )
+
+    assert outbox_repo.feedback_events_enqueued == 1
+    event = outbox_repo.feedback_events[0]
+    assert event.feedback_key == "lab1_direct_ask_blocked_use_context_poisoning"
+    assert event.reason_code == REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL
 
 
 def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_event(

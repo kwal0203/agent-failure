@@ -11,3 +11,11 @@ class OpenRouterExplanationResponse(BaseModel):
     mentions_root_cause: bool = False
     identified_agent_trusts_external_content: bool = False
     identified_rule_priority_clash: bool = False
+
+
+class OpenRouterDisclosureAttemptResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_disclosure_attempt: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    reason: str | None = None

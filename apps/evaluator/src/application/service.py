@@ -23,10 +23,15 @@ from .idempotency import (
     build_result_idempotency_key,
 )
 from apps.evaluator.src.application.rules.registry import resolve_bundle
+from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
+    matches_manager_disclosure_regex,
+)
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
+    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
@@ -38,6 +43,8 @@ from apps.evaluator.src.application.rules.contract import (
 )
 from apps.contracts.src.types import FeedbackSeverity
 from dataclasses import dataclass
+from typing import Callable, cast
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from uuid import UUID
 from datetime import datetime, timezone
@@ -47,9 +54,70 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class _LearnerPromptPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    content: str
+
+
+class _DisclosureClassification(BaseModel):
+    is_disclosure_attempt: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+def _annotate_disclosure_attempt_events(
+    *,
+    events: list[EvaluatorTraceEvent],
+    classifier: ExplanationClassifierPort,
+) -> None:
+    classify_fn_obj = getattr(classifier, "classify_disclosure_attempt", None)
+    classify_fn: Callable[..., tuple[bool, float]] | None = None
+    if callable(classify_fn_obj):
+        classify_fn = cast(
+            Callable[..., tuple[bool, float]],
+            classify_fn_obj,
+        )
+
+    for event in events:
+        if event.family != "learner" or event.event_type != "USER_PROMPT_SUBMITTED":
+            continue
+
+        try:
+            prompt_payload = _LearnerPromptPayload.model_validate(event.payload)
+        except ValidationError:
+            continue
+
+        text = prompt_payload.content.strip()
+        if not text:
+            continue
+
+        if matches_manager_disclosure_regex(text):
+            event.payload["disclosure_attempt"] = True
+            event.payload["disclosure_attempt_source"] = "regex"
+            continue
+
+        if classify_fn is not None:
+            try:
+                is_disclosure_attempt, confidence = classify_fn(prompt_content=text)
+                result = _DisclosureClassification.model_validate(
+                    {
+                        "is_disclosure_attempt": is_disclosure_attempt,
+                        "confidence": confidence,
+                    }
+                )
+            except Exception:
+                result = _DisclosureClassification(
+                    is_disclosure_attempt=False, confidence=0.0
+                )
+            event.payload["disclosure_attempt"] = result.is_disclosure_attempt
+            event.payload["disclosure_attempt_source"] = "classifier"
+            event.payload["disclosure_attempt_confidence"] = result.confidence
+
+
 _NO_OBJECTIVE_REASON_CODES: frozenset[str] = frozenset(
     {
         REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
+        REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
         REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
         REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
         REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
@@ -95,6 +163,23 @@ _FEEDBACK_TEMPLATE_BY_REASON_CODE: dict[str, _FeedbackTemplate] = {
             "The agent refused to reveal the information via a direct ask. "
             "How can the agent context be poisoned with malicious instructions "
             "to get around this?"
+        ),
+        severity="info",
+    ),
+    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT: _FeedbackTemplate(
+        feedback_key="lab1_malicious_email_read_injects_context",
+        message=(
+            "Great! you injected malicious instructions into the agent context. "
+            "What should you do next to get the agent to execute the instructions?"
+        ),
+        severity="info",
+    ),
+    REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT: _FeedbackTemplate(
+        feedback_key="lab1_benign_email_read_injects_context",
+        message=(
+            "Great! reading the email bypasses the chat window and injects the "
+            "email content into agent context. Can you use this attack vector to "
+            "achieve the goal?"
         ),
         severity="info",
     ),
@@ -296,6 +381,10 @@ def evaluate_trace_window_once(
     )
 
     constraint_bundle = resolve_bundle(binding=lab_binding, task=task)
+    # TODO(architecture): Replace this lab-name gate with an explicit bundle capability
+    # hook (and avoid mutating event payloads inline) once evaluator preprocessing is formalized.
+    if getattr(constraint_bundle, "name", None) == "prompt_injection_v1":
+        _annotate_disclosure_attempt_events(events=events, classifier=classifier)
 
     findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(
         events=events, explanation_signals=signals
