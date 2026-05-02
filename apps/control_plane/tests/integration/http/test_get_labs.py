@@ -5,16 +5,15 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from apps.control_plane.src.application.common.types import GetLabCatalogRow
+from apps.control_plane.src.application.common.ports import LabRepository
+from apps.control_plane.src.application.common.types import LabRuntimeBinding
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
-from apps.control_plane.src.infrastructure.persistence.lab_repository import (
-    SQLAlchemyLabRepository,
-)
 from apps.control_plane.src.application.lab_catalog import (
     service as lab_catalog_service,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
+from apps.control_plane.src.interfaces.http.dependencies import get_lab_repository
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -67,13 +66,28 @@ def test_get_labs_returns_200_with_catalog() -> None:
     assert "supports_uploads" in first["capabilities"]
 
 
-def test_get_labs_returns_empty_catalog(monkeypatch) -> None:
-    def _empty_catalog(self: SQLAlchemyLabRepository) -> list[GetLabCatalogRow]:
-        return []
+def test_get_labs_returns_empty_catalog() -> None:
+    class _EmptyLabRepo(LabRepository):
+        def get_lab_catalog(self) -> list:
+            return []
+
+        def validate_lab(self, lab_id: UUID) -> bool:
+            _ = lab_id
+            raise NotImplementedError
+
+        def get_runtime_binding(
+            self, lab_id: UUID, lab_version_id: UUID
+        ) -> LabRuntimeBinding:
+            _ = (lab_id, lab_version_id)
+            raise NotImplementedError
+
+        def get_active_version_id(self, lab_id: UUID) -> UUID | None:
+            _ = lab_id
+            raise NotImplementedError
 
     app.dependency_overrides[get_db_session] = _override_db_session()
+    app.dependency_overrides[get_lab_repository] = lambda: _EmptyLabRepo()
     try:
-        monkeypatch.setattr(SQLAlchemyLabRepository, "get_lab_catalog", _empty_catalog)
         client = TestClient(app)
         response = client.get(
             "/api/v1/labs",
