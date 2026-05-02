@@ -1,3 +1,5 @@
+"""HTTP route for learner explanation submission."""
+
 import logging
 from uuid import UUID
 

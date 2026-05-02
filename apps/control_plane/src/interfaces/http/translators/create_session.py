@@ -1,3 +1,5 @@
+"""Translate session creation domain errors into HTTP responses."""
+
 from fastapi.responses import JSONResponse
 
 from apps.control_plane.src.application.common.errors import ForbiddenError

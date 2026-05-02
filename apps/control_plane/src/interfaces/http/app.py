@@ -1,5 +1,7 @@
-from contextlib import asynccontextmanager
+"""HTTP application composition root for control-plane interfaces."""
+
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 import asyncio
 import contextlib
 
@@ -18,8 +20,20 @@ from apps.control_plane.src.interfaces.http.routes.labs import router as labs_ro
 from apps.control_plane.src.interfaces.http.routes.metadata import (
     router as metadata_router,
 )
-from apps.control_plane.src.interfaces.http.routes.sessions import (
-    router as sessions_router,
+from apps.control_plane.src.interfaces.http.routes.session_actions import (
+    router as session_actions_router,
+)
+from apps.control_plane.src.interfaces.http.routes.session_create import (
+    router as session_create_router,
+)
+from apps.control_plane.src.interfaces.http.routes.session_email import (
+    router as session_email_router,
+)
+from apps.control_plane.src.interfaces.http.routes.session_explanation_submission import (
+    router as session_explanation_submission_router,
+)
+from apps.control_plane.src.interfaces.http.routes.session_queries import (
+    router as session_queries_router,
 )
 from apps.control_plane.src.interfaces.http.routes.ws_stream import (
     router as ws_stream_router,
@@ -66,7 +80,11 @@ async def handle_unauthenticated(
     )
 
 
-app.include_router(sessions_router)
+app.include_router(session_create_router)
+app.include_router(session_actions_router)
+app.include_router(session_queries_router)
+app.include_router(session_email_router)
+app.include_router(session_explanation_submission_router)
 app.include_router(labs_router)
 app.include_router(health_router)
 app.include_router(metadata_router)

@@ -1,3 +1,5 @@
+"""HTTP route for injecting learner emails into a session runtime."""
+
 import logging
 from uuid import UUID
 

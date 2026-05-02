@@ -1,3 +1,5 @@
+"""Application service for injecting learner email into a session."""
+
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 

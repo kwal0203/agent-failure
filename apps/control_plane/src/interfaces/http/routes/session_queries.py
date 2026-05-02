@@ -1,3 +1,5 @@
+"""HTTP routes for session evaluator feedback and trace queries."""
+
 import logging
 from uuid import UUID
 

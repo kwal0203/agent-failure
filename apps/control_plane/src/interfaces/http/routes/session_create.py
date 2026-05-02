@@ -1,3 +1,5 @@
+"""HTTP route for session creation."""
+
 import logging
 
 from fastapi import APIRouter, Depends, Header

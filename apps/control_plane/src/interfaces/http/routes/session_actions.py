@@ -1,3 +1,5 @@
+"""HTTP routes for session lifecycle and seen-state actions."""
+
 import logging
 from uuid import UUID
 

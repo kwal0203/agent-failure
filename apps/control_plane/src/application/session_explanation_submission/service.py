@@ -1,3 +1,5 @@
+"""Application service for learner explanation submission workflow."""
+
 import logging
 from dataclasses import dataclass
 from uuid import UUID

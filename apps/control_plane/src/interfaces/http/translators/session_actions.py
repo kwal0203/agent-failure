@@ -1,3 +1,5 @@
+"""Translate session action domain errors into HTTP responses."""
+
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
