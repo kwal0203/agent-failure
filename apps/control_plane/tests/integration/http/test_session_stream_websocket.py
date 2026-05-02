@@ -40,9 +40,12 @@ from apps.control_plane.src.infrastructure.persistence.models import (
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_authority_bulletin_classifier,
     get_runtime_client_factory,
+    get_ws_session_manager,
 )
-import apps.control_plane.src.interfaces.http.main as main_module
 from apps.control_plane.src.interfaces.http.main import app
+from apps.control_plane.src.interfaces.http.session_manager import (
+    WebSocketSessionManager,
+)
 
 
 def _override_db_session(db_session: Session):
@@ -972,7 +975,6 @@ def test_user_prompt_failure_before_first_chunk_emits_stable_system_error(
 @pytest.mark.usefixtures("engine")
 def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner_username = "stream-owner"
     session = _seed_active_session(db_session, owner_username=owner_username)
@@ -983,18 +985,18 @@ def test_user_prompt_mid_stream_send_timeout_emits_stable_system_error(
             type="text_chunk", content="first", chunk_index=0, final=False
         )
 
-    original_send_to = main_module.ws_manager.send_to
-
-    async def _timeout_on_agent_chunk(websocket: Any, message: Any) -> None:
-        if getattr(message, "type", None) == "AGENT_TEXT_CHUNK":
-            raise asyncio.TimeoutError()
-        await original_send_to(websocket, message)
-
-    monkeypatch.setattr(main_module.ws_manager, "send_to", _timeout_on_agent_chunk)
+    class _TimeoutOnChunkSessionManager(WebSocketSessionManager):
+        async def send_to(self, websocket: Any, message: Any) -> None:
+            if getattr(message, "type", None) == "AGENT_TEXT_CHUNK":
+                raise asyncio.TimeoutError()
+            await super().send_to(websocket=websocket, message=message)
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
         _FakeRuntimeClient(stream_factory=_stream)
+    )
+    app.dependency_overrides[get_ws_session_manager] = lambda: (
+        _TimeoutOnChunkSessionManager()
     )
     try:
         client = TestClient(app)
