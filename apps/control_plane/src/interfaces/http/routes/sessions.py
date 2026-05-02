@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from uuid import UUID, uuid4
 
@@ -129,6 +128,10 @@ from apps.control_plane.src.interfaces.http.helpers import build_trace_event
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_evaluator_feedback_response,
     map_session_trace_response,
+)
+from apps.control_plane.src.interfaces.http.mappers.session_email_mapper import (
+    build_malicious_email_objective_idempotency_key,
+    map_attack_email_sent_payload,
 )
 from apps.control_plane.src.interfaces.http.schemas import (
     CreateSessionRequest,
@@ -683,6 +686,11 @@ async def inject_session_email(
             )
         )
         derived_malicious = bool(classification.malicious)
+        classifier_provider = classification.provider or "unknown"
+        classifier_model = classification.model or "unknown"
+        classifier_confidence = (
+            classification.confidence if classification.confidence is not None else 0.0
+        )
         injected_email_id = request.email_id or f"email-{uuid4().hex}"
 
         email_input = InjectEmailInput(
@@ -698,17 +706,14 @@ async def inject_session_email(
 
         await client.inject_email(input=email_input)
 
-        attack_email_sent_payload: dict[str, object] = {
-            "type": "attack_email_sent",
-            "email_id": email_input.email_id,
-            "email_from": email_input.email_from,
-            "subject": email_input.email_subject,
-            "malicious_marker": derived_malicious,
-            "urgency_marker": classification.urgency_marker,
-            "classifier_provider": classification.provider,
-            "classifier_model": classification.model,
-            "classifier_confidence": classification.confidence,
-        }
+        attack_email_sent_payload = map_attack_email_sent_payload(
+            email_input=email_input,
+            derived_malicious=derived_malicious,
+            classifier_provider=classifier_provider,
+            classifier_model=classifier_model,
+            classifier_confidence=classifier_confidence,
+            urgency_marker=classification.urgency_marker,
+        )
 
         trace_event = build_trace_event(
             trace_repo=trace_repo,
@@ -757,21 +762,12 @@ async def inject_session_email(
                 .one_or_none()
             )
             if objective is None or objective.status != "complete":
-                fingerprint = hashlib.sha256(
-                    "|".join(
-                        [
-                            str(session_id),
-                            email_input.email_from.strip().lower(),
-                            email_input.email_subject.strip(),
-                            email_input.email_body.strip(),
-                            str(derived_malicious),
-                            (email_input.source or "learner").strip().lower(),
-                            (email_input.email_id or "").strip(),
-                        ]
-                    ).encode("utf-8")
-                ).hexdigest()
                 objective_idempotency_key = (
-                    f"objective:{session_id}:malicious_email_injected:{fingerprint}"
+                    build_malicious_email_objective_idempotency_key(
+                        session_id=session_id,
+                        email_input=email_input,
+                        derived_malicious=derived_malicious,
+                    )
                 )
 
                 outbox_repo.enqueue_session_objective_completed(
