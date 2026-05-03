@@ -8,7 +8,12 @@ from apps.control_plane.src.infrastructure.config.settings import get_database_u
 
 load_dotenv()
 
-engine = create_engine(url=get_database_url(), future=True, pool_pre_ping=True)
+engine = create_engine(
+    url=get_database_url(),
+    future=True,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 SessionFactory: sessionmaker[Session] = sessionmaker(
     bind=engine,
     class_=Session,
