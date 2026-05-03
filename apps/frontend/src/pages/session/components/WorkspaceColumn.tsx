@@ -21,7 +21,6 @@ type WorkspaceColumnProps = {
   transcriptViewportRef: RefObject<HTMLDivElement | null>;
   transcriptEntries: TranscriptEntry[];
   activeEntry: string;
-  activeTokens: string[];
   isAwaitingResponse: boolean;
   selectedTool: ToolKey | null;
   toolPaneOpen: boolean;
@@ -58,7 +57,6 @@ export function WorkspaceColumn({
   transcriptViewportRef,
   transcriptEntries,
   activeEntry,
-  activeTokens,
   isAwaitingResponse,
   selectedTool,
   toolPaneOpen,
@@ -641,23 +639,28 @@ export function WorkspaceColumn({
                 key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
                 style={{
                   display: "flex",
-                  justifyContent:
-                    entry.role === "user" ? "flex-end" : "flex-start",
                   marginTop: 10,
+                  borderRadius: 0,
+                  border:
+                    entry.role === "user"
+                      ? "1px solid #3e6f9b"
+                      : "1px solid #9b3e50",
+                  background:
+                    entry.role === "user"
+                      ? "rgba(21, 48, 83, 0.72)"
+                      : "rgba(83, 21, 31, 0.72)",
+                  color: entry.role === "user" ? "#d7eaff" : "#ffd7df",
+                  padding: "10px 12px",
                 }}
               >
                 <div
                   style={{
-                    width: "fit-content",
-                    maxWidth: "86%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border:
-                      entry.role === "user"
-                        ? "1px solid #2f5f8f"
-                        : "1px solid #c6d2dc",
-                    background: entry.role === "user" ? "#dcecff" : "#f5f8fb",
-                    color: "#102435",
+                    display: "flex",
+                    flexDirection: "column",
+                    width: "100%",
+                    minWidth: 0,
+                    alignItems: "flex-start",
+                    textAlign: "left",
                   }}
                 >
                   <p
@@ -694,18 +697,20 @@ export function WorkspaceColumn({
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "flex-start",
                   marginTop: 10,
+                  borderRadius: 0,
+                  border: "1px solid #9b3e50",
+                  background: "rgba(83, 21, 31, 0.72)",
+                  color: "#ffd7df",
+                  padding: "10px 12px",
                 }}
               >
                 <div
                   style={{
+                    display: "flex",
+                    flexDirection: "column",
                     width: "100%",
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #c6d2dc",
-                    background: "#f5f8fb",
-                    color: "#102435",
+                    minWidth: 0,
                   }}
                 >
                   <p
@@ -717,31 +722,16 @@ export function WorkspaceColumn({
                   >
                     <strong>AGENT</strong> streaming...
                   </p>
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-                    {(() => {
-                      let tokenOffset = 0;
-                      return activeTokens.map((token) => {
-                        const key = `${tokenOffset}-${token}`;
-                        tokenOffset += token.length;
-                        return (
-                          <span
-                            key={key}
-                            style={{
-                              display: "inline",
-                              opacity: 0,
-                              transform: "translateX(6px)",
-                              animationName: "wordIn",
-                              animationDuration: "220ms",
-                              animationTimingFunction: "ease-out",
-                              animationFillMode: "forwards",
-                            }}
-                          >
-                            {token}
-                          </span>
-                        );
-                      });
-                    })()}
-                  </div>
+                  <span
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {activeEntry}
+                  </span>
                 </div>
               </div>
             )}
@@ -795,6 +785,8 @@ export function WorkspaceColumn({
         .transcript-markdown p {
           margin: 0 0 0.5em 0;
           white-space: pre-wrap;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
         .transcript-markdown p:last-child {
           margin-bottom: 0;

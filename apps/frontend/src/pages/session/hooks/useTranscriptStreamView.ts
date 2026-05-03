@@ -19,7 +19,6 @@ export function useTranscriptStreamView() {
   const finalizePendingRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const lastRevealAtMsRef = useRef(0);
-  const activeTokens = activeEntry.match(/(\s+|\S+)/g) ?? [];
 
   const resetActiveStream = useCallback(() => {
     displayedEntryRef.current = "";
@@ -175,6 +174,5 @@ export function useTranscriptStreamView() {
     onTranscriptScroll,
     onJumpToLatest,
     showJumpToLatest,
-    activeTokens,
   };
 }
