@@ -182,7 +182,7 @@ function mapPersistedTraceToTimelineEvent(
       timestamp,
       type: "attacker_action",
       granularity: "high",
-      title: "Email injected to inbox",
+      title: "Email received in inbox",
       description: `Email accepted${emailId}.`,
       details: `From: ${emailFrom}\nSubject: ${subject}`,
     };

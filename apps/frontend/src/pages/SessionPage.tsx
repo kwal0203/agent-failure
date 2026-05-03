@@ -97,6 +97,7 @@ export default function SessionPage() {
     emailSubject,
     emailBody,
     injectingEmail,
+    fromValidationError,
     injectEmailError,
     injectEmailResult,
     onSubmitEmail,
@@ -401,6 +402,7 @@ export default function SessionPage() {
             emailBody={emailBody}
             injectingEmail={injectingEmail}
             sessionId={sessionId}
+            fromValidationError={fromValidationError}
             injectEmailError={injectEmailError}
             injectEmailResult={injectEmailResult}
             onSubmitEmail={onSubmitEmail}

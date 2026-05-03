@@ -235,7 +235,7 @@ describe("SessionPage completion indicator", () => {
     );
 
     renderSessionPage();
-    await screen.findByRole("button", { name: "Stop Session" });
+    await screen.findByText("Session: active");
     expect(screen.queryByText("Outcome: in_progress")).not.toBeInTheDocument();
   });
 

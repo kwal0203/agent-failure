@@ -72,8 +72,9 @@ class _FakeRuntimeClient:
     def run_turn_stream(self, input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
         return self._stream_factory(input)
 
-    async def inject_email(self, input: Any) -> None:
+    async def inject_email(self, input: Any) -> str:
         _ = input
+        return "e2"
 
     async def read_runtime_file(
         self, input: ReadRuntimeFileInput

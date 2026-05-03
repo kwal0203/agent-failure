@@ -69,10 +69,11 @@ class _FakeRuntimeClient:
         self.inject_calls: list[InjectEmailInput] = []
         self.raise_on_inject: RuntimeClientError | None = None
 
-    async def inject_email(self, input: InjectEmailInput) -> None:
+    async def inject_email(self, input: InjectEmailInput) -> str:
         self.inject_calls.append(input)
         if self.raise_on_inject is not None:
             raise self.raise_on_inject
+        return input.email_id or "e2"
 
     async def read_runtime_file(
         self, input: ReadRuntimeFileInput
