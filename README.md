@@ -127,4 +127,12 @@ The CI pipeline (`.github/workflows/ci.yml`) runs on push to `main` and all PRs:
 
 ## License
 
-All rights reserved.
+This project is proprietary and **not open source**.
+
+All rights reserved. No permission is granted to use, copy, modify, or distribute this code.
+
+See [LICENSE](./LICENSE) for full terms.
+
+## Contributing
+
+Contributions are not accepted without prior written approval from the project owner.
