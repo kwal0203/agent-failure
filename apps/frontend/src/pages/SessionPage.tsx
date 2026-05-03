@@ -42,7 +42,6 @@ export default function SessionPage() {
     onTranscriptScroll,
     onJumpToLatest,
     showJumpToLatest,
-    activeTokens,
   } = transcriptView;
 
   const sessionData = useSessionData({ sessionId });
@@ -392,7 +391,6 @@ export default function SessionPage() {
             transcriptViewportRef={transcriptViewportRef}
             transcriptEntries={transcriptEntries}
             activeEntry={activeEntry}
-            activeTokens={activeTokens}
             isAwaitingResponse={isAwaitingResponse}
             selectedTool={workspaceState.selectedTool}
             toolPaneOpen={workspaceState.toolPaneOpen}
