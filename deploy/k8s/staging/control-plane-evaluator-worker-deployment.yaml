@@ -27,7 +27,10 @@ spec:
             - apps.evaluator.src.interfaces.runtime.evaluator_worker
           env:
             - name: DATABASE_URL
-              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: DATABASE_URL
             - name: PROVIDER_ENDPOINT
               value: "https://openrouter.ai/api/v1/chat/completions"
             - name: OPENROUTER_API_KEY

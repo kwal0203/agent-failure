@@ -24,7 +24,10 @@ spec:
               name: http
           env:
             - name: DATABASE_URL
-              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: DATABASE_URL
             - name: RUNTIME_AUTH_TOKEN
               value: "dev-secret"
             - name: RUNTIME_TIMEOUT_SECONDS
