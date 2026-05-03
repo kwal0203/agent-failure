@@ -2,6 +2,7 @@ import type {
   GetLabsResponse,
   LabCatalogItemResponse,
 } from "../../../contracts/ts/index";
+import { getCurrentAuthHeader } from "../auth/context";
 
 export type LabDifficulty = "easy" | "medium";
 export type LabCatalogItem = LabCatalogItemResponse;
@@ -51,7 +52,7 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
   const response = await fetch(`${apiBaseUrl}/api/v1/labs`, {
     method: "GET",
     headers: {
-      Authorization: "Bearer local:kane:learner",
+      Authorization: getCurrentAuthHeader(),
       "Content-Type": "application/json",
     },
   });
@@ -165,7 +166,7 @@ export async function createSessionForLab(
   const response = await fetch(`${apiBaseUrl}/api/v1/sessions`, {
     method: "POST",
     headers: {
-      Authorization: "Bearer local:kane:learner",
+      Authorization: getCurrentAuthHeader(),
       "Idempotency-Key": `frontend-create-session-${crypto.randomUUID()}`,
       "Content-Type": "application/json",
     },

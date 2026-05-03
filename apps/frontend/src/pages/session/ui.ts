@@ -1,9 +1,12 @@
 import type { CSSProperties } from "react";
+import { getCurrentAuthHeader } from "../../auth/context";
 import type { LearnerFeedbackStatus } from "./types";
 
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-export const AUTH_HEADER = "Bearer local:kane:learner";
+export function getAuthHeader(): string {
+  return getCurrentAuthHeader();
+}
 
 export const DEMO_H1_STYLE: CSSProperties = {
   color: "#f0fdff",

@@ -36,9 +36,14 @@ class LocalTokenVerifier(TokenVerifierPort):
         if len(parts) == 3:
             role = parts[2].strip() or "learner"
 
+        if "@" in username:
+            email = username
+        else:
+            email = f"{username}@gatech.edu"
+
         return AuthClaims(
             sub=f"local-user:{username}",
-            email=None,
+            email=email,
             roles=(role,),
             scopes=(),
             issued_at=None,

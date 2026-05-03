@@ -187,6 +187,20 @@ async def stream_runtime_turn(
     completed = False
 
     async for event in runtime_client.run_turn_stream(input=turn):
+        logger.info(
+            "runtime stream event received",
+            extra={
+                **log_fields(
+                    session_id=session_id,
+                    lab_id=metadata.lab_id,
+                    principal_id=principal.user_id,
+                    turn_id=turn.turn_id,
+                    idempotency_key=turn.idempotency_key,
+                ),
+                "event": "runtime_stream_event_received",
+                "runtime_event_type": event.type,
+            },
+        )
         if event.type == "turn_started":
             continue
 
@@ -368,6 +382,20 @@ async def stream_runtime_turn(
             return (False, chunks_emitted, full_response_text_parts)
 
         if event.type == "turn_completed":
+            logger.info(
+                "runtime stream turn completed",
+                extra={
+                    **log_fields(
+                        session_id=session_id,
+                        lab_id=metadata.lab_id,
+                        principal_id=principal.user_id,
+                        turn_id=turn.turn_id,
+                        idempotency_key=turn.idempotency_key,
+                    ),
+                    "event": "runtime_stream_turn_completed",
+                    "chunks_emitted": chunks_emitted,
+                },
+            )
             completed = True
             break
 

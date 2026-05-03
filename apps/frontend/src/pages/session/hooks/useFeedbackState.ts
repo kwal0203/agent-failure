@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { SessionFeedbackItem } from "../types";
-import { API_BASE, AUTH_HEADER } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 type UseFeedbackStateParams = {
   sessionId?: string;
@@ -30,7 +30,7 @@ export function useFeedbackState({
               {
                 method: "POST",
                 headers: {
-                  Authorization: AUTH_HEADER,
+                  Authorization: getAuthHeader(),
                   "Content-Type": "application/json",
                 },
               },

@@ -14,7 +14,7 @@ import { useSessionData } from "./session/hooks/useSessionData";
 import { useSessionStreamIngestion } from "./session/hooks/useSessionStreamIngestion";
 import { useTranscriptStreamView } from "./session/hooks/useTranscriptStreamView";
 import type { AgentStatus } from "./session/types";
-import { API_BASE, AUTH_HEADER } from "./session/ui";
+import { API_BASE, getAuthHeader } from "./session/ui";
 
 export default function SessionPage() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
@@ -159,7 +159,7 @@ export default function SessionPage() {
         {
           method: "POST",
           headers: {
-            Authorization: AUTH_HEADER,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json",
             "Idempotency-Key": `stop-session:${sessionId}`,
           },

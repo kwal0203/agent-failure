@@ -19,6 +19,7 @@ from apps.control_plane.src.application.session_stream.ports import (
 )
 from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyOutbox
 from apps.control_plane.src.application.session_stream.messages import (
+    build_agent_text_chunk_message,
     build_policy_denial_message,
     build_system_error_message,
     build_trace_event_message,
@@ -214,7 +215,15 @@ async def handle_user_prompt(
                 full_response_text_parts=full_response_text_parts,
             )
             db.commit()
-
+            if chunks_emitted == 0:
+                await session_manager.send_to(
+                    websocket,
+                    build_agent_text_chunk_message(
+                        session_id=session_id,
+                        chunk="",
+                        final=True,
+                    ),
+                )
         except RuntimeClientError as exc:
             db.rollback()
             logger.warning(

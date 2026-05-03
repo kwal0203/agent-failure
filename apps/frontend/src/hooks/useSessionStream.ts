@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServerMessage } from "../../../contracts/ts/index";
+import { getCurrentAccessToken } from "../auth/context";
 
 export type { ServerMessage } from "../../../contracts/ts/index";
 
@@ -23,7 +24,7 @@ export function useSessionStream(sessionId?: string) {
       setMessages([]);
     }, 0);
 
-    const token = encodeURIComponent("local:kane:learner");
+    const token = encodeURIComponent(getCurrentAccessToken());
     const ws = new WebSocket(
       `${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSeq}`,
     );

@@ -7,7 +7,7 @@ import type {
   ToolKey,
   TranscriptEntry,
 } from "../types";
-import { API_BASE, AUTH_HEADER } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 type UseSessionActionsParams = {
   sessionId?: string;
@@ -80,7 +80,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
         {
           method: "POST",
           headers: {
-            Authorization: AUTH_HEADER,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json",
           },
           body: JSON.stringify({

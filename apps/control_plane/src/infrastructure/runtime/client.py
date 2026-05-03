@@ -69,7 +69,14 @@ class RuntimeHttpClient(RuntimeClientPort):
                         if not line:
                             continue
 
-                        event = _parse_runtime_stream_event(line=line)
+                        try:
+                            event = _parse_runtime_stream_event(line=line)
+                        except ValidationError as exc:
+                            raise RuntimeClientError(
+                                code="RUNTIME_BAD_RESPONSE",
+                                message=f"Invalid runtime stream event: {exc}",
+                                retryable=True,
+                            ) from exc
                         yield event
 
         except httpx.TimeoutException as exc:
