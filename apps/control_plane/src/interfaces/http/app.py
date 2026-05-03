@@ -75,6 +75,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "https://project-lerj2.vercel.app",
         "https://app.agentfailure.com",
+        "https://www.agentfailure.com",
+        "https://agentfailure.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
