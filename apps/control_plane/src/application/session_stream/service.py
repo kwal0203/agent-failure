@@ -224,19 +224,6 @@ async def handle_user_prompt(
                         final=True,
                     ),
                 )
-            await session_manager.send_to(
-                websocket,
-                build_trace_event_message(
-                    session_id, "MODEL_REQUEST_COMPLETED", "Model request completed"
-                ),
-            )
-            await session_manager.send_to(
-                websocket,
-                build_trace_event_message(
-                    session_id, "TURN_COMPLETED", "Turn completed"
-                ),
-            )
-
         except RuntimeClientError as exc:
             db.rollback()
             logger.warning(
