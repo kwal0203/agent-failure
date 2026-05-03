@@ -27,7 +27,10 @@ spec:
             - apps.control_plane.src.interfaces.runtime.session_completed_worker
           env:
             - name: DATABASE_URL
-              value: "postgresql+psycopg://postgres:localdev@172.17.0.1:5432/agent_failure"
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: DATABASE_URL
           resources:
             requests:
               cpu: "100m"
