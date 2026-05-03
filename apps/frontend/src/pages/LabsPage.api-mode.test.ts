@@ -36,7 +36,7 @@ describe("loadLabCatalog API mode", () => {
       {
         method: "GET",
         headers: {
-          Authorization: "Bearer local:kane:learner",
+          Authorization: "Bearer local:kane@gatech.edu:learner",
           "Content-Type": "application/json",
         },
       },

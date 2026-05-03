@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SessionHint, TimelineEvent, UnlockedHint } from "../types";
-import { API_BASE, AUTH_HEADER } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 type UseHintsStateParams = {
   sessionId?: string;
@@ -81,7 +81,7 @@ export function useHintsState({
               {
                 method: "POST",
                 headers: {
-                  Authorization: AUTH_HEADER,
+                  Authorization: getAuthHeader(),
                   "Content-Type": "application/json",
                 },
               },

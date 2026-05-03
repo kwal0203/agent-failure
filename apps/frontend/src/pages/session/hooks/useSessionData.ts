@@ -17,7 +17,7 @@ import type {
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
-import { API_BASE, AUTH_HEADER, humanizeFeedbackKey } from "../ui";
+import { API_BASE, getAuthHeader, humanizeFeedbackKey } from "../ui";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
@@ -431,7 +431,7 @@ export function useSessionData({
         {
           method: "GET",
           headers: {
-            Authorization: AUTH_HEADER,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json",
           },
         },
@@ -557,7 +557,7 @@ export function useSessionData({
       const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
         method: "GET",
         headers: {
-          Authorization: AUTH_HEADER,
+          Authorization: getAuthHeader(),
           "Content-Type": "application/json",
         },
       });

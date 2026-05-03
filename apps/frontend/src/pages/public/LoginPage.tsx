@@ -1,13 +1,14 @@
 import { type CSSProperties, type FormEvent, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/context";
 import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "../../auth/redirect";
 
 function validateIdentifier(value: string): string | null {
   const trimmed = value.trim();
-  if (!trimmed) return "Email or username is required.";
-  if (trimmed.length < 3)
-    return "Email or username must be at least 3 characters.";
+  if (!trimmed) return "Email is required.";
+  if (!/^[^@\s]+@gatech\.edu$/i.test(trimmed)) {
+    return "Invalid credentials.";
+  }
   return null;
 }
 
@@ -19,27 +20,27 @@ function validatePassword(value: string): string | null {
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   padding: "32px 20px",
-  color: "#d7f5ff",
-  background:
-    "radial-gradient(900px 560px at 10% -4%, rgba(0, 230, 255, 0.16), transparent 52%), radial-gradient(700px 440px at 92% -4%, rgba(28, 160, 255, 0.18), transparent 52%), linear-gradient(180deg, #040b14 0%, #071321 52%, #081726 100%)",
+  display: "grid",
+  placeItems: "center",
+  color: "#d7ffd7",
+  background: "#040704",
+  fontFamily: "'Share Tech Mono', 'Fira Code', 'Courier New', monospace",
 };
 
 const formCardStyle: CSSProperties = {
-  maxWidth: 480,
-  margin: "0 auto",
-  border: "1px solid #1f4564",
-  borderRadius: 14,
-  padding: 16,
-  background: "rgba(8, 27, 45, 0.78)",
-  backdropFilter: "blur(5px)",
+  width: "min(420px, 92vw)",
+  border: "1px solid #1b5e20",
+  borderRadius: 8,
+  padding: 20,
+  background: "#0a120a",
 };
 
 const inputStyle: CSSProperties = {
-  border: "1px solid #2d5e80",
-  borderRadius: 8,
+  border: "1px solid #2e7d32",
+  borderRadius: 6,
   padding: "10px 11px",
-  background: "#0a2236",
-  color: "#e9fbff",
+  background: "#000",
+  color: "#d7ffd7",
 };
 
 export default function LoginPage() {
@@ -96,31 +97,36 @@ export default function LoginPage() {
   return (
     <main style={pageStyle}>
       <section style={formCardStyle}>
-        <p style={{ margin: "0 0 8px", color: "#8ecfe4", letterSpacing: 0.25 }}>
-          Agent Failure Platform
-        </p>
-        <h1 style={{ margin: "0 0 8px", color: "#effcff" }}>Log In</h1>
-        <p style={{ margin: "0 0 14px", color: "#b5dfec" }}>
-          Enter your credentials to continue to the platform.
-        </p>
+        <h1
+          style={{
+            margin: "0 0 16px",
+            color: "#8bff8f",
+            fontSize: 42,
+            letterSpacing: 1.5,
+            textShadow: "0 0 10px rgba(139, 255, 143, 0.45)",
+            textAlign: "center",
+          }}
+        >
+          AgentFailure
+        </h1>
 
         <form
           onSubmit={onSubmit}
           style={{ display: "grid", gap: 10 }}
           noValidate
         >
-          <label htmlFor="login-identifier">Email or Username</label>
+          <label htmlFor="login-identifier">Email</label>
           <input
             id="login-identifier"
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
-            autoComplete="username"
-            inputMode="text"
+            autoComplete="email"
+            inputMode="email"
             aria-invalid={identifierError ? true : undefined}
             style={inputStyle}
           />
           {identifierError ? (
-            <p style={{ margin: 0, color: "#ffc4cf", fontSize: 13 }}>
+            <p style={{ margin: 0, color: "#ff9ea8", fontSize: 13 }}>
               {identifierError}
             </p>
           ) : null}
@@ -136,13 +142,13 @@ export default function LoginPage() {
             style={inputStyle}
           />
           {passwordError ? (
-            <p style={{ margin: 0, color: "#ffc4cf", fontSize: 13 }}>
+            <p style={{ margin: 0, color: "#ff9ea8", fontSize: 13 }}>
               {passwordError}
             </p>
           ) : null}
 
           {submitError ? (
-            <p style={{ margin: 0, color: "#ffc4cf", fontSize: 13 }}>
+            <p style={{ margin: 0, color: "#ff9ea8", fontSize: 13 }}>
               {submitError}
             </p>
           ) : null}
@@ -151,10 +157,10 @@ export default function LoginPage() {
             type="submit"
             disabled={submitting || hasFieldErrors}
             style={{
-              border: "1px solid #2b6f98",
-              background: submitting ? "#24445b" : "#0f3b5d",
-              color: "#dcf9ff",
-              borderRadius: 9,
+              border: "1px solid #2e7d32",
+              background: submitting ? "#1f3321" : "#102810",
+              color: "#b6ffb9",
+              borderRadius: 6,
               padding: "10px 12px",
               fontWeight: 700,
               cursor: submitting ? "default" : "pointer",
@@ -163,13 +169,6 @@ export default function LoginPage() {
             {submitting ? "Logging in..." : "Log In"}
           </button>
         </form>
-
-        <p style={{ marginTop: 12, color: "#b5dfec" }}>
-          Need an account? <Link to="/signup">Sign up</Link>
-        </p>
-        <p style={{ marginTop: 8, color: "#b5dfec" }}>
-          <Link to="/">Back to Home</Link>
-        </p>
       </section>
     </main>
   );

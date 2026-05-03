@@ -3,13 +3,9 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
-
-const AUTH_STORAGE_KEY = "agent_failure_auth_user";
-const AUTH_ACCOUNTS_STORAGE_KEY = "agent_failure_auth_accounts";
 
 export type AuthUser = {
   id: string;
@@ -28,24 +24,25 @@ type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isBootstrapping: boolean;
-  login: (email: string, _password: string) => Promise<void>;
-  signup: (email: string, _password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const FALLBACK_DEMO_EMAIL = "kane@gatech.edu";
+let currentAccessToken = `local:${FALLBACK_DEMO_EMAIL}:learner`;
 
-function readStoredUser(): AuthUser | null {
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
+function buildAccessToken(email: string): string {
+  return `local:${email.trim().toLowerCase()}:learner`;
+}
 
-  try {
-    const parsed = JSON.parse(raw) as AuthUser;
-    if (!parsed?.id || !parsed?.email) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+export function getCurrentAccessToken(): string {
+  return currentAccessToken;
+}
+
+export function getCurrentAuthHeader(): string {
+  return `Bearer ${currentAccessToken}`;
 }
 
 function buildUser(email: string): AuthUser {
@@ -59,10 +56,10 @@ function buildUser(email: string): AuthUser {
 
 const DEFAULT_ACCOUNTS: StoredAuthAccount[] = [
   {
-    id: "kane@example.com",
-    email: "kane@example.com",
+    id: "kane@gatech.edu",
+    email: "kane@gatech.edu",
     label: "kane",
-    password: "password123",
+    password: "b73I2",
   },
 ];
 
@@ -70,51 +67,26 @@ function normalizeIdentifier(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function readStoredAccounts(): StoredAuthAccount[] {
-  const raw = window.localStorage.getItem(AUTH_ACCOUNTS_STORAGE_KEY);
-  if (!raw) return DEFAULT_ACCOUNTS;
-
-  try {
-    const parsed = JSON.parse(raw) as StoredAuthAccount[];
-    if (!Array.isArray(parsed)) return DEFAULT_ACCOUNTS;
-    return parsed.filter(
-      (item) =>
-        typeof item?.id === "string" &&
-        typeof item?.email === "string" &&
-        typeof item?.label === "string" &&
-        typeof item?.password === "string",
-    );
-  } catch {
-    return DEFAULT_ACCOUNTS;
-  }
-}
-
-function persistAccounts(accounts: StoredAuthAccount[]) {
-  window.localStorage.setItem(
-    AUTH_ACCOUNTS_STORAGE_KEY,
-    JSON.stringify(accounts),
-  );
+function isGeorgiaTechEmail(value: string): boolean {
+  return /^[^@\s]+@gatech\.edu$/i.test(value.trim());
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-
-  useEffect(() => {
-    const stored = readStoredUser();
-    setUser(stored);
-    setIsBootstrapping(false);
-  }, []);
+  const [accounts, setAccounts] =
+    useState<StoredAuthAccount[]>(DEFAULT_ACCOUNTS);
 
   const persistUser = useCallback((nextUser: AuthUser) => {
     setUser(nextUser);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+    currentAccessToken = buildAccessToken(nextUser.email);
   }, []);
 
   const login = useCallback(
     async (identifier: string, password: string) => {
+      if (!isGeorgiaTechEmail(identifier)) {
+        throw new Error("Invalid credentials");
+      }
       const normalized = normalizeIdentifier(identifier);
-      const accounts = readStoredAccounts();
       const account = accounts.find(
         (item) =>
           item.id === normalized ||
@@ -122,23 +94,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           normalizeIdentifier(item.label) === normalized,
       );
 
-      if (!account || account.password !== password) {
-        throw new Error("Invalid credentials");
+      if (!password.trim()) {
+        throw new Error("Password is required");
       }
 
-      persistUser({
-        id: account.id,
-        email: account.email,
-        label: account.label,
-      });
+      if (account) {
+        if (account.password !== password) {
+          throw new Error("Invalid credentials");
+        }
+        persistUser({
+          id: account.id,
+          email: account.email,
+          label: account.label,
+        });
+        return;
+      }
+
+      const nextUser = buildUser(identifier.trim());
+      setAccounts((prev) => [
+        ...prev,
+        {
+          id: nextUser.id,
+          email: nextUser.email,
+          label: nextUser.label,
+          password,
+        },
+      ]);
+      persistUser(nextUser);
     },
-    [persistUser],
+    [accounts, persistUser],
   );
 
   const signup = useCallback(
     async (email: string, password: string) => {
       const nextUser = buildUser(email.trim());
-      const accounts = readStoredAccounts();
       const exists = accounts.some(
         (item) =>
           item.id === nextUser.id ||
@@ -148,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Account already exists");
       }
 
-      persistAccounts([
+      setAccounts([
         ...accounts,
         {
           id: nextUser.id,
@@ -159,24 +148,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]);
       persistUser(nextUser);
     },
-    [persistUser],
+    [accounts, persistUser],
   );
 
   const logout = useCallback(() => {
     setUser(null);
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    currentAccessToken = buildAccessToken(FALLBACK_DEMO_EMAIL);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: user !== null,
-      isBootstrapping,
+      isBootstrapping: false,
       login,
       signup,
       logout,
     }),
-    [isBootstrapping, login, logout, signup, user],
+    [login, logout, signup, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
