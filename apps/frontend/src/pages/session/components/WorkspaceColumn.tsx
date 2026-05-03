@@ -31,6 +31,7 @@ type WorkspaceColumnProps = {
   emailBody: string;
   injectingEmail: boolean;
   sessionId?: string;
+  fromValidationError: string | null;
   injectEmailError: string | null;
   injectEmailResult: string | null;
   onSubmitEmail: (e: FormEvent<HTMLFormElement>) => void;
@@ -67,6 +68,7 @@ export function WorkspaceColumn({
   emailBody,
   injectingEmail,
   sessionId,
+  fromValidationError,
   injectEmailError,
   injectEmailResult,
   onSubmitEmail,
@@ -304,6 +306,7 @@ export function WorkspaceColumn({
                 emailBody={emailBody}
                 injectingEmail={injectingEmail}
                 sessionId={sessionId}
+                fromValidationError={fromValidationError}
                 injectEmailError={injectEmailError}
                 injectEmailResult={injectEmailResult}
                 onSubmitEmail={onSubmitEmail}

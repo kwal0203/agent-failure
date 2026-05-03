@@ -22,6 +22,10 @@ type UseSessionActionsParams = {
 };
 
 export function useSessionActions(params: UseSessionActionsParams) {
+  const isValidEmail = (value: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  };
+
   const injectSuccessTimeoutRef = useRef<number | null>(null);
   const [prompt, setPrompt] = useState("");
   const [emailFrom, setEmailFrom] = useState("");
@@ -32,10 +36,17 @@ export function useSessionActions(params: UseSessionActionsParams) {
   const [injectEmailResult, setInjectEmailResult] = useState<string | null>(
     null,
   );
+  const [emailFromTouched, setEmailFromTouched] = useState(false);
   const [workspaceState, setWorkspaceState] = useState<SessionWorkspaceState>({
     selectedTool: null,
     toolPaneOpen: false,
   });
+  const fromValidationError =
+    emailFromTouched && !emailFrom.trim()
+      ? "From is required."
+      : emailFrom.trim() && !isValidEmail(emailFrom.trim())
+        ? "From must be a valid email address."
+        : null;
 
   const onSubmitPrompt = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -63,6 +74,10 @@ export function useSessionActions(params: UseSessionActionsParams) {
     const body = emailBody.trim();
     if (!sender || !subject || !body) {
       setInjectEmailError("From, subject, and body are required.");
+      return;
+    }
+    if (!isValidEmail(sender)) {
+      setInjectEmailError("From must be a valid email address.");
       return;
     }
 
@@ -110,6 +125,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
         setInjectEmailResult(null);
         injectSuccessTimeoutRef.current = null;
       }, 1800);
+      setEmailFromTouched(false);
       setEmailFrom("");
       setEmailSubject("");
       setEmailBody("");
@@ -126,12 +142,18 @@ export function useSessionActions(params: UseSessionActionsParams) {
     setEmailFrom("");
     setEmailSubject("");
     setEmailBody("");
+    setEmailFromTouched(false);
     setInjectEmailError(null);
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
       injectSuccessTimeoutRef.current = null;
     }
     setInjectEmailResult(null);
+  };
+
+  const onEmailFromChange = (value: string) => {
+    setEmailFromTouched(true);
+    setEmailFrom(value);
   };
 
   useEffect(() => {
@@ -169,11 +191,12 @@ export function useSessionActions(params: UseSessionActionsParams) {
     emailSubject,
     emailBody,
     injectingEmail,
+    fromValidationError,
     injectEmailError,
     injectEmailResult,
     onSubmitEmail,
     onResetEmail,
-    onEmailFromChange: setEmailFrom,
+    onEmailFromChange,
     onEmailSubjectChange: setEmailSubject,
     onEmailBodyChange: setEmailBody,
     workspaceState,

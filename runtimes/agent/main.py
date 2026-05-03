@@ -2,7 +2,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from time import monotonic
-from uuid import UUID, uuid4
+from uuid import UUID
+import re
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -313,6 +314,14 @@ class _SessionInboxView:
             return None
         items.append(email)
 
+    def next_email_id(self) -> str:
+        max_n = 0
+        for item in self._items():
+            match = re.fullmatch(r"e(\d+)", item.email_id.strip().lower())
+            if match:
+                max_n = max(max_n, int(match.group(1)))
+        return f"e{max_n + 1}"
+
 
 def _make_ctx(
     session_id: UUID,
@@ -559,8 +568,10 @@ def inject_inbox_email(
     request: EmailArtifact,
     _auth: None = Depends(require_internal_auth),
 ) -> dict[str, object]:
+    inbox = _SessionInboxView(session_id)
+    resolved_email_id = request.email_id or inbox.next_email_id()
     inbox_item = InboxItem(
-        email_id=request.email_id or f"u-{uuid4().hex[:8]}",
+        email_id=resolved_email_id,
         email_from=request.email_from,
         email_subject=request.email_subject,
         email_body=request.email_body,
@@ -569,8 +580,12 @@ def inject_inbox_email(
         urgency_marker=bool(request.urgency_marker),
         source=request.source,
     )
-    _SessionInboxView(session_id).receive_email(email=inbox_item)
-    return {"session_id": str(session_id), "accepted": True}
+    inbox.receive_email(email=inbox_item)
+    return {
+        "session_id": str(session_id),
+        "accepted": True,
+        "email_id": resolved_email_id,
+    }
 
 
 @app.get("/runtime/v1/sessions/{session_id}/files/read", status_code=200)

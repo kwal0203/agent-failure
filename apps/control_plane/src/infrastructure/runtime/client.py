@@ -29,6 +29,10 @@ class _ReadRuntimeFileResponse(BaseModel):
     content: str | None = None
 
 
+class _InjectEmailResponse(BaseModel):
+    email_id: str
+
+
 def _parse_runtime_stream_event(line: str) -> RuntimeStreamEvent:
     return _event_adapter.validate_json(line)
 
@@ -92,7 +96,7 @@ class RuntimeHttpClient(RuntimeClientPort):
                 retryable=True,
             ) from exc
 
-    async def inject_email(self, input: InjectEmailInput) -> None:
+    async def inject_email(self, input: InjectEmailInput) -> str:
         request = EmailArtifact(
             email_from=input.email_from,
             email_subject=input.email_subject,
@@ -119,7 +123,8 @@ class RuntimeHttpClient(RuntimeClientPort):
                 )
 
             if 200 <= resp.status_code < 300:
-                return
+                payload = _InjectEmailResponse.model_validate(resp.json())
+                return payload.email_id
 
             try:
                 err = ApiErrorEnvelope.model_validate(resp.json())

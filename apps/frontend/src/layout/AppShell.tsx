@@ -102,37 +102,41 @@ export default function AppShell() {
                 : "Cyberrange Demo Surface"}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => navigate(headerBackTarget)}
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "7px 10px",
-                borderRadius: 8,
-                cursor: "pointer",
-                border: isDebug ? "1px solid #cfd8e3" : "1px solid #2d5a7d",
-                background: isDebug ? "#ffffff" : "#0b2a43",
-                color: isDebug ? "#0f1724" : "#cff6ff",
-              }}
-            >
-              {headerBackLabel}
-            </button>
-            <div
-              style={{
-                fontSize: 13,
-                opacity: isDebug ? 0.8 : 1,
-                color: isDebug ? undefined : "#9fe4fb",
-                background: isDebug ? undefined : "rgba(8, 31, 50, 0.72)",
-                border: isDebug ? undefined : "1px solid #285272",
-                padding: isDebug ? undefined : "6px 10px",
-                borderRadius: isDebug ? undefined : 8,
-              }}
-            >
-              Learner: <strong>{bootstrap.learnerLabel}</strong>
+          {isSessionRoute ? (
+            <div />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => navigate(headerBackTarget)}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  border: isDebug ? "1px solid #cfd8e3" : "1px solid #2d5a7d",
+                  background: isDebug ? "#ffffff" : "#0b2a43",
+                  color: isDebug ? "#0f1724" : "#cff6ff",
+                }}
+              >
+                {headerBackLabel}
+              </button>
+              <div
+                style={{
+                  fontSize: 13,
+                  opacity: isDebug ? 0.8 : 1,
+                  color: isDebug ? undefined : "#9fe4fb",
+                  background: isDebug ? undefined : "rgba(8, 31, 50, 0.72)",
+                  border: isDebug ? undefined : "1px solid #285272",
+                  padding: isDebug ? undefined : "6px 10px",
+                  borderRadius: isDebug ? undefined : 8,
+                }}
+              >
+                Learner: <strong>{bootstrap.learnerLabel}</strong>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         {bootstrap.mode === "debug" && (
           <nav

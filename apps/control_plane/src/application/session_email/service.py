@@ -120,20 +120,28 @@ async def inject_session_email_for_session(
     classifier_confidence = (
         classification.confidence if classification.confidence is not None else 0.0
     )
-    injected_email_id = command.email_id or f"email-{uuid4().hex}"
-
-    email_input = InjectEmailInput(
+    inject_request = InjectEmailInput(
         session_id=command.session_id,
         email_from=command.email_from,
         email_subject=command.email_subject,
         email_body=command.email_body,
-        email_id=injected_email_id,
+        email_id=command.email_id,
         malicious=derived_malicious,
         urgency_marker=classification.urgency_marker,
         source="learner",
     )
 
-    await client.inject_email(input=email_input)
+    resolved_email_id = await client.inject_email(input=inject_request)
+    email_input = InjectEmailInput(
+        session_id=inject_request.session_id,
+        email_from=inject_request.email_from,
+        email_subject=inject_request.email_subject,
+        email_body=inject_request.email_body,
+        email_id=resolved_email_id,
+        malicious=inject_request.malicious,
+        urgency_marker=inject_request.urgency_marker,
+        source=inject_request.source,
+    )
 
     attack_email_sent_payload = map_attack_email_sent_payload(
         email_input=email_input,

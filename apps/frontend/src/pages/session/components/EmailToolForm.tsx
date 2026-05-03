@@ -7,6 +7,7 @@ type EmailToolFormProps = {
   emailBody: string;
   injectingEmail: boolean;
   sessionId?: string;
+  fromValidationError: string | null;
   injectEmailError: string | null;
   injectEmailResult: string | null;
   interactionLocked: boolean;
@@ -23,6 +24,7 @@ export function EmailToolForm({
   emailBody,
   injectingEmail,
   sessionId,
+  fromValidationError,
   injectEmailError,
   injectEmailResult,
   interactionLocked,
@@ -43,17 +45,27 @@ export function EmailToolForm({
       <label style={{ display: "block", marginBottom: 8 }}>
         From
         <input
-          type="text"
+          type="email"
+          required
           value={emailFrom}
           disabled={interactionLocked}
           onChange={(e) => onEmailFromChange(e.target.value)}
           style={{ width: "100%", marginTop: 4 }}
         />
+        {fromValidationError ? (
+          <span
+            role="alert"
+            style={{ display: "block", color: "red", marginTop: 4 }}
+          >
+            {fromValidationError}
+          </span>
+        ) : null}
       </label>
       <label style={{ display: "block", marginBottom: 8 }}>
         Subject
         <input
           type="text"
+          required
           value={emailSubject}
           disabled={interactionLocked}
           onChange={(e) => onEmailSubjectChange(e.target.value)}
@@ -64,6 +76,7 @@ export function EmailToolForm({
         Body
         <textarea
           rows={4}
+          required
           value={emailBody}
           disabled={interactionLocked}
           onChange={(e) => onEmailBodyChange(e.target.value)}
