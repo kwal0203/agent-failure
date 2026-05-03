@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -31,6 +32,8 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const FALLBACK_DEMO_EMAIL = "kane@gatech.edu";
+const AUTH_USER_STORAGE_KEY = "agentfailure.auth.user";
+const AUTH_ACCOUNTS_STORAGE_KEY = "agentfailure.auth.accounts";
 let currentAccessToken = `local:${FALLBACK_DEMO_EMAIL}:learner`;
 
 function buildAccessToken(email: string): string {
@@ -71,10 +74,65 @@ function isGeorgiaTechEmail(value: string): boolean {
   return /^[^@\s]+@gatech\.edu$/i.test(value.trim());
 }
 
+function readStoredUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as AuthUser;
+    if (!parsed?.email || !parsed?.id || !parsed?.label) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredAccounts(): StoredAuthAccount[] {
+  if (typeof window === "undefined") return DEFAULT_ACCOUNTS;
+  const raw = window.sessionStorage.getItem(AUTH_ACCOUNTS_STORAGE_KEY);
+  if (!raw) return DEFAULT_ACCOUNTS;
+  try {
+    const parsed = JSON.parse(raw) as StoredAuthAccount[];
+    if (!Array.isArray(parsed)) return DEFAULT_ACCOUNTS;
+    return parsed;
+  } catch {
+    return DEFAULT_ACCOUNTS;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [accounts, setAccounts] =
-    useState<StoredAuthAccount[]>(DEFAULT_ACCOUNTS);
+  const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
+  const [accounts, setAccounts] = useState<StoredAuthAccount[]>(() =>
+    readStoredAccounts(),
+  );
+
+  useEffect(() => {
+    if (user) {
+      currentAccessToken = buildAccessToken(user.email);
+    } else {
+      currentAccessToken = buildAccessToken(FALLBACK_DEMO_EMAIL);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (user) {
+      window.sessionStorage.setItem(
+        AUTH_USER_STORAGE_KEY,
+        JSON.stringify(user),
+      );
+      return;
+    }
+    window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      AUTH_ACCOUNTS_STORAGE_KEY,
+      JSON.stringify(accounts),
+    );
+  }, [accounts]);
 
   const persistUser = useCallback((nextUser: AuthUser) => {
     setUser(nextUser);

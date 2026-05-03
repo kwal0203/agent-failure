@@ -79,7 +79,7 @@ export function EmailToolForm({
             interactionLocked || injectingEmail || !sessionId,
           )}
         >
-          {injectingEmail ? "Injecting..." : "Send Email"}
+          {injectingEmail ? "Sending..." : "Send Email"}
         </button>
         <button
           type="button"

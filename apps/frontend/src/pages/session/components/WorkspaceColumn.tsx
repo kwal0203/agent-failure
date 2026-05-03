@@ -636,15 +636,40 @@ export function WorkspaceColumn({
             {transcriptEntries.map((entry) => (
               <div
                 key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    entry.role === "user" ? "flex-end" : "flex-start",
+                  marginTop: 10,
+                }}
               >
-                <p
-                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
+                <div
+                  style={{
+                    width: "fit-content",
+                    maxWidth: "86%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border:
+                      entry.role === "user"
+                        ? "1px solid #2f5f8f"
+                        : "1px solid #c6d2dc",
+                    background: entry.role === "user" ? "#dcecff" : "#f5f8fb",
+                    color: "#102435",
+                  }}
                 >
-                  <strong>{entry.role.toUpperCase()}</strong>{" "}
-                  {formatTime(entry.timestamp)}
-                </p>
-                <div className="transcript-markdown" style={{ margin: 0 }}>
-                  <ReactMarkdown>{entry.content}</ReactMarkdown>
+                  <p
+                    style={{
+                      margin: "0 0 6px 0",
+                      fontSize: 12,
+                      opacity: 0.8,
+                    }}
+                  >
+                    <strong>{entry.role.toUpperCase()}</strong>{" "}
+                    {formatTime(entry.timestamp)}
+                  </p>
+                  <div className="transcript-markdown" style={{ margin: 0 }}>
+                    <ReactMarkdown>{entry.content}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}
@@ -663,36 +688,57 @@ export function WorkspaceColumn({
               </div>
             )}
             {activeEntry && (
-              <div style={{ marginTop: 12 }}>
-                <p
-                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-start",
+                  marginTop: 10,
+                }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #c6d2dc",
+                    background: "#f5f8fb",
+                    color: "#102435",
+                  }}
                 >
-                  <strong>AGENT</strong> streaming...
-                </p>
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-                  {(() => {
-                    let tokenOffset = 0;
-                    return activeTokens.map((token) => {
-                      const key = `${tokenOffset}-${token}`;
-                      tokenOffset += token.length;
-                      return (
-                        <span
-                          key={key}
-                          style={{
-                            display: "inline",
-                            opacity: 0,
-                            transform: "translateX(6px)",
-                            animationName: "wordIn",
-                            animationDuration: "220ms",
-                            animationTimingFunction: "ease-out",
-                            animationFillMode: "forwards",
-                          }}
-                        >
-                          {token}
-                        </span>
-                      );
-                    });
-                  })()}
+                  <p
+                    style={{
+                      margin: "0 0 6px 0",
+                      fontSize: 12,
+                      opacity: 0.8,
+                    }}
+                  >
+                    <strong>AGENT</strong> streaming...
+                  </p>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                    {(() => {
+                      let tokenOffset = 0;
+                      return activeTokens.map((token) => {
+                        const key = `${tokenOffset}-${token}`;
+                        tokenOffset += token.length;
+                        return (
+                          <span
+                            key={key}
+                            style={{
+                              display: "inline",
+                              opacity: 0,
+                              transform: "translateX(6px)",
+                              animationName: "wordIn",
+                              animationDuration: "220ms",
+                              animationTimingFunction: "ease-out",
+                              animationFillMode: "forwards",
+                            }}
+                          >
+                            {token}
+                          </span>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
