@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from apps.control_plane.src.application.session_hints.service import (
     process_due_session_hints_once,
@@ -26,8 +26,8 @@ class _FakeProjector:
     def mark_unlocked(
         self,
         *,
-        session_id,
-        hint_key,
+        session_id: UUID,
+        hint_key: str,
         unlocked_at: datetime | None = None,
     ) -> bool:
         self.mark_calls.append(
@@ -43,12 +43,12 @@ class _FakeOutbox:
     def enqueue_session_hint_unlocked(
         self,
         *,
-        session_id,
-        hint_key,
-        text,
-        sort_order,
-        unlocked_at,
-        idempotency_key,
+        session_id: UUID,
+        hint_key: str,
+        text: str,
+        sort_order: int,
+        unlocked_at: datetime,
+        idempotency_key: str,
     ) -> None:
         self.events.append(
             {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from apps.control_plane.src.application.session_hints.service import (
     initialize_session_hints,
@@ -13,7 +13,7 @@ class _FakeTemplateReader:
     def __init__(self, templates: list[HintTemplate]) -> None:
         self._templates = templates
 
-    def list_hint_templates(self, lab_version_id):
+    def list_hint_templates(self, lab_version_id: UUID):
         _ = lab_version_id
         return self._templates
 
@@ -25,11 +25,11 @@ class _IdempotentFakeHintWriter:
     def upsert_hint(
         self,
         *,
-        session_id,
-        hint_key,
-        text,
-        sort_order,
-        unlock_at,
+        session_id: UUID,
+        hint_key: str,
+        text: str,
+        sort_order: int,
+        unlock_at: datetime,
     ) -> None:
         self.rows[(session_id, hint_key)] = {
             "session_id": session_id,

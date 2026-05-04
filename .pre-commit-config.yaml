@@ -63,3 +63,10 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: lint-imports
+        name: lint-imports
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
