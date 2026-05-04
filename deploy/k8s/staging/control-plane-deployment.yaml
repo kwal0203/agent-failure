@@ -28,8 +28,11 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: DATABASE_URL
-            - name: RUNTIME_AUTH_TOKEN
-              value: "9d8d0c04dad1152dbf68893cd6db602e6b7371b770bfc9117f3e72a79f42f4af"
+            - name: RUNTIME_SHARED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: RUNTIME_SHARED_TOKEN
             - name: RUNTIME_TIMEOUT_SECONDS
               value: "60"
             - name: PROVIDER_ENDPOINT

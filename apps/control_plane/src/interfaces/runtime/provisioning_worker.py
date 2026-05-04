@@ -49,7 +49,7 @@ def _validate_required_env() -> None:
 
     missing: list[str] = []
     if not settings.runtime_shared_token.strip():
-        missing.append("RUNTIME_SHARED_TOKEN|RUNTIME_AUTH_TOKEN")
+        missing.append("RUNTIME_SHARED_TOKEN")
     if not settings.model_name.strip():
         missing.append("MODEL_NAME")
     if model_mode == "gateway":
