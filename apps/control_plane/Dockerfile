@@ -17,7 +17,8 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
 
-COPY alembic.ini alembic/ ./
+COPY alembic.ini ./
+COPY alembic ./alembic/
 COPY apps /app/apps
 COPY runtimes /app/runtimes
 COPY deploy /app/deploy
