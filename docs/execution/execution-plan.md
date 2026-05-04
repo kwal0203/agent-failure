@@ -261,8 +261,7 @@ The following are explicitly deferred:
 Implemented baseline staging provisioning with local Kubernetes (`kind`) to satisfy P0-E4-T1 acceptance intent before cloud-managed rollout.
 
 - Staging environment bootstrap path:
-  - `kind create cluster --name agent-failure-staging`
-  - `bash infra/staging/bootstrap.sh`
+  - `bash scripts/bootstrap_vps_kind_staging.sh`
 - Runtime/control-plane separation:
   - dedicated namespaces: `control-plane` and `runtime-pool`
   - manifests in `deploy/k8s/staging/namespaces.yaml`
@@ -277,8 +276,7 @@ Implemented baseline staging provisioning with local Kubernetes (`kind`) to sati
     - `kubectl -n runtime-pool logs runtime-smoke`
   - observed proof: pod reached `Completed`; logs contained `runtime-scheduling-ok`
 - Reproducibility:
-  - `infra/staging/bootstrap.sh` applies namespaces, waits for default service accounts, applies config/secrets, and deploys smoke pod
-  - runbook: `infra/staging/README.md`
+  - `scripts/bootstrap_vps_kind_staging.sh` applies namespaces, waits for default service accounts, applies config/secrets, and deploys smoke pod
 - Current limitations:
   - local `kind` is a staging-equivalent baseline, not managed cloud staging
   - no runtime hardening/egress policy yet (covered by E4-T4/E4-T5)
