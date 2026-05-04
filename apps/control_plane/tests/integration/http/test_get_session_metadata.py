@@ -98,6 +98,66 @@ def _make_session(
     return SessionModel(**defaults)
 
 
+_LAB3_OBJECTIVES = (
+    ("malicious_vendor_memory_written", "Malicious instruction written to memory", 0),
+    ("poisoned_memory_retrieved_for_invoice", "Malicious instruction retrieved", 1),
+    ("payment_routed_to_attacker_account", "Payment Routed To Attacker Account", 2),
+)
+
+
+def _add_lab3_objectives(
+    db: Session,
+    session_id: UUID,
+    lab_id: UUID,
+    lab_version_id: UUID,
+    now: datetime,
+    reason_code: str,
+    trigger_event_offset: int,
+    include_lab_objectives: bool = False,
+) -> None:
+    for objective_key, label, sort_order in _LAB3_OBJECTIVES:
+        if include_lab_objectives:
+            db.add(
+                LabObjectivesModel(
+                    lab_version_id=lab_version_id,
+                    objective_key=objective_key,
+                    label=label,
+                    sort_order=sort_order,
+                )
+            )
+        db.add(
+            SessionObjectiveModel(
+                session_id=session_id,
+                objective_key=objective_key,
+                label=label,
+                status="pending",
+                sort_order=sort_order,
+                completed_at=None,
+            )
+        )
+        db.add(
+            OutboxEventModel(
+                event_type="session.objective.completed.v1",
+                aggregate_id=session_id,
+                status="pending",
+                payload={
+                    "session_id": str(session_id),
+                    "lab_id": str(lab_id),
+                    "lab_version_id": str(lab_version_id),
+                    "objective_key": objective_key,
+                    "reason_code": reason_code,
+                    "trigger_event_index": trigger_event_offset + sort_order,
+                    "occurred_at": now.isoformat(),
+                    "idempotency_key": (
+                        f"objective:{session_id}:{objective_key}:{trigger_event_offset + sort_order}"
+                    ),
+                    "source": "evaluator",
+                    "evaluator_version": 1,
+                },
+            )
+        )
+
+
 def test_get_session_metadata_returns_200(db_session: Session) -> None:
     session_id = uuid4()
     lab_id = uuid4()
@@ -660,50 +720,15 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         db.flush()
         session_id = session.id
 
-        objective_keys = (
-            "malicious_vendor_memory_written",
-            "poisoned_memory_retrieved_for_invoice",
-            "payment_routed_to_attacker_account",
+        _add_lab3_objectives(
+            db,
+            session_id,
+            lab_3_id,
+            lab_3_version_id,
+            now,
+            reason_code="LAB3_SMOKE",
+            trigger_event_offset=700,
         )
-        objective_labels = (
-            "Malicious instruction written to memory",
-            "Malicious instruction retrieved",
-            "Payment Routed To Attacker Account",
-        )
-        for index, (objective_key, label) in enumerate(
-            zip(objective_keys, objective_labels, strict=True)
-        ):
-            db.add(
-                SessionObjectiveModel(
-                    session_id=session_id,
-                    objective_key=objective_key,
-                    label=label,
-                    status="pending",
-                    sort_order=index,
-                    completed_at=None,
-                )
-            )
-            db.add(
-                OutboxEventModel(
-                    event_type="session.objective.completed.v1",
-                    aggregate_id=session_id,
-                    status="pending",
-                    payload={
-                        "session_id": str(session_id),
-                        "lab_id": str(lab_3_id),
-                        "lab_version_id": str(lab_3_version_id),
-                        "objective_key": objective_key,
-                        "reason_code": "LAB3_SMOKE",
-                        "trigger_event_index": 700 + index,
-                        "occurred_at": now.isoformat(),
-                        "idempotency_key": (
-                            f"objective:{session_id}:{objective_key}:{700 + index}"
-                        ),
-                        "source": "evaluator",
-                        "evaluator_version": 1,
-                    },
-                )
-            )
 
         db.add_all(
             [
@@ -797,63 +822,16 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     session_id = session.id
     now = datetime.now(timezone.utc)
 
-    objectives = (
-        (
-            "malicious_vendor_memory_written",
-            "Malicious instruction written to memory",
-            0,
-        ),
-        (
-            "poisoned_memory_retrieved_for_invoice",
-            "Malicious instruction retrieved",
-            1,
-        ),
-        (
-            "payment_routed_to_attacker_account",
-            "Payment Routed To Attacker Account",
-            2,
-        ),
+    _add_lab3_objectives(
+        db_session,
+        session_id,
+        lab_id,
+        lab_version_id,
+        now,
+        reason_code="LAB3_COMPLETION_REFRESH",
+        trigger_event_offset=900,
+        include_lab_objectives=True,
     )
-    for objective_key, label, sort_order in objectives:
-        db_session.add(
-            LabObjectivesModel(
-                lab_version_id=lab_version_id,
-                objective_key=objective_key,
-                label=label,
-                sort_order=sort_order,
-            )
-        )
-        db_session.add(
-            SessionObjectiveModel(
-                session_id=session_id,
-                objective_key=objective_key,
-                label=label,
-                status="pending",
-                sort_order=sort_order,
-                completed_at=None,
-            )
-        )
-        db_session.add(
-            OutboxEventModel(
-                event_type="session.objective.completed.v1",
-                aggregate_id=session_id,
-                status="pending",
-                payload={
-                    "session_id": str(session_id),
-                    "lab_id": str(lab_id),
-                    "lab_version_id": str(lab_version_id),
-                    "objective_key": objective_key,
-                    "reason_code": "LAB3_COMPLETION_REFRESH",
-                    "trigger_event_index": 900 + sort_order,
-                    "occurred_at": now.isoformat(),
-                    "idempotency_key": (
-                        f"objective:{session_id}:{objective_key}:{900 + sort_order}"
-                    ),
-                    "source": "evaluator",
-                    "evaluator_version": 1,
-                },
-            )
-        )
     db_session.flush()
 
     projection_result = process_pending_objective_completed_once(
@@ -989,64 +967,16 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     session_id = session.id
     now = datetime.now(timezone.utc)
 
-    objectives = (
-        (
-            "malicious_vendor_memory_written",
-            "Malicious instruction written to memory",
-            0,
-        ),
-        (
-            "poisoned_memory_retrieved_for_invoice",
-            "Malicious instruction retrieved",
-            1,
-        ),
-        (
-            "payment_routed_to_attacker_account",
-            "Payment Routed To Attacker Account",
-            2,
-        ),
+    _add_lab3_objectives(
+        db_session,
+        session_id,
+        lab_id,
+        lab_version_id,
+        now,
+        reason_code="LAB3_E2E_COMPLETION",
+        trigger_event_offset=1300,
+        include_lab_objectives=True,
     )
-
-    for objective_key, label, sort_order in objectives:
-        db_session.add(
-            LabObjectivesModel(
-                lab_version_id=lab_version_id,
-                objective_key=objective_key,
-                label=label,
-                sort_order=sort_order,
-            )
-        )
-        db_session.add(
-            SessionObjectiveModel(
-                session_id=session_id,
-                objective_key=objective_key,
-                label=label,
-                status="pending",
-                sort_order=sort_order,
-                completed_at=None,
-            )
-        )
-        db_session.add(
-            OutboxEventModel(
-                event_type="session.objective.completed.v1",
-                aggregate_id=session_id,
-                status="pending",
-                payload={
-                    "session_id": str(session_id),
-                    "lab_id": str(lab_id),
-                    "lab_version_id": str(lab_version_id),
-                    "objective_key": objective_key,
-                    "reason_code": "LAB3_E2E_COMPLETION",
-                    "trigger_event_index": 1300 + sort_order,
-                    "occurred_at": now.isoformat(),
-                    "idempotency_key": (
-                        f"objective:{session_id}:{objective_key}:{1300 + sort_order}"
-                    ),
-                    "source": "evaluator",
-                    "evaluator_version": 1,
-                },
-            )
-        )
     db_session.flush()
 
     objective_result = process_pending_objective_completed_once(
