@@ -26,6 +26,9 @@ spec:
             - python
             - -m
             - apps.control_plane.src.interfaces.runtime.provisioning_worker
+          envFrom:
+            - configMapRef:
+                name: control-plane-config
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -37,17 +40,11 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: RUNTIME_SHARED_TOKEN
-            - name: MODEL_CLIENT_MODE
-              value: "gateway"
-            - name: PROVIDER_ENDPOINT
-              value: "https://openrouter.ai/api/v1/chat/completions"
             - name: OPENROUTER_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
-            - name: MODEL_NAME
-              value: "deepseek/deepseek-v3.2"
           resources:
             requests:
               cpu: "100m"

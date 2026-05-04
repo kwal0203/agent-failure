@@ -22,6 +22,9 @@ spec:
           ports:
             - containerPort: 8000
               name: http
+          envFrom:
+            - configMapRef:
+                name: control-plane-config
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -33,27 +36,11 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: RUNTIME_SHARED_TOKEN
-            - name: RUNTIME_TIMEOUT_SECONDS
-              value: "60"
-            - name: PROVIDER_ENDPOINT
-              value: "https://openrouter.ai/api/v1/chat/completions"
             - name: OPENROUTER_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
-            - name: MODEL_NAME
-              value: "deepseek/deepseek-v3.2"
-            - name: MODEL_TIMEOUT
-              value: "30"
-            - name: AUTH_ISSUER
-              value: ""
-            - name: AUTH_AUDIENCE
-              value: ""
-            - name: AUTH_JWKS_URI
-              value: ""
-            - name: AUTH_JWKS_CACHE_TTL_SECONDS
-              value: "300"
           resources:
             requests:
               cpu: "250m"
