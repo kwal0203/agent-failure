@@ -20,7 +20,6 @@ RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
 COPY apps /app/apps
 COPY runtimes /app/runtimes
 COPY deploy /app/deploy
-COPY scripts /app/scripts
 
 EXPOSE 8000
 
