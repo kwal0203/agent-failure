@@ -182,3 +182,9 @@ class SessionFeedbackCreatedEvent:
     trigger_event_index: int | None
     created_at: datetime
     idempotency_key: str
+
+
+@dataclass(frozen=True)
+class TestClass:
+    id: UUID
+    name: str
