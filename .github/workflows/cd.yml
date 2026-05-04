@@ -1,0 +1,133 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/control_plane/**
+      - apps/agent_harness/**
+      - apps/contracts/**
+      - runtimes/agent/**
+      - pyproject.toml
+      - uv.lock
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  ORG: kwal0203
+  CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+  RUNTIME_IMAGE_REPO: agent-failure-runtime-v1
+  CONTROL_PLANE_VERSION: "0.1.0"
+  LAB_SLUG: agent
+  LAB_VERSION: "0.1.0"
+  AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+  STAGING_MANIFESTS: deploy/k8s/staging
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute metadata
+        id: meta
+        run: |
+          GIT_SHA="$(git rev-parse --short HEAD)"
+          BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "git_sha=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_ts=${BUILD_TS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push control-plane
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/control_plane/Dockerfile
+          push: true
+          tags: |
+            ${{ env.CONTROL_PLANE_IMAGE }}:v1-control-plane-${{ env.CONTROL_PLANE_VERSION }}
+            ${{ env.CONTROL_PLANE_IMAGE }}:sha-${{ steps.meta.outputs.git_sha }}
+          labels: |
+            org.opencontainers.image.source=agent-failure
+            org.opencontainers.image.revision=${{ steps.meta.outputs.git_sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.build_ts }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push runtime
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runtimes/${{ env.LAB_SLUG }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.RUNTIME_IMAGE_REPO }}:v1-${{ env.LAB_SLUG }}-${{ env.LAB_VERSION }}
+            ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.RUNTIME_IMAGE_REPO }}:sha-${{ steps.meta.outputs.git_sha }}
+          labels: |
+            org.opencontainers.image.source=agent-failure
+            org.opencontainers.image.revision=${{ steps.meta.outputs.git_sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.build_ts }}
+            io.agent-failure.lab.slug=${{ env.LAB_SLUG }}
+            io.agent-failure.lab.version=${{ env.LAB_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Get digests
+        id: digests
+        run: |
+          CP_DIGEST="$(docker buildx imagetools inspect \
+            '${{ env.CONTROL_PLANE_IMAGE }}:sha-${{ steps.meta.outputs.git_sha }}' \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "cp=${CP_DIGEST}" >> "$GITHUB_OUTPUT"
+
+          RT_DIGEST="$(docker buildx imagetools inspect \
+            '${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.RUNTIME_IMAGE_REPO }}:sha-${{ steps.meta.outputs.git_sha }}' \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "rt=${RT_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Update kustomization digest
+        run: |
+          .task/update_kustomization_digest.sh \
+            "${{ env.STAGING_MANIFESTS }}/kustomization.yaml" \
+            "${{ env.CONTROL_PLANE_IMAGE }}" \
+            "${{ steps.digests.outputs.cp }}"
+
+      - name: Update runtime image lock
+        run: |
+          RT_IMAGE_BASE="${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.RUNTIME_IMAGE_REPO }}"
+          RT_DIGEST_REF="${RT_IMAGE_BASE}@${{ steps.digests.outputs.rt }}"
+          .task/update_runtime_lock.sh \
+            "${{ env.STAGING_MANIFESTS }}/runtime-image.lock" \
+            "${RT_IMAGE_BASE}" \
+            "${RT_DIGEST_REF}" \
+            "${{ steps.meta.outputs.git_sha }}" \
+            "${{ steps.meta.outputs.build_ts }}" \
+            "${{ env.AGENT_TARGET_LABS }}"
+          .task/validate_runtime_lock.sh \
+            "${{ env.STAGING_MANIFESTS }}/runtime-image.lock" \
+            "${{ env.AGENT_TARGET_LABS }}"
+
+      - name: Commit & push manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            "${{ env.STAGING_MANIFESTS }}/kustomization.yaml" \
+            "${{ env.STAGING_MANIFESTS }}/runtime-image.lock"
+          git diff --cached --quiet && echo "No manifest changes" && exit 0
+          git commit -m "cd: update manifests for ${{ steps.meta.outputs.git_sha }}"
+          git push

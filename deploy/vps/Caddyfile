@@ -1,5 +1,0 @@
-api.agentfailure.com {
-  encode gzip zstd
-
-  reverse_proxy 127.0.0.1:30080
-}

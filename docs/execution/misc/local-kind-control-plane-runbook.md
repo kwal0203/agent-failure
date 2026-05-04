@@ -36,8 +36,8 @@ kubectl -n runtime-pool create secret docker-registry ghcr-pull \
 ## 3) Build + Push Control-Plane Image
 
 ```bash
-./scripts/build_control_plane_image.sh
-./scripts/push_control_plane_image.sh
+task build:cp
+task push:cp
 ```
 
 Then update `deploy/k8s/staging/control-plane-deployment.yaml` to the new control-plane digest image.

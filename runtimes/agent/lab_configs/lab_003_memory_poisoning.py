@@ -61,6 +61,9 @@ class Lab3Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
         pass
 
+    def get_session_memory_state(self, session_id: UUID) -> _SessionMemoryState | None:
+        return self._session_memory_state.get(session_id)
+
     @staticmethod
     def _parse_write_memory_args(arguments: object) -> _WriteMemoryArgs | None:
         try:

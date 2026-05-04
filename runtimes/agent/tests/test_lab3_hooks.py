@@ -107,7 +107,8 @@ def test_lab3_read_authoritative_email_writes_vendor_profile_memory_and_events()
     )
 
     assert len(invoice.list_memory(session_id=ctx.session_id)) == 1
-    session_state = hooks._session_memory_state[ctx.session_id]
+    session_state = hooks.get_session_memory_state(ctx.session_id)
+    assert session_state is not None
     assert session_state.vendor_profile_memory["acme corp"] == "ACCT-7777"
 
 

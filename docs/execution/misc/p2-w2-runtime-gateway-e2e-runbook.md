@@ -17,7 +17,7 @@ This runbook validates the runtime streaming path end-to-end:
   - `kubectl get ns runtime-pool || kubectl create ns runtime-pool`
 - Control-plane configured with runtime client env:
   - `RUNTIME_BASE_URL=http://127.0.0.1:8001`
-  - `RUNTIME_AUTH_TOKEN=dev-secret`
+  - `RUNTIME_SHARED_TOKEN=dev-secret`
   - `RUNTIME_TIMEOUT_SECONDS=20`
 
 ## 1. Build Runtime Image (Repo Root)
@@ -49,7 +49,7 @@ curl -sS http://127.0.0.1:8001/healthz
 
 ```bash
 export RUNTIME_BASE_URL=http://127.0.0.1:8001
-export RUNTIME_AUTH_TOKEN=dev-secret
+export RUNTIME_SHARED_TOKEN=dev-secret
 export RUNTIME_TIMEOUT_SECONDS=20
 uv run uvicorn apps.control_plane.src.interfaces.http.main:app --reload --port 8000
 ```

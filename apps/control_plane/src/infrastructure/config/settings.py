@@ -66,7 +66,7 @@ def get_database_url() -> str:
 
 def get_runtime_client_config() -> RuntimeClientConfig:
     timeout_raw = os.getenv("RUNTIME_TIMEOUT_SECONDS", "").strip()
-    auth_token = _get_optional_str("RUNTIME_AUTH_TOKEN")
+    auth_token = _get_optional_str("RUNTIME_SHARED_TOKEN")
     try:
         timeout_seconds = float(timeout_raw)
     except ValueError:
@@ -99,10 +99,9 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
 def get_runtime_pod_env_settings() -> RuntimePodEnvSettings:
     model_client_mode = (_get_optional_str("MODEL_CLIENT_MODE") or "gateway").lower()
     runtime_shared_token = _get_optional_str("RUNTIME_SHARED_TOKEN")
-    runtime_auth_token = _get_optional_str("RUNTIME_AUTH_TOKEN")
 
     return RuntimePodEnvSettings(
-        runtime_shared_token=runtime_shared_token or runtime_auth_token or "",
+        runtime_shared_token=runtime_shared_token or "",
         model_client_mode=model_client_mode,
         provider_endpoint=(
             _get_optional_str("PROVIDER_ENDPOINT")

@@ -1,3 +1,4 @@
+import pytest
 from uuid import uuid4
 
 from apps.agent_harness.src.application.session_loop.types import HarnessTurnInput
@@ -19,7 +20,7 @@ def _turn(prompt: str = "summarize inbox") -> HarnessTurnInput:
 
 
 def test_lab_context_builder_uses_easy_prompt_when_env_is_easy(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("LAB_DIFFICULTY", "easy")
     builder = LabContextBuilder()
@@ -33,7 +34,7 @@ def test_lab_context_builder_uses_easy_prompt_when_env_is_easy(
 
 
 def test_lab_context_builder_uses_medium_prompt_when_env_is_medium(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("LAB_DIFFICULTY", "medium")
     builder = LabContextBuilder()
@@ -45,7 +46,7 @@ def test_lab_context_builder_uses_medium_prompt_when_env_is_medium(
 
 
 def test_lab_context_builder_defaults_to_medium_when_env_is_unknown(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("LAB_DIFFICULTY", "unknown-tier")
     builder = LabContextBuilder()

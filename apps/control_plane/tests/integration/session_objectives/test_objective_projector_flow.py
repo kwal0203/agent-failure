@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
@@ -35,8 +35,8 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
 def _seed_session(
     db_session: Session,
     *,
-    lab_id=None,
-    lab_version_id=None,
+    lab_id: UUID | None = None,
+    lab_version_id: UUID | None = None,
 ) -> SessionModel:
     resolved_lab_id = UUID_LAB_2 if lab_id is None else lab_id
     resolved_lab_version_id = (
@@ -60,7 +60,7 @@ def _seed_session(
 def _seed_session_objective(
     db_session: Session,
     *,
-    session_id,
+    session_id: UUID,
     objective_key: str,
     label: str,
     sort_order: int,
@@ -80,13 +80,13 @@ def _seed_session_objective(
 def _seed_objective_completed_event(
     db_session: Session,
     *,
-    session_id,
+    session_id: UUID,
     objective_key: str,
     occurred_at: datetime,
     idempotency_key: str,
     trigger_event_index: int,
-    lab_id=None,
-    lab_version_id=None,
+    lab_id: UUID | None = None,
+    lab_version_id: UUID | None = None,
 ) -> None:
     resolved_lab_id = UUID_LAB_2 if lab_id is None else lab_id
     resolved_lab_version_id = (
@@ -116,7 +116,7 @@ def _seed_objective_completed_event(
 def _seed_lab_objective_template(
     db_session: Session,
     *,
-    lab_version_id,
+    lab_version_id: UUID,
     objective_key: str,
     label: str,
     sort_order: int,
@@ -135,6 +135,16 @@ UUID_LAB_2 = uuid4()
 UUID_LAB_2_VERSION = uuid4()
 UUID_LAB_3 = uuid4()
 UUID_LAB_3_VERSION = uuid4()
+
+
+def _run_projection(db_session: Session):
+    return process_pending_objective_completed_once(
+        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
+        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
+        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
+        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
+        completion_writer=SQLAlchemySessionRepository(db=db_session),
+    )
 
 
 def test_objective_projector_completes_all_lab2_objectives(db_session: Session) -> None:
@@ -187,13 +197,7 @@ def test_objective_projector_completes_all_lab2_objectives(db_session: Session) 
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 3
@@ -244,13 +248,7 @@ def test_objective_projector_duplicate_replay_is_no_op(db_session: Session) -> N
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 2
@@ -318,13 +316,7 @@ def test_objective_projector_lab2_negative_path_does_not_complete_delete(
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 2
@@ -381,13 +373,7 @@ def test_objective_projector_marks_lab3_objective_pending_to_complete(
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 1
@@ -439,13 +425,7 @@ def test_objective_projector_lab3_completion_persists_after_reload(
     )
     db_session.flush()
 
-    process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    _run_projection(db_session)
     db_session.commit()
     db_session.expire_all()
 
@@ -494,13 +474,7 @@ def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
     )
     db_session.flush()
 
-    first_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    first_result = _run_projection(db_session)
     db_session.flush()
 
     assert first_result.claimed_count == 1
@@ -534,13 +508,7 @@ def test_objective_projector_lab3_duplicate_replay_second_pass_no_op(
     )
     db_session.flush()
 
-    second_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    second_result = _run_projection(db_session)
     db_session.flush()
 
     assert second_result.claimed_count == 1
@@ -567,16 +535,18 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
     )
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
@@ -614,13 +584,7 @@ def test_objective_projector_marks_session_completed_success_when_all_required_o
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 2
@@ -646,16 +610,18 @@ def test_objective_projector_marks_completion_with_autoflush_disabled(
     )
     with session_factory() as db_session:
         session = _seed_session(db_session)
+        assert session.lab_version_id is not None
+        lab_version_id = session.lab_version_id
         _seed_lab_objective_template(
             db_session,
-            lab_version_id=session.lab_version_id,
+            lab_version_id=lab_version_id,
             objective_key="unsafe_tool_invocation_triggered",
             label="Unsafe Tool Invocation Triggered",
             sort_order=0,
         )
         _seed_lab_objective_template(
             db_session,
-            lab_version_id=session.lab_version_id,
+            lab_version_id=lab_version_id,
             objective_key="log_created",
             label="Security Boundary Crossed",
             sort_order=1,
@@ -695,13 +661,7 @@ def test_objective_projector_marks_completion_with_autoflush_disabled(
         )
         db_session.flush()
 
-        result = process_pending_objective_completed_once(
-            outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-            event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-            template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-            objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-            completion_writer=SQLAlchemySessionRepository(db=db_session),
-        )
+        result = _run_projection(db_session)
         db_session.flush()
 
         assert result.claimed_count == 2
@@ -715,16 +675,18 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
     )
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
@@ -762,13 +724,7 @@ def test_objective_projector_emits_session_completed_event_when_all_required_com
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.succeeded_count == 2
@@ -808,16 +764,18 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
     )
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
@@ -848,13 +806,7 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     )
     db_session.flush()
 
-    first_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    first_result = _run_projection(db_session)
     db_session.flush()
 
     assert first_result.succeeded_count == 1
@@ -881,13 +833,7 @@ def test_objective_projector_emits_completion_once_when_final_required_objective
     )
     db_session.flush()
 
-    second_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    second_result = _run_projection(db_session)
     db_session.flush()
 
     assert second_result.succeeded_count == 1
@@ -927,16 +873,18 @@ def test_objective_projector_does_not_mark_session_completed_when_any_required_o
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
     )
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
@@ -965,13 +913,7 @@ def test_objective_projector_does_not_mark_session_completed_when_any_required_o
     )
     db_session.flush()
 
-    result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    result = _run_projection(db_session)
     db_session.flush()
 
     assert result.claimed_count == 1
@@ -989,16 +931,18 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
     )
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="log_created",
         label="Security Boundary Crossed",
         sort_order=1,
@@ -1036,13 +980,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     )
     db_session.flush()
 
-    first_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    first_result = _run_projection(db_session)
     db_session.flush()
     assert first_result.succeeded_count == 2
 
@@ -1063,13 +1001,7 @@ def test_objective_projector_replay_does_not_overwrite_terminal_completion(
     )
     db_session.flush()
 
-    second_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    second_result = _run_projection(db_session)
     db_session.flush()
     assert second_result.succeeded_count == 1
 
@@ -1087,9 +1019,11 @@ def test_objective_projector_replay_does_not_emit_duplicate_session_completed_ev
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
@@ -1113,13 +1047,7 @@ def test_objective_projector_replay_does_not_emit_duplicate_session_completed_ev
     )
     db_session.flush()
 
-    first_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    first_result = _run_projection(db_session)
     assert first_result.succeeded_count == 1
 
     _seed_objective_completed_event(
@@ -1132,13 +1060,7 @@ def test_objective_projector_replay_does_not_emit_duplicate_session_completed_ev
     )
     db_session.flush()
 
-    second_result = process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    second_result = _run_projection(db_session)
     assert second_result.succeeded_count == 1
     db_session.flush()
 
@@ -1168,9 +1090,11 @@ def test_completed_session_has_exactly_one_session_completed_outbox_row(
     db_session: Session,
 ) -> None:
     session = _seed_session(db_session)
+    assert session.lab_version_id is not None
+    lab_version_id = session.lab_version_id
     _seed_lab_objective_template(
         db_session,
-        lab_version_id=session.lab_version_id,
+        lab_version_id=lab_version_id,
         objective_key="unsafe_tool_invocation_triggered",
         label="Unsafe Tool Invocation Triggered",
         sort_order=0,
@@ -1193,13 +1117,7 @@ def test_completed_session_has_exactly_one_session_completed_outbox_row(
     )
     db_session.flush()
 
-    process_pending_objective_completed_once(
-        outbox_repo=SQLAlchemyOutboxSessionObjectiveCompleted(db=db_session),
-        event_outbox_repo=SQLAlchemyOutbox(db=db_session),
-        template_reader=SQLAlchemyLabObjectiveTemplateRepository(db=db_session),
-        objective_writer=SQLAlchemySessionObjectiveWriterRepository(db=db_session),
-        completion_writer=SQLAlchemySessionRepository(db=db_session),
-    )
+    _run_projection(db_session)
     db_session.flush()
 
     completed_events = (

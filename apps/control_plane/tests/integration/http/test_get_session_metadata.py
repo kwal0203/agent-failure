@@ -1,4 +1,7 @@
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from collections.abc import Iterator
+from typing import Any, Callable
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from fastapi.testclient import TestClient
@@ -80,6 +83,99 @@ def _override_db_session_factory():
     return _dependency_override
 
 
+@contextmanager
+def _test_client(
+    db_override_fn: Callable[..., Any],
+    extra_overrides: dict[Callable[..., Any], Any] | None = None,
+) -> Iterator[TestClient]:
+    app.dependency_overrides[get_db_session] = db_override_fn
+    if extra_overrides:
+        for dep, impl in extra_overrides.items():
+            app.dependency_overrides[dep] = impl
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _make_session(
+    session_id: UUID, owner_username: str, **overrides: object
+) -> SessionModel:
+    defaults: dict[str, object] = {
+        "id": session_id,
+        "lab_id": uuid4(),
+        "lab_version_id": uuid4(),
+        "owner_user_id": _owner_user_id(owner_username),
+        "state": SessionState.ACTIVE.value,
+        "runtime_substate": "WAITING_FOR_INPUT",
+        "resume_mode": "hot_resume",
+        "last_transition_actor": "seed",
+        "last_transition_reason": None,
+    }
+    defaults.update(overrides)
+    return SessionModel(**defaults)
+
+
+_LAB3_OBJECTIVES = (
+    ("malicious_vendor_memory_written", "Malicious instruction written to memory", 0),
+    ("poisoned_memory_retrieved_for_invoice", "Malicious instruction retrieved", 1),
+    ("payment_routed_to_attacker_account", "Payment Routed To Attacker Account", 2),
+)
+
+
+def _add_lab3_objectives(
+    db: Session,
+    session_id: UUID,
+    lab_id: UUID,
+    lab_version_id: UUID,
+    now: datetime,
+    reason_code: str,
+    trigger_event_offset: int,
+    include_lab_objectives: bool = False,
+) -> None:
+    for objective_key, label, sort_order in _LAB3_OBJECTIVES:
+        if include_lab_objectives:
+            db.add(
+                LabObjectivesModel(
+                    lab_version_id=lab_version_id,
+                    objective_key=objective_key,
+                    label=label,
+                    sort_order=sort_order,
+                )
+            )
+        db.add(
+            SessionObjectiveModel(
+                session_id=session_id,
+                objective_key=objective_key,
+                label=label,
+                status="pending",
+                sort_order=sort_order,
+                completed_at=None,
+            )
+        )
+        db.add(
+            OutboxEventModel(
+                event_type="session.objective.completed.v1",
+                aggregate_id=session_id,
+                status="pending",
+                payload={
+                    "session_id": str(session_id),
+                    "lab_id": str(lab_id),
+                    "lab_version_id": str(lab_version_id),
+                    "objective_key": objective_key,
+                    "reason_code": reason_code,
+                    "trigger_event_index": trigger_event_offset + sort_order,
+                    "occurred_at": now.isoformat(),
+                    "idempotency_key": (
+                        f"objective:{session_id}:{objective_key}:{trigger_event_offset + sort_order}"
+                    ),
+                    "source": "evaluator",
+                    "evaluator_version": 1,
+                },
+            )
+        )
+
+
 def test_get_session_metadata_returns_200(db_session: Session) -> None:
     session_id = uuid4()
     lab_id = uuid4()
@@ -87,16 +183,8 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     owner_username = "owner-user"
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=lab_id,
-            lab_version_id=lab_version_id,
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
+        _make_session(
+            session_id, owner_username, lab_id=lab_id, lab_version_id=lab_version_id
         )
     )
     db_session.flush()
@@ -129,15 +217,11 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     body = response.json()
@@ -174,22 +258,9 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
 ) -> None:
     session_id = uuid4()
     owner_username = "owner-user"
-    owner_user_id = _owner_user_id(owner_username)
     now = datetime.now(timezone.utc)
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=owner_user_id,
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
     db_session.add_all(
         [
@@ -221,9 +292,7 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -232,8 +301,6 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -274,30 +341,14 @@ def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
     session_id = uuid4()
     owner_username = "zero-feedback-owner"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -310,23 +361,10 @@ def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
 def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> None:
     session_id = uuid4()
     owner_username = "feedback-reconnect-owner"
-    owner_user_id = _owner_user_id(owner_username)
     now = datetime.now(timezone.utc)
 
     with SessionFactory() as db:
-        db.add(
-            SessionModel(
-                id=session_id,
-                lab_id=uuid4(),
-                lab_version_id=uuid4(),
-                owner_user_id=owner_user_id,
-                state=SessionState.ACTIVE.value,
-                runtime_substate="WAITING_FOR_INPUT",
-                resume_mode="hot_resume",
-                last_transition_actor="seed",
-                last_transition_reason=None,
-            )
-        )
+        db.add(_make_session(session_id, owner_username))
         db.flush()
         db.add_all(
             [
@@ -358,8 +396,7 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
         )
         db.commit()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
+    with _test_client(_override_db_session_factory()):
         first_client = TestClient(app)
         first_response = first_client.get(
             f"/api/v1/sessions/{session_id}",
@@ -373,8 +410,6 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
             headers=_auth_header(token=f"local:{owner_username}"),
         )
         second_client.close()
-    finally:
-        app.dependency_overrides.clear()
 
     assert first_response.status_code == 200
     assert second_response.status_code == 200
@@ -391,15 +426,11 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:
     missing_id = uuid4()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{missing_id}",
             headers=_auth_header(token="local:any-user"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 404
     body = response.json()
@@ -414,30 +445,14 @@ def test_get_session_metadata_returns_403_for_non_owner(db_session: Session) -> 
     owner_username = "owner-user"
     requester_username = "different-user"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{requester_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 403
     body = response.json()
@@ -451,30 +466,14 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
     session_id = uuid4()
     owner_username = "owner-user"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token="local:admin-user:admin"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
 
@@ -485,31 +484,14 @@ def test_get_session_metadata_returns_lab_difficulty_when_set(
     session_id = uuid4()
     owner_username = "difficulty-owner"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            lab_difficulty="easy",
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username, lab_difficulty="easy"))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -527,31 +509,25 @@ def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     ended_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
+        _make_session(
+            session_id,
+            owner_username,
             lab_id=lab_id,
             lab_version_id=lab_version_id,
-            owner_user_id=_owner_user_id(owner_username),
             state=SessionState.COMPLETED.value,
             runtime_substate=None,
-            resume_mode="hot_resume",
             started_at=started_at,
             ended_at=ended_at,
-            last_transition_actor="seed",
             last_transition_reason="LAB_COMPLETED",
         )
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     body = response.json()
@@ -577,17 +553,13 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
     completed_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
+        _make_session(
+            session_id,
+            owner_username,
             state=SessionState.COMPLETED.value,
             runtime_substate=None,
-            resume_mode="hot_resume",
             started_at=datetime.now(timezone.utc),
             ended_at=completed_at,
-            last_transition_actor="seed",
             last_transition_reason="LAB_COMPLETED",
             completion_status="completed_success",
             completed_at=completed_at,
@@ -596,9 +568,7 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -607,8 +577,6 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -631,18 +599,11 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
     completed_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
+        _make_session(
+            session_id,
+            owner_username,
             started_at=datetime.now(timezone.utc),
             ended_at=None,
-            last_transition_actor="seed",
-            last_transition_reason=None,
             completion_status="completed_failure",
             completed_at=completed_at,
             completion_reason_code="USER_ABORTED",
@@ -650,9 +611,7 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -661,8 +620,6 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -686,17 +643,12 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     stale_created_at = datetime.now(timezone.utc) - timedelta(minutes=7)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
+        _make_session(
+            session_id,
+            owner_username,
             state=SessionState.PROVISIONING.value,
             runtime_substate="PENDING",
-            resume_mode="hot_resume",
             created_at=stale_created_at,
-            last_transition_actor="seed",
-            last_transition_reason=None,
         )
     )
     db_session.flush()
@@ -706,16 +658,14 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
             assert worker_name == "provisioning_worker"
             return None
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_worker_heartbeat_repository] = _NoHeartbeatRepo
-    try:
-        client = TestClient(app)
+    with _test_client(
+        _override_db_session(db_session),
+        extra_overrides={get_worker_heartbeat_repository: _NoHeartbeatRepo},
+    ) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -732,66 +682,26 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
     now = datetime.now(timezone.utc)
 
     with SessionFactory() as db:
-        session = SessionModel(
-            id=uuid4(),
+        session = _make_session(
+            uuid4(),
+            owner_username,
             lab_id=lab_3_id,
             lab_version_id=lab_3_version_id,
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
             lab_difficulty="medium",
         )
         db.add(session)
         db.flush()
         session_id = session.id
 
-        objective_keys = (
-            "malicious_vendor_memory_written",
-            "poisoned_memory_retrieved_for_invoice",
-            "payment_routed_to_attacker_account",
+        _add_lab3_objectives(
+            db,
+            session_id,
+            lab_3_id,
+            lab_3_version_id,
+            now,
+            reason_code="LAB3_SMOKE",
+            trigger_event_offset=700,
         )
-        objective_labels = (
-            "Malicious instruction written to memory",
-            "Malicious instruction retrieved",
-            "Payment Routed To Attacker Account",
-        )
-        for index, (objective_key, label) in enumerate(
-            zip(objective_keys, objective_labels, strict=True)
-        ):
-            db.add(
-                SessionObjectiveModel(
-                    session_id=session_id,
-                    objective_key=objective_key,
-                    label=label,
-                    status="pending",
-                    sort_order=index,
-                    completed_at=None,
-                )
-            )
-            db.add(
-                OutboxEventModel(
-                    event_type="session.objective.completed.v1",
-                    aggregate_id=session_id,
-                    status="pending",
-                    payload={
-                        "session_id": str(session_id),
-                        "lab_id": str(lab_3_id),
-                        "lab_version_id": str(lab_3_version_id),
-                        "objective_key": objective_key,
-                        "reason_code": "LAB3_SMOKE",
-                        "trigger_event_index": 700 + index,
-                        "occurred_at": now.isoformat(),
-                        "idempotency_key": (
-                            f"objective:{session_id}:{objective_key}:{700 + index}"
-                        ),
-                        "source": "evaluator",
-                        "evaluator_version": 1,
-                    },
-                )
-            )
 
         db.add_all(
             [
@@ -820,9 +730,7 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
     run_objective_worker_once()
     run_hint_unlock_worker_once()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session_factory()) as client:
         first_response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -840,7 +748,6 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         ]
         assert first_session["unread_hint_count"] == 1
 
-        # Replay/reprocessing + reconnect should keep projection stable.
         run_objective_worker_once()
         run_hint_unlock_worker_once()
 
@@ -850,8 +757,6 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         )
         assert second_response.status_code == 200
         second_session = second_response.json()["session"]
-    finally:
-        app.dependency_overrides.clear()
 
     assert [chip["status"] for chip in second_session["progress_chips"]] == [
         "complete",
@@ -873,79 +778,28 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     owner_username = "completion-refresh-owner"
     now = datetime.now(timezone.utc)
 
-    session = SessionModel(
-        id=uuid4(),
+    session = _make_session(
+        uuid4(),
+        owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        owner_user_id=_owner_user_id(owner_username),
-        state=SessionState.ACTIVE.value,
-        runtime_substate="WAITING_FOR_INPUT",
-        resume_mode="hot_resume",
-        last_transition_actor="seed",
-        last_transition_reason=None,
         lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()
     session_id = session.id
+    now = datetime.now(timezone.utc)
 
-    objectives = (
-        (
-            "malicious_vendor_memory_written",
-            "Malicious instruction written to memory",
-            0,
-        ),
-        (
-            "poisoned_memory_retrieved_for_invoice",
-            "Malicious instruction retrieved",
-            1,
-        ),
-        (
-            "payment_routed_to_attacker_account",
-            "Payment Routed To Attacker Account",
-            2,
-        ),
+    _add_lab3_objectives(
+        db_session,
+        session_id,
+        lab_id,
+        lab_version_id,
+        now,
+        reason_code="LAB3_COMPLETION_REFRESH",
+        trigger_event_offset=900,
+        include_lab_objectives=True,
     )
-    for objective_key, label, sort_order in objectives:
-        db_session.add(
-            LabObjectivesModel(
-                lab_version_id=lab_version_id,
-                objective_key=objective_key,
-                label=label,
-                sort_order=sort_order,
-            )
-        )
-        db_session.add(
-            SessionObjectiveModel(
-                session_id=session_id,
-                objective_key=objective_key,
-                label=label,
-                status="pending",
-                sort_order=sort_order,
-                completed_at=None,
-            )
-        )
-        db_session.add(
-            OutboxEventModel(
-                event_type="session.objective.completed.v1",
-                aggregate_id=session_id,
-                status="pending",
-                payload={
-                    "session_id": str(session_id),
-                    "lab_id": str(lab_id),
-                    "lab_version_id": str(lab_version_id),
-                    "objective_key": objective_key,
-                    "reason_code": "LAB3_COMPLETION_REFRESH",
-                    "trigger_event_index": 900 + sort_order,
-                    "occurred_at": now.isoformat(),
-                    "idempotency_key": (
-                        f"objective:{session_id}:{objective_key}:{900 + sort_order}"
-                    ),
-                    "source": "evaluator",
-                    "evaluator_version": 1,
-                },
-            )
-        )
     db_session.flush()
 
     projection_result = process_pending_objective_completed_once(
@@ -958,9 +812,7 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     db_session.flush()
     assert projection_result.succeeded_count == 3
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -969,8 +821,6 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -998,16 +848,11 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
 
     with SessionFactory() as db:
         db.add(
-            SessionModel(
-                id=session_id,
+            _make_session(
+                session_id,
+                owner_username,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                owner_user_id=_owner_user_id(owner_username),
-                state=SessionState.ACTIVE.value,
-                runtime_substate="WAITING_FOR_INPUT",
-                resume_mode="hot_resume",
-                last_transition_actor="seed",
-                last_transition_reason=None,
                 lab_difficulty="medium",
             )
         )
@@ -1036,9 +881,7 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
 
     run_session_completed_worker_once()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session_factory()) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -1048,8 +891,6 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -1074,16 +915,11 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     owner_username = "completion-e2e-owner"
     lab_id = UUID("33333333-3333-3333-3333-333333333333")
     lab_version_id = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
-    session = SessionModel(
-        id=uuid4(),
+    session = _make_session(
+        uuid4(),
+        owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        owner_user_id=_owner_user_id(owner_username),
-        state=SessionState.ACTIVE.value,
-        runtime_substate="WAITING_FOR_INPUT",
-        resume_mode="hot_resume",
-        last_transition_actor="seed",
-        last_transition_reason=None,
         lab_difficulty="medium",
     )
     db_session.add(session)
@@ -1091,64 +927,16 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     session_id = session.id
     now = datetime.now(timezone.utc)
 
-    objectives = (
-        (
-            "malicious_vendor_memory_written",
-            "Malicious instruction written to memory",
-            0,
-        ),
-        (
-            "poisoned_memory_retrieved_for_invoice",
-            "Malicious instruction retrieved",
-            1,
-        ),
-        (
-            "payment_routed_to_attacker_account",
-            "Payment Routed To Attacker Account",
-            2,
-        ),
+    _add_lab3_objectives(
+        db_session,
+        session_id,
+        lab_id,
+        lab_version_id,
+        now,
+        reason_code="LAB3_E2E_COMPLETION",
+        trigger_event_offset=1300,
+        include_lab_objectives=True,
     )
-
-    for objective_key, label, sort_order in objectives:
-        db_session.add(
-            LabObjectivesModel(
-                lab_version_id=lab_version_id,
-                objective_key=objective_key,
-                label=label,
-                sort_order=sort_order,
-            )
-        )
-        db_session.add(
-            SessionObjectiveModel(
-                session_id=session_id,
-                objective_key=objective_key,
-                label=label,
-                status="pending",
-                sort_order=sort_order,
-                completed_at=None,
-            )
-        )
-        db_session.add(
-            OutboxEventModel(
-                event_type="session.objective.completed.v1",
-                aggregate_id=session_id,
-                status="pending",
-                payload={
-                    "session_id": str(session_id),
-                    "lab_id": str(lab_id),
-                    "lab_version_id": str(lab_version_id),
-                    "objective_key": objective_key,
-                    "reason_code": "LAB3_E2E_COMPLETION",
-                    "trigger_event_index": 1300 + sort_order,
-                    "occurred_at": now.isoformat(),
-                    "idempotency_key": (
-                        f"objective:{session_id}:{objective_key}:{1300 + sort_order}"
-                    ),
-                    "source": "evaluator",
-                    "evaluator_version": 1,
-                },
-            )
-        )
     db_session.flush()
 
     objective_result = process_pending_objective_completed_once(
@@ -1203,9 +991,7 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first_response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -1228,8 +1014,6 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first_response.status_code == 200
     assert second_response.status_code == 200

@@ -25,23 +25,20 @@ spec:
             - python
             - -m
             - apps.evaluator.src.interfaces.runtime.evaluator_worker
+          envFrom:
+            - configMapRef:
+                name: control-plane-config
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: runtime-secrets
                   key: DATABASE_URL
-            - name: PROVIDER_ENDPOINT
-              value: "https://openrouter.ai/api/v1/chat/completions"
             - name: OPENROUTER_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
-            - name: MODEL_NAME
-              value: "deepseek/deepseek-v3.2"
-            - name: MODEL_TIMEOUT
-              value: "30"
           resources:
             requests:
               cpu: "100m"

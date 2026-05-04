@@ -258,11 +258,10 @@ The following are explicitly deferred:
 
 #### E4-T1 Implementation Notes (Local Staging-Equivalent Baseline)
 
-Implemented baseline staging provisioning with local Kubernetes (`kind`) to satisfy P0-E4-T1 acceptance intent before cloud-managed rollout.
+Implemented baseline staging provisioning with local Kubernetes (`k3s`) to satisfy P0-E4-T1 acceptance intent before cloud-managed rollout.
 
 - Staging environment bootstrap path:
-  - `kind create cluster --name agent-failure-staging`
-  - `bash infra/staging/bootstrap.sh`
+  - `task bootstrap -- --env-file deploy/k8s/staging/.env.local`
 - Runtime/control-plane separation:
   - dedicated namespaces: `control-plane` and `runtime-pool`
   - manifests in `deploy/k8s/staging/namespaces.yaml`
@@ -277,8 +276,7 @@ Implemented baseline staging provisioning with local Kubernetes (`kind`) to sati
     - `kubectl -n runtime-pool logs runtime-smoke`
   - observed proof: pod reached `Completed`; logs contained `runtime-scheduling-ok`
 - Reproducibility:
-  - `infra/staging/bootstrap.sh` applies namespaces, waits for default service accounts, applies config/secrets, and deploys smoke pod
-  - runbook: `infra/staging/README.md`
+  - `task bootstrap` applies namespaces, waits for default service accounts, applies config/secrets, and deploys smoke pod
 - Current limitations:
   - local `kind` is a staging-equivalent baseline, not managed cloud staging
   - no runtime hardening/egress policy yet (covered by E4-T4/E4-T5)
@@ -289,7 +287,7 @@ Implemented baseline staging provisioning with local Kubernetes (`kind`) to sati
 Implemented a scriptable runtime image pipeline for the initial supported V1 lab path with digest pinning and staging lock/selection files.
 
 - Runtime image build automation:
-  - `scripts/build_runtime_image.sh`
+  - `task build:runtime`
   - builds `archive/runtimes/baseline/Dockerfile`
   - tags image with both release and source tags:
     - `v1-baseline-<lab_version>`
@@ -302,7 +300,7 @@ Implemented a scriptable runtime image pipeline for the initial supported V1 lab
   - writes scan output artifact:
     - `.artifacts/runtime-image-scan.txt`
 - Publish path and digest capture:
-  - `scripts/push_runtime_image.sh`
+  - `task push:runtime`
   - pushes runtime tags to registry
   - resolves canonical digest reference (`repo@sha256:...`)
   - writes release artifact:
@@ -318,10 +316,8 @@ Implemented a scriptable runtime image pipeline for the initial supported V1 lab
 
 Suggested command sequence:
 
-- `./scripts/build_runtime_image.sh`
-- `./scripts/scan_runtime_image.sh`
-- `./scripts/push_runtime_image.sh`
-- `./scripts/validate_runtime_lock.sh`
+- `task build:runtime`
+- `task push:runtime` (includes lock update + validation)
 
 Current limitations:
 

@@ -1,16 +1,16 @@
 import asyncio
-
+import pytest
 import apps.control_plane.src.interfaces.http.main as main_module
 
 
 def test_main_lifespan_starts_and_cancels_learner_feedback_worker(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     started = False
     cancelled = False
 
     async def _fake_run_forever(
-        *, session_manager, polling_interval_seconds: float = 1.0
+        *, session_manager: object, polling_interval_seconds: float = 1.0
     ) -> None:
         nonlocal started, cancelled
         _ = (session_manager, polling_interval_seconds)
