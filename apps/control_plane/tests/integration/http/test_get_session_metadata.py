@@ -1,4 +1,7 @@
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from collections.abc import Iterator
+from typing import Any, Callable
 from uuid import UUID, NAMESPACE_URL, uuid4, uuid5
 
 from fastapi.testclient import TestClient
@@ -78,6 +81,21 @@ def _override_db_session_factory():
             db.close()
 
     return _dependency_override
+
+
+@contextmanager
+def _test_client(
+    db_override_fn: Callable[..., Any],
+    extra_overrides: dict[Callable[..., Any], Any] | None = None,
+) -> Iterator[TestClient]:
+    app.dependency_overrides[get_db_session] = db_override_fn
+    if extra_overrides:
+        for dep, impl in extra_overrides.items():
+            app.dependency_overrides[dep] = impl
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 def _make_session(
@@ -199,15 +217,11 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     body = response.json()
@@ -278,9 +292,7 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -289,8 +301,6 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -334,15 +344,11 @@ def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
     db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -390,8 +396,7 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
         )
         db.commit()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
+    with _test_client(_override_db_session_factory()):
         first_client = TestClient(app)
         first_response = first_client.get(
             f"/api/v1/sessions/{session_id}",
@@ -405,8 +410,6 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
             headers=_auth_header(token=f"local:{owner_username}"),
         )
         second_client.close()
-    finally:
-        app.dependency_overrides.clear()
 
     assert first_response.status_code == 200
     assert second_response.status_code == 200
@@ -423,15 +426,11 @@ def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> 
 def test_get_session_metadata_returns_404_for_missing(db_session: Session) -> None:
     missing_id = uuid4()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{missing_id}",
             headers=_auth_header(token="local:any-user"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 404
     body = response.json()
@@ -449,15 +448,11 @@ def test_get_session_metadata_returns_403_for_non_owner(db_session: Session) -> 
     db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{requester_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 403
     body = response.json()
@@ -474,15 +469,11 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
     db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token="local:admin-user:admin"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
 
@@ -496,15 +487,11 @@ def test_get_session_metadata_returns_lab_difficulty_when_set(
     db_session.add(_make_session(session_id, owner_username, lab_difficulty="easy"))
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -536,15 +523,11 @@ def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     body = response.json()
@@ -585,9 +568,7 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -596,8 +577,6 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -632,9 +611,7 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -643,8 +620,6 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -683,16 +658,14 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
             assert worker_name == "provisioning_worker"
             return None
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    app.dependency_overrides[get_worker_heartbeat_repository] = _NoHeartbeatRepo
-    try:
-        client = TestClient(app)
+    with _test_client(
+        _override_db_session(db_session),
+        extra_overrides={get_worker_heartbeat_repository: _NoHeartbeatRepo},
+    ) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     session = response.json()["session"]
@@ -757,9 +730,7 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
     run_objective_worker_once()
     run_hint_unlock_worker_once()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session_factory()) as client:
         first_response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -777,7 +748,6 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         ]
         assert first_session["unread_hint_count"] == 1
 
-        # Replay/reprocessing + reconnect should keep projection stable.
         run_objective_worker_once()
         run_hint_unlock_worker_once()
 
@@ -787,8 +757,6 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
         )
         assert second_response.status_code == 200
         second_session = second_response.json()["session"]
-    finally:
-        app.dependency_overrides.clear()
 
     assert [chip["status"] for chip in second_session["progress_chips"]] == [
         "complete",
@@ -844,9 +812,7 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     db_session.flush()
     assert projection_result.succeeded_count == 3
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -855,8 +821,6 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -917,9 +881,7 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
 
     run_session_completed_worker_once()
 
-    app.dependency_overrides[get_db_session] = _override_db_session_factory()
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session_factory()) as client:
         first = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -929,8 +891,6 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -1031,9 +991,7 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     )
     db_session.flush()
 
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
+    with _test_client(_override_db_session(db_session)) as client:
         first_response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -1056,8 +1014,6 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
         )
-    finally:
-        app.dependency_overrides.clear()
 
     assert first_response.status_code == 200
     assert second_response.status_code == 200
