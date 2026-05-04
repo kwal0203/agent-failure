@@ -190,7 +190,7 @@ def test_get_evaluator_feedback_returns_403_for_forbidden_role(
 def test_get_evaluator_feedback_returns_500_on_unexpected_error(
     db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _boom(**kwargs):
+    def _boom(**kwargs: object) -> None:
         _ = kwargs
         raise RuntimeError("boom")
 

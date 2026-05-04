@@ -80,6 +80,24 @@ def _override_db_session_factory():
     return _dependency_override
 
 
+def _make_session(
+    session_id: UUID, owner_username: str, **overrides: object
+) -> SessionModel:
+    defaults: dict[str, object] = {
+        "id": session_id,
+        "lab_id": uuid4(),
+        "lab_version_id": uuid4(),
+        "owner_user_id": _owner_user_id(owner_username),
+        "state": SessionState.ACTIVE.value,
+        "runtime_substate": "WAITING_FOR_INPUT",
+        "resume_mode": "hot_resume",
+        "last_transition_actor": "seed",
+        "last_transition_reason": None,
+    }
+    defaults.update(overrides)
+    return SessionModel(**defaults)
+
+
 def test_get_session_metadata_returns_200(db_session: Session) -> None:
     session_id = uuid4()
     lab_id = uuid4()
@@ -87,16 +105,8 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     owner_username = "owner-user"
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=lab_id,
-            lab_version_id=lab_version_id,
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
+        _make_session(
+            session_id, owner_username, lab_id=lab_id, lab_version_id=lab_version_id
         )
     )
     db_session.flush()
@@ -174,22 +184,9 @@ def test_get_session_metadata_rehydrates_persisted_feedback_and_unread_count(
 ) -> None:
     session_id = uuid4()
     owner_username = "owner-user"
-    owner_user_id = _owner_user_id(owner_username)
     now = datetime.now(timezone.utc)
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=owner_user_id,
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
     db_session.add_all(
         [
@@ -274,19 +271,7 @@ def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
     session_id = uuid4()
     owner_username = "zero-feedback-owner"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
@@ -310,23 +295,10 @@ def test_get_session_metadata_zero_feedback_returns_empty_items_and_zero_unread(
 def test_get_session_metadata_feedback_stable_across_refresh_and_reconnect() -> None:
     session_id = uuid4()
     owner_username = "feedback-reconnect-owner"
-    owner_user_id = _owner_user_id(owner_username)
     now = datetime.now(timezone.utc)
 
     with SessionFactory() as db:
-        db.add(
-            SessionModel(
-                id=session_id,
-                lab_id=uuid4(),
-                lab_version_id=uuid4(),
-                owner_user_id=owner_user_id,
-                state=SessionState.ACTIVE.value,
-                runtime_substate="WAITING_FOR_INPUT",
-                resume_mode="hot_resume",
-                last_transition_actor="seed",
-                last_transition_reason=None,
-            )
-        )
+        db.add(_make_session(session_id, owner_username))
         db.flush()
         db.add_all(
             [
@@ -414,19 +386,7 @@ def test_get_session_metadata_returns_403_for_non_owner(db_session: Session) -> 
     owner_username = "owner-user"
     requester_username = "different-user"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
@@ -451,19 +411,7 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
     session_id = uuid4()
     owner_username = "owner-user"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username))
     db_session.flush()
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
@@ -485,20 +433,7 @@ def test_get_session_metadata_returns_lab_difficulty_when_set(
     session_id = uuid4()
     owner_username = "difficulty-owner"
 
-    db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            lab_difficulty="easy",
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
-        )
-    )
+    db_session.add(_make_session(session_id, owner_username, lab_difficulty="easy"))
     db_session.flush()
 
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
@@ -527,17 +462,15 @@ def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     ended_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
+        _make_session(
+            session_id,
+            owner_username,
             lab_id=lab_id,
             lab_version_id=lab_version_id,
-            owner_user_id=_owner_user_id(owner_username),
             state=SessionState.COMPLETED.value,
             runtime_substate=None,
-            resume_mode="hot_resume",
             started_at=started_at,
             ended_at=ended_at,
-            last_transition_actor="seed",
             last_transition_reason="LAB_COMPLETED",
         )
     )
@@ -577,17 +510,13 @@ def test_get_session_metadata_completion_fields_persist_across_refresh(
     completed_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
+        _make_session(
+            session_id,
+            owner_username,
             state=SessionState.COMPLETED.value,
             runtime_substate=None,
-            resume_mode="hot_resume",
             started_at=datetime.now(timezone.utc),
             ended_at=completed_at,
-            last_transition_actor="seed",
             last_transition_reason="LAB_COMPLETED",
             completion_status="completed_success",
             completed_at=completed_at,
@@ -631,18 +560,11 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
     completed_at = datetime.now(timezone.utc)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
+        _make_session(
+            session_id,
+            owner_username,
             started_at=datetime.now(timezone.utc),
             ended_at=None,
-            last_transition_actor="seed",
-            last_transition_reason=None,
             completion_status="completed_failure",
             completed_at=completed_at,
             completion_reason_code="USER_ABORTED",
@@ -686,17 +608,12 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     stale_created_at = datetime.now(timezone.utc) - timedelta(minutes=7)
 
     db_session.add(
-        SessionModel(
-            id=session_id,
-            lab_id=uuid4(),
-            lab_version_id=uuid4(),
-            owner_user_id=_owner_user_id(owner_username),
+        _make_session(
+            session_id,
+            owner_username,
             state=SessionState.PROVISIONING.value,
             runtime_substate="PENDING",
-            resume_mode="hot_resume",
             created_at=stale_created_at,
-            last_transition_actor="seed",
-            last_transition_reason=None,
         )
     )
     db_session.flush()
@@ -732,16 +649,11 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
     now = datetime.now(timezone.utc)
 
     with SessionFactory() as db:
-        session = SessionModel(
-            id=uuid4(),
+        session = _make_session(
+            uuid4(),
+            owner_username,
             lab_id=lab_3_id,
             lab_version_id=lab_3_version_id,
-            owner_user_id=_owner_user_id(owner_username),
-            state=SessionState.ACTIVE.value,
-            runtime_substate="WAITING_FOR_INPUT",
-            resume_mode="hot_resume",
-            last_transition_actor="seed",
-            last_transition_reason=None,
             lab_difficulty="medium",
         )
         db.add(session)
@@ -873,21 +785,17 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
     owner_username = "completion-refresh-owner"
     now = datetime.now(timezone.utc)
 
-    session = SessionModel(
-        id=uuid4(),
+    session = _make_session(
+        uuid4(),
+        owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        owner_user_id=_owner_user_id(owner_username),
-        state=SessionState.ACTIVE.value,
-        runtime_substate="WAITING_FOR_INPUT",
-        resume_mode="hot_resume",
-        last_transition_actor="seed",
-        last_transition_reason=None,
         lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()
     session_id = session.id
+    now = datetime.now(timezone.utc)
 
     objectives = (
         (
@@ -998,16 +906,11 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
 
     with SessionFactory() as db:
         db.add(
-            SessionModel(
-                id=session_id,
+            _make_session(
+                session_id,
+                owner_username,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                owner_user_id=_owner_user_id(owner_username),
-                state=SessionState.ACTIVE.value,
-                runtime_substate="WAITING_FOR_INPUT",
-                resume_mode="hot_resume",
-                last_transition_actor="seed",
-                last_transition_reason=None,
                 lab_difficulty="medium",
             )
         )
@@ -1074,16 +977,11 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
     owner_username = "completion-e2e-owner"
     lab_id = UUID("33333333-3333-3333-3333-333333333333")
     lab_version_id = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
-    session = SessionModel(
-        id=uuid4(),
+    session = _make_session(
+        uuid4(),
+        owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        owner_user_id=_owner_user_id(owner_username),
-        state=SessionState.ACTIVE.value,
-        runtime_substate="WAITING_FOR_INPUT",
-        resume_mode="hot_resume",
-        last_transition_actor="seed",
-        last_transition_reason=None,
         lab_difficulty="medium",
     )
     db_session.add(session)

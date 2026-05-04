@@ -1,12 +1,16 @@
 from collections.abc import Callable
 from typing import cast
 from uuid import UUID, uuid4
+import pytest
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from apps.control_plane.src.application.common.ports import LabRepository
-from apps.control_plane.src.application.common.types import LabRuntimeBinding
+from apps.control_plane.src.application.common.types import (
+    LabRuntimeBinding,
+    GetLabCatalogRow,
+)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.application.lab_catalog import (
     service as lab_catalog_service,
@@ -52,7 +56,7 @@ def test_get_labs_returns_200_with_catalog() -> None:
     assert response.status_code == 200
     body = response.json()
     assert "labs" in body
-    labs = body["labs"]
+    labs = cast(list[dict[str, object]], body["labs"])
     assert isinstance(labs, list)
     assert len(labs) >= 1
 
@@ -62,13 +66,13 @@ def test_get_labs_returns_200_with_catalog() -> None:
     assert "name" in first
     assert "summary" in first
     assert "capabilities" in first
-    assert "supports_resume" in first["capabilities"]
-    assert "supports_uploads" in first["capabilities"]
+    assert "supports_resume" in cast(dict[str, object], first["capabilities"])
+    assert "supports_uploads" in cast(dict[str, object], first["capabilities"])
 
 
 def test_get_labs_returns_empty_catalog() -> None:
     class _EmptyLabRepo(LabRepository):
-        def get_lab_catalog(self) -> list:
+        def get_lab_catalog(self) -> list[GetLabCatalogRow]:
             return []
 
         def validate_lab(self, lab_id: UUID) -> bool:
@@ -118,8 +122,10 @@ def test_get_labs_returns_401_when_unauthenticated() -> None:
     assert body["error"]["retryable"] is False
 
 
-def test_get_labs_invalid_bearer_does_not_enter_service_logic(monkeypatch) -> None:
-    def _should_not_run(*args, **kwargs):
+def test_get_labs_invalid_bearer_does_not_enter_service_logic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _should_not_run(*args: object, **kwargs: object) -> None:
         raise AssertionError("get_labs_for_principal should not be called")
 
     monkeypatch.setattr(lab_catalog_service, "get_labs_for_principal", _should_not_run)

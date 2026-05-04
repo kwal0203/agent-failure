@@ -323,7 +323,7 @@ def test_inject_session_email_success_uses_binding_base_url_and_calls_runtime_cl
         assert attack_trace.payload["urgency_marker"] is True
         assert attack_trace.payload["classifier_provider"] == "test"
         assert attack_trace.payload["classifier_model"] == "test-model"
-        assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)
+        assert attack_trace.payload["classifier_confidence"] == pytest.approx(0.95)  # pyright: ignore[reportUnknownMemberType]
 
         objective_outbox = (
             verify_db.execute(
@@ -409,7 +409,7 @@ def test_inject_session_email_non_malicious_does_not_complete_malicious_objectiv
         assert benign_trace.payload["malicious_marker"] is False
         assert benign_trace.payload["classifier_provider"] == "test"
         assert benign_trace.payload["classifier_model"] == "test-model"
-        assert benign_trace.payload["classifier_confidence"] == pytest.approx(0.95)
+        assert benign_trace.payload["classifier_confidence"] == pytest.approx(0.95)  # pyright: ignore[reportUnknownMemberType]
 
         objective_outbox = (
             verify_db.execute(

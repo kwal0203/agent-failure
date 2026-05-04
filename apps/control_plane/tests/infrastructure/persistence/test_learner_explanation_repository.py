@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import pytest
 from sqlalchemy import func, select
@@ -151,7 +151,7 @@ def test_inject_learner_explanation_maps_unique_constraint_to_duplicate_idempote
 
     original_get = repo.get_by_session_and_idempotency_key
 
-    def _always_none(*, session_id, idempotency_key):
+    def _always_none(*, session_id: UUID, idempotency_key: str):
         _ = (session_id, idempotency_key)
         return None
 
