@@ -1,0 +1,299 @@
+version: "3"
+
+vars:
+  REGISTRY: ghcr.io
+  ORG: kwal0203
+  ARTIFACT_DIR: .artifacts
+  STAGING_MANIFESTS: deploy/k8s/staging
+  CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+  RUNTIME_IMAGE_REPO: agent-failure-runtime-v1
+  LAB_SLUG: agent
+  LAB_VERSION: "0.1.0"
+  CONTROL_PLANE_VERSION: "0.1.0"
+  AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+
+dotenv:
+  - "{{.ENV_FILE}}"
+
+env:
+  KUBECONFIG:
+    sh: echo "${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+
+tasks:
+  bootstrap:
+    desc: Bootstrap k3s cluster with namespaces, secrets, and manifests
+    preconditions:
+      - sh: command -v k3s
+        msg: "k3s not found. Install: curl -sfL https://get.k3s.io | sh -"
+      - sh: command -v kubectl
+        msg: "kubectl not found"
+      - sh: test -r ${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
+        msg: "Cannot read KUBECONFIG. Fix: sudo chmod 644 /etc/rancher/k3s/k3s.yaml"
+    cmds:
+      - task: bootstrap:secrets
+      - task: apply
+      - task: rollout:wait
+      - echo "Done. API available at http://localhost:30080"
+
+  bootstrap:reset:
+    desc: Wipe k3s cluster and bootstrap from scratch (needs sudo)
+    preconditions:
+      - sh: command -v k3s
+        msg: "k3s not found"
+    cmds:
+      - sudo k3s server --cluster-reset
+      - sudo systemctl restart k3s
+      - echo "Waiting for k3s to be ready..."
+      - sleep 10
+      - task: bootstrap
+
+  bootstrap:secrets:
+    desc: Create/update image pull secret and runtime secrets
+    internal: true
+    requires:
+      vars:
+        - GHCR_USERNAME
+        - GHCR_TOKEN
+        - GHCR_EMAIL
+        - DATABASE_URL
+        - OPENROUTER_API_KEY
+        - RUNTIME_SHARED_TOKEN
+    preconditions:
+      - sh: command -v kubectl
+        msg: "kubectl not found"
+    cmds:
+      - kubectl apply -f {{.STAGING_MANIFESTS}}/namespaces.yaml
+      - kubectl apply -f {{.STAGING_MANIFESTS}}/control-plane-worker-rbac.yaml
+      - |
+        kubectl -n runtime-pool create secret docker-registry ghcr-pull \
+          --docker-server=ghcr.io \
+          --docker-username={{.GHCR_USERNAME}} \
+          --docker-password={{.GHCR_TOKEN}} \
+          --docker-email={{.GHCR_EMAIL}} \
+          --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        kubectl -n runtime-pool create secret generic runtime-secrets \
+          --from-literal=DATABASE_URL="{{.DATABASE_URL}}" \
+          --from-literal=OPENROUTER_API_KEY="{{.OPENROUTER_API_KEY}}" \
+          --from-literal=RUNTIME_SHARED_TOKEN="{{.RUNTIME_SHARED_TOKEN}}" \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+  apply:
+    desc: Apply staging manifests
+    cmds:
+      - kubectl apply -k {{.STAGING_MANIFESTS}}
+
+  rollout:wait:
+    desc: Wait for all deployments to roll out
+    internal: true
+    cmds:
+      - kubectl -n runtime-pool rollout status deploy/control-plane --timeout=300s || true
+      - kubectl -n runtime-pool rollout status deploy/control-plane-provisioning-worker --timeout=300s || true
+      - kubectl -n runtime-pool rollout status deploy/control-plane-cleanup-worker --timeout=300s || true
+      - kubectl -n runtime-pool get deploy,pods,svc
+
+  build:cp:
+    desc: Build control-plane image
+    cmds:
+      - |
+        GIT_SHA="$(git rev-parse --short HEAD)" && \
+        BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+        IMAGE_BASE="{{.REGISTRY}}/{{.ORG}}/agent-failure-control-plane" && \
+        docker build \
+          -f apps/control_plane/Dockerfile \
+          -t "${IMAGE_BASE}:v1-control-plane-{{.CONTROL_PLANE_VERSION}}" \
+          -t "${IMAGE_BASE}:sha-${GIT_SHA}" \
+          --label org.opencontainers.image.source="agent-failure" \
+          --label org.opencontainers.image.revision="${GIT_SHA}" \
+          --label org.opencontainers.image.created="${BUILD_TS}" \
+          . && \
+        mkdir -p {{.ARTIFACT_DIR}} && \
+        cat > {{.ARTIFACT_DIR}}/control-plane-image-build.env <<ENVEOF
+        REGISTRY={{.REGISTRY}}
+        ORG={{.ORG}}
+        IMAGE_REPO=agent-failure-control-plane
+        CONTROL_PLANE_VERSION={{.CONTROL_PLANE_VERSION}}
+        GIT_SHA=${GIT_SHA}
+        BUILD_TS=${BUILD_TS}
+        IMAGE_BASE=${IMAGE_BASE}
+        IMAGE_VERSION=${IMAGE_BASE}:v1-control-plane-{{.CONTROL_PLANE_VERSION}}
+        IMAGE_SHA=${IMAGE_BASE}:sha-${GIT_SHA}
+        DOCKERFILE_PATH=apps/control_plane/Dockerfile
+        ENVEOF
+
+  build:runtime:
+    desc: Build runtime image
+    cmds:
+      - |
+        GIT_SHA="$(git rev-parse --short HEAD)" && \
+        BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+        IMAGE_BASE="{{.REGISTRY}}/{{.ORG}}/{{.RUNTIME_IMAGE_REPO}}" && \
+        docker build \
+          -f runtimes/{{.LAB_SLUG}}/Dockerfile \
+          -t "${IMAGE_BASE}:v1-{{.LAB_SLUG}}-{{.LAB_VERSION}}" \
+          -t "${IMAGE_BASE}:sha-${GIT_SHA}" \
+          --label org.opencontainers.image.source="agent-failure" \
+          --label org.opencontainers.image.revision="${GIT_SHA}" \
+          --label org.opencontainers.image.created="${BUILD_TS}" \
+          --label io.agent-failure.lab.slug="{{.LAB_SLUG}}" \
+          --label io.agent-failure.lab.version="{{.LAB_VERSION}}" \
+          . && \
+        mkdir -p {{.ARTIFACT_DIR}} && \
+        cat > {{.ARTIFACT_DIR}}/runtime-image-build.env <<ENVEOF
+        REGISTRY={{.REGISTRY}}
+        ORG={{.ORG}}
+        IMAGE_REPO={{.RUNTIME_IMAGE_REPO}}
+        LAB_SLUG={{.LAB_SLUG}}
+        LAB_VERSION={{.LAB_VERSION}}
+        GIT_SHA=${GIT_SHA}
+        BUILD_TS=${BUILD_TS}
+        IMAGE_BASE=${IMAGE_BASE}
+        IMAGE_VERSION=${IMAGE_BASE}:v1-{{.LAB_SLUG}}-{{.LAB_VERSION}}
+        IMAGE_SHA=${IMAGE_BASE}:sha-${GIT_SHA}
+        DOCKERFILE_PATH=runtimes/{{.LAB_SLUG}}/Dockerfile
+        ENVEOF
+
+  push:cp:
+    desc: Push control-plane image and pin digest
+    preconditions:
+      - sh: test -f {{.ARTIFACT_DIR}}/control-plane-image-build.env
+        msg: "Run 'task build:cp' first"
+    cmds:
+      - |
+        source {{.ARTIFACT_DIR}}/control-plane-image-build.env && \
+        docker push "${IMAGE_VERSION}" && \
+        docker push "${IMAGE_SHA}" && \
+        DIGEST="$(docker buildx imagetools inspect "${IMAGE_SHA}" --format '{{`{{json .Manifest.Digest}}`}}' | tr -d '"')" && \
+        DIGEST_REF="${IMAGE_BASE}@${DIGEST}" && \
+        cat > {{.ARTIFACT_DIR}}/control-plane-image-release.env <<ENVEOF
+        IMAGE_BASE=${IMAGE_BASE}
+        IMAGE_VERSION=${IMAGE_VERSION}
+        IMAGE_SHA=${IMAGE_SHA}
+        IMAGE_DIGEST_REF=${DIGEST_REF}
+        CONTROL_PLANE_VERSION=${CONTROL_PLANE_VERSION}
+        GIT_SHA=${GIT_SHA}
+        BUILD_TS=${BUILD_TS}
+        PUSHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        ENVEOF
+        echo "Pushed: ${DIGEST_REF}"
+
+  push:runtime:
+    desc: Push runtime image, update lock, and validate
+    preconditions:
+      - sh: test -f {{.ARTIFACT_DIR}}/runtime-image-build.env
+        msg: "Run 'task build:runtime' first"
+    cmds:
+      - |
+        source {{.ARTIFACT_DIR}}/runtime-image-build.env && \
+        docker push "${IMAGE_VERSION}" && \
+        docker push "${IMAGE_SHA}" && \
+        DIGEST="$(docker buildx imagetools inspect "${IMAGE_SHA}" --format '{{`{{json .Manifest.Digest}}`}}' | tr -d '"')" && \
+        DIGEST_REF="${IMAGE_BASE}@${DIGEST}" && \
+        cat > {{.ARTIFACT_DIR}}/runtime-image-release.env <<ENVEOF
+        IMAGE_BASE=${IMAGE_BASE}
+        IMAGE_VERSION=${IMAGE_VERSION}
+        IMAGE_SHA=${IMAGE_SHA}
+        IMAGE_DIGEST_REF=${DIGEST_REF}
+        LAB_SLUG=${LAB_SLUG}
+        LAB_VERSION=${LAB_VERSION}
+        GIT_SHA=${GIT_SHA}
+        BUILD_TS=${BUILD_TS}
+        PUSHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        ENVEOF
+        echo "Pushed: ${DIGEST_REF}"
+      - task: lock:update
+      - task: lock:validate
+
+  lock:update:
+    desc: Update runtime-image.lock from latest release artifact
+    internal: true
+    preconditions:
+      - sh: test -f {{.ARTIFACT_DIR}}/runtime-image-release.env
+        msg: "Run 'task push:runtime' first"
+    cmds:
+      - |
+        source {{.ARTIFACT_DIR}}/runtime-image-release.env && \
+        .task/update_runtime_lock.sh \
+          "{{.STAGING_MANIFESTS}}/runtime-image.lock" \
+          "${IMAGE_BASE}" \
+          "${IMAGE_DIGEST_REF}" \
+          "${GIT_SHA}" \
+          "${BUILD_TS}" \
+          "{{.AGENT_TARGET_LABS}}"
+
+  lock:validate:
+    desc: Validate runtime image lock entries
+    cmds:
+      - .task/validate_runtime_lock.sh "{{.STAGING_MANIFESTS}}/runtime-image.lock" "{{.AGENT_TARGET_LABS}}"
+
+  release:
+    desc: Full release - build + push runtime + control-plane, update kustomization, deploy
+    cmds:
+      - task: build:runtime
+      - task: push:runtime
+      - task: build:cp
+      - task: push:cp
+      - task: release:update-kustomization
+      - task: apply
+      - kubectl rollout status deploy/control-plane -n runtime-pool --timeout=300s
+      - echo "Release complete."
+
+  release:update-kustomization:
+    desc: Update kustomization.yaml with latest control-plane digest
+    internal: true
+    preconditions:
+      - sh: test -f {{.ARTIFACT_DIR}}/control-plane-image-release.env
+        msg: "Run 'task push:cp' first"
+    cmds:
+      - |
+        source {{.ARTIFACT_DIR}}/control-plane-image-release.env && \
+        NEW_DIGEST="${IMAGE_DIGEST_REF##*@}" && \
+        .task/update_kustomization_digest.sh \
+          "{{.STAGING_MANIFESTS}}/kustomization.yaml" \
+          "{{.CONTROL_PLANE_IMAGE}}" \
+          "${NEW_DIGEST}"
+
+  release:render:
+    desc: Build/push control-plane and trigger Render deploys (legacy)
+    requires:
+      vars:
+        - RENDER_API_KEY
+        - RENDER_CONTROL_PLANE_SERVICE_ID
+        - RENDER_EVALUATOR_WORKER_SERVICE_ID
+        - RENDER_PROVISIONING_WORKER_SERVICE_ID
+        - RENDER_CLEANUP_WORKER_SERVICE_ID
+        - RENDER_SESSION_OBJECTIVE_COMPLETED_WORKER_SERVICE_ID
+        - RENDER_SESSION_HINT_UNLOCK_WORKER_SERVICE_ID
+        - RENDER_SESSION_COMPLETED_WORKER_SERVICE_ID
+        - RENDER_SESSION_FEEDBACK_CREATED_WORKER_SERVICE_ID
+    cmds:
+      - task: build:cp
+      - task: push:cp
+      - uv run alembic upgrade head
+      - |
+        RENDER_API_BASE_URL="https://api.render.com/v1"
+        for svc in \
+          "RENDER_CONTROL_PLANE_SERVICE_ID:control-plane" \
+          "RENDER_EVALUATOR_WORKER_SERVICE_ID:evaluator-worker" \
+          "RENDER_PROVISIONING_WORKER_SERVICE_ID:provisioning-worker" \
+          "RENDER_CLEANUP_WORKER_SERVICE_ID:cleanup-worker" \
+          "RENDER_SESSION_OBJECTIVE_COMPLETED_WORKER_SERVICE_ID:session-objective-completed-worker" \
+          "RENDER_SESSION_HINT_UNLOCK_WORKER_SERVICE_ID:session-hint-unlock-worker" \
+          "RENDER_SESSION_COMPLETED_WORKER_SERVICE_ID:session-completed-worker" \
+          "RENDER_SESSION_FEEDBACK_CREATED_WORKER_SERVICE_ID:session-feedback-created-worker"; do
+          service_id_var="${svc%%:*}"
+          label="${svc##*:}"
+          service_id="${!service_id_var}"
+          response="$(curl -sS -X POST \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Accept: application/json" \
+            "${RENDER_API_BASE_URL}/services/${service_id}/deploys" \
+            -w $'\n%{http_code}')"
+          http_code="$(echo "${response}" | tail -n 1)"
+          if [[ "${http_code}" != "200" && "${http_code}" != "201" ]]; then
+            echo "Deploy failed for ${label} (status=${http_code})" >&2
+            exit 1
+          fi
+          echo "Triggered ${label}"
+        done
+      - echo "Render release complete."

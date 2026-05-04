@@ -45,6 +45,7 @@ ENV/
 env.bak/
 venv.bak/
 deploy/vps/.env.prod
+deploy/vps/.env.kind
 
 # mypy
 .mypy_cache/

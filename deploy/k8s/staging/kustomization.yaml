@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - control-plane-config.yaml
   - control-plane-deployment.yaml
+  - control-plane-service.yaml
   - control-plane-provisioning-worker-deployment.yaml
   - control-plane-evaluator-worker-deployment.yaml
   - control-plane-cleanup-worker-deployment.yaml
@@ -14,4 +15,4 @@ resources:
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:f2f48349069e0e1a1e97c457595f3ac58594b3e0cb0ce7fa5af4a0d5f3e6630e
+    digest: sha256:2b32e750ccfdf9dabd45140eed03414e01a6aaa3c27144fa7716d3a5c4d7d6b4
