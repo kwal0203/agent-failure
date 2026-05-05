@@ -22,6 +22,12 @@ class RuntimePodEnvSettings:
     openrouter_api_key: str
 
 
+@dataclass(frozen=True)
+class AdmissionSettings:
+    max_sessions_per_user: int
+    max_sessions_global: int
+
+
 def _get_optional_str(name: str) -> str | None:
     value = os.getenv(name, "").strip()
     return value or None
@@ -55,6 +61,13 @@ def _get_int(name: str, *, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+def get_admission_settings() -> AdmissionSettings:
+    return AdmissionSettings(
+        max_sessions_per_user=_get_int("ADMISSION_MAX_SESSIONS_PER_USER", default=3),
+        max_sessions_global=_get_int("ADMISSION_MAX_SESSIONS_GLOBAL", default=20),
+    )
 
 
 def get_database_url() -> str:

@@ -31,7 +31,10 @@ from apps.control_plane.src.application.session_stream.ports import (
     SessionStreamManagerPort,
 )
 from apps.control_plane.src.infrastructure.policy.admission_policy import (
-    StubAdmissionPolicy,
+    ConcreteAdmissionPolicy,
+)
+from apps.control_plane.src.infrastructure.config.settings import (
+    get_admission_settings,
 )
 from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
     LocalTokenVerifier,
@@ -101,16 +104,15 @@ from apps.control_plane.src.infrastructure.config.settings import (
 )
 
 
-class AdmissionPolicyStub:
-    pass
-
-
 def get_ws_session_manager() -> SessionStreamManagerPort:
     return ws_manager
 
 
-def get_admission_policy() -> AdmissionPolicy:
-    return StubAdmissionPolicy()
+def get_admission_policy(
+    db: Session = Depends(get_db_session),
+) -> AdmissionPolicy:
+    settings = get_admission_settings()
+    return ConcreteAdmissionPolicy(db=db, settings=settings)
 
 
 def get_idempotency_store(
