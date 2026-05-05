@@ -36,9 +36,6 @@ from apps.control_plane.src.infrastructure.policy.admission_policy import (
 from apps.control_plane.src.infrastructure.config.settings import (
     get_admission_settings,
 )
-from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
-    LocalTokenVerifier,
-)
 from apps.control_plane.src.infrastructure.auth.cognito_jwt_verifier import (
     CognitoJwtVerifier,
 )
@@ -212,9 +209,7 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
 @lru_cache(maxsize=1)
 def get_token_verifier() -> TokenVerifierPort:
     config = get_auth_verifier_config()
-    if config.issuer and config.audience and config.jwks_uri:
-        return CognitoJwtVerifier(config=config)
-    return LocalTokenVerifier(config=config)
+    return CognitoJwtVerifier(config=config)
 
 
 def get_token_verifier_from_request(request: Request) -> TokenVerifierPort:

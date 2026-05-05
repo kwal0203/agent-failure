@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
 import SessionPage from "./SessionPage";
+import * as sessionUi from "./session/ui";
 
 vi.mock("../hooks/useSessionStream", () => ({
   useSessionStream: vi.fn(),
@@ -31,6 +32,7 @@ function renderSessionPage() {
 describe("SessionPage completion indicator", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.spyOn(sessionUi, "getAuthHeader").mockReturnValue("Bearer test-token");
     vi.mocked(useSessionStream).mockReturnValue({
       connectionState: "open",
       messages: [],

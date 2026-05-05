@@ -5,7 +5,9 @@ import AppShell from "./layout/AppShell";
 import AppHomePage from "./pages/app/AppHomePage";
 import HistoryPage from "./pages/HistoryPage";
 import LabsPage from "./pages/LabsPage";
+import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
+import SignupPage from "./pages/public/SignupPage";
 import SessionPage from "./pages/SessionPage";
 import TracePage from "./pages/TracePage";
 
@@ -17,6 +19,8 @@ export default function App() {
 
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
 
         <Route element={<ProtectedRoute />}>

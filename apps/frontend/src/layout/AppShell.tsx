@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/context";
 import type { ShellBootstrap } from "../shell/context";
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -19,6 +20,7 @@ const bootstrap: ShellBootstrap = {
 };
 
 export default function AppShell() {
+  const { logout } = useAuth();
   const currentYear = new Date().getFullYear();
   const isDebug = bootstrap.mode === "debug";
   const navigate = useNavigate();
@@ -135,6 +137,22 @@ export default function AppShell() {
               >
                 Learner: <strong>{bootstrap.learnerLabel}</strong>
               </div>
+              <button
+                type="button"
+                onClick={logout}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "7px 10px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  border: isDebug ? "1px solid #cfd8e3" : "1px solid #7a2f3a",
+                  background: isDebug ? "#ffffff" : "#3a1118",
+                  color: isDebug ? "#0f1724" : "#ffd7de",
+                }}
+              >
+                Log Out
+              </button>
             </div>
           )}
         </div>

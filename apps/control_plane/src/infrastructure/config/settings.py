@@ -101,10 +101,13 @@ def get_email_classifier_settings() -> EmailClassifierSettings:
 
 
 def get_auth_verifier_config() -> AuthVerifierConfig:
+    issuer = _require_str("AUTH_ISSUER")
+    audience = _require_str("AUTH_AUDIENCE")
+    jwks_uri = _require_str("AUTH_JWKS_URI")
     return AuthVerifierConfig(
-        issuer=_get_optional_str("AUTH_ISSUER") or "",
-        audience=_get_optional_str("AUTH_AUDIENCE") or "",
-        jwks_uri=_get_optional_str("AUTH_JWKS_URI") or "",
+        issuer=issuer,
+        audience=audience,
+        jwks_uri=jwks_uri,
         jwks_cache_ttl_seconds=_get_int("AUTH_JWKS_CACHE_TTL_SECONDS", default=300),
     )
 
