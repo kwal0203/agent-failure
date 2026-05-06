@@ -216,6 +216,32 @@ def process_pending_once(
                         provision_result.status == "accepted"
                         or provision_result.status == "ready"
                     ):
+                        if (
+                            provision_result.runtime_id is None
+                            or not provision_result.runtime_id.strip()
+                        ):
+                            uow.outbox.mark_terminal_failure(
+                                outbox_event_id=event.outbox_event_id,
+                                error_message="Provisioning failed: MISSING_RUNTIME_ID",
+                                failed_at=datetime.now(timezone.utc),
+                            )
+                            transition_session(
+                                session_id=session_id,
+                                trigger=Trigger.PROVISIONING_FAILED,
+                                actor="orchestrator_worker",
+                                metadata={
+                                    "outbox_event_id": str(outbox_event_id),
+                                    "reason_code": "MISSING_RUNTIME_ID",
+                                },
+                                idempotency_key=build_provisioning_failed_transition_idempotency_key(
+                                    session_id=session_id,
+                                    outbox_event_id=outbox_event_id,
+                                ),
+                                uow=uow.lifecycle_uow,
+                            )
+                            failed_count += 1
+                            continue
+
                         deadline = time.monotonic() + 30.0
                         is_ready = False
                         inspector_request = RuntimeInspectorRequest(
@@ -264,12 +290,16 @@ def process_pending_once(
                                 session_id=session_id,
                                 trigger=Trigger.PROVISIONING_SUCCEEDED,
                                 actor="orchestrator_worker",
-                                metadata={"outbox_event_id": str(outbox_event_id)},
+                                metadata={
+                                    "outbox_event_id": str(outbox_event_id),
+                                    "runtime_id": provision_result.runtime_id,
+                                },
                                 idempotency_key=build_provisioning_succeeded_transition_idempotency_key(
                                     session_id=session_id,
                                     outbox_event_id=outbox_event_id,
                                 ),
                                 uow=uow.lifecycle_uow,
+                                runtime_id=provision_result.runtime_id,
                             )
 
                             initialize_session_objectives(
@@ -710,6 +740,27 @@ def process_reconciliation_once(
             state = session.state
             runtime_id = session.runtime_id
             # runtime_substate = session.runtime_substate
+
+            if state == "ACTIVE" and (
+                runtime_id is None or not runtime_id.strip()
+            ):
+                transition_session(
+                    session_id=session_id,
+                    trigger=Trigger.RUNTIME_FAILED,
+                    actor="reconciliation_worker",
+                    metadata={
+                        "reconcile_reason": "MISSING_RUNTIME_ID",
+                        "reason_code": "MISSING_RUNTIME_ID",
+                        "state_before": state,
+                    },
+                    idempotency_key=build_reconcile_failed_runtime_transition_idempotency_key(
+                        session_id=session_id,
+                        state=state,
+                    ),
+                    uow=uow,
+                )
+                succeeded_count += 1
+                continue
 
             inspection_request = RuntimeInspectorRequest(
                 session_id=session_id, runtime_id=runtime_id

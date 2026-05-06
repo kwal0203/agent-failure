@@ -498,6 +498,55 @@ def test_process_pending_once_explicit_difficulty_propagates_to_runtime_request(
     assert provisioner.requests[0].lab_difficulty == "easy"
 
 
+def test_process_pending_once_missing_runtime_id_marks_terminal_and_transitions_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ev = _make_event(
+        payload={
+            "lab_id": str(uuid4()),
+            "lab_version_id": str(uuid4()),
+        }
+    )
+    outbox = _FakeOutbox(events=[ev])
+    uow = _FakeProcessPendingOnceUoW(outbox=outbox)
+    provisioner = _FakeProvisioner(
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id=None,
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
+    )
+    inspector = _FakeInspector(responses={})
+    resolver = _FakeResolver()
+
+    transition_calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        transition_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        orchestrator_service, "transition_session", _fake_transition_session
+    )
+
+    result = process_pending_once(
+        uow=uow,
+        image_resolver=resolver,
+        provisioner=provisioner,
+        runtime_inspector=inspector,
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 0
+    assert result.failed_count == 1
+    assert len(outbox.processed_calls) == 0
+    assert len(outbox.terminal_calls) == 1
+    assert outbox.terminal_calls[0].error_message == "Provisioning failed: MISSING_RUNTIME_ID"
+    assert len(transition_calls) == 1
+    assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
+    assert transition_calls[0]["session_id"] == ev.session_id
+
+
 def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transition(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

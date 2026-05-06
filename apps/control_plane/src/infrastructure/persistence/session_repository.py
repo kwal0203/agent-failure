@@ -110,17 +110,22 @@ class SQLAlchemySessionRepository(SessionRepository):
         to_state: SessionState,
         actor: str,
         reason: str | None,
+        runtime_id: str | None = None,
     ) -> None:
+        values: dict[str, object] = {
+            "state": to_state.value,
+            "last_transition_actor": actor,
+            "last_transition_reason": reason,
+        }
+        if runtime_id is not None:
+            values["runtime_id"] = runtime_id
+
         stmt = (
             update(SessionModel)
             .where(
                 SessionModel.id == session_id, SessionModel.state == from_state.value
             )
-            .values(
-                state=to_state.value,
-                last_transition_actor=actor,
-                last_transition_reason=reason,
-            )
+            .values(**values)
         )
 
         result = cast(CursorResult[object], self._db.execute(stmt))
