@@ -39,6 +39,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AUTH_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_ISSUER
+            - name: AUTH_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_AUDIENCE
+            - name: AUTH_JWKS_URI
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_JWKS_URI
       containers:
         - name: control-plane
           image: ghcr.io/kwal0203/agent-failure-control-plane
@@ -65,6 +80,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AUTH_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_ISSUER
+            - name: AUTH_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_AUDIENCE
+            - name: AUTH_JWKS_URI
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AUTH_JWKS_URI
           resources:
             requests:
               cpu: "250m"
