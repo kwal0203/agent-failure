@@ -286,3 +286,41 @@ def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
     assert result.failed_count == 0
     assert len(calls) == 1
     assert calls[0]["trigger"] == Trigger.RUNTIME_FAILED
+
+
+def test_process_reconciliation_once_active_with_missing_runtime_id_transitions_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="ACTIVE",
+        session_id=session_id,
+        runtime_id=None,
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector({})
+
+    calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        orchestrator_service, "transition_session", _fake_transition_session
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert len(calls) == 1
+    assert calls[0]["trigger"] == Trigger.RUNTIME_FAILED
+    assert calls[0]["metadata"]["reason_code"] == "MISSING_RUNTIME_ID"

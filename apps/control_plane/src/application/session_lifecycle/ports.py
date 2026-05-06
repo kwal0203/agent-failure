@@ -29,6 +29,7 @@ class SessionRepository(Protocol):
         to_state: SessionState,
         actor: str,
         reason: str | None,
+        runtime_id: str | None = None,
     ) -> None: ...
 
     def insert_transition_event(

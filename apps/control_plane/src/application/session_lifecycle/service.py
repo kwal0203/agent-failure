@@ -22,6 +22,7 @@ def transition_session(
     metadata: Mapping[str, object],
     idempotency_key: str,
     uow: UnitOfWork,
+    runtime_id: str | None = None,
 ) -> TransitionResult:
     with uow.transaction():
         ts = datetime.now(timezone.utc)
@@ -72,6 +73,7 @@ def transition_session(
             to_state=next_state,
             actor=actor,
             reason=None,
+            runtime_id=runtime_id,
         )
 
         # Enqueue transition to outbox
