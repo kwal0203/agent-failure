@@ -16,37 +16,6 @@ class UnauthenticatedError(Exception):
     pass
 
 
-def _is_gatech_email(value: str) -> bool:
-    candidate = value.strip().lower()
-    if not candidate or "@" not in candidate:
-        return False
-    return candidate.endswith("@gatech.edu")
-
-
-def _principal_email_from_claims_sub(claims: object) -> str | None:
-    sub = getattr(claims, "sub", "")
-    if not isinstance(sub, str):
-        return None
-    if not sub.startswith("local-user:"):
-        return None
-    username = sub.removeprefix("local-user:").strip()
-    if "@" in username:
-        return username
-    return None
-
-
-def _enforce_gatech_identity(claims: object) -> None:
-    email = getattr(claims, "email", None)
-    if isinstance(email, str) and _is_gatech_email(email):
-        return
-
-    derived_email = _principal_email_from_claims_sub(claims)
-    if derived_email and _is_gatech_email(derived_email):
-        return
-
-    raise UnauthenticatedError()
-
-
 def _extract_bearer_token(authorization: str) -> str:
     header_value = authorization.strip()
     if not header_value.startswith("Bearer "):
@@ -66,7 +35,6 @@ def _principal_from_token(token: str, verifier: TokenVerifierPort) -> PrincipalC
 
     try:
         claims = verifier.verify_access_token(token=token)
-        _enforce_gatech_identity(claims)
         return auth_claims_to_principal(claims)
     except (AuthTokenInvalidError, AuthTokenExpiredError):
         raise UnauthenticatedError()
