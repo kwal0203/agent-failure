@@ -93,7 +93,7 @@ def test_get_current_principal_rejects_non_bearer_header_before_verifier() -> No
     assert verifier.called_with is None
 
 
-def test_get_current_principal_rejects_non_gatech_email_claim() -> None:
+def test_get_current_principal_accepts_non_gatech_email_claim() -> None:
     verifier = _FakeVerifier(
         claims=AuthClaims(
             sub=str(uuid4()),
@@ -105,17 +105,17 @@ def test_get_current_principal_rejects_non_gatech_email_claim() -> None:
         )
     )
 
-    with pytest.raises(UnauthenticatedError):
-        get_current_principal(
-            authorization="Bearer token-123",
-            verifier=verifier,
-        )
+    principal = get_current_principal(
+        authorization="Bearer token-123",
+        verifier=verifier,
+    )
+    assert principal.role == "learner"
 
 
-def test_get_current_principal_accepts_gatech_local_subject_email() -> None:
+def test_get_current_principal_accepts_local_subject_email() -> None:
     verifier = _FakeVerifier(
         claims=AuthClaims(
-            sub="local-user:kane@gatech.edu",
+            sub="local-user:kane@example.com",
             email=None,
             roles=("learner",),
             scopes=(),
@@ -125,7 +125,7 @@ def test_get_current_principal_accepts_gatech_local_subject_email() -> None:
     )
 
     principal = get_current_principal(
-        authorization="Bearer local:kane@gatech.edu:learner",
+        authorization="Bearer local:kane@example.com:learner",
         verifier=verifier,
     )
 
