@@ -19,8 +19,32 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
         pod_name = runtime_id if runtime_id else f"session-{str(session_id)[:8]}"
         try:
             self._kubectl_delete(pod_name=pod_name)
+            verify = self._kubectl_get_pod(pod_name=pod_name)
+            if verify.returncode == 0:
+                return RuntimeTeardownResult(
+                    status="failed",
+                    reason_code="K8S_DELETE_VERIFICATION_FAILED",
+                    details={
+                        "pod_name": pod_name,
+                        "stdout": str(verify.stdout or ""),
+                        "stderr": str(verify.stderr or ""),
+                    },
+                )
+            verify_combined = f"{verify.stdout or ''}\n{verify.stderr or ''}".lower()
+            if "notfound" in verify_combined or "not found" in verify_combined:
+                return RuntimeTeardownResult(
+                    status="deleted",
+                    reason_code=None,
+                    details={"pod_name": pod_name},
+                )
             return RuntimeTeardownResult(
-                status="deleted", reason_code=None, details=None
+                status="failed",
+                reason_code="K8S_DELETE_VERIFICATION_UNKNOWN",
+                details={
+                    "pod_name": pod_name,
+                    "stdout": str(verify.stdout or ""),
+                    "stderr": str(verify.stderr or ""),
+                },
             )
         except subprocess.CalledProcessError as exc:
             stderr_text = str(exc.stderr or "")
@@ -56,8 +80,25 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
                 "delete",
                 "pod",
                 pod_name,
+                "--wait=true",
+                "--timeout=30s",
             ],
             check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def _kubectl_get_pod(self, pod_name: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                self._config.kubectl_bin,
+                "-n",
+                self._config.namespace,
+                "get",
+                "pod",
+                pod_name,
+            ],
+            check=False,
             capture_output=True,
             text=True,
         )
