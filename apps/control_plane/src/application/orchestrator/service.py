@@ -628,7 +628,9 @@ def process_cleanup_pending_once(
                         "attempt_count": attempt_count,
                     },
                 )
-                pod_name = runtime_id if runtime_id else f"session-{str(session_id)[:8]}"
+                pod_name = (
+                    runtime_id if runtime_id else f"session-{str(session_id)[:8]}"
+                )
 
                 try:
                     teardown_result = teardown.teardown(teardown_request)
@@ -642,6 +644,40 @@ def process_cleanup_pending_once(
                         teardown_result.details,
                     )
                     if teardown_result.status in {"already_gone", "deleted"}:
+                        pod_still_exists = False
+                        if hasattr(teardown, "pod_exists"):
+                            try:
+                                pod_still_exists = bool(
+                                    getattr(teardown, "pod_exists")(pod_name)
+                                )
+                            except Exception:
+                                pod_still_exists = True
+
+                        if pod_still_exists:
+                            if attempt_count < MAX_CLEANUP_ATTEMPTS:
+                                uow.outbox.mark_retryable_failure(
+                                    outbox_event_id=outbox_event_id,
+                                    error_message="CLEANUP_POD_STILL_EXISTS",
+                                    backoff_seconds=CLEANUP_BACKOFF_SECONDS,
+                                    failed_at=ts,
+                                )
+                                retried_count += 1
+                            else:
+                                uow.outbox.mark_terminal_failure(
+                                    outbox_event_id=outbox_event_id,
+                                    error_message="CLEANUP_POD_STILL_EXISTS",
+                                    failed_at=ts,
+                                )
+                                failed_count += 1
+                            logger.warning(
+                                "cleanup verification failed session_id=%s outbox_event_id=%s pod_name=%s attempt_count=%s reason=%s",
+                                str(session_id),
+                                str(outbox_event_id),
+                                pod_name,
+                                attempt_count,
+                                "CLEANUP_POD_STILL_EXISTS",
+                            )
+                            continue
                         uow.outbox.mark_processed(
                             outbox_event_id=outbox_event_id, processed_at=ts
                         )
@@ -741,9 +777,7 @@ def process_reconciliation_once(
             runtime_id = session.runtime_id
             # runtime_substate = session.runtime_substate
 
-            if state == "ACTIVE" and (
-                runtime_id is None or not runtime_id.strip()
-            ):
+            if state == "ACTIVE" and (runtime_id is None or not runtime_id.strip()):
                 transition_session(
                     session_id=session_id,
                     trigger=Trigger.RUNTIME_FAILED,

@@ -102,3 +102,7 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
             capture_output=True,
             text=True,
         )
+
+    def pod_exists(self, pod_name: str) -> bool:
+        result = self._kubectl_get_pod(pod_name=pod_name)
+        return result.returncode == 0

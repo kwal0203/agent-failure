@@ -119,9 +119,11 @@ class _FakeTeardown:
         *,
         result: RuntimeTeardownResult | None = None,
         raises: Exception | None = None,
+        pod_exists: bool | None = None,
     ) -> None:
         self._result = result
         self._raises = raises
+        self._pod_exists = pod_exists
         self.requests: list[RuntimeTeardownRequest] = []
 
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult:
@@ -131,6 +133,10 @@ class _FakeTeardown:
         if self._result is None:
             raise RuntimeError("fake teardown missing result")
         return self._result
+
+    def pod_exists(self, pod_name: str) -> bool:
+        _ = pod_name
+        return bool(self._pod_exists)
 
 
 def _make_cleanup_event(
@@ -240,3 +246,23 @@ def test_process_cleanup_pending_once_invalid_payload_marks_terminal() -> None:
     assert len(outbox.retryable_calls) == 0
     assert len(outbox.terminal_calls) == 1
     assert len(teardown.requests) == 0
+
+
+def test_process_cleanup_pending_once_deleted_but_pod_still_exists_retries() -> None:
+    ev = _make_cleanup_event(payload={"runtime_id": "pod-1"}, attempt_count=0)
+    outbox = _FakeCleanupOutbox(events=[ev])
+    uow = _FakeCleanupUoW(outbox=outbox)
+    teardown = _FakeTeardown(
+        result=RuntimeTeardownResult(status="deleted"),
+        pod_exists=True,
+    )
+
+    result = process_cleanup_pending_once(uow=uow, teardown=teardown)
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 0
+    assert result.failed_count == 0
+    assert result.retried_count == 1
+    assert len(outbox.processed_calls) == 0
+    assert len(outbox.retryable_calls) == 1
+    assert outbox.retryable_calls[0].error_message == "CLEANUP_POD_STILL_EXISTS"
