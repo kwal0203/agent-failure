@@ -598,9 +598,19 @@ def process_cleanup_pending_once(
                         "attempt_count": attempt_count,
                     },
                 )
+                pod_name = runtime_id if runtime_id else f"session-{str(session_id)[:8]}"
 
                 try:
                     teardown_result = teardown.teardown(teardown_request)
+                    logger.info(
+                        "cleanup teardown result session_id=%s outbox_event_id=%s pod_name=%s status=%s reason_code=%s details=%s",
+                        str(session_id),
+                        str(outbox_event_id),
+                        pod_name,
+                        teardown_result.status,
+                        teardown_result.reason_code,
+                        teardown_result.details,
+                    )
                     if teardown_result.status in {"already_gone", "deleted"}:
                         uow.outbox.mark_processed(
                             outbox_event_id=outbox_event_id, processed_at=ts
@@ -632,8 +642,24 @@ def process_cleanup_pending_once(
                                 failed_at=ts,
                             )
                             failed_count += 1
+                        logger.warning(
+                            "cleanup teardown failed session_id=%s outbox_event_id=%s pod_name=%s attempt_count=%s reason=%s retryable=%s",
+                            str(session_id),
+                            str(outbox_event_id),
+                            pod_name,
+                            attempt_count,
+                            reason,
+                            reason in retryable_reasons,
+                        )
                 except Exception:
                     reason = "CLEANUP_TEARDOWN_EXCEPTION"
+                    logger.exception(
+                        "cleanup teardown exception session_id=%s outbox_event_id=%s pod_name=%s attempt_count=%s",
+                        str(session_id),
+                        str(outbox_event_id),
+                        pod_name,
+                        attempt_count,
+                    )
                     if attempt_count < MAX_CLEANUP_ATTEMPTS:
                         uow.outbox.mark_retryable_failure(
                             outbox_event_id=outbox_event_id,
