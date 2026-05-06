@@ -65,7 +65,10 @@ class K8sRuntimeInspector(RuntimeInspectorPort):
                                 break
 
             matched_runtime_ids = tuple(pod_names)
-            exists = len(matched_runtime_ids) > 0
+            if runtime_id and runtime_id.strip():
+                exists = runtime_id in matched_runtime_ids
+            else:
+                exists = len(matched_runtime_ids) > 0
             duplicate_count = max(0, len(matched_runtime_ids) - 1)
 
             return RuntimeInspectorResult(
