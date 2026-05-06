@@ -2,7 +2,7 @@
 set -euo pipefail
 
 NS="${NS:-runtime-pool}"
-API_BASE="${API_BASE:-http://127.0.0.1:30080}"
+API_BASE="${API_BASE:-http://127.0.0.1:18080}"
 LAB_ID="${LAB_ID:-44444444-4444-4444-4444-444444444444}"
 LAB_DIFFICULTY="${LAB_DIFFICULTY:-medium}"
 AUTH_HEADER="${AUTH_HEADER:-Bearer local:kane@gatech.edu:learner}"
@@ -41,6 +41,7 @@ fi
 
 echo "Namespace: $NS"
 echo "API_BASE: $API_BASE"
+echo "Tip: use API_BASE=http://127.0.0.1:30080 for staging NodePort checks."
 echo "LAB_ID: $LAB_ID"
 echo "Control-plane pod: $CP_POD"
 echo "pods=$PODS times=$TIMES"
