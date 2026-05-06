@@ -104,3 +104,33 @@ def test_transition_session_replay_is_idempotent() -> None:
         ).scalar_one()
         assert trace_event.family == "lifecycle"
         assert trace_event.event_type == "SESSION_TRANSITIONED"
+
+
+@pytest.mark.usefixtures("engine")
+def test_transition_session_provisioning_succeeded_requires_runtime_id() -> None:
+    session_id = uuid4()
+
+    with SessionFactory() as seed_db:
+        seed_db.add(
+            SessionModel(
+                id=session_id,
+                owner_user_id=uuid4(),
+                state=SessionState.PROVISIONING.value,
+                last_transition_actor="seed",
+                last_transition_reason=None,
+            )
+        )
+        seed_db.commit()
+
+    uow = SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+
+    with pytest.raises(ValueError, match="requires runtime_id"):
+        transition_session(
+            session_id=session_id,
+            trigger=Trigger.PROVISIONING_SUCCEEDED,
+            actor="system",
+            metadata={"outbox_event_id": str(uuid4())},
+            idempotency_key=str(uuid4()),
+            uow=uow,
+            runtime_id=None,
+        )

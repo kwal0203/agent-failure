@@ -24,6 +24,11 @@ def transition_session(
     uow: UnitOfWork,
     runtime_id: str | None = None,
 ) -> TransitionResult:
+    if trigger == Trigger.PROVISIONING_SUCCEEDED and (
+        runtime_id is None or not runtime_id.strip()
+    ):
+        raise ValueError("PROVISIONING_SUCCEEDED requires runtime_id")
+
     with uow.transaction():
         ts = datetime.now(timezone.utc)
 
