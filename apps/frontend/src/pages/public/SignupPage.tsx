@@ -1,54 +1,52 @@
-import { type CSSProperties, type FormEvent, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/context";
 
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  padding: "32px 20px",
-  color: "#d7f5ff",
-  background:
-    "radial-gradient(900px 560px at 10% -4%, rgba(0, 230, 255, 0.16), transparent 52%), radial-gradient(700px 440px at 92% -4%, rgba(28, 160, 255, 0.18), transparent 52%), linear-gradient(180deg, #040b14 0%, #071321 52%, #081726 100%)",
+  padding: "24px",
+  boxSizing: "border-box",
+  display: "grid",
+  placeItems: "center",
+  color: "#d7ffd7",
+  background: "#040704",
+  fontFamily: "'Share Tech Mono', 'Fira Code', 'Courier New', monospace",
 };
 
 const formCardStyle: CSSProperties = {
-  maxWidth: 480,
-  margin: "0 auto",
-  border: "1px solid #1f4564",
-  borderRadius: 14,
-  padding: 16,
-  background: "rgba(8, 27, 45, 0.78)",
-  backdropFilter: "blur(5px)",
-};
-
-const inputStyle: CSSProperties = {
-  border: "1px solid #2d5e80",
-  borderRadius: 8,
-  padding: "10px 11px",
-  background: "#0a2236",
-  color: "#e9fbff",
+  width: "min(440px, 92vw)",
+  border: "1px solid #1b5e20",
+  borderRadius: 10,
+  padding: 20,
+  background: "#0a120a",
 };
 
 export default function SignupPage() {
-  const { signup } = useAuth();
+  const { signup, confirmSignup } = useAuth();
   const navigate = useNavigate();
 
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const onSignup = async () => {
     if (!email.trim() || !password.trim()) {
       setError("Email and password are required.");
       return;
     }
-
     setSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       await signup(email, password);
-      navigate("/app", { replace: true });
+      setAwaitingConfirmation(true);
+      setSuccessMessage(
+        "Account created. Enter the confirmation code from your email.",
+      );
     } catch (error) {
       setError(error instanceof Error ? error.message : "Signup failed.");
     } finally {
@@ -56,36 +54,49 @@ export default function SignupPage() {
     }
   };
 
-  const emailError = !email.trim() ? "Email is required." : null;
-  const passwordError = !password.trim() ? "Password is required." : null;
+  const onConfirmSignup = async () => {
+    if (!email.trim() || !confirmationCode.trim()) {
+      setError("Email and confirmation code are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await confirmSignup(email, confirmationCode);
+      setSuccessMessage("Email confirmed. You can now log in.");
+      window.setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 600);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Confirmation failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <main style={pageStyle}>
       <section style={formCardStyle}>
-        <p style={{ margin: "0 0 8px", color: "#8ecfe4", letterSpacing: 0.25 }}>
-          Agent Failure Platform
-        </p>
-        <h1 style={{ margin: "0 0 8px", color: "#effcff" }}>Create Account</h1>
-        <p style={{ margin: "0 0 14px", color: "#b5dfec" }}>
-          Create your account to access labs and session history.
-        </p>
-
-        <form
-          onSubmit={onSubmit}
-          style={{ display: "grid", gap: 10 }}
-          noValidate
-        >
+        <h1 style={{ margin: "0 0 8px", color: "#8bff8f", fontSize: 32 }}>
+          Create Account
+        </h1>
+        <div style={{ display: "grid", gap: 10 }}>
           <label htmlFor="signup-email">Email</label>
           <input
             id="signup-email"
+            type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
-            inputMode="email"
-            aria-invalid={emailError ? true : undefined}
-            style={inputStyle}
+            style={{
+              border: "1px solid #2e7d32",
+              borderRadius: 6,
+              padding: "10px 11px",
+              background: "#000",
+              color: "#d7ffd7",
+            }}
           />
-
           <label htmlFor="signup-password">Password</label>
           <input
             id="signup-password"
@@ -93,35 +104,69 @@ export default function SignupPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
-            aria-invalid={passwordError ? true : undefined}
-            style={inputStyle}
+            style={{
+              border: "1px solid #2e7d32",
+              borderRadius: 6,
+              padding: "10px 11px",
+              background: "#000",
+              color: "#d7ffd7",
+            }}
           />
-
+          {awaitingConfirmation ? (
+            <>
+              <label htmlFor="signup-confirm-code">Confirmation Code</label>
+              <input
+                id="signup-confirm-code"
+                value={confirmationCode}
+                onChange={(event) => setConfirmationCode(event.target.value)}
+                autoComplete="one-time-code"
+                style={{
+                  border: "1px solid #2e7d32",
+                  borderRadius: 6,
+                  padding: "10px 11px",
+                  background: "#000",
+                  color: "#d7ffd7",
+                }}
+              />
+            </>
+          ) : null}
+          {successMessage ? (
+            <p style={{ margin: 0, color: "#9ee8b2", fontSize: 13 }}>
+              {successMessage}
+            </p>
+          ) : null}
           {error ? (
             <p style={{ margin: 0, color: "#ffc4cf", fontSize: 13 }}>{error}</p>
           ) : null}
 
           <button
-            type="submit"
+            type="button"
+            onClick={() =>
+              void (awaitingConfirmation ? onConfirmSignup() : onSignup())
+            }
             disabled={submitting}
             style={{
-              border: "1px solid #2b6f98",
-              background: submitting ? "#24445b" : "#0f3b5d",
-              color: "#dcf9ff",
-              borderRadius: 9,
+              fontFamily: "inherit",
+              fontSize: 16,
+              lineHeight: 1.2,
+              border: "1px solid #2e7d32",
+              background: submitting ? "#1f3321" : "#102810",
+              color: "#b6ffb9",
+              borderRadius: 6,
               padding: "10px 12px",
               fontWeight: 700,
               cursor: submitting ? "default" : "pointer",
             }}
           >
-            {submitting ? "Creating account..." : "Create Account"}
+            {submitting
+              ? "Submitting..."
+              : awaitingConfirmation
+                ? "Confirm Email"
+                : "Create Account with Email"}
           </button>
-        </form>
-        <p style={{ marginTop: 12, color: "#b5dfec" }}>
+        </div>
+        <p style={{ marginTop: 12, color: "#b6d8b7", fontSize: 13 }}>
           Already have an account? <Link to="/login">Log in</Link>
-        </p>
-        <p style={{ marginTop: 8, color: "#b5dfec" }}>
-          <Link to="/">Back to Home</Link>
         </p>
       </section>
     </main>

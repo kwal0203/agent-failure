@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from urllib.parse import urlparse
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -16,6 +17,8 @@ import os
 import pytest
 
 from dotenv import load_dotenv
+from apps.control_plane.src.application.auth.errors import AuthTokenInvalidError
+from apps.control_plane.src.application.auth.types import AuthClaims
 
 load_dotenv()
 
@@ -40,6 +43,53 @@ def _get_test_database_url() -> str:
 
 
 os.environ["DATABASE_URL"] = _get_test_database_url()
+
+
+class _LocalTestTokenVerifier:
+    """Test-only verifier that preserves legacy local:<username>[:role] tokens."""
+
+    def verify_access_token(self, token: str) -> AuthClaims:
+        if not token.startswith("local:"):
+            raise AuthTokenInvalidError()
+
+        payload = token.removeprefix("local:").strip()
+        if not payload:
+            raise AuthTokenInvalidError()
+
+        parts = [part.strip() for part in payload.split(":") if part.strip()]
+        if not parts:
+            raise AuthTokenInvalidError()
+
+        username = parts[0]
+        role = parts[1] if len(parts) > 1 else "learner"
+        email = username if "@" in username else f"{username}@gatech.edu"
+
+        return AuthClaims(
+            sub=f"local-user:{username}",
+            email=email,
+            roles=(role,),
+            scopes=(),
+            issued_at=datetime.now(timezone.utc),
+            expires_at=None,
+        )
+
+
+@pytest.fixture(autouse=True)
+def _install_test_token_verifier() -> Generator[None, None, None]:
+    from apps.control_plane.src.interfaces.http.main import app
+
+    previous = getattr(app.state, "token_verifier", None)
+    app.state.token_verifier = _LocalTestTokenVerifier()
+    try:
+        yield
+    finally:
+        if previous is None:
+            try:
+                delattr(app.state, "token_verifier")
+            except AttributeError:
+                pass
+        else:
+            app.state.token_verifier = previous
 
 
 @pytest.fixture

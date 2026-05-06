@@ -36,11 +36,11 @@ from apps.control_plane.src.infrastructure.policy.admission_policy import (
 from apps.control_plane.src.infrastructure.config.settings import (
     get_admission_settings,
 )
-from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
-    LocalTokenVerifier,
-)
 from apps.control_plane.src.infrastructure.auth.cognito_jwt_verifier import (
     CognitoJwtVerifier,
+)
+from apps.control_plane.src.infrastructure.auth.local_token_verifier import (
+    LocalTokenVerifier,
 )
 from apps.control_plane.src.infrastructure.auth.types import AuthVerifierConfig
 from apps.control_plane.src.infrastructure.persistence.lab_repository import (

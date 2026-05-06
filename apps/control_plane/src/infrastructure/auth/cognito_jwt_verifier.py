@@ -42,6 +42,8 @@ class CognitoAccessClaims(BaseModel):
     exp: int
     iat: int
     iss: str
+    aud: str | list[str] | None = None
+    client_id: str | None = None
     email: str | None = None
     token_use: str | None = None
     scope: str | None = None
@@ -70,9 +72,11 @@ class CognitoJwtVerifier(TokenVerifierPort):
                 normalized,
                 signing_key,
                 algorithms=["RS256"],
-                audience=self._config.audience,
                 issuer=self._config.issuer,
-                options={"require": ["sub", "exp", "iat", "iss"]},
+                options={
+                    "require": ["sub", "exp", "iat", "iss"],
+                    "verify_aud": False,
+                },
             )
             claims = CognitoAccessClaims.model_validate(payload_raw)
         except ValidationError as exc:
@@ -87,6 +91,7 @@ class CognitoJwtVerifier(TokenVerifierPort):
         token_use = (claims.token_use or "").strip().lower()
         if token_use and token_use != "access":
             raise AuthTokenInvalidError(code="AUTH_TOKEN_WRONG_USE")
+        _validate_client_binding(claims=claims, expected=self._config.audience)
 
         iat = _to_datetime_or_none(claims.iat)
         exp = _to_datetime_or_none(claims.exp)
@@ -195,3 +200,24 @@ def _extract_scopes(claims: CognitoAccessClaims) -> tuple[str, ...]:
     if scope_raw is None or not scope_raw.strip():
         return ()
     return tuple(part.strip() for part in scope_raw.split(" ") if part.strip())
+
+
+def _validate_client_binding(claims: CognitoAccessClaims, expected: str) -> None:
+    expected_normalized = expected.strip()
+    if not expected_normalized:
+        return
+
+    if isinstance(claims.aud, str) and claims.aud.strip() == expected_normalized:
+        return
+    if isinstance(claims.aud, list):
+        for item in claims.aud:
+            if isinstance(item, str) and item.strip() == expected_normalized:
+                return
+
+    if (
+        isinstance(claims.client_id, str)
+        and claims.client_id.strip() == expected_normalized
+    ):
+        return
+
+    raise AuthTokenInvalidError(code="AUTH_TOKEN_INVALID_AUDIENCE")
