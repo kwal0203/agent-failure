@@ -35,8 +35,8 @@ if [[ -z "$ctx" ]]; then
 fi
 
 echo "Context: $ctx"
-if [[ "$ctx" == k3d-* ]]; then
-  echo "[WARN] current context looks like dev (k3d). You probably want staging context."
+if [[ "$ctx" == "default" || "$ctx" == *"dev"* || "$ctx" == *"local"* ]]; then
+  echo "[WARN] current context looks like local dev. You probably want the remote staging context."
 fi
 
 echo ""
