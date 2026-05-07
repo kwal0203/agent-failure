@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/name: control-plane-session-feedback-created-worker
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: control-plane-session-feedback-created-worker
@@ -33,10 +38,10 @@ spec:
                   key: DATABASE_URL
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "96Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "300m"
+              memory: "512Mi"
       imagePullSecrets:
         - name: ghcr-pull

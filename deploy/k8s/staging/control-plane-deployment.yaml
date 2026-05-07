@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/name: control-plane
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: control-plane
@@ -97,11 +102,11 @@ spec:
                   key: AUTH_JWKS_URI
           resources:
             requests:
-              cpu: "250m"
-              memory: "256Mi"
+              cpu: "150m"
+              memory: "192Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "600m"
+              memory: "768Mi"
           readinessProbe:
             httpGet:
               path: /healthz
