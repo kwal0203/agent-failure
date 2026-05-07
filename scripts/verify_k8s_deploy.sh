@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Non-destructive staging verification helper.
+# Non-destructive Kubernetes deployment verification helper.
 # Checks:
 # 1) context sanity
 # 2) Flux kustomization readiness (if flux CLI exists)
 # 3) rollout status of core deployments
 # 4) control-plane /healthz
-# 5) optional smoke roundtrip against staging API
+# 5) optional smoke roundtrip against API
 
 NS="${NS:-runtime-pool}"
 FLUX_NS="${FLUX_NS:-flux-system}"
@@ -77,12 +77,12 @@ done
 
 echo ""
 echo "[4/5] Control-plane health"
-health_code="$(curl -sS -o /tmp/staging_healthz.out -w '%{http_code}' "$API_BASE/healthz" || true)"
+health_code="$(curl -sS -o /tmp/k8s_healthz.out -w '%{http_code}' "$API_BASE/healthz" || true)"
 if [[ "$health_code" != "200" ]]; then
   echo "[FAIL] health check failed: $API_BASE/healthz (http=$health_code)"
-  if [[ -s /tmp/staging_healthz.out ]]; then
+  if [[ -s /tmp/k8s_healthz.out ]]; then
     echo "Response:"
-    cat /tmp/staging_healthz.out
+    cat /tmp/k8s_healthz.out
   fi
   exit 1
 fi
@@ -103,4 +103,4 @@ else
 fi
 
 echo ""
-echo "Staging verification: PASS"
+echo "K8s deployment verification: PASS"

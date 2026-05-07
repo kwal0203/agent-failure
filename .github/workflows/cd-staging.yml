@@ -177,7 +177,7 @@ jobs:
           fi
 
           for i in {1..30}; do
-            health_code="$(curl -sS -o /tmp/staging_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
+            health_code="$(curl -sS -o /tmp/k8s_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
             if [[ "${health_code}" == "200" ]]; then
               echo "Staging health check passed"
               exit 0
@@ -187,8 +187,8 @@ jobs:
           done
 
           echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
-          if [[ -s /tmp/staging_healthz.out ]]; then
-            cat /tmp/staging_healthz.out
+          if [[ -s /tmp/k8s_healthz.out ]]; then
+            cat /tmp/k8s_healthz.out
           fi
           exit 1
 
