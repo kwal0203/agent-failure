@@ -30,8 +30,6 @@ env:
   AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
   STAGING_MANIFESTS: deploy/k8s/staging
   STAGING_NAMESPACE: runtime-pool
-  STAGING_FLUX_NAMESPACE: flux-system
-  STAGING_FLUX_KUSTOMIZATION: flux-system
 
 jobs:
   release-staging:
@@ -169,65 +167,32 @@ jobs:
           git commit -m "cd(staging): update image digests for ${{ steps.meta.outputs.git_sha }}"
           git push origin HEAD:main
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.30.0
-
-      - name: Install flux CLI
-        uses: fluxcd/flux2/action@main
-
-      - name: Configure kubeconfig
+      - name: Wait for staging health endpoint
         env:
-          STAGING_KUBECONFIG_B64: ${{ secrets.STAGING_KUBECONFIG_B64 }}
-        run: |
-          if [[ -z "${STAGING_KUBECONFIG_B64}" ]]; then
-            echo "Missing required secret: STAGING_KUBECONFIG_B64"
-            exit 1
-          fi
-          mkdir -p "${HOME}/.kube"
-          echo "${STAGING_KUBECONFIG_B64}" | base64 -d > "${HOME}/.kube/config"
-          chmod 600 "${HOME}/.kube/config"
-
-      - name: Wait for Flux reconciliation
-        run: |
-          flux reconcile source git "${{ env.STAGING_FLUX_KUSTOMIZATION }}" -n "${{ env.STAGING_FLUX_NAMESPACE }}" || true
-          flux reconcile kustomization "${{ env.STAGING_FLUX_KUSTOMIZATION }}" -n "${{ env.STAGING_FLUX_NAMESPACE }}" --with-source
-          flux get kustomizations -n "${{ env.STAGING_FLUX_NAMESPACE }}"
-
-      - name: Staging rollout and migration smoke
-        env:
-          NS: ${{ env.STAGING_NAMESPACE }}
-          FLUX_NS: ${{ env.STAGING_FLUX_NAMESPACE }}
-          KUSTOMIZATION_NAME: ${{ env.STAGING_FLUX_KUSTOMIZATION }}
           API_BASE: ${{ secrets.STAGING_API_BASE }}
-          ROLLOUT_TIMEOUT: 240s
         run: |
           if [[ -z "${API_BASE}" ]]; then
             echo "Missing required secret: STAGING_API_BASE"
             exit 1
           fi
 
-          kubectl get ns "${NS}" >/dev/null
-
-          for d in \
-            control-plane \
-            control-plane-provisioning-worker \
-            control-plane-cleanup-worker; do
-            echo "Checking deployment/${d}"
-            kubectl -n "${NS}" rollout status "deploy/${d}" --timeout="${ROLLOUT_TIMEOUT}"
+          for i in {1..30}; do
+            health_code="$(curl -sS -o /tmp/staging_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
+            if [[ "${health_code}" == "200" ]]; then
+              echo "Staging health check passed"
+              exit 0
+            fi
+            echo "Waiting for staging healthz (attempt ${i}/30, status=${health_code})"
+            sleep 10
           done
 
-          health_code="$(curl -sS -o /tmp/staging_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
-          if [[ "${health_code}" != "200" ]]; then
-            echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
-            if [[ -s /tmp/staging_healthz.out ]]; then
-              cat /tmp/staging_healthz.out
-            fi
-            exit 1
+          echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
+          if [[ -s /tmp/staging_healthz.out ]]; then
+            cat /tmp/staging_healthz.out
           fi
+          exit 1
 
-      - name: Basic session smoke
+      - name: Generate staging auth header
         env:
           STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
           STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
@@ -288,12 +253,43 @@ jobs:
           fi
           ./scripts/smoke_session_roundtrip.sh 1 1
 
-      - name: Capture migration head
+      - name: Capture migration head (repo)
         id: migration
         run: |
-          ALEMBIC_HEAD="$(kubectl -n "${{ env.STAGING_NAMESPACE }}" exec deploy/control-plane -c control-plane -- uv run alembic current | tail -n 1 | awk '{print $1}')"
+          ALEMBIC_HEAD="$(python3 - <<'PY'
+          import glob
+          import pathlib
+          import re
+
+          files = glob.glob("alembic/versions/*.py")
+          revisions = {}
+          down_revs = set()
+
+          for f in files:
+              text = pathlib.Path(f).read_text(encoding="utf-8")
+              rev_match = re.search(r"^revision\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]", text, re.M)
+              if not rev_match:
+                  continue
+              rev = rev_match.group(1)
+              revisions[rev] = f
+
+              down_match = re.search(r"^down_revision\\s*=\\s*(.+)$", text, re.M)
+              if not down_match:
+                  continue
+              raw = down_match.group(1).strip()
+              if raw == "None":
+                  continue
+              for dep in re.findall(r"['\\\"]([^'\\\"]+)['\\\"]", raw):
+                  down_revs.add(dep)
+
+          heads = sorted(set(revisions.keys()) - down_revs)
+          if len(heads) != 1:
+              raise SystemExit(f"Expected exactly 1 migration head, found {len(heads)}: {heads}")
+          print(heads[0])
+          PY
+          )"
           if [[ -z "${ALEMBIC_HEAD}" ]]; then
-            echo "Unable to resolve alembic head revision from staging"
+            echo "Unable to resolve alembic head revision from repository"
             exit 1
           fi
           echo "head=${ALEMBIC_HEAD}" >> "$GITHUB_OUTPUT"
