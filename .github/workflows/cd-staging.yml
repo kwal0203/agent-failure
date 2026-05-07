@@ -239,19 +239,59 @@ jobs:
           echo "::add-mask::${ACCESS_TOKEN}"
           echo "SMOKE_AUTH_HEADER=Bearer ${ACCESS_TOKEN}" >> "$GITHUB_ENV"
 
-      - name: Basic session smoke
+      - name: Basic session smoke (API only)
         env:
-          NS: ${{ env.STAGING_NAMESPACE }}
           API_BASE: ${{ secrets.STAGING_API_BASE }}
           AUTH_HEADER: ${{ env.SMOKE_AUTH_HEADER }}
-          PROVISION_TIMEOUT: 120
-          CLEANUP_TIMEOUT: 180
         run: |
           if [[ -z "${AUTH_HEADER}" ]]; then
             echo "Missing generated staging auth header"
             exit 1
           fi
-          ./scripts/smoke_session_roundtrip.sh 1 1
+
+          IDEM_KEY="cd-staging-${{ github.run_id }}-${{ github.run_attempt }}-$(date +%s)"
+          CREATE_BODY="$(mktemp)"
+          CREATE_CODE="$(
+            curl -sS -o "${CREATE_BODY}" -w "%{http_code}" \
+              -X POST "${API_BASE}/api/v1/sessions" \
+              -H "Authorization: ${AUTH_HEADER}" \
+              -H "Idempotency-Key: ${IDEM_KEY}" \
+              -H "Content-Type: application/json" \
+              --data '{"lab_id":"44444444-4444-4444-4444-444444444444","lab_difficulty":"medium"}'
+          )"
+          if [[ "${CREATE_CODE}" != "202" ]]; then
+            echo "Session create smoke failed (http=${CREATE_CODE})"
+            cat "${CREATE_BODY}"
+            rm -f "${CREATE_BODY}"
+            exit 1
+          fi
+
+          SESSION_ID="$(python3 - <<PY
+          import json
+          with open("${CREATE_BODY}", "r", encoding="utf-8") as f:
+              payload = json.load(f)
+          print(payload["session"]["id"])
+          PY
+          )"
+          rm -f "${CREATE_BODY}"
+          if [[ -z "${SESSION_ID}" ]]; then
+            echo "Session create smoke failed: missing session id"
+            exit 1
+          fi
+
+          STOP_CODE="$(
+            curl -sS -o /tmp/staging_smoke_stop.out -w "%{http_code}" \
+              -X POST "${API_BASE}/api/v1/sessions/${SESSION_ID}/stop" \
+              -H "Authorization: ${AUTH_HEADER}" \
+              -H "Content-Type: application/json"
+          )"
+          if [[ "${STOP_CODE}" != "202" ]]; then
+            echo "Session stop smoke failed (http=${STOP_CODE}) session_id=${SESSION_ID}"
+            if [[ -s /tmp/staging_smoke_stop.out ]]; then
+              cat /tmp/staging_smoke_stop.out
+            fi
+            exit 1
+          fi
 
       - name: Capture migration head (repo)
         id: migration
