@@ -229,14 +229,61 @@ jobs:
 
       - name: Basic session smoke
         env:
+          STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
+          STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+          STAGING_COGNITO_CLIENT_ID: ${{ secrets.STAGING_COGNITO_CLIENT_ID }}
+          STAGING_COGNITO_USER_POOL_ID: ${{ secrets.STAGING_COGNITO_USER_POOL_ID }}
+        run: |
+          if [[ -z "${STAGING_TEST_EMAIL}" || -z "${STAGING_TEST_PASSWORD}" || -z "${STAGING_COGNITO_CLIENT_ID}" || -z "${STAGING_COGNITO_USER_POOL_ID}" ]]; then
+            echo "Missing required staging auth secrets: STAGING_TEST_EMAIL, STAGING_TEST_PASSWORD, STAGING_COGNITO_CLIENT_ID, STAGING_COGNITO_USER_POOL_ID"
+            exit 1
+          fi
+
+          STAGING_COGNITO_REGION="${STAGING_COGNITO_USER_POOL_ID%%_*}"
+          if [[ -z "${STAGING_COGNITO_REGION}" || "${STAGING_COGNITO_REGION}" == "${STAGING_COGNITO_USER_POOL_ID}" ]]; then
+            echo "Invalid STAGING_COGNITO_USER_POOL_ID format: expected <region>_<poolId>"
+            exit 1
+          fi
+
+          AUTH_PAYLOAD="$(curl -sS -X POST "https://cognito-idp.${STAGING_COGNITO_REGION}.amazonaws.com/" \
+            -H "Content-Type: application/x-amz-json-1.1" \
+            -H "X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth" \
+            --data "{\"AuthFlow\":\"USER_PASSWORD_AUTH\",\"ClientId\":\"${STAGING_COGNITO_CLIENT_ID}\",\"AuthParameters\":{\"USERNAME\":\"${STAGING_TEST_EMAIL}\",\"PASSWORD\":\"${STAGING_TEST_PASSWORD}\"}}")"
+          export AUTH_PAYLOAD
+
+          ACCESS_TOKEN="$(python3 - <<'PY'
+          import json, os, sys
+          payload = json.loads(os.environ["AUTH_PAYLOAD"])
+          auth = payload.get("AuthenticationResult") or {}
+          token = auth.get("AccessToken")
+          if not token:
+              challenge = payload.get("ChallengeName")
+              if challenge:
+                  print(f"Cognito returned challenge instead of token: {challenge}", file=sys.stderr)
+              else:
+                  print(f"Cognito auth failed payload: {payload}", file=sys.stderr)
+              raise SystemExit(1)
+          print(token)
+          PY
+          )"
+
+          if [[ -z "${ACCESS_TOKEN}" ]]; then
+            echo "Failed to resolve Cognito access token"
+            exit 1
+          fi
+          echo "::add-mask::${ACCESS_TOKEN}"
+          echo "SMOKE_AUTH_HEADER=Bearer ${ACCESS_TOKEN}" >> "$GITHUB_ENV"
+
+      - name: Basic session smoke
+        env:
           NS: ${{ env.STAGING_NAMESPACE }}
           API_BASE: ${{ secrets.STAGING_API_BASE }}
-          AUTH_HEADER: ${{ secrets.STAGING_AUTH_HEADER }}
+          AUTH_HEADER: ${{ env.SMOKE_AUTH_HEADER }}
           PROVISION_TIMEOUT: 120
           CLEANUP_TIMEOUT: 180
         run: |
           if [[ -z "${AUTH_HEADER}" ]]; then
-            echo "Missing required secret: STAGING_AUTH_HEADER"
+            echo "Missing generated staging auth header"
             exit 1
           fi
           ./scripts/smoke_session_roundtrip.sh 1 1
