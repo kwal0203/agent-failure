@@ -36,12 +36,11 @@ tasks:
         sh: date -u +%Y-%m-%dT%H:%M:%SZ
     cmds:
       - |
-        TOKEN="${GHCR_TOKEN_DEV:-${GHCR_TOKEN:-}}"
-        if [ -z "$TOKEN" ]; then
-          echo "Missing GHCR_TOKEN_DEV (or fallback GHCR_TOKEN)"
+        if [ -z "${GHCR_TOKEN:-}" ]; then
+          echo "Missing GHCR_TOKEN"
           exit 1
         fi
-        echo "$TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+        echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
       - |
         docker buildx build \
           --platform linux/amd64 \
@@ -128,6 +127,9 @@ tasks:
         - DATABASE_URL
         - OPENROUTER_API_KEY
         - RUNTIME_SHARED_TOKEN
+        - AUTH_ISSUER
+        - AUTH_AUDIENCE
+        - AUTH_JWKS_URI
     preconditions:
       - sh: command -v kubectl
         msg: "kubectl not found"
@@ -146,4 +148,7 @@ tasks:
           --from-literal=DATABASE_URL="{{.DATABASE_URL}}" \
           --from-literal=OPENROUTER_API_KEY="{{.OPENROUTER_API_KEY}}" \
           --from-literal=RUNTIME_SHARED_TOKEN="{{.RUNTIME_SHARED_TOKEN}}" \
+          --from-literal=AUTH_ISSUER="{{.AUTH_ISSUER}}" \
+          --from-literal=AUTH_AUDIENCE="{{.AUTH_AUDIENCE}}" \
+          --from-literal=AUTH_JWKS_URI="{{.AUTH_JWKS_URI}}" \
           --dry-run=client -o yaml | kubectl apply -f -

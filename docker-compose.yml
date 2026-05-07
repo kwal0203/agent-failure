@@ -5,13 +5,14 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: localdev
-      POSTGRES_DB: agent-failure
+      POSTGRES_DB: agent_failure
     volumes:
-        - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d agent-failure"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_failure"]
       interval: 5s
       timeout: 5s
       retries: 10
