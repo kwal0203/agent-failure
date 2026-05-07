@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import os
+from urllib.parse import urlparse
 
 from apps.control_plane.src.application.runtime.types import RuntimeClientConfig
 from apps.control_plane.src.infrastructure.auth.types import AuthVerifierConfig
@@ -74,6 +75,14 @@ def get_database_url() -> str:
     value = _get_optional_str("DATABASE_URL")
     if value is None:
         raise ValueError("DATABASE_URL environment variable not set.")
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").lower()
+    in_k8s = bool(_get_optional_str("KUBERNETES_SERVICE_HOST"))
+    if in_k8s and host in {"localhost", "127.0.0.1", "::1"}:
+        raise ValueError(
+            "Invalid DATABASE_URL for Kubernetes runtime: host resolves to localhost. "
+            "Use a reachable service hostname or external DB endpoint."
+        )
     return value
 
 
