@@ -6,6 +6,7 @@ resources:
   - control-plane-config.yaml
   - control-plane-deployment.yaml
   - control-plane-service.yaml
+  - control-plane-ingress.yaml
   - control-plane-provisioning-worker-deployment.yaml
   - control-plane-evaluator-worker-deployment.yaml
   - control-plane-cleanup-worker-deployment.yaml
