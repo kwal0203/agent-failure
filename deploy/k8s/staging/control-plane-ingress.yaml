@@ -3,8 +3,14 @@ kind: Ingress
 metadata:
   name: control-plane
   namespace: runtime-pool
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - api-staging.agentfailure.com
+      secretName: api-staging-tls
   rules:
     - host: api-staging.agentfailure.com
       http:
