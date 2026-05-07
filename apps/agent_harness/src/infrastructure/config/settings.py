@@ -25,9 +25,11 @@ def _required_env(name: str) -> str:
 
 def get_model_client_mode() -> ModelClientMode:
     mode = os.getenv("MODEL_CLIENT_MODE", "fake").strip().lower()
-    if mode == "gateway":
-        return "gateway"
-    return "fake"
+    if mode in {"fake", "gateway"}:
+        return cast(ModelClientMode, mode)
+    raise ValueError(
+        f"Invalid MODEL_CLIENT_MODE value '{mode}'. Expected one of: fake, gateway."
+    )
 
 
 def get_gateway_settings() -> GatewaySettings:
