@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - letsencrypt-clusterissuer.yaml
   - control-plane-worker-rbac.yaml
   - control-plane-config.yaml
   - control-plane-deployment.yaml
@@ -17,4 +18,4 @@ resources:
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:1be7668c66e44dd0865f82eb14a4dccfa39801b104f1246eaaccbfc45854232c
+    digest: sha256:4a77a4576c0820c73e0271bc192172d744c80861980af84950061bfb212ab4a0
