@@ -5,6 +5,7 @@ dotenv:
 
 vars:
   STAGING_MANIFESTS: deploy/k8s/staging
+  DEV_MANIFESTS: deploy/k8s/dev
 
 env:
   KUBECONFIG:
@@ -85,11 +86,93 @@ tasks:
           "${RT_DIGEST_REF}" \
           "{{.GIT_SHA}}" \
           "{{.BUILD_TS}}" \
-          "{{.AGENT_TARGET_LABS}}" && \
+          "{{.AGENT_TARGET_LABS}}" \
+          "staging" && \
         .task/validate_runtime_lock.sh \
           "{{.STAGING_MANIFESTS}}/runtime-image.lock" \
           "{{.AGENT_TARGET_LABS}}"
       - echo "Updated manifests for git sha {{.GIT_SHA}}"
+
+  cd:build-lock:dev:
+    desc: Build+push control-plane/runtime images and update dev image digests locally
+    requires:
+      vars:
+        - GHCR_USERNAME
+    preconditions:
+      - sh: command -v docker
+        msg: "docker not found"
+      - sh: command -v git
+        msg: "git not found"
+    vars:
+      REGISTRY: ghcr.io
+      ORG: kwal0203
+      CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+      CONTROL_PLANE_VERSION: "0.1.0"
+      RUNTIME_IMAGE_REPO: agent-failure-runtime-v1
+      LAB_SLUG: agent
+      LAB_VERSION: "0.1.0"
+      AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+      GIT_SHA:
+        sh: git rev-parse --short HEAD
+      BUILD_TS:
+        sh: date -u +%Y-%m-%dT%H:%M:%SZ
+    cmds:
+      - |
+        if [ -z "${GHCR_TOKEN:-}" ]; then
+          echo "Missing GHCR_TOKEN"
+          exit 1
+        fi
+        echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+      - |
+        docker buildx build \
+          --platform linux/amd64 \
+          --file apps/control_plane/Dockerfile \
+          --tag {{.CONTROL_PLANE_IMAGE}}:v1-control-plane-{{.CONTROL_PLANE_VERSION}} \
+          --tag {{.CONTROL_PLANE_IMAGE}}:sha-{{.GIT_SHA}} \
+          --label org.opencontainers.image.source=agent-failure \
+          --label org.opencontainers.image.revision={{.GIT_SHA}} \
+          --label org.opencontainers.image.created={{.BUILD_TS}} \
+          --push \
+          .
+      - |
+        docker buildx build \
+          --platform linux/amd64 \
+          --file runtimes/{{.LAB_SLUG}}/Dockerfile \
+          --tag {{.REGISTRY}}/{{.ORG}}/{{.RUNTIME_IMAGE_REPO}}:v1-{{.LAB_SLUG}}-{{.LAB_VERSION}} \
+          --tag {{.REGISTRY}}/{{.ORG}}/{{.RUNTIME_IMAGE_REPO}}:sha-{{.GIT_SHA}} \
+          --label org.opencontainers.image.source=agent-failure \
+          --label org.opencontainers.image.revision={{.GIT_SHA}} \
+          --label org.opencontainers.image.created={{.BUILD_TS}} \
+          --label io.agent-failure.lab.slug={{.LAB_SLUG}} \
+          --label io.agent-failure.lab.version={{.LAB_VERSION}} \
+          --push \
+          .
+      - |
+        CP_DIGEST="$(docker buildx imagetools inspect \
+          '{{.CONTROL_PLANE_IMAGE}}:sha-{{.GIT_SHA}}' \
+          --format '{{"{{json .Manifest.Digest}}"}}' | tr -d '"')" && \
+        .task/update_kustomization_digest.sh \
+          "{{.DEV_MANIFESTS}}/kustomization.yaml" \
+          "{{.CONTROL_PLANE_IMAGE}}" \
+          "${CP_DIGEST}"
+      - |
+        RT_IMAGE_BASE="{{.REGISTRY}}/{{.ORG}}/{{.RUNTIME_IMAGE_REPO}}" && \
+        RT_DIGEST="$(docker buildx imagetools inspect \
+          "${RT_IMAGE_BASE}:sha-{{.GIT_SHA}}" \
+          --format '{{"{{json .Manifest.Digest}}"}}' | tr -d '"')" && \
+        RT_DIGEST_REF="${RT_IMAGE_BASE}@${RT_DIGEST}" && \
+        .task/update_runtime_lock.sh \
+          "{{.DEV_MANIFESTS}}/runtime-image.lock" \
+          "${RT_IMAGE_BASE}" \
+          "${RT_DIGEST_REF}" \
+          "{{.GIT_SHA}}" \
+          "{{.BUILD_TS}}" \
+          "{{.AGENT_TARGET_LABS}}" \
+          "dev" && \
+        .task/validate_runtime_lock.sh \
+          "{{.DEV_MANIFESTS}}/runtime-image.lock" \
+          "{{.AGENT_TARGET_LABS}}"
+      - echo "Updated dev manifests for git sha {{.GIT_SHA}}"
 
   bootstrap:
     desc: Bootstrap k3s cluster with namespaces, secrets, and manifests

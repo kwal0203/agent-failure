@@ -7,6 +7,7 @@ IMAGE_DIGEST_REF="${3}"
 GIT_SHA="${4}"
 BUILD_TS="${5}"
 TARGET_LABS="${6}"
+LOCK_ENVIRONMENT="${7:-staging}"
 
 IMAGE_DIGEST="${IMAGE_DIGEST_REF##*@}"
 
@@ -29,7 +30,7 @@ cat > "${LOCK_FILE}" <<EOF
 apiVersion: agent-failure/v1alpha1
 kind: RuntimeImageLock
 metadata:
-  environment: staging
+  environment: ${LOCK_ENVIRONMENT}
 images:
 ${entry_blocks}
 EOF

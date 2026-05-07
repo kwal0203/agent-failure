@@ -5,3 +5,7 @@ resources:
   - ../base
   - namespaces.yaml
   - control-plane-ingress.yaml
+
+images:
+  - name: ghcr.io/kwal0203/agent-failure-control-plane
+    digest: sha256:9a84a8ed5c909d702955fefcbb4fa1cfe485e20e1cdf1a22a962257513bbdafd
