@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap runtime secrets + GHCR pull secret from a local .env file.
+# Bootstrap Kubernetes runtime secrets + GHCR pull secret from a local .env file.
 #
 # Required .env keys:
 #   DATABASE_URL
@@ -55,6 +55,7 @@ require_var GHCR_TOKEN
 require_var GHCR_EMAIL
 
 echo "Using namespace: $NS"
+
 kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
 
 echo "Applying runtime-secrets..."

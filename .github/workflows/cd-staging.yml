@@ -169,10 +169,10 @@ jobs:
 
       - name: Wait for staging health endpoint
         env:
-          API_BASE: ${{ secrets.STAGING_API_BASE }}
+          API_BASE: ${{ secrets.API_BASE }}
         run: |
           if [[ -z "${API_BASE}" ]]; then
-            echo "Missing required secret: STAGING_API_BASE"
+            echo "Missing required secret: API_BASE"
             exit 1
           fi
 
@@ -194,26 +194,26 @@ jobs:
 
       - name: Generate staging auth header
         env:
-          STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
-          STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
-          STAGING_COGNITO_CLIENT_ID: ${{ secrets.STAGING_COGNITO_CLIENT_ID }}
-          STAGING_COGNITO_USER_POOL_ID: ${{ secrets.STAGING_COGNITO_USER_POOL_ID }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
         run: |
-          if [[ -z "${STAGING_TEST_EMAIL}" || -z "${STAGING_TEST_PASSWORD}" || -z "${STAGING_COGNITO_CLIENT_ID}" || -z "${STAGING_COGNITO_USER_POOL_ID}" ]]; then
-            echo "Missing required staging auth secrets: STAGING_TEST_EMAIL, STAGING_TEST_PASSWORD, STAGING_COGNITO_CLIENT_ID, STAGING_COGNITO_USER_POOL_ID"
+          if [[ -z "${TEST_EMAIL}" || -z "${TEST_PASSWORD}" || -z "${COGNITO_CLIENT_ID}" || -z "${COGNITO_USER_POOL_ID}" ]]; then
+            echo "Missing required staging auth secrets: TEST_EMAIL, TEST_PASSWORD, COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID"
             exit 1
           fi
 
-          STAGING_COGNITO_REGION="${STAGING_COGNITO_USER_POOL_ID%%_*}"
-          if [[ -z "${STAGING_COGNITO_REGION}" || "${STAGING_COGNITO_REGION}" == "${STAGING_COGNITO_USER_POOL_ID}" ]]; then
-            echo "Invalid STAGING_COGNITO_USER_POOL_ID format: expected <region>_<poolId>"
+          COGNITO_REGION="${COGNITO_USER_POOL_ID%%_*}"
+          if [[ -z "${COGNITO_REGION}" || "${COGNITO_REGION}" == "${COGNITO_USER_POOL_ID}" ]]; then
+            echo "Invalid COGNITO_USER_POOL_ID format: expected <region>_<poolId>"
             exit 1
           fi
 
-          AUTH_PAYLOAD="$(curl -sS -X POST "https://cognito-idp.${STAGING_COGNITO_REGION}.amazonaws.com/" \
+          AUTH_PAYLOAD="$(curl -sS -X POST "https://cognito-idp.${COGNITO_REGION}.amazonaws.com/" \
             -H "Content-Type: application/x-amz-json-1.1" \
             -H "X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth" \
-            --data "{\"AuthFlow\":\"USER_PASSWORD_AUTH\",\"ClientId\":\"${STAGING_COGNITO_CLIENT_ID}\",\"AuthParameters\":{\"USERNAME\":\"${STAGING_TEST_EMAIL}\",\"PASSWORD\":\"${STAGING_TEST_PASSWORD}\"}}")"
+            --data "{\"AuthFlow\":\"USER_PASSWORD_AUTH\",\"ClientId\":\"${COGNITO_CLIENT_ID}\",\"AuthParameters\":{\"USERNAME\":\"${TEST_EMAIL}\",\"PASSWORD\":\"${TEST_PASSWORD}\"}}")"
           export AUTH_PAYLOAD
 
           ACCESS_TOKEN="$(python3 - <<'PY'
@@ -241,7 +241,7 @@ jobs:
 
       - name: Basic session smoke (API only)
         env:
-          API_BASE: ${{ secrets.STAGING_API_BASE }}
+          API_BASE: ${{ secrets.API_BASE }}
           AUTH_HEADER: ${{ env.SMOKE_AUTH_HEADER }}
         run: |
           if [[ -z "${AUTH_HEADER}" ]]; then
