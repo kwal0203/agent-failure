@@ -1,0 +1,137 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      control_plane_digest:
+        description: "Control-plane digest (sha256:...)"
+        required: true
+        type: string
+      runtime_digest:
+        description: "Runtime digest (sha256:...)"
+        required: true
+        type: string
+      reason:
+        description: "Optional rollback reason"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rollback-production-main
+  cancel-in-progress: false
+
+env:
+  CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+  PRODUCTION_MANIFESTS: deploy/k8s/production
+  RUNTIME_IMAGE_BASE: ghcr.io/kwal0203/agent-failure-runtime-v1
+  AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+
+jobs:
+  rollback-production:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate digests
+        run: |
+          cp='${{ inputs.control_plane_digest }}'
+          rt='${{ inputs.runtime_digest }}'
+
+          if ! [[ "$cp" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid control_plane_digest: $cp"
+            exit 1
+          fi
+          if ! [[ "$rt" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid runtime_digest: $rt"
+            exit 1
+          fi
+
+      - name: Apply rollback digests
+        id: patch
+        env:
+          CP_DIGEST: ${{ inputs.control_plane_digest }}
+          RT_DIGEST: ${{ inputs.runtime_digest }}
+        run: |
+          BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          GIT_SHA="$(git rev-parse --short HEAD)"
+          RUNTIME_REF="${RUNTIME_IMAGE_BASE}@${RT_DIGEST}"
+
+          .task/update_kustomization_digest.sh \
+            "${PRODUCTION_MANIFESTS}/kustomization.yaml" \
+            "${CONTROL_PLANE_IMAGE}" \
+            "${CP_DIGEST}"
+
+          .task/update_runtime_lock.sh \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
+            "${RUNTIME_IMAGE_BASE}" \
+            "${RUNTIME_REF}" \
+            "${GIT_SHA}" \
+            "${BUILD_TS}" \
+            "${AGENT_TARGET_LABS}" \
+            "production"
+
+          .task/validate_runtime_lock.sh \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
+            "${AGENT_TARGET_LABS}"
+
+          {
+            echo "cp=${CP_DIGEST}"
+            echo "rt=${RT_DIGEST}"
+            echo "runtime_ref=${RUNTIME_REF}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push rollback
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            "${PRODUCTION_MANIFESTS}/kustomization.yaml" \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock"
+
+          if git diff --cached --quiet; then
+            echo "No production manifest changes detected; requested rollback digests already active."
+            exit 0
+          fi
+
+          msg="rollback(production): cp=${{ steps.patch.outputs.cp }} rt=${{ steps.patch.outputs.rt }}"
+          if [[ -n "${{ inputs.reason }}" ]]; then
+            msg+=" | reason: ${{ inputs.reason }}"
+          fi
+
+          git commit -m "$msg"
+          git push origin HEAD:main
+
+      - name: Wait for production health endpoint
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+        run: |
+          if [[ -z "${API_BASE}" ]]; then
+            echo "Missing required production secret: API_BASE"
+            exit 1
+          fi
+
+          for i in {1..30}; do
+            health_code="$(curl -sS -o /tmp/rollback_production_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
+            if [[ "${health_code}" == "200" ]]; then
+              echo "Production health check passed"
+              exit 0
+            fi
+            echo "Waiting for production healthz (attempt ${i}/30, status=${health_code})"
+            sleep 10
+          done
+
+          echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
+          if [[ -s /tmp/rollback_production_healthz.out ]]; then
+            cat /tmp/rollback_production_healthz.out
+          fi
+          exit 1

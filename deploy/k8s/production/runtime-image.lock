@@ -1,0 +1,29 @@
+apiVersion: agent-failure/v1alpha1
+kind: RuntimeImageLock
+metadata:
+  environment: production
+images:
+  - lab_slug: agent-prompt-injection
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    build_git_sha: "a2cd65b"
+    built_at_utc: "2026-05-08T01:22:14Z"
+    status: "active"
+  - lab_slug: agent-tool-misuse
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    build_git_sha: "a2cd65b"
+    built_at_utc: "2026-05-08T01:22:14Z"
+    status: "active"
+  - lab_slug: agent-memory-poisoning
+    lab_version: "v1"
+    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
+    image_digest: "sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:b2fbb686b4275b02aa035489e91f4a230aadd36938bfc91a9372aad5a54e2f72"
+    build_git_sha: "a2cd65b"
+    built_at_utc: "2026-05-08T01:22:14Z"
+    status: "active"

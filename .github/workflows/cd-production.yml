@@ -1,0 +1,152 @@
+name: CD Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_environment:
+        description: "Environment to promote from"
+        required: true
+        type: choice
+        options:
+          - staging
+        default: staging
+      reason:
+        description: "Optional promotion note"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cd-production-main
+  cancel-in-progress: false
+
+env:
+  CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+  STAGING_MANIFESTS: deploy/k8s/staging
+  PRODUCTION_MANIFESTS: deploy/k8s/production
+  AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+
+jobs:
+  promote-production:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve staged digests
+        id: staged
+        run: |
+          cp_digest="$(awk '
+            /^images:[[:space:]]*$/ {in_images=1; next}
+            in_images && /^[^[:space:]]/ {in_images=0}
+            in_images && $1=="digest:" {print $2; exit}
+          ' "${STAGING_MANIFESTS}/kustomization.yaml")"
+
+          if [[ -z "${cp_digest}" ]]; then
+            echo "Unable to resolve control-plane digest from ${STAGING_MANIFESTS}/kustomization.yaml"
+            exit 1
+          fi
+
+          runtime_ref="$(awk -F'"' '/image_ref:/{print $2; exit}' "${STAGING_MANIFESTS}/runtime-image.lock")"
+          if [[ -z "${runtime_ref}" ]]; then
+            echo "Unable to resolve runtime image_ref from ${STAGING_MANIFESTS}/runtime-image.lock"
+            exit 1
+          fi
+          runtime_base="${runtime_ref%@*}"
+
+          runtime_digest="${runtime_ref##*@}"
+
+          if ! [[ "${cp_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid staged control-plane digest: ${cp_digest}"
+            exit 1
+          fi
+          if ! [[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid staged runtime digest: ${runtime_digest}"
+            exit 1
+          fi
+
+          echo "cp=${cp_digest}" >> "$GITHUB_OUTPUT"
+          echo "runtime_ref=${runtime_ref}" >> "$GITHUB_OUTPUT"
+          echo "runtime_base=${runtime_base}" >> "$GITHUB_OUTPUT"
+          echo "runtime_digest=${runtime_digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Apply production manifest updates
+        env:
+          CP_DIGEST: ${{ steps.staged.outputs.cp }}
+          RUNTIME_BASE: ${{ steps.staged.outputs.runtime_base }}
+          RUNTIME_REF: ${{ steps.staged.outputs.runtime_ref }}
+        run: |
+          BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          GIT_SHA="$(git rev-parse --short HEAD)"
+
+          .task/update_kustomization_digest.sh \
+            "${PRODUCTION_MANIFESTS}/kustomization.yaml" \
+            "${CONTROL_PLANE_IMAGE}" \
+            "${CP_DIGEST}"
+
+          .task/update_runtime_lock.sh \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
+            "${RUNTIME_BASE}" \
+            "${RUNTIME_REF}" \
+            "${GIT_SHA}" \
+            "${BUILD_TS}" \
+            "${AGENT_TARGET_LABS}" \
+            "production"
+
+          .task/validate_runtime_lock.sh \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
+            "${AGENT_TARGET_LABS}"
+
+      - name: Commit and push production promotion
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            "${PRODUCTION_MANIFESTS}/kustomization.yaml" \
+            "${PRODUCTION_MANIFESTS}/runtime-image.lock"
+
+          if git diff --cached --quiet; then
+            echo "No production manifest changes; already at staged digests."
+            exit 0
+          fi
+
+          msg="cd(production): promote digests from staging cp=${{ steps.staged.outputs.cp }} rt=${{ steps.staged.outputs.runtime_digest }}"
+          if [[ -n "${{ inputs.reason }}" ]]; then
+            msg+=" | reason: ${{ inputs.reason }}"
+          fi
+
+          git commit -m "$msg"
+          git push origin HEAD:main
+
+      - name: Wait for production health endpoint
+        env:
+          API_BASE: ${{ secrets.API_BASE }}
+        run: |
+          if [[ -z "${API_BASE}" ]]; then
+            echo "Missing required production secret: API_BASE"
+            exit 1
+          fi
+
+          for i in {1..30}; do
+            health_code="$(curl -sS -o /tmp/production_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
+            if [[ "${health_code}" == "200" ]]; then
+              echo "Production health check passed"
+              exit 0
+            fi
+            echo "Waiting for production healthz (attempt ${i}/30, status=${health_code})"
+            sleep 10
+          done
+
+          echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
+          if [[ -s /tmp/production_healthz.out ]]; then
+            cat /tmp/production_healthz.out
+          fi
+          exit 1
