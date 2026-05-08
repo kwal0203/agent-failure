@@ -5,6 +5,7 @@ resources:
   - ../base
   - namespaces.yaml
   - control-plane-ingress.yaml
+  - clusterissuer-letsencrypt-prod.yaml
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
