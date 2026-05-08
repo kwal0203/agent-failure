@@ -170,6 +170,7 @@ jobs:
       - name: Open PR for staging manifest promotion
         uses: peter-evans/create-pull-request@v7
         with:
+          base: main
           branch: automation/cd-staging-${{ steps.meta.outputs.git_sha }}
           delete-branch: true
           title: "cd(staging): update image digests for ${{ steps.meta.outputs.git_sha }}"
