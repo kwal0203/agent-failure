@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test_main:
     runs-on: ubuntu-latest
 
     services:
