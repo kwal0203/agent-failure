@@ -4,11 +4,6 @@ kind: Kustomization
 resources:
   - ../base
   - namespaces.yaml
-  - postgres-secret.yaml
-  - postgres-init-configmap.yaml
-  - postgres-pvc.yaml
-  - postgres-deployment.yaml
-  - postgres-service.yaml
   - control-plane-ingress.yaml
 
 images:

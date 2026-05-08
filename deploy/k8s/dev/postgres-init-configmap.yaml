@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-init-sql
-  namespace: runtime-pool
-data:
-  01-create-test-db.sql: |
-    CREATE DATABASE agent_failure_test;
