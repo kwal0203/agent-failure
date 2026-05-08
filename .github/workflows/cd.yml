@@ -1,15 +1,7 @@
 name: CD
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - apps/control_plane/**
-      - apps/agent_harness/**
-      - apps/contracts/**
-      - runtimes/agent/**
-      - pyproject.toml
-      - uv.lock
+  workflow_dispatch:
 
 permissions:
   contents: write
