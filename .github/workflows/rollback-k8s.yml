@@ -1,0 +1,145 @@
+name: Rollback K8s Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment overlay"
+        required: true
+        type: choice
+        options:
+          - staging
+          - dev
+      control_plane_digest:
+        description: "Control-plane digest (sha256:...)"
+        required: true
+        type: string
+      runtime_digest:
+        description: "Runtime digest (sha256:...)"
+        required: true
+        type: string
+      reason:
+        description: "Optional rollback reason"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rollback-k8s-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
+  RUNTIME_IMAGE_BASE: ghcr.io/kwal0203/agent-failure-runtime-v1
+  AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve target paths
+        id: target
+        run: |
+          case "${{ inputs.environment }}" in
+            staging)
+              echo "manifests=deploy/k8s/staging" >> "$GITHUB_OUTPUT"
+              echo "lock_env=staging" >> "$GITHUB_OUTPUT"
+              ;;
+            dev)
+              echo "manifests=deploy/k8s/dev" >> "$GITHUB_OUTPUT"
+              echo "lock_env=dev" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported environment: ${{ inputs.environment }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Validate digests
+        run: |
+          cp='${{ inputs.control_plane_digest }}'
+          rt='${{ inputs.runtime_digest }}'
+
+          if ! [[ "$cp" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid control_plane_digest: $cp"
+            exit 1
+          fi
+          if ! [[ "$rt" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid runtime_digest: $rt"
+            exit 1
+          fi
+
+      - name: Apply rollback digests to manifests
+        id: patch
+        env:
+          MANIFESTS: ${{ steps.target.outputs.manifests }}
+          LOCK_ENV: ${{ steps.target.outputs.lock_env }}
+          CP_DIGEST: ${{ inputs.control_plane_digest }}
+          RT_DIGEST: ${{ inputs.runtime_digest }}
+        run: |
+          BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          GIT_SHA="$(git rev-parse --short HEAD)"
+          RUNTIME_REF="${RUNTIME_IMAGE_BASE}@${RT_DIGEST}"
+
+          .task/update_kustomization_digest.sh \
+            "${MANIFESTS}/kustomization.yaml" \
+            "${CONTROL_PLANE_IMAGE}" \
+            "${CP_DIGEST}"
+
+          .task/update_runtime_lock.sh \
+            "${MANIFESTS}/runtime-image.lock" \
+            "${RUNTIME_IMAGE_BASE}" \
+            "${RUNTIME_REF}" \
+            "${GIT_SHA}" \
+            "${BUILD_TS}" \
+            "${AGENT_TARGET_LABS}" \
+            "${LOCK_ENV}"
+
+          .task/validate_runtime_lock.sh \
+            "${MANIFESTS}/runtime-image.lock" \
+            "${AGENT_TARGET_LABS}"
+
+          {
+            echo "cp=${CP_DIGEST}"
+            echo "rt=${RT_DIGEST}"
+            echo "runtime_ref=${RUNTIME_REF}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push rollback
+        env:
+          MANIFESTS: ${{ steps.target.outputs.manifests }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            "${MANIFESTS}/kustomization.yaml" \
+            "${MANIFESTS}/runtime-image.lock"
+
+          if git diff --cached --quiet; then
+            echo "No manifest changes detected; rollback digests already active."
+            exit 0
+          fi
+
+          msg="rollback(${{ inputs.environment }}): cp=${{ steps.patch.outputs.cp }} rt=${{ steps.patch.outputs.rt }}"
+          if [[ -n "${{ inputs.reason }}" ]]; then
+            msg+=" | reason: ${{ inputs.reason }}"
+          fi
+
+          git commit -m "$msg"
+          git push origin HEAD:main
+
+      - name: Summary
+        run: |
+          echo "Rollback committed for ${{ inputs.environment }}"
+          echo "control-plane digest: ${{ steps.patch.outputs.cp }}"
+          echo "runtime digest: ${{ steps.patch.outputs.rt }}"
+          echo "runtime ref: ${{ steps.patch.outputs.runtime_ref }}"
