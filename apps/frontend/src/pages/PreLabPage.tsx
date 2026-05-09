@@ -222,23 +222,24 @@ export default function PreLabPage() {
         display: "flex",
         flexDirection: "column",
         gap: 16,
-        color: "#d8f7ff",
+        color: "#d7ffd7",
+        fontFamily: "'Share Tech Mono', 'Fira Code', 'Courier New', monospace",
       }}
     >
       <header
         style={{
-          border: "1px solid #1f4460",
+          border: "1px solid #1b5e20",
           borderRadius: 14,
           padding: "24px 26px",
           background:
-            "linear-gradient(160deg, rgba(11,27,42,0.98), rgba(8,18,31,0.95))",
+            "linear-gradient(160deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))",
         }}
       >
-        <h1 style={{ margin: "14px 0 12px", color: "#f3feff" }}>{labName}</h1>
-        <p style={{ margin: "0 0 14px", color: "#b4deed", lineHeight: 1.5 }}>
+        <h1 style={{ margin: "14px 0 12px", color: "#8bff8f" }}>{labName}</h1>
+        <p style={{ margin: "0 0 14px", color: "#9dc6a2", lineHeight: 1.5 }}>
           {missionOneLiner}
         </p>
-        <p style={{ margin: 0, color: "#87b7cc", fontSize: 13 }}>
+        <p style={{ margin: 0, color: "#7ea683", fontSize: 13 }}>
           {difficulty} • {briefing.estimatedTime} • {briefing.topic}
         </p>
       </header>
@@ -260,31 +261,31 @@ export default function PreLabPage() {
             <article
               key={title}
               style={{
-                border: "1px solid #1f4460",
+                border: "1px solid #1b5e20",
                 borderRadius: 12,
                 padding: 14,
-                background: "rgba(8,18,31,0.95)",
+                background: "rgba(10, 18, 10, 0.95)",
               }}
             >
-              <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#f3feff" }}>
+              <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#b6ffb9" }}>
                 {title}
               </h2>
-              <p style={{ margin: 0, color: "#a9d3e3" }}>{body}</p>
+              <p style={{ margin: 0, color: "#9dc6a2" }}>{body}</p>
             </article>
           ))}
 
           <article
             style={{
-              border: "1px solid #1f4460",
+              border: "1px solid #1b5e20",
               borderRadius: 12,
               padding: 14,
-              background: "rgba(8,18,31,0.95)",
+              background: "rgba(10, 18, 10, 0.95)",
             }}
           >
-            <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#f3feff" }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#b6ffb9" }}>
               Learning Goals
             </h2>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#a9d3e3" }}>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "#9dc6a2" }}>
               {briefing.learningGoals.map((goal) => (
                 <li key={goal}>{goal}</li>
               ))}
@@ -296,15 +297,15 @@ export default function PreLabPage() {
           style={{
             position: "sticky",
             top: 84,
-            border: "1px solid #1f4460",
+            border: "1px solid #1b5e20",
             borderRadius: 12,
             padding: 14,
-            background: "rgba(8,18,31,0.98)",
+            background: "rgba(10, 18, 10, 0.98)",
             display: "grid",
             gap: 10,
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 20, color: "#f3feff" }}>
+          <h2 style={{ margin: 0, fontSize: 20, color: "#b6ffb9" }}>
             Mission Summary
           </h2>
           <p style={{ margin: 0 }}>
@@ -344,9 +345,9 @@ export default function PreLabPage() {
             onClick={() => void onStartLab()}
             disabled={starting}
             style={{
-              background: starting ? "#123652" : "#1a8fff",
-              color: "#02101a",
-              border: 0,
+              background: starting ? "#1f3321" : "#102810",
+              color: "#b6ffb9",
+              border: "1px solid #2e7d32",
               padding: "10px 14px",
               borderRadius: 10,
               fontWeight: 800,
@@ -357,7 +358,7 @@ export default function PreLabPage() {
           </button>
 
           {startError ? (
-            <p style={{ margin: 0, color: "#ffc6d8" }}>{startError}</p>
+            <p style={{ margin: 0, color: "#ffb8c6" }}>{startError}</p>
           ) : null}
         </aside>
       </div>

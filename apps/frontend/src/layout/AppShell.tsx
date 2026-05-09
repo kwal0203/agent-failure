@@ -4,8 +4,8 @@ import type { ShellBootstrap } from "../shell/context";
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
   textDecoration: "none",
-  color: isActive ? "#0a3a7a" : "#2a2f37",
-  borderBottom: isActive ? "2px solid #0a3a7a" : "2px solid transparent",
+  color: isActive ? "#8bff8f" : "#9dc6a2",
+  borderBottom: isActive ? "2px solid #2e7d32" : "2px solid transparent",
   padding: "8px 4px",
   fontWeight: isActive ? 700 : 500,
 });
@@ -26,11 +26,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
-  const showBackToApp = ["/labs", "/history", "/trace"].includes(
-    location.pathname,
-  );
-  const headerBackTarget = showBackToApp ? "/app" : "/labs";
-  const headerBackLabel = showBackToApp ? "Back to App" : "Back to Labs";
+  const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
 
   return (
     <div
@@ -40,27 +36,29 @@ export default function AppShell() {
               minHeight: "100vh",
               display: "flex",
               flexDirection: "column",
-              background: "#f5f7fb",
-              color: "#10131a",
+              background: "#040704",
+              color: "#d7ffd7",
+              fontFamily:
+                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
           : {
               minHeight: "100vh",
               display: "flex",
               flexDirection: "column",
-              color: "#d7f5ff",
+              color: "#d7ffd7",
               background:
-                "radial-gradient(1200px 680px at 8% -2%, rgba(0, 230, 255, 0.18), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(28, 160, 255, 0.22), transparent 52%), linear-gradient(180deg, #040b14 0%, #071321 52%, #081726 100%)",
+                "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
               fontFamily:
-                '"Space Grotesk", "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif',
+                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
       }
     >
       <header
         style={{
-          borderBottom: isDebug ? "1px solid #d9dee8" : "1px solid #1d3850",
+          borderBottom: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
           background: isDebug
-            ? "#ffffff"
-            : "linear-gradient(180deg, rgba(6, 20, 34, 0.9), rgba(6, 20, 34, 0.75))",
+            ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
+            : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
           backdropFilter: isDebug ? undefined : "blur(6px)",
           position: "sticky",
           top: 0,
@@ -83,7 +81,7 @@ export default function AppShell() {
                 fontSize: 22,
                 fontWeight: 700,
                 letterSpacing: 0.4,
-                color: isDebug ? "#10131a" : "#e8fbff",
+                color: isDebug ? "#8bff8f" : "#8bff8f",
                 fontFamily:
                   '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
                 textTransform: isDebug ? undefined : "uppercase",
@@ -95,7 +93,7 @@ export default function AppShell() {
               style={{
                 fontSize: 12,
                 opacity: isDebug ? 0.7 : 1,
-                color: isDebug ? undefined : "#73b6ce",
+                color: isDebug ? "#7ea683" : "#7ea683",
                 letterSpacing: isDebug ? undefined : 0.3,
               }}
             >
@@ -108,22 +106,24 @@ export default function AppShell() {
             <div />
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => navigate(headerBackTarget)}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "7px 10px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  border: isDebug ? "1px solid #cfd8e3" : "1px solid #2d5a7d",
-                  background: isDebug ? "#ffffff" : "#0b2a43",
-                  color: isDebug ? "#0f1724" : "#cff6ff",
-                }}
-              >
-                {headerBackLabel}
-              </button>
+              {isPreLabRoute ? (
+                <button
+                  type="button"
+                  onClick={() => navigate("/labs")}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    border: "1px solid #2e7d32",
+                    background: "#102810",
+                    color: "#b6ffb9",
+                  }}
+                >
+                  Back to Labs
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -133,9 +133,9 @@ export default function AppShell() {
                   padding: "7px 10px",
                   borderRadius: 8,
                   cursor: "pointer",
-                  border: isDebug ? "1px solid #cfd8e3" : "1px solid #7a2f3a",
-                  background: isDebug ? "#ffffff" : "#3a1118",
-                  color: isDebug ? "#0f1724" : "#ffd7de",
+                  border: isDebug ? "1px solid #7a2f3a" : "1px solid #7a2f3a",
+                  background: isDebug ? "#3a1118" : "#3a1118",
+                  color: isDebug ? "#ffd7de" : "#ffd7de",
                 }}
               >
                 Log Out
@@ -181,10 +181,11 @@ export default function AppShell() {
       </main>
       <footer
         style={{
-          borderTop: isDebug ? "1px solid #d9dee8" : "1px solid #1d3850",
+          borderTop: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
           padding: isSessionRoute ? "10px 16px" : "10px 24px",
-          color: isDebug ? "#516171" : "#83b5c8",
+          color: isDebug ? "#7ea683" : "#7ea683",
           fontSize: 12,
+          background: isDebug ? "rgba(6, 12, 6, 0.9)" : "rgba(6, 12, 6, 0.9)",
         }}
       >
         <div

@@ -228,12 +228,13 @@ export function LabCatalog({
   return (
     <section
       style={{
-        color: "#d8f7ff",
+        color: "#d7ffd7",
         background:
-          "radial-gradient(circle at 12% -10%, rgba(0, 255, 200, 0.18), transparent 38%), radial-gradient(circle at 88% 2%, rgba(0, 140, 255, 0.25), transparent 42%), #07111b",
-        border: "1px solid #14324a",
+          "radial-gradient(circle at 12% -10%, rgba(60, 200, 100, 0.16), transparent 38%), radial-gradient(circle at 88% 2%, rgba(46, 125, 50, 0.22), transparent 42%), #040704",
+        border: "1px solid #1b5e20",
         borderRadius: 16,
         padding: 20,
+        fontFamily: "'Share Tech Mono', 'Fira Code', 'Courier New', monospace",
       }}
     >
       <h1
@@ -242,14 +243,14 @@ export function LabCatalog({
           fontSize: 34,
           letterSpacing: 0.8,
           textAlign: "center",
-          color: "#f0fdff",
-          textShadow: "0 0 14px rgba(62, 224, 255, 0.45)",
+          color: "#8bff8f",
+          textShadow: "0 0 14px rgba(120, 255, 140, 0.35)",
         }}
       >
         Labs
       </h1>
       {isLoading && (
-        <p style={{ margin: "0 0 12px", color: "#9bcde0" }}>
+        <p style={{ margin: "0 0 12px", color: "#9dc6a2" }}>
           Loading lab catalog...
         </p>
       )}
@@ -257,15 +258,15 @@ export function LabCatalog({
       {loadError && (
         <div
           style={{
-            border: "1px solid #7a2541",
-            background: "rgba(110, 22, 49, 0.3)",
+            border: "1px solid #7a2f3a",
+            background: "rgba(58, 17, 24, 0.45)",
             borderRadius: 10,
             padding: 12,
             marginBottom: 12,
             maxWidth: 800,
           }}
         >
-          <p style={{ margin: "0 0 8px", color: "#ffc6d8" }}>
+          <p style={{ margin: "0 0 8px", color: "#ffb8c6" }}>
             Error: {loadError}
           </p>
           <button type="button" onClick={() => void refreshLabs()}>
@@ -277,14 +278,14 @@ export function LabCatalog({
       {!isLoading && !loadError && labs.length === 0 && (
         <div
           style={{
-            border: "1px solid #204760",
+            border: "1px solid #1b5e20",
             borderRadius: 10,
-            background: "rgba(7, 20, 31, 0.85)",
+            background: "rgba(10, 18, 10, 0.92)",
             padding: 16,
             maxWidth: 800,
           }}
         >
-          <p style={{ margin: 0, color: "#a7d2e3" }}>
+          <p style={{ margin: 0, color: "#9dc6a2" }}>
             No launchable labs are currently available.
           </p>
         </div>
@@ -309,20 +310,20 @@ export function LabCatalog({
               <article
                 key={lab.id}
                 style={{
-                  border: "1px solid #1f4460",
+                  border: "1px solid #1b5e20",
                   borderRadius: 12,
                   background:
-                    "linear-gradient(160deg, rgba(11,27,42,0.98), rgba(8,18,31,0.95))",
+                    "linear-gradient(160deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))",
                   padding: 16,
                   textAlign: "left",
                 }}
               >
                 <h2
-                  style={{ margin: "0 0 8px", fontSize: 22, color: "#f3feff" }}
+                  style={{ margin: "0 0 8px", fontSize: 22, color: "#b6ffb9" }}
                 >
                   {lab.name}
                 </h2>
-                <p style={{ margin: "0 0 14px", color: "#9bcde0" }}>
+                <p style={{ margin: "0 0 14px", color: "#9dc6a2" }}>
                   {lab.summary}
                 </p>
                 <div
@@ -345,7 +346,7 @@ export function LabCatalog({
                         difficulty === "easy"
                           ? "#25f2a2"
                           : difficulty === "medium"
-                            ? "#31a7ff"
+                            ? "#2e7d32"
                             : "#c67dff";
                       return (
                         <button
@@ -361,11 +362,11 @@ export function LabCatalog({
                           style={{
                             border: selected
                               ? `1px solid ${accent}`
-                              : "1px solid #204760",
+                              : "1px solid #1b5e20",
                             background: selected
-                              ? "rgba(10, 33, 49, 0.95)"
-                              : "#0b1a29",
-                            color: selected ? "#f2fdff" : "#8fb7cb",
+                              ? "rgba(16, 40, 16, 0.95)"
+                              : "#000000",
+                            color: selected ? "#b6ffb9" : "#8fb38f",
                             padding: "8px 10px",
                             borderRadius: 10,
                             fontWeight: 700,
@@ -391,9 +392,9 @@ export function LabCatalog({
                     onClick={() => launchLab(lab.id)}
                     disabled={launchingLabId !== null}
                     style={{
-                      background: isLaunchingThisLab ? "#123652" : "#1a8fff",
-                      color: "#02101a",
-                      border: 0,
+                      background: isLaunchingThisLab ? "#1f3321" : "#102810",
+                      color: "#b6ffb9",
+                      border: "1px solid #2e7d32",
                       padding: "10px 14px",
                       borderRadius: 10,
                       fontWeight: 800,
@@ -410,7 +411,7 @@ export function LabCatalog({
       )}
 
       {launchError && (
-        <p style={{ margin: "12px 0 0", color: "#ffd0df" }}>
+        <p style={{ margin: "12px 0 0", color: "#ffb8c6" }}>
           Session launch error: {launchError}
         </p>
       )}
