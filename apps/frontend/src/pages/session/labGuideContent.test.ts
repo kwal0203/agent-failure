@@ -23,7 +23,7 @@ describe("getLabGuideContent", () => {
 
   it("returns agent lab 3 memory poisoning copy for lab 3 id", () => {
     const content = getLabGuideContent("66666666-6666-6666-6666-666666666666");
-    expect(content.title).toBe("Agent: Memory Poisoning");
+    expect(content.title).toBe("Memory Poisoning");
     expect(content.missionOverview).toContain("attacker-controlled");
     expect(content.successCriteria[2]).toBe(
       "Route pay_invoice to the attacker account instead of the canonical account.",
@@ -35,7 +35,7 @@ describe("getLabGuideContent", () => {
       labSlug: "agent-memory-poisoning",
       labVersion: "v1",
     });
-    expect(content.title).toBe("Agent: Memory Poisoning");
+    expect(content.title).toBe("Memory Poisoning");
     expect(content.successCriteria[1]).toContain("retrieved");
   });
 

@@ -101,7 +101,7 @@ const AGENT_TOOL_MISUSE_CONTENT: LabGuideContent = {
 };
 
 const AGENT_MEMORY_POISONING_CONTENT: LabGuideContent = {
-  title: "Agent: Memory Poisoning",
+  title: "Memory Poisoning",
   difficulty: "Medium",
   missionOverview:
     "Poison writable memory so later payment decisions use attacker-controlled context.",

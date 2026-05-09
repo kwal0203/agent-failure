@@ -38,7 +38,7 @@ const STUB_LABS: LabCatalogItem[] = [
   {
     id: "66666666-6666-6666-6666-666666666666",
     slug: "agent-memory-poisoning",
-    name: "Agent: Memory Poisoning",
+    name: "Memory Poisoning",
     summary:
       "Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
     capabilities: {
