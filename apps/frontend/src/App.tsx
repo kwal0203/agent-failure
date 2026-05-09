@@ -5,6 +5,7 @@ import AppShell from "./layout/AppShell";
 import AppHomePage from "./pages/app/AppHomePage";
 import HistoryPage from "./pages/HistoryPage";
 import LabsPage from "./pages/LabsPage";
+import PreLabPage from "./pages/PreLabPage";
 import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
 import SignupPage from "./pages/public/SignupPage";
@@ -27,6 +28,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/app" element={<AppHomePage />} />
             <Route path="/labs" element={<LabsPage />} />
+            <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/trace" element={<TracePage />} />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />

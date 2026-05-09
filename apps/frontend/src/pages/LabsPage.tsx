@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useShellBootstrap } from "../shell/context";
 import {
-  createSessionForLab,
   type LabCatalogItem,
   type LabDifficulty,
   loadLabCatalog,
@@ -17,12 +16,13 @@ type LabCatalogProps = {
   learnerLabel: string;
   mode?: "demo" | "debug";
   loadLabs?: (apiBaseUrl: string) => Promise<LabCatalogItem[]>;
-  createSession?: (
-    apiBaseUrl: string,
-    labId: string,
-    labDifficulty: LabDifficulty,
-  ) => Promise<string>;
-  onOpenSession: (sessionId: string, labName?: string) => void;
+  onOpenPreLab: (selection: {
+    labId: string;
+    labName: string;
+    labSlug: string;
+    labSummary: string;
+    labDifficulty: LabDifficulty;
+  }) => void;
 };
 
 function getCardDifficulty(
@@ -37,14 +37,13 @@ export function LabCatalog({
   learnerLabel,
   mode = "demo",
   loadLabs = loadLabCatalog,
-  createSession = createSessionForLab,
-  onOpenSession,
+  onOpenPreLab,
 }: LabCatalogProps) {
   const [labs, setLabs] = useState<LabCatalogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [creatingLabId, setCreatingLabId] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [launchingLabId, setLaunchingLabId] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<DifficultyChoice>("medium");
   const [selectedDifficultyByLab, setSelectedDifficultyByLab] = useState<
@@ -71,32 +70,29 @@ export function LabCatalog({
     void refreshLabs();
   }, [refreshLabs]);
 
-  const launchLab = async (labId: string) => {
+  const launchLab = (labId: string) => {
     const chosenDifficulty =
       mode === "debug"
         ? selectedDifficulty
         : getCardDifficulty(selectedDifficultyByLab, labId);
-    if (chosenDifficulty === "hard") {
-      setCreateError("Hard difficulty is not available yet.");
+    if (chosenDifficulty === "easy" || chosenDifficulty === "hard") {
+      setLaunchError("Easy and Hard difficulties are not available yet.");
       return;
     }
-    setCreatingLabId(labId);
-    setCreateError(null);
-    try {
-      const sessionId = await createSession(
-        apiBaseUrl,
-        labId,
-        chosenDifficulty,
-      );
-      const selectedLab = labs.find((lab) => lab.id === labId);
-      onOpenSession(sessionId, selectedLab?.name);
-    } catch (error) {
-      setCreateError(
-        error instanceof Error ? error.message : "Session create failed",
-      );
-    } finally {
-      setCreatingLabId(null);
+    const selectedLab = labs.find((lab) => lab.id === labId);
+    if (!selectedLab) {
+      setLaunchError("Selected lab could not be loaded.");
+      return;
     }
+    setLaunchingLabId(labId);
+    setLaunchError(null);
+    onOpenPreLab({
+      labId: selectedLab.id,
+      labName: selectedLab.name,
+      labSlug: selectedLab.slug,
+      labSummary: selectedLab.summary,
+      labDifficulty: chosenDifficulty,
+    });
   };
 
   if (mode === "debug") {
@@ -122,10 +118,12 @@ export function LabCatalog({
             onChange={(event) =>
               setSelectedDifficulty(event.target.value as DifficultyChoice)
             }
-            disabled={creatingLabId !== null}
+            disabled={launchingLabId !== null}
           >
             <option value="medium">Medium</option>
-            <option value="easy">Easy</option>
+            <option value="easy" disabled>
+              Easy (Coming soon)
+            </option>
             <option value="hard">Hard (Coming soon)</option>
           </select>
         </label>
@@ -180,7 +178,7 @@ export function LabCatalog({
             }}
           >
             {labs.map((lab) => {
-              const isCreatingThisLab = creatingLabId === lab.id;
+              const isLaunchingThisLab = launchingLabId === lab.id;
               return (
                 <article
                   key={lab.id}
@@ -207,10 +205,10 @@ export function LabCatalog({
                   </p>
                   <button
                     type="button"
-                    onClick={() => void launchLab(lab.id)}
-                    disabled={creatingLabId !== null}
+                    onClick={() => launchLab(lab.id)}
+                    disabled={launchingLabId !== null}
                   >
-                    {isCreatingThisLab ? "Creating session..." : "Launch lab"}
+                    {isLaunchingThisLab ? "Opening briefing..." : "Launch lab"}
                   </button>
                 </article>
               );
@@ -218,9 +216,9 @@ export function LabCatalog({
           </div>
         )}
 
-        {createError && (
+        {launchError && (
           <p style={{ margin: "12px 0 0", color: "#9f1239" }}>
-            Session launch error: {createError}
+            Session launch error: {launchError}
           </p>
         )}
       </section>
@@ -302,7 +300,7 @@ export function LabCatalog({
           }}
         >
           {labs.map((lab) => {
-            const isCreatingThisLab = creatingLabId === lab.id;
+            const isLaunchingThisLab = launchingLabId === lab.id;
             const cardDifficulty = getCardDifficulty(
               selectedDifficultyByLab,
               lab.id,
@@ -340,7 +338,9 @@ export function LabCatalog({
                     {(["easy", "medium", "hard"] as const).map((difficulty) => {
                       const selected = cardDifficulty === difficulty;
                       const disabled =
-                        difficulty === "hard" || creatingLabId !== null;
+                        difficulty === "easy" ||
+                        difficulty === "hard" ||
+                        launchingLabId !== null;
                       const accent =
                         difficulty === "easy"
                           ? "#25f2a2"
@@ -377,26 +377,30 @@ export function LabCatalog({
                               : "none",
                           }}
                         >
-                          {difficulty === "hard" ? "Hard (Soon)" : difficulty}
+                          {difficulty === "easy"
+                            ? "Easy (Soon)"
+                            : difficulty === "hard"
+                              ? "Hard (Soon)"
+                              : difficulty}
                         </button>
                       );
                     })}
                   </div>
                   <button
                     type="button"
-                    onClick={() => void launchLab(lab.id)}
-                    disabled={creatingLabId !== null}
+                    onClick={() => launchLab(lab.id)}
+                    disabled={launchingLabId !== null}
                     style={{
-                      background: isCreatingThisLab ? "#123652" : "#1a8fff",
+                      background: isLaunchingThisLab ? "#123652" : "#1a8fff",
                       color: "#02101a",
                       border: 0,
                       padding: "10px 14px",
                       borderRadius: 10,
                       fontWeight: 800,
-                      cursor: creatingLabId !== null ? "wait" : "pointer",
+                      cursor: launchingLabId !== null ? "wait" : "pointer",
                     }}
                   >
-                    {isCreatingThisLab ? "Creating session..." : "Launch lab"}
+                    {isLaunchingThisLab ? "Opening briefing..." : "Launch lab"}
                   </button>
                 </div>
               </article>
@@ -405,9 +409,9 @@ export function LabCatalog({
         </div>
       )}
 
-      {createError && (
+      {launchError && (
         <p style={{ margin: "12px 0 0", color: "#ffd0df" }}>
-          Session launch error: {createError}
+          Session launch error: {launchError}
         </p>
       )}
     </section>
@@ -423,8 +427,8 @@ export default function LabsPage() {
       apiBaseUrl={bootstrap.apiBaseUrl}
       learnerLabel={bootstrap.learnerLabel}
       mode={bootstrap.mode}
-      onOpenSession={(sessionId, labName) => {
-        navigate(`/sessions/${sessionId}`, { state: { labName } });
+      onOpenPreLab={(selection) => {
+        navigate(`/labs/${selection.labId}/pre-lab`, { state: selection });
       }}
     />
   );

@@ -124,19 +124,6 @@ export default function AppShell() {
               >
                 {headerBackLabel}
               </button>
-              <div
-                style={{
-                  fontSize: 13,
-                  opacity: isDebug ? 0.8 : 1,
-                  color: isDebug ? undefined : "#9fe4fb",
-                  background: isDebug ? undefined : "rgba(8, 31, 50, 0.72)",
-                  border: isDebug ? undefined : "1px solid #285272",
-                  padding: isDebug ? undefined : "6px 10px",
-                  borderRadius: isDebug ? undefined : 8,
-                }}
-              >
-                Learner: <strong>{bootstrap.learnerLabel}</strong>
-              </div>
               <button
                 type="button"
                 onClick={logout}

@@ -28,7 +28,7 @@ class SQLAlchemyLabRepository(LabRepository):
                 lab_id=UUID("44444444-4444-4444-4444-444444444444"),
                 slug="agent-prompt-injection",
                 name="Indirect Prompt Injection",
-                summary="Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
+                summary="Attack an agent using indirect prompt injection via a malicious email.",
                 supports_resume=False,
                 supports_uploads=False,
             ),

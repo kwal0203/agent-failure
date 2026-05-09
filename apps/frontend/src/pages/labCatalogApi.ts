@@ -18,7 +18,7 @@ const STUB_LABS: LabCatalogItem[] = [
     slug: "agent-prompt-injection",
     name: "Indirect Prompt Injection",
     summary:
-      "Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
+      "Attack an agent using indirect prompt injection via a malicious email.",
     capabilities: {
       supports_resume: true,
       supports_uploads: false,

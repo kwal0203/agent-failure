@@ -18,10 +18,7 @@ describe("LabCatalog", () => {
     ];
 
     const loadLabs = vi.fn(async () => labs);
-    const createSession = vi.fn(
-      async () => "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-    );
-    const onOpenSession = vi.fn();
+    const onOpenPreLab = vi.fn();
 
     render(
       <LabCatalog
@@ -29,8 +26,7 @@ describe("LabCatalog", () => {
         learnerLabel="Demo Learner"
         mode="debug"
         loadLabs={loadLabs}
-        createSession={createSession}
-        onOpenSession={onOpenSession}
+        onOpenPreLab={onOpenPreLab}
       />,
     );
 
@@ -42,16 +38,14 @@ describe("LabCatalog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Launch lab" }));
 
-    expect(createSession).toHaveBeenCalledWith(
-      "http://localhost:8000",
-      "11111111-1111-1111-1111-111111111111",
-      "medium",
-    );
     await waitFor(() => {
-      expect(onOpenSession).toHaveBeenCalledWith(
-        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "Prompt Injection Basics",
-      );
+      expect(onOpenPreLab).toHaveBeenCalledWith({
+        labId: "11111111-1111-1111-1111-111111111111",
+        labName: "Prompt Injection Basics",
+        labSlug: "prompt-injection-basics",
+        labSummary: "Practice attacking a retrieval-enabled agent.",
+        labDifficulty: "medium",
+      });
     });
   });
 
@@ -76,7 +70,7 @@ describe("LabCatalog", () => {
         learnerLabel="Demo Learner"
         mode="demo"
         loadLabs={loadLabs}
-        onOpenSession={() => {}}
+        onOpenPreLab={() => {}}
       />,
     );
 
@@ -87,7 +81,9 @@ describe("LabCatalog", () => {
     expect(
       screen.queryByText(/resume: yes \| uploads: no/i),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "easy" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Easy (Soon)" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "medium" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Hard (Soon)" }),
@@ -102,7 +98,7 @@ describe("LabCatalog", () => {
         apiBaseUrl="http://localhost:8000"
         learnerLabel="Demo Learner"
         loadLabs={loadLabs}
-        onOpenSession={() => {}}
+        onOpenPreLab={() => {}}
       />,
     );
 
