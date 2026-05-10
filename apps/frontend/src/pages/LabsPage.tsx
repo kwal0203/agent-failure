@@ -474,7 +474,7 @@ export function LabCatalog({
     }
     const root = document.documentElement;
     const previousFontSize = root.style.fontSize;
-    root.style.fontSize = "16px";
+    root.style.fontSize = "17.5px";
     return () => {
       root.style.fontSize = previousFontSize;
     };
@@ -728,7 +728,7 @@ export function LabCatalog({
           </header>
 
           <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 md:px-8 lg:px-10">
+            <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 text-[17px] md:px-8 lg:px-10">
               <section className="mb-6 space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <FilterChip active>All</FilterChip>

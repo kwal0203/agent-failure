@@ -39,7 +39,7 @@ describe("App routing with auth guards", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "AgentFailure",
+        name: "Sign in",
       }),
     ).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe("App routing with auth guards", () => {
     renderAt("/labs");
 
     expect(
-      await screen.findByRole("heading", { name: "AgentFailure" }),
+      await screen.findByRole("heading", { name: "Sign in" }),
     ).toBeInTheDocument();
   });
 
@@ -109,7 +109,7 @@ describe("App routing with auth guards", () => {
       await screen.findByText("Email and password are required."),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "AgentFailure" }),
+      screen.getByRole("heading", { name: "Sign in" }),
     ).toBeInTheDocument();
   });
 
