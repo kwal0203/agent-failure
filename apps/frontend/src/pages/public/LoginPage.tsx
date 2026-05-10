@@ -1,7 +1,6 @@
 import {
   ArrowRight,
   CheckCircle2,
-  ExternalLink,
   Eye,
   EyeOff,
   HelpCircle,
@@ -295,18 +294,25 @@ export default function LoginPage() {
 
             <div className="my-8 h-px bg-lime-500/15" />
 
-            <div className="flex flex-col gap-4 text-sm font-semibold text-lime-300 sm:flex-row sm:items-center sm:justify-between">
-              <Link
-                to="/forgot-password"
-                className="transition hover:text-lime-200"
-              >
-                Forgot Password?
-              </Link>
-
-              <span className="inline-flex items-center gap-2 opacity-70">
-                Instructor / pilot access
-                <ExternalLink className="h-4 w-4" />
-              </span>
+            <div className="mt-2 space-y-2 text-sm text-slate-400">
+              <p>
+                Don&apos;t have an account?{" "}
+                <Link
+                  to="/signup"
+                  className="font-semibold text-lime-300 transition hover:text-lime-200"
+                >
+                  Create account
+                </Link>
+              </p>
+              <p>
+                Forgot your password?{" "}
+                <Link
+                  to="/forgot-password"
+                  className="font-semibold text-lime-300 transition hover:text-lime-200"
+                >
+                  Reset password
+                </Link>
+              </p>
             </div>
           </section>
         </main>
