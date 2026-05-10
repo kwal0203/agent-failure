@@ -28,7 +28,7 @@ export default function AppShell() {
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
   const isLabsCatalogRoute = location.pathname === "/labs";
-  const hideShellChrome = !isDebug && isLabsCatalogRoute;
+  const hideShellChrome = !isDebug && (isLabsCatalogRoute || isPreLabRoute);
 
   return (
     <div

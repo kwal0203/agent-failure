@@ -1,4 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  BarChart3,
+  BookOpen,
+  Camera,
+  Check,
+  CheckSquare,
+  ClipboardList,
+  Clock,
+  Flag,
+  GraduationCap,
+  HelpCircle,
+  Lock,
+  Mail,
+  MessageCircle,
+  Play,
+  Radar,
+  Search,
+  Shield,
+  Tag,
+  Target,
+  User,
+  Wifi,
+} from "lucide-react";
+import {
+  type ElementType,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useShellBootstrap } from "../shell/context";
 import {
@@ -31,6 +61,13 @@ type BriefingContent = {
   attackVector: string;
   successCriteria: string[];
   evidence: string[];
+};
+
+type BriefingSection = {
+  number: number;
+  title: string;
+  icon: ElementType;
+  content: ReactNode;
 };
 
 const DEFAULT_BRIEFING: BriefingContent = {
@@ -196,6 +233,85 @@ function resolveBriefing(lab: LabCatalogItem | null): BriefingContent {
   };
 }
 
+function MetadataPill({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: ElementType;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-3 rounded-lg border border-lime-500/20 bg-slate-950/70 px-4 py-2.5 text-sm text-slate-300 shadow-[0_0_18px_rgba(132,204,22,0.05)]">
+      <Icon className="h-4 w-4 text-lime-300" />
+      <span>
+        <span className="text-slate-400">{label}: </span>
+        <span className="font-bold text-lime-300">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function BriefingRow({ section }: { section: BriefingSection }) {
+  const Icon = section.icon;
+
+  return (
+    <section className="grid gap-4 border-b border-lime-500/15 p-5 last:border-b-0 md:grid-cols-[64px_1fr]">
+      <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-lime-400/30 bg-lime-500/10 text-lime-300 shadow-[0_0_22px_rgba(132,204,22,0.10)]">
+        <Icon className="h-7 w-7" />
+      </div>
+
+      <div>
+        <h2
+          className="text-xl font-extrabold tracking-tight text-slate-100"
+          style={{ color: "#f8fafc" }}
+        >
+          {section.number}. {section.title}
+        </h2>
+
+        <div className="mt-2 max-w-4xl text-[15px] leading-7 text-slate-300">
+          {section.content}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ToolPill({ icon: Icon, label }: { icon: ElementType; label: string }) {
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-2 rounded-lg border border-lime-500/20 bg-black/35 px-4 py-3 text-sm font-semibold text-slate-300">
+      <Icon className="h-5 w-5 shrink-0 text-lime-300" />
+      <span className="truncate">{label}</span>
+    </div>
+  );
+}
+
+function SummaryRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: ElementType;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[44px_1fr] gap-4 border-b border-lime-500/15 p-4 last:border-b-0">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
+        <Icon className="h-6 w-6" />
+      </div>
+
+      <div className="grid gap-1 sm:grid-cols-[150px_1fr]">
+        <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
+          {label}
+        </div>
+        <div className="text-sm leading-6 text-slate-200">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function PreLabPage() {
   const { labId } = useParams<{ labId: string }>();
   const location = useLocation();
@@ -208,6 +324,7 @@ export default function PreLabPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   const difficulty: LabDifficulty = state?.labDifficulty ?? "medium";
 
@@ -252,6 +369,62 @@ export default function PreLabPage() {
 
   const briefing = useMemo(() => resolveBriefing(lab), [lab]);
 
+  const briefingSections = useMemo<BriefingSection[]>(
+    () => [
+      {
+        number: 1,
+        title: "Mission Overview",
+        icon: Target,
+        content: <p>{briefing.missionOverview}</p>,
+      },
+      {
+        number: 2,
+        title: "Scenario",
+        icon: Mail,
+        content: <p>{briefing.scenario}</p>,
+      },
+      {
+        number: 3,
+        title: "System Context",
+        icon: Search,
+        content: <p>{briefing.systemContext}</p>,
+      },
+      {
+        number: 4,
+        title: "Your Objective",
+        icon: Flag,
+        content: (
+          <p className="font-bold text-lime-300">{briefing.objective}</p>
+        ),
+      },
+      {
+        number: 5,
+        title: "Rules of Engagement",
+        icon: ClipboardList,
+        content: (
+          <ul className="list-disc space-y-1 pl-5 marker:text-lime-300">
+            {briefing.rules.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        ),
+      },
+      {
+        number: 6,
+        title: "Learning Goals",
+        icon: GraduationCap,
+        content: (
+          <ul className="list-disc space-y-1 pl-5 marker:text-lime-300">
+            {briefing.learningGoals.map((goal) => (
+              <li key={goal}>{goal}</li>
+            ))}
+          </ul>
+        ),
+      },
+    ],
+    [briefing],
+  );
+
   const onStartLab = async () => {
     if (!labId) return;
     setStarting(true);
@@ -291,154 +464,227 @@ export default function PreLabPage() {
   }
 
   const labName = state?.labName ?? lab?.name ?? briefing.title;
-  const missionOneLiner = state?.labSummary ?? briefing.oneLiner;
 
   return (
-    <section
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 16,
-        color: "#d7ffd7",
-        fontFamily: "'Share Tech Mono', 'Fira Code', 'Courier New', monospace",
-      }}
-    >
-      <header
-        style={{
-          border: "1px solid #1b5e20",
-          borderRadius: 14,
-          padding: "24px 26px",
-          background:
-            "linear-gradient(160deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))",
-        }}
-      >
-        <h1 style={{ margin: "14px 0 12px", color: "#8bff8f" }}>{labName}</h1>
-        <p style={{ margin: "0 0 14px", color: "#9dc6a2", lineHeight: 1.5 }}>
-          {missionOneLiner}
-        </p>
-        <p style={{ margin: 0, color: "#7ea683", fontSize: 13 }}>
-          {difficulty} • {briefing.estimatedTime} • {briefing.topic}
-        </p>
-      </header>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 14,
-          alignItems: "start",
-        }}
-      >
-        <div style={{ display: "grid", gap: 10 }}>
-          {[
-            ["Mission Overview", briefing.missionOverview],
-            ["Scenario", briefing.scenario],
-            ["System Context", briefing.systemContext],
-          ].map(([title, body]) => (
-            <article
-              key={title}
-              style={{
-                border: "1px solid #1b5e20",
-                borderRadius: 12,
-                padding: 14,
-                background: "rgba(10, 18, 10, 0.95)",
-              }}
-            >
-              <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#b6ffb9" }}>
-                {title}
-              </h2>
-              <p style={{ margin: 0, color: "#9dc6a2" }}>{body}</p>
-            </article>
-          ))}
-
-          <article
-            style={{
-              border: "1px solid #1b5e20",
-              borderRadius: 12,
-              padding: 14,
-              background: "rgba(10, 18, 10, 0.95)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 6px", fontSize: 18, color: "#b6ffb9" }}>
-              Learning Goals
-            </h2>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#9dc6a2" }}>
-              {briefing.learningGoals.map((goal) => (
-                <li key={goal}>{goal}</li>
-              ))}
-            </ul>
-          </article>
+    <div className="min-h-screen overflow-hidden bg-black font-sans text-slate-100 antialiased">
+      <div className="relative min-h-screen">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_5%,rgba(132,204,22,0.12),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#020617_0%,#020617_48%,#000_100%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
+          <div className="h-full w-full bg-[linear-gradient(rgba(132,204,22,0.30)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.20)_1px,transparent_1px)] bg-[size:44px_44px]" />
         </div>
 
-        <aside
-          style={{
-            position: "sticky",
-            top: 84,
-            border: "1px solid #1b5e20",
-            borderRadius: 12,
-            padding: 14,
-            background: "rgba(10, 18, 10, 0.98)",
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: 20, color: "#b6ffb9" }}>
-            Mission Summary
-          </h2>
-          <p style={{ margin: 0 }}>
-            <strong>Objective:</strong> {briefing.objective}
-          </p>
-          <p style={{ margin: 0 }}>
-            <strong>Target:</strong> {briefing.target}
-          </p>
-          <p style={{ margin: 0 }}>
-            <strong>Attack Vector:</strong> {briefing.attackVector}
-          </p>
+        <header className="relative z-10 border-b border-lime-500/15 bg-black/40 backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8 lg:px-10">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-500/15 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_24px_rgba(132,204,22,0.22)]">
+                <Shield className="h-7 w-7" />
+              </div>
 
-          <div>
-            <p style={{ margin: "0 0 6px" }}>
-              <strong>Success Criteria</strong>
-            </p>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#a9d3e3" }}>
-              {briefing.successCriteria.map((criterion) => (
-                <li key={criterion}>{criterion}</li>
-              ))}
-            </ul>
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.22em] text-slate-100">
+                  Agent Failure
+                </div>
+                <div className="text-xs font-medium text-slate-500">
+                  AI Agent Security Labs
+                </div>
+              </div>
+            </div>
+
+            <nav className="hidden items-center gap-5 text-sm font-semibold text-slate-300 sm:flex">
+              <span className="inline-flex items-center gap-2">
+                <HelpCircle className="h-4 w-4" />
+                Help
+              </span>
+              <span className="h-5 w-px bg-lime-500/20" />
+              <span className="inline-flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Lab Guide
+              </span>
+            </nav>
           </div>
+        </header>
 
-          <div>
-            <p style={{ margin: "0 0 6px" }}>
-              <strong>Evidence to Capture</strong>
-            </p>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "#a9d3e3" }}>
-              {briefing.evidence.map((entry) => (
-                <li key={entry}>{entry}</li>
-              ))}
-            </ul>
+        <main className="relative z-10 mx-auto max-w-7xl px-5 py-8 md:px-8 lg:px-10">
+          <section className="grid gap-7 lg:grid-cols-[1fr_500px] lg:items-start">
+            <section className="overflow-hidden rounded-3xl border border-lime-500/20 bg-slate-950/70 backdrop-blur">
+              <div className="border-b border-lime-500/15 px-5 py-5">
+                <h1
+                  className="text-3xl font-black tracking-tight text-slate-100 md:text-4xl"
+                  style={{ color: "#f8fafc" }}
+                >
+                  {labName}
+                </h1>
+                <p className="mt-3 max-w-4xl text-[15px] leading-7 text-slate-300">
+                  {briefing.oneLiner}
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <MetadataPill
+                    icon={Tag}
+                    label="Difficulty"
+                    value={difficulty}
+                  />
+                  <MetadataPill
+                    icon={Clock}
+                    label="Estimated"
+                    value={briefing.estimatedTime}
+                  />
+                  <MetadataPill
+                    icon={Radar}
+                    label="Topic"
+                    value={briefing.topic}
+                  />
+                </div>
+              </div>
+
+              <div>
+                {briefingSections.map((section) => (
+                  <BriefingRow key={section.title} section={section} />
+                ))}
+              </div>
+
+              <div className="border-t border-lime-500/15 p-5">
+                <h3
+                  className="mb-3 text-sm font-black uppercase tracking-wide text-lime-300"
+                  style={{ color: "#86efac" }}
+                >
+                  Available Lab Tools
+                </h3>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <ToolPill icon={MessageCircle} label="Agent Chat" />
+                  <ToolPill icon={Mail} label="Email Inbox" />
+                  <ToolPill icon={BarChart3} label="Event Timeline" />
+                  <ToolPill icon={Wifi} label="Trace Stream" />
+                </div>
+              </div>
+            </section>
+
+            <aside className="relative overflow-hidden rounded-3xl border border-lime-400/50 bg-slate-950/75 p-6 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur lg:sticky lg:top-8 lg:self-start">
+              <div className="pointer-events-none absolute inset-0 opacity-25">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(132,204,22,0.25),transparent_42%)]" />
+                <div className="absolute right-0 top-0 h-full w-full bg-[linear-gradient(rgba(132,204,22,0.13)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.13)_1px,transparent_1px)] bg-[size:32px_32px]" />
+              </div>
+
+              <div className="relative">
+                <div className="mb-6 flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-500/10 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_22px_rgba(132,204,22,0.20)]">
+                    <Radar className="h-7 w-7" />
+                  </div>
+                  <h2
+                    className="text-2xl font-black uppercase tracking-wide text-lime-300"
+                    style={{ color: "#86efac" }}
+                  >
+                    Mission Summary
+                  </h2>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-lime-500/20 bg-black/25">
+                  <SummaryRow icon={Target} label="Objective">
+                    {briefing.objective}
+                  </SummaryRow>
+
+                  <SummaryRow icon={User} label="Target">
+                    {briefing.target}
+                  </SummaryRow>
+
+                  <SummaryRow icon={Mail} label="Attack Vector">
+                    {briefing.attackVector}
+                  </SummaryRow>
+
+                  <div className="grid grid-cols-[44px_1fr] gap-4 border-b border-lime-500/15 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
+                      <CheckSquare className="h-6 w-6" />
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
+                        Success Criteria
+                      </div>
+
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
+                        {briefing.successCriteria.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[44px_1fr] gap-4 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
+                      <Camera className="h-6 w-6" />
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
+                        Evidence to Capture
+                      </div>
+
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
+                        {briefing.evidence.map((entry) => (
+                          <li key={entry}>{entry}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <label className="mt-6 flex items-center cursor-pointer gap-4 rounded-2xl border border-lime-500/15 bg-black/25 p-4 text-sm leading-6 text-slate-200 transition hover:border-lime-400/40 hover:bg-lime-500/5">
+                  <input
+                    type="checkbox"
+                    checked={acknowledged}
+                    onChange={(event) => setAcknowledged(event.target.checked)}
+                    className="sr-only"
+                  />
+                  <span
+                    className={[
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border transition",
+                      acknowledged
+                        ? "border-lime-300 bg-lime-300 text-black shadow-[0_0_16px_rgba(132,204,22,0.45)]"
+                        : "border-lime-400/70 bg-black/50 text-transparent",
+                    ].join(" ")}
+                  >
+                    <Check className="h-4 w-4" />
+                  </span>
+                  <span>I understand the task</span>
+                </label>
+
+                <button
+                  type="button"
+                  disabled={starting || !acknowledged}
+                  onClick={() => void onStartLab()}
+                  className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-lime-300 text-base font-black uppercase tracking-wide text-black shadow-[0_0_30px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_44px_rgba(132,204,22,0.75)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <Play className="h-5 w-5 fill-black" />
+                  {starting ? "Starting Lab..." : "Start Lab"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/labs")}
+                  className="mt-4 flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-lime-400/50 bg-black/30 text-sm font-extrabold uppercase tracking-wide text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  Back to Catalog
+                </button>
+
+                {startError ? (
+                  <p className="mt-3 text-sm text-rose-300">{startError}</p>
+                ) : null}
+              </div>
+            </aside>
+          </section>
+        </main>
+
+        <footer className="relative z-10 border-t border-lime-500/15 bg-black/30 py-4">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-5 text-xs text-slate-500 md:px-8 lg:px-10">
+            <span className="inline-flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5" />
+              Controlled educational environment
+            </span>
+            <span>Agent Failure Labs</span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void onStartLab()}
-            disabled={starting}
-            style={{
-              background: starting ? "#1f3321" : "#102810",
-              color: "#b6ffb9",
-              border: "1px solid #2e7d32",
-              padding: "10px 14px",
-              borderRadius: 10,
-              fontWeight: 800,
-              cursor: starting ? "wait" : "pointer",
-            }}
-          >
-            {starting ? "Starting lab..." : "Start Lab"}
-          </button>
-
-          {startError ? (
-            <p style={{ margin: 0, color: "#ffb8c6" }}>{startError}</p>
-          ) : null}
-        </aside>
+        </footer>
       </div>
-    </section>
+    </div>
   );
 }
