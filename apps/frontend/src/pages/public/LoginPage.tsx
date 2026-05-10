@@ -182,17 +182,6 @@ export default function LoginPage() {
               <FeatureChip>Trace-grounded feedback</FeatureChip>
               <FeatureChip>Instructor-ready assessment</FeatureChip>
             </div>
-
-            <div className="mt-28 flex max-w-md items-start gap-3 text-sm text-slate-400">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-lime-500/20 bg-black/30 text-lime-300">
-                <Shield className="h-5 w-5" />
-              </div>
-              <p>
-                Controlled educational environment.
-                <br />
-                Only use the provided lab interfaces.
-              </p>
-            </div>
           </section>
 
           <section className="mx-auto w-full max-w-xl rounded-[2rem] border border-lime-400/50 bg-black/45 p-8 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur-md md:p-12">
@@ -200,9 +189,6 @@ export default function LoginPage() {
               <h2 className="text-4xl font-black tracking-tight text-white">
                 Sign in
               </h2>
-              <p className="mt-3 text-base leading-7 text-slate-400">
-                Access your labs, traces, reports, and course assignments.
-              </p>
             </div>
 
             <div className="mt-6 grid gap-3">
