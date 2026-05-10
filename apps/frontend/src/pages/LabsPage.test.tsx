@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LabCatalog, type LabCatalogItem } from "./LabsPage";
 
+vi.mock("../auth/context", () => ({
+  useAuth: () => ({
+    logout: vi.fn(),
+  }),
+}));
+
 describe("LabCatalog", () => {
   it("renders populated catalog with metadata and launch action", async () => {
     const labs: LabCatalogItem[] = [
@@ -18,10 +24,7 @@ describe("LabCatalog", () => {
     ];
 
     const loadLabs = vi.fn(async () => labs);
-    const createSession = vi.fn(
-      async () => "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-    );
-    const onOpenSession = vi.fn();
+    const onOpenPreLab = vi.fn();
 
     render(
       <LabCatalog
@@ -29,29 +32,28 @@ describe("LabCatalog", () => {
         learnerLabel="Demo Learner"
         mode="debug"
         loadLabs={loadLabs}
-        createSession={createSession}
-        onOpenSession={onOpenSession}
+        onOpenPreLab={onOpenPreLab}
       />,
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Prompt Injection Basics" }),
+      await screen.findByRole("heading", {
+        name: /Prompt Injection Basics/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(/slug:/i)).toBeInTheDocument();
     expect(screen.getByText(/resume: yes \| uploads: no/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Launch lab" }));
 
-    expect(createSession).toHaveBeenCalledWith(
-      "http://localhost:8000",
-      "11111111-1111-1111-1111-111111111111",
-      "medium",
-    );
     await waitFor(() => {
-      expect(onOpenSession).toHaveBeenCalledWith(
-        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "Prompt Injection Basics",
-      );
+      expect(onOpenPreLab).toHaveBeenCalledWith({
+        labId: "11111111-1111-1111-1111-111111111111",
+        labName: "Prompt Injection Basics",
+        labSlug: "prompt-injection-basics",
+        labSummary: "Practice attacking a retrieval-enabled agent.",
+        labDifficulty: "medium",
+      });
     });
   });
 
@@ -76,22 +78,27 @@ describe("LabCatalog", () => {
         learnerLabel="Demo Learner"
         mode="demo"
         loadLabs={loadLabs}
-        onOpenSession={() => {}}
+        onOpenPreLab={() => {}}
       />,
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Prompt Injection Basics" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/slug:/i)).not.toBeInTheDocument();
     expect(
       screen.queryByText(/resume: yes \| uploads: no/i),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "easy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "medium" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Hard (Soon)" }),
-    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Open Module" }).length).toBe(
+      8,
+    );
   });
 
   it("renders explicit empty state when no labs are launchable", async () => {
@@ -102,7 +109,7 @@ describe("LabCatalog", () => {
         apiBaseUrl="http://localhost:8000"
         learnerLabel="Demo Learner"
         loadLabs={loadLabs}
-        onOpenSession={() => {}}
+        onOpenPreLab={() => {}}
       />,
     );
 

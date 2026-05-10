@@ -28,7 +28,7 @@ class SQLAlchemyLabRepository(LabRepository):
                 lab_id=UUID("44444444-4444-4444-4444-444444444444"),
                 slug="agent-prompt-injection",
                 name="Indirect Prompt Injection",
-                summary="Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
+                summary="Attack an agent using indirect prompt injection via a malicious email.",
                 supports_resume=False,
                 supports_uploads=False,
             ),
@@ -43,7 +43,7 @@ class SQLAlchemyLabRepository(LabRepository):
             GetLabCatalogRow(
                 lab_id=UUID("66666666-6666-6666-6666-666666666666"),
                 slug="agent-memory-poisoning",
-                name="Agent: Memory Poisoning",
+                name="Memory Poisoning",
                 summary="Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
                 supports_resume=False,
                 supports_uploads=False,

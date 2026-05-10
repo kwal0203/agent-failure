@@ -18,7 +18,7 @@ const STUB_LABS: LabCatalogItem[] = [
     slug: "agent-prompt-injection",
     name: "Indirect Prompt Injection",
     summary:
-      "Attack an LLM agent with indirect prompt injection via a crafted inbox email.",
+      "Attack an agent using indirect prompt injection via a malicious email.",
     capabilities: {
       supports_resume: true,
       supports_uploads: false,
@@ -38,7 +38,7 @@ const STUB_LABS: LabCatalogItem[] = [
   {
     id: "66666666-6666-6666-6666-666666666666",
     slug: "agent-memory-poisoning",
-    name: "Agent: Memory Poisoning",
+    name: "Memory Poisoning",
     summary:
       "Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
     capabilities: {

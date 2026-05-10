@@ -7,8 +7,10 @@ import {
 describe("getLabGuideContent", () => {
   it("returns agent lab 1 copy for agent prompt injection id", () => {
     const content = getLabGuideContent("44444444-4444-4444-4444-444444444444");
-    expect(content.title).toBe("Lab: Indirect Prompt Injection");
-    expect(content.mission).toContain("Mission Overview");
+    expect(content.title).toBe("Indirect Prompt Injection");
+    expect(content.objective).toContain("target information");
+    expect(content.attackVector).toBe("Email inbox");
+    expect(content.evidence[0]).toContain("Malicious email");
   });
 
   it("returns agent lab 2 tool misuse copy for lab 2 id", () => {
@@ -21,8 +23,8 @@ describe("getLabGuideContent", () => {
 
   it("returns agent lab 3 memory poisoning copy for lab 3 id", () => {
     const content = getLabGuideContent("66666666-6666-6666-6666-666666666666");
-    expect(content.title).toBe("Agent: Memory Poisoning");
-    expect(content.mission).toContain("attacker-controlled");
+    expect(content.title).toBe("Memory Poisoning");
+    expect(content.missionOverview).toContain("attacker-controlled");
     expect(content.successCriteria[2]).toBe(
       "Route pay_invoice to the attacker account instead of the canonical account.",
     );
@@ -33,7 +35,7 @@ describe("getLabGuideContent", () => {
       labSlug: "agent-memory-poisoning",
       labVersion: "v1",
     });
-    expect(content.title).toBe("Agent: Memory Poisoning");
+    expect(content.title).toBe("Memory Poisoning");
     expect(content.successCriteria[1]).toContain("retrieved");
   });
 

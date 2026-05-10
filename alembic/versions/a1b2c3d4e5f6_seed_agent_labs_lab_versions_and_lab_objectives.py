@@ -66,7 +66,7 @@ def upgrade() -> None:
             {
                 "id": AGENT_LAB_3_ID,
                 "slug": "agent-memory-poisoning",
-                "name": "Agent: Memory Poisoning",
+                "name": "Memory Poisoning",
                 "summary": "Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
                 "is_active": True,
             },

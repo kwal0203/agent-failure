@@ -16,7 +16,7 @@ export const DEMO_H1_STYLE: CSSProperties = {
 
 export const DEMO_H2_STYLE: CSSProperties = {
   color: "#dbf8ff",
-  letterSpacing: 0.3,
+  letterSpacing: 0,
 };
 
 const FEEDBACK_REASON_LABELS: Record<string, string> = {

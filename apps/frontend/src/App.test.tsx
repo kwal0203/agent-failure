@@ -39,7 +39,7 @@ describe("App routing with auth guards", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "AgentFailure",
+        name: "Sign in",
       }),
     ).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe("App routing with auth guards", () => {
     renderAt("/labs");
 
     expect(
-      await screen.findByRole("heading", { name: "AgentFailure" }),
+      await screen.findByRole("heading", { name: "Sign in" }),
     ).toBeInTheDocument();
   });
 
@@ -70,7 +70,9 @@ describe("App routing with auth guards", () => {
     renderAt("/login");
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -92,9 +94,10 @@ describe("App routing with auth guards", () => {
     renderAt("/labs");
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Cyberrange Demo Surface/i)).toBeInTheDocument();
   });
 
   it("blocks invalid login input client-side", async () => {
@@ -106,7 +109,7 @@ describe("App routing with auth guards", () => {
       await screen.findByText("Email and password are required."),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "AgentFailure" }),
+      screen.getByRole("heading", { name: "Sign in" }),
     ).toBeInTheDocument();
   });
 
@@ -137,7 +140,9 @@ describe("App routing with auth guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
   });
 
