@@ -70,7 +70,7 @@ describe("App routing with auth guards", () => {
     renderAt("/login");
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
     ).toBeInTheDocument();
   });
 
@@ -92,9 +92,8 @@ describe("App routing with auth guards", () => {
     renderAt("/labs");
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Cyberrange Demo Surface/i)).toBeInTheDocument();
   });
 
   it("blocks invalid login input client-side", async () => {
@@ -137,7 +136,7 @@ describe("App routing with auth guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Labs" }),
+      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
     ).toBeInTheDocument();
   });
 

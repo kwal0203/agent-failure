@@ -31,7 +31,9 @@ describe("LabCatalog", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Prompt Injection Basics" }),
+      await screen.findByRole("heading", {
+        name: /Prompt Injection Basics/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(/slug:/i)).toBeInTheDocument();
     expect(screen.getByText(/resume: yes \| uploads: no/i)).toBeInTheDocument();
@@ -75,19 +77,22 @@ describe("LabCatalog", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Prompt Injection Basics" }),
+      await screen.findByRole("heading", {
+        name: "Agent Failure Lab Catalog",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/slug:/i)).not.toBeInTheDocument();
     expect(
       screen.queryByText(/resume: yes \| uploads: no/i),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Easy (Soon)" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "medium" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Hard (Soon)" }),
-    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Open Module" }).length).toBe(
+      4,
+    );
   });
 
   it("renders explicit empty state when no labs are launchable", async () => {

@@ -27,6 +27,8 @@ export default function AppShell() {
   const location = useLocation();
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
+  const isLabsCatalogRoute = location.pathname === "/labs";
+  const hideShellChrome = !isDebug && isLabsCatalogRoute;
 
   return (
     <div
@@ -53,123 +55,135 @@ export default function AppShell() {
             }
       }
     >
-      <header
-        style={{
-          borderBottom: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
-          background: isDebug
-            ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
-            : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
-          backdropFilter: isDebug ? undefined : "blur(6px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 3,
-        }}
-      >
-        <div
+      {!hideShellChrome && (
+        <header
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
-            padding: isSessionRoute ? "14px 16px" : "14px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            borderBottom: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
+            background: isDebug
+              ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
+              : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
+            backdropFilter: isDebug ? undefined : "blur(6px)",
+            position: "sticky",
+            top: 0,
+            zIndex: 3,
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                color: isDebug ? "#8bff8f" : "#8bff8f",
-                fontFamily:
-                  '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
-                textTransform: isDebug ? undefined : "uppercase",
-              }}
-            >
-              Agent Failure
+          <div
+            style={{
+              maxWidth: isSessionRoute ? undefined : 1240,
+              margin: isSessionRoute ? 0 : "0 auto",
+              padding: isSessionRoute ? "14px 16px" : "14px 24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  color: isDebug ? "#8bff8f" : "#8bff8f",
+                  fontFamily:
+                    '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
+                  textTransform: isDebug ? undefined : "uppercase",
+                }}
+              >
+                Agent Failure
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: isDebug ? 0.7 : 1,
+                  color: isDebug ? "#7ea683" : "#7ea683",
+                  letterSpacing: isDebug ? undefined : 0.3,
+                }}
+              >
+                {isDebug
+                  ? "Demo mode: auth deferred for P1 usability sprint"
+                  : "Cyberrange Demo Surface"}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: 12,
-                opacity: isDebug ? 0.7 : 1,
-                color: isDebug ? "#7ea683" : "#7ea683",
-                letterSpacing: isDebug ? undefined : 0.3,
-              }}
-            >
-              {isDebug
-                ? "Demo mode: auth deferred for P1 usability sprint"
-                : "Cyberrange Demo Surface"}
-            </div>
-          </div>
-          {isSessionRoute ? (
-            <div />
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {isPreLabRoute ? (
+            {isSessionRoute ? (
+              <div />
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {isPreLabRoute ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/labs")}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      border: "1px solid #2e7d32",
+                      background: "#102810",
+                      color: "#b6ffb9",
+                    }}
+                  >
+                    Back to Labs
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => navigate("/labs")}
+                  onClick={logout}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
                     padding: "7px 10px",
                     borderRadius: 8,
                     cursor: "pointer",
-                    border: "1px solid #2e7d32",
-                    background: "#102810",
-                    color: "#b6ffb9",
+                    border: isDebug ? "1px solid #7a2f3a" : "1px solid #7a2f3a",
+                    background: isDebug ? "#3a1118" : "#3a1118",
+                    color: isDebug ? "#ffd7de" : "#ffd7de",
                   }}
                 >
-                  Back to Labs
+                  Log Out
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={logout}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "7px 10px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  border: isDebug ? "1px solid #7a2f3a" : "1px solid #7a2f3a",
-                  background: isDebug ? "#3a1118" : "#3a1118",
-                  color: isDebug ? "#ffd7de" : "#ffd7de",
-                }}
-              >
-                Log Out
-              </button>
-            </div>
+              </div>
+            )}
+          </div>
+          {bootstrap.mode === "debug" && (
+            <nav
+              style={{
+                maxWidth: isSessionRoute ? undefined : 1120,
+                margin: isSessionRoute ? 0 : "0 auto",
+                padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
+                display: "flex",
+                gap: 16,
+              }}
+            >
+              <NavLink to="/labs" style={navLinkStyle}>
+                Labs
+              </NavLink>
+              <NavLink to="/history" style={navLinkStyle}>
+                History
+              </NavLink>
+              <NavLink to="/trace" style={navLinkStyle}>
+                Trace
+              </NavLink>
+            </nav>
           )}
-        </div>
-        {bootstrap.mode === "debug" && (
-          <nav
-            style={{
-              maxWidth: isSessionRoute ? undefined : 1120,
-              margin: isSessionRoute ? 0 : "0 auto",
-              padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
-              display: "flex",
-              gap: 16,
-            }}
-          >
-            <NavLink to="/labs" style={navLinkStyle}>
-              Labs
-            </NavLink>
-            <NavLink to="/history" style={navLinkStyle}>
-              History
-            </NavLink>
-            <NavLink to="/trace" style={navLinkStyle}>
-              Trace
-            </NavLink>
-          </nav>
-        )}
-      </header>
+        </header>
+      )}
       <main
         style={{
-          maxWidth: isSessionRoute ? undefined : 1240,
-          margin: isSessionRoute ? 0 : "0 auto",
-          padding: isSessionRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
+          maxWidth: hideShellChrome
+            ? undefined
+            : isSessionRoute
+              ? undefined
+              : 1240,
+          margin: hideShellChrome ? 0 : isSessionRoute ? 0 : "0 auto",
+          padding: hideShellChrome
+            ? 0
+            : isSessionRoute
+              ? 0
+              : isDebug
+                ? "20px"
+                : "28px 24px 34px",
           flex: "1 1 auto",
           minHeight: 0,
           width: "100%",
@@ -179,58 +193,60 @@ export default function AppShell() {
       >
         <Outlet context={bootstrap} />
       </main>
-      <footer
-        style={{
-          borderTop: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
-          padding: isSessionRoute ? "10px 16px" : "10px 24px",
-          color: isDebug ? "#7ea683" : "#7ea683",
-          fontSize: 12,
-          background: isDebug ? "rgba(6, 12, 6, 0.9)" : "rgba(6, 12, 6, 0.9)",
-        }}
-      >
-        <div
+      {!hideShellChrome && (
+        <footer
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
+            borderTop: isDebug ? "1px solid #1b5e20" : "1px solid #1b5e20",
+            padding: isSessionRoute ? "10px 16px" : "10px 24px",
+            color: isDebug ? "#7ea683" : "#7ea683",
+            fontSize: 12,
+            background: isDebug ? "rgba(6, 12, 6, 0.9)" : "rgba(6, 12, 6, 0.9)",
           }}
         >
-          <span>© {currentYear} Agent Failure</span>
-          <nav
-            aria-label="Footer links"
-            style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
+          <div
+            style={{
+              maxWidth: isSessionRoute ? undefined : 1240,
+              margin: isSessionRoute ? 0 : "0 auto",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
           >
-            <a
-              href="https://agent-failure.local/docs"
-              style={{ color: "inherit", textDecoration: "none" }}
+            <span>© {currentYear} Agent Failure</span>
+            <nav
+              aria-label="Footer links"
+              style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
             >
-              Docs
-            </a>
-            <a
-              href="https://agent-failure.local/privacy"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Privacy
-            </a>
-            <a
-              href="https://agent-failure.local/terms"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Terms
-            </a>
-            <a
-              href="https://agent-failure.local/support"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Report issue
-            </a>
-          </nav>
-        </div>
-      </footer>
+              <a
+                href="https://agent-failure.local/docs"
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                Docs
+              </a>
+              <a
+                href="https://agent-failure.local/privacy"
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                Privacy
+              </a>
+              <a
+                href="https://agent-failure.local/terms"
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                Terms
+              </a>
+              <a
+                href="https://agent-failure.local/support"
+                style={{ color: "inherit", textDecoration: "none" }}
+              >
+                Report issue
+              </a>
+            </nav>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
