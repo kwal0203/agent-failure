@@ -4,19 +4,14 @@ import {
   BookOpen,
   Boxes,
   Brain,
-  Bug,
   ClipboardCheck,
-  Clock,
   ExternalLink,
-  Eye,
   FileText,
   GraduationCap,
   Home,
-  Info,
   Landmark,
   LifeBuoy,
   ListChecks,
-  Lock,
   MessageSquareWarning,
   Network,
   Search,
@@ -25,8 +20,9 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/context";
 import { useShellBootstrap } from "../shell/context";
 import {
   type LabCatalogItem,
@@ -67,7 +63,8 @@ type CatalogModule = {
   icon: React.ElementType;
   iconTone: string;
   statusTone: string;
-  action: "Open Module" | "Preview";
+  action: "Open Module";
+  isLaunchEnabled: boolean;
 };
 
 const navItems = [
@@ -98,7 +95,8 @@ const modules: CatalogModule[] = [
     icon: Shield,
     iconTone: "bg-lime-950/80 text-lime-300 ring-lime-500/40",
     statusTone: "bg-slate-700/60 text-slate-300 ring-slate-500/30",
-    action: "Preview",
+    action: "Open Module",
+    isLaunchEnabled: false,
   },
   {
     id: "indirect-prompt-injection",
@@ -113,6 +111,7 @@ const modules: CatalogModule[] = [
     iconTone: "bg-lime-950/80 text-lime-300 ring-lime-500/40",
     statusTone: "bg-lime-500/15 text-lime-300 ring-lime-400/30",
     action: "Open Module",
+    isLaunchEnabled: true,
   },
   {
     id: "tool-misuse",
@@ -127,6 +126,7 @@ const modules: CatalogModule[] = [
     iconTone: "bg-lime-950/80 text-lime-300 ring-lime-500/40",
     statusTone: "bg-lime-500/15 text-lime-300 ring-lime-400/30",
     action: "Open Module",
+    isLaunchEnabled: true,
   },
   {
     id: "memory-poisoning",
@@ -141,6 +141,7 @@ const modules: CatalogModule[] = [
     iconTone: "bg-lime-950/80 text-lime-300 ring-lime-500/40",
     statusTone: "bg-lime-500/15 text-lime-300 ring-lime-400/30",
     action: "Open Module",
+    isLaunchEnabled: true,
   },
   {
     id: "multi-agent",
@@ -154,7 +155,8 @@ const modules: CatalogModule[] = [
     icon: Network,
     iconTone: "bg-yellow-950/70 text-yellow-300 ring-yellow-500/40",
     statusTone: "bg-slate-700/60 text-slate-300 ring-slate-500/30",
-    action: "Preview",
+    action: "Open Module",
+    isLaunchEnabled: false,
   },
   {
     id: "observability",
@@ -168,7 +170,8 @@ const modules: CatalogModule[] = [
     icon: Search,
     iconTone: "bg-lime-950/80 text-lime-300 ring-lime-500/40",
     statusTone: "bg-slate-700/60 text-slate-300 ring-slate-500/30",
-    action: "Preview",
+    action: "Open Module",
+    isLaunchEnabled: false,
   },
   {
     id: "supply-chain",
@@ -182,7 +185,8 @@ const modules: CatalogModule[] = [
     icon: Boxes,
     iconTone: "bg-violet-950/70 text-violet-300 ring-violet-500/40",
     statusTone: "bg-slate-700/60 text-slate-300 ring-slate-500/30",
-    action: "Preview",
+    action: "Open Module",
+    isLaunchEnabled: false,
   },
   {
     id: "capstone",
@@ -196,7 +200,8 @@ const modules: CatalogModule[] = [
     icon: Target,
     iconTone: "bg-yellow-950/70 text-yellow-300 ring-yellow-500/40",
     statusTone: "bg-slate-700/60 text-slate-300 ring-slate-500/30",
-    action: "Preview",
+    action: "Open Module",
+    isLaunchEnabled: false,
   },
 ];
 
@@ -245,26 +250,6 @@ function FilterChip({
   );
 }
 
-function StandardChip({
-  icon: Icon,
-  label,
-  accent = "text-lime-300",
-}: {
-  icon: React.ElementType;
-  label: string;
-  accent?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-slate-950/70 px-4 py-2 text-sm font-bold text-slate-200 transition hover:border-lime-400/60 hover:bg-lime-500/10 hover:text-lime-100"
-    >
-      <Icon className={`h-4 w-4 ${accent}`} />
-      {label}
-    </button>
-  );
-}
-
 function ModuleCard({
   module,
   onOpen,
@@ -273,7 +258,7 @@ function ModuleCard({
   onOpen: (() => void) | null;
 }) {
   const Icon = module.icon;
-  const isOpen = module.action === "Open Module";
+  const isEnabled = module.isLaunchEnabled && onOpen !== null;
 
   return (
     <article className="group flex min-h-[260px] flex-col rounded-2xl border border-lime-500/20 bg-slate-950/70 p-5 shadow-[0_0_0_1px_rgba(15,23,42,0.8)] backdrop-blur transition hover:-translate-y-0.5 hover:border-lime-400/60 hover:shadow-[0_0_30px_rgba(132,204,22,0.16)]">
@@ -319,21 +304,17 @@ function ModuleCard({
       <button
         type="button"
         onClick={onOpen ?? undefined}
-        disabled={!onOpen}
+        disabled={!isEnabled}
         className={[
           "mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border text-sm font-extrabold transition",
-          isOpen
+          isEnabled
             ? "border-lime-400/70 bg-lime-500/10 text-lime-200 hover:bg-lime-400/15 hover:shadow-[0_0_22px_rgba(132,204,22,0.25)]"
-            : "border-lime-500/35 bg-slate-950/60 text-lime-300 hover:border-lime-400/70 hover:bg-lime-500/10",
-          onOpen ? "" : "cursor-not-allowed opacity-75",
+            : "border-lime-500/35 bg-slate-950/60 text-lime-300 opacity-75",
+          isEnabled ? "" : "cursor-not-allowed",
         ].join(" ")}
       >
         {module.action}
-        {isOpen ? (
-          <ExternalLink className="h-4 w-4" />
-        ) : (
-          <Eye className="h-4 w-4" />
-        )}
+        <ExternalLink className="h-4 w-4" />
       </button>
     </article>
   );
@@ -420,107 +401,6 @@ function Sidebar() {
   );
 }
 
-function FeaturedPilotModule({ onOpen }: { onOpen: () => void }) {
-  return (
-    <section className="relative overflow-hidden rounded-2xl border border-lime-400/40 bg-slate-950/70 p-6 shadow-[0_0_35px_rgba(132,204,22,0.12)] backdrop-blur">
-      <div className="pointer-events-none absolute inset-0 opacity-30">
-        <div className="absolute inset-x-0 bottom-0 h-32 bg-[linear-gradient(rgba(132,204,22,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.15)_1px,transparent_1px)] bg-[size:36px_36px]" />
-        <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(132,204,22,0.22),transparent_45%)]" />
-      </div>
-
-      <div className="relative mb-4 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-lime-300">
-        <Target className="h-4 w-4 fill-lime-300 text-lime-300" />
-        Recommended Pilot Module
-      </div>
-
-      <div className="relative grid gap-6 lg:grid-cols-[1.4fr_1fr_auto] lg:items-center">
-        <div className="flex gap-5">
-          <div className="hidden h-28 w-28 shrink-0 items-center justify-center rounded-full bg-lime-500/10 text-lime-300 ring-1 ring-lime-400/50 shadow-[0_0_30px_rgba(132,204,22,0.22)] sm:flex">
-            <div className="relative">
-              <MessageSquareWarning className="h-14 w-14" />
-              <div className="absolute -right-2 -bottom-2 flex h-8 w-8 items-center justify-center rounded-full bg-lime-400 text-slate-950 shadow-[0_0_18px_rgba(132,204,22,0.7)]">
-                <Lock className="h-4 w-4" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-100">
-              Prompt Injection & Goal Hijacking
-            </h2>
-
-            <div className="mt-4 space-y-3 text-sm text-slate-300">
-              <StatusBadge
-                label="Pilot Ready"
-                className="bg-lime-500/15 text-lime-300 ring-lime-400/30"
-              />
-
-              <div className="flex items-center gap-3">
-                <Users className="h-4 w-4 text-lime-300/80" />
-                <span>
-                  <span className="font-semibold text-slate-200">
-                    Includes:
-                  </span>{" "}
-                  OpsMail Assistant
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Clock className="h-4 w-4 text-lime-300/80" />
-                <span>
-                  <span className="font-semibold text-slate-200">Time:</span>{" "}
-                  45–75 min including briefing/report
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-lime-300/80" />
-                <span>
-                  <span className="font-semibold text-slate-200">
-                    Assessment:
-                  </span>{" "}
-                  Trace-backed lab report
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-lime-500/20 pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-          <h3 className="mb-4 text-sm font-extrabold text-slate-100">
-            What&apos;s Included
-          </h3>
-
-          <ol className="space-y-3 text-sm text-slate-300">
-            {[
-              "Full Lab: OpsMail Assistant",
-              "Trace Exercise",
-              "Defense Exercise",
-              "Report",
-            ].map((item, index) => (
-              <li key={item} className="flex items-center gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-lime-500/20 text-xs font-extrabold text-lime-200 ring-1 ring-lime-400/40">
-                  {index + 1}
-                </span>
-                {item}
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-lime-300/80 bg-lime-500/10 px-6 text-sm font-extrabold text-lime-100 shadow-[0_0_24px_rgba(132,204,22,0.35)] transition hover:bg-lime-400/20 hover:shadow-[0_0_34px_rgba(132,204,22,0.55)]"
-        >
-          Open Module
-          <ExternalLink className="h-4 w-4" />
-        </button>
-      </div>
-    </section>
-  );
-}
-
 function getModuleLab(
   moduleId: string,
   labs: LabCatalogItem[],
@@ -554,6 +434,7 @@ export function LabCatalog({
   loadLabs = loadLabCatalog,
   onOpenPreLab,
 }: LabCatalogProps) {
+  const { logout } = useAuth();
   const [labs, setLabs] = useState<LabCatalogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -564,6 +445,8 @@ export function LabCatalog({
   const [selectedDifficultyByLab] = useState<Record<string, DifficultyChoice>>(
     {},
   );
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   const refreshLabs = useCallback(async () => {
     setIsLoading(true);
@@ -596,6 +479,34 @@ export function LabCatalog({
       root.style.fontSize = previousFontSize;
     };
   }, [mode]);
+
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!userMenuRef.current) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (!userMenuRef.current.contains(target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   const launchLab = (labId: string) => {
     const chosenDifficulty =
@@ -752,11 +663,9 @@ export function LabCatalog({
     );
   }
 
-  const pilotModule = getModuleLab("foundations", labs);
-
   return (
-    <div className="min-h-screen bg-black font-sans text-slate-100 antialiased">
-      <div className="relative flex min-h-screen overflow-hidden">
+    <div className="h-screen overflow-hidden bg-black font-sans text-slate-100 antialiased">
+      <div className="relative flex h-full overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(132,204,22,0.12),transparent_30%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_28%),linear-gradient(180deg,#020617_0%,#020617_40%,#000_100%)]" />
 
         <div className="pointer-events-none absolute top-0 right-8 hidden h-80 w-96 opacity-20 lg:block">
@@ -765,7 +674,7 @@ export function LabCatalog({
 
         <Sidebar />
 
-        <main className="relative min-w-0 flex-1">
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 h-20 border-b border-lime-500/20 bg-black/55 px-5 backdrop-blur md:px-8 lg:px-10">
             <div className="flex h-full items-center justify-between">
               <div />
@@ -779,105 +688,111 @@ export function LabCatalog({
                   <Bell className="h-5 w-5" />
                 </button>
 
-                <div className="flex items-center gap-2 pl-1">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-extrabold text-slate-100 ring-1 ring-lime-500/20">
-                    IN
-                  </div>
-                  <span className="hidden text-sm font-semibold text-slate-300 sm:inline">
-                    Instructor
-                  </span>
+                <div className="relative pl-1" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={isUserMenuOpen}
+                    onClick={() => setIsUserMenuOpen((open) => !open)}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-lime-500/10"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-extrabold text-slate-100 ring-1 ring-lime-500/20">
+                      IN
+                    </div>
+                    <span className="hidden text-sm font-semibold text-slate-300 sm:inline">
+                      Instructor
+                    </span>
+                  </button>
+
+                  {isUserMenuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-lime-500/30 bg-black/95 p-1 shadow-[0_0_20px_rgba(132,204,22,0.18)] backdrop-blur"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          logout();
+                        }}
+                        className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-lime-500/10 hover:text-lime-100"
+                      >
+                        Log Out
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </header>
 
-          <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 md:px-8 lg:px-10">
-            <section className="mb-6 space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <FilterChip active>All</FilterChip>
-                <FilterChip>Full Labs</FilterChip>
-                <FilterChip>Micro-Labs</FilterChip>
-                <FilterChip>Trace Exercises</FilterChip>
-                <FilterChip>Assessments</FilterChip>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <StandardChip icon={Bug} label="OWASP Agentic" />
-                <StandardChip
-                  icon={Brain}
-                  label="OWASP LLM"
-                  accent="text-fuchsia-300"
-                />
-                <StandardChip icon={Network} label="MITRE ATLAS" />
-                <StandardChip icon={Landmark} label="NIST AI RMF" />
-              </div>
-            </section>
-
-            {pilotModule && (
-              <FeaturedPilotModule onOpen={() => launchLab(pilotModule.id)} />
-            )}
-
-            {isLoading && (
-              <p className="mt-6 text-lime-300/85">Loading lab catalog...</p>
-            )}
-
-            {loadError && (
-              <div className="mt-6 max-w-3xl rounded-lg border border-rose-800/80 bg-rose-950/40 p-3">
-                <p className="mb-2 text-rose-200">Error: {loadError}</p>
-                <button
-                  type="button"
-                  className="rounded-md border border-rose-500/70 bg-rose-900/40 px-3 py-1.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-800/50"
-                  onClick={() => void refreshLabs()}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {!isLoading && !loadError && labs.length === 0 && (
-              <div className="mt-6 max-w-3xl rounded-lg border border-lime-700/60 bg-lime-950/25 p-4">
-                <p className="m-0 text-lime-200/85">
-                  No launchable labs are currently available.
-                </p>
-              </div>
-            )}
-
-            {!isLoading && !loadError && modules.length > 0 && (
-              <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-                {modules.map((module) => (
-                  // Keep exact visual card set while wiring launchable modules.
-                  // Non-launchable modules remain as preview-only placeholders.
-                  <ModuleCard
-                    key={module.id}
-                    module={module}
-                    onOpen={
-                      module.action === "Open Module"
-                        ? () => {
-                            const moduleLab = getModuleLab(module.id, labs);
-                            if (moduleLab) {
-                              launchLab(moduleLab.id);
-                            }
-                          }
-                        : null
-                    }
-                  />
-                ))}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 md:px-8 lg:px-10">
+              <section className="mb-6 space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <FilterChip active>All</FilterChip>
+                  <FilterChip>Full Labs</FilterChip>
+                  <FilterChip>Micro-Labs</FilterChip>
+                  <FilterChip>Trace Exercises</FilterChip>
+                  <FilterChip>Assessments</FilterChip>
+                </div>
               </section>
-            )}
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-400">
-              <Info className="h-4 w-4 text-lime-300" />
-              <p>
-                Modules group related labs, exercises, and assessments by topic.
-                Open a module to see all included activities.
-              </p>
+              {isLoading && (
+                <p className="mt-6 text-lime-300/85">Loading lab catalog...</p>
+              )}
+
+              {loadError && (
+                <div className="mt-6 max-w-3xl rounded-lg border border-rose-800/80 bg-rose-950/40 p-3">
+                  <p className="mb-2 text-rose-200">Error: {loadError}</p>
+                  <button
+                    type="button"
+                    className="rounded-md border border-rose-500/70 bg-rose-900/40 px-3 py-1.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-800/50"
+                    onClick={() => void refreshLabs()}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!isLoading && !loadError && labs.length === 0 && (
+                <div className="mt-6 max-w-3xl rounded-lg border border-lime-700/60 bg-lime-950/25 p-4">
+                  <p className="m-0 text-lime-200/85">
+                    No launchable labs are currently available.
+                  </p>
+                </div>
+              )}
+
+              {!isLoading && !loadError && modules.length > 0 && (
+                <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                  {modules.map((module) => (
+                    // Keep exact visual card set while wiring launchable modules.
+                    // Non-launchable modules remain as preview-only placeholders.
+                    <ModuleCard
+                      key={module.id}
+                      module={module}
+                      onOpen={
+                        module.isLaunchEnabled
+                          ? () => {
+                              const moduleLab = getModuleLab(module.id, labs);
+                              if (moduleLab) {
+                                launchLab(moduleLab.id);
+                              }
+                            }
+                          : null
+                      }
+                    />
+                  ))}
+                </section>
+              )}
+
+              {launchError && (
+                <p className="mt-3 text-rose-200">
+                  Session launch error: {launchError}
+                </p>
+              )}
             </div>
-
-            {launchError && (
-              <p className="mt-3 text-rose-200">
-                Session launch error: {launchError}
-              </p>
-            )}
           </div>
         </main>
       </div>

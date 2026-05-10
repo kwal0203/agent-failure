@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LabCatalog, type LabCatalogItem } from "./LabsPage";
 
+vi.mock("../auth/context", () => ({
+  useAuth: () => ({
+    logout: vi.fn(),
+  }),
+}));
+
 describe("LabCatalog", () => {
   it("renders populated catalog with metadata and launch action", async () => {
     const labs: LabCatalogItem[] = [
@@ -78,7 +84,7 @@ describe("LabCatalog", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Agent Failure Lab Catalog",
+        name: /Foundations of AI Agent Security/i,
       }),
     ).toBeInTheDocument();
     expect(
@@ -91,7 +97,7 @@ describe("LabCatalog", () => {
       screen.queryByText(/resume: yes \| uploads: no/i),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Open Module" }).length).toBe(
-      4,
+      8,
     );
   });
 

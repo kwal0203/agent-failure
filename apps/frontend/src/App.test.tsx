@@ -70,7 +70,9 @@ describe("App routing with auth guards", () => {
     renderAt("/login");
 
     expect(
-      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -92,7 +94,9 @@ describe("App routing with auth guards", () => {
     renderAt("/labs");
 
     expect(
-      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -136,7 +140,9 @@ describe("App routing with auth guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Agent Failure Lab Catalog" }),
+      await screen.findByRole("heading", {
+        name: /Foundations of AI Agent Security/i,
+      }),
     ).toBeInTheDocument();
   });
 
