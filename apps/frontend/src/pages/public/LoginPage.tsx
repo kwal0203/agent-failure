@@ -162,18 +162,19 @@ export default function LoginPage() {
             <h1 className="text-5xl font-black leading-tight tracking-tight text-white md:text-6xl">
               <span style={{ color: "#ffffff" }}>AI Agent Security</span>
               <span className="block text-lime-300 drop-shadow-[0_0_22px_rgba(132,204,22,0.45)]">
-                Cyber Range
+                Educational Cyber Range
               </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              Learn how AI agents fail by exploiting realistic systems in a
-              controlled environment.
+              Students learn how AI agents fail by exploiting realistic systems
+              in a controlled environment.
             </p>
+            <br />
 
             <p className="mt-8 max-w-xl text-lg leading-8 text-slate-300">
               Attack vulnerable agents, inspect structured traces, and produce
-              evidence-backed security reports.
+              trace-backed security reports.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -185,25 +186,39 @@ export default function LoginPage() {
 
           <section className="mx-auto w-full max-w-xl rounded-[2rem] border border-lime-400/50 bg-black/45 p-8 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur-md md:p-12">
             <div>
-              <h2 className="text-4xl font-black tracking-tight text-white">
+              <h2
+                className="text-4xl font-black tracking-tight text-white"
+                style={{ color: "#ffffff" }}
+              >
                 Sign in
               </h2>
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6">
+              <h3 className="text-lg font-extrabold text-white">
+                Joining or teaching a course?
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Students can join with a class code.
+              </p>
+
               <button
                 type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
+                className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-lime-400/60 bg-black/30 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200 hover:shadow-[0_0_24px_rgba(132,204,22,0.25)]"
               >
-                Continue with GitHub (Soon)
+                <Users className="h-5 w-5" />
+                Join with class code
               </button>
+
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Instructors can sign in with their instructor account.
+              </p>
               <button
                 type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
+                className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-lime-400/60 bg-black/30 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200 hover:shadow-[0_0_24px_rgba(132,204,22,0.25)]"
               >
-                Continue with Google (Soon)
+                <Users className="h-5 w-5" />
+                Instructor sign in
               </button>
             </div>
 
@@ -275,20 +290,20 @@ export default function LoginPage() {
 
             <div className="my-8 h-px bg-lime-500/15" />
 
-            <div>
-              <h3 className="text-lg font-extrabold text-white">
-                Joining a course?
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Use the class code provided by your instructor.
-              </p>
-
+            <div className="grid gap-3">
               <button
                 type="button"
-                className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-lime-400/60 bg-black/30 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200 hover:shadow-[0_0_24px_rgba(132,204,22,0.25)]"
+                disabled
+                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
               >
-                <Users className="h-5 w-5" />
-                Join with class code
+                Continue with GitHub (Soon)
+              </button>
+              <button
+                type="button"
+                disabled
+                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
+              >
+                Continue with Google (Soon)
               </button>
             </div>
 
