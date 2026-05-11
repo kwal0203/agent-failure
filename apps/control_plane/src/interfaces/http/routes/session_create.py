@@ -64,7 +64,9 @@ def create_session_endpoint(
         )
 
     application_principal = PrincipalContext(
-        user_id=principal.user_id, role=principal.role
+        user_id=principal.user_id,
+        role=principal.role,
+        email=principal.email,
     )
 
     try:

@@ -33,7 +33,9 @@ def _resolve_role(roles: tuple[str, ...]) -> str:
 
 
 def auth_claims_to_principal(claims: AuthClaims) -> PrincipalContext:
+    normalized_email = (claims.email or "").strip().lower() or None
     return PrincipalContext(
         user_id=_resolve_user_id_from_subject(claims.sub),
         role=_resolve_role(claims.roles),
+        email=normalized_email,
     )

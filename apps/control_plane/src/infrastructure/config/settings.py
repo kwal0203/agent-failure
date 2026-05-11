@@ -29,6 +29,12 @@ class AdmissionSettings:
     max_sessions_global: int
 
 
+@dataclass(frozen=True)
+class EnrollmentSettings:
+    token_secret: str
+    token_ttl_seconds: int
+
+
 def _get_optional_str(name: str) -> str | None:
     value = os.getenv(name, "").strip()
     return value or None
@@ -68,6 +74,14 @@ def get_admission_settings() -> AdmissionSettings:
     return AdmissionSettings(
         max_sessions_per_user=_get_int("ADMISSION_MAX_SESSIONS_PER_USER", default=3),
         max_sessions_global=_get_int("ADMISSION_MAX_SESSIONS_GLOBAL", default=20),
+    )
+
+
+def get_enrollment_settings() -> EnrollmentSettings:
+    return EnrollmentSettings(
+        token_secret=_get_optional_str("ENROLLMENT_TOKEN_SECRET")
+        or "local-dev-enrollment-secret",
+        token_ttl_seconds=_get_int("ENROLLMENT_TOKEN_TTL_SECONDS", default=600),
     )
 
 

@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { tryRedeemPendingEnrollmentToken } from "./enrollment";
 
 export type AuthUser = {
   id: string;
@@ -294,6 +295,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       AUTH_USER_STORAGE_KEY,
       JSON.stringify(nextUser),
     );
+
+    await tryRedeemPendingEnrollmentToken();
   }, []);
 
   const signup = useCallback(async (email: string, password: string) => {
