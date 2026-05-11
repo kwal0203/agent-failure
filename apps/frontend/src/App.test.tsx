@@ -5,6 +5,8 @@ import App from "./App";
 
 const AUTH_USER_STORAGE_KEY = "agentfailure.auth.user";
 const AUTH_TOKEN_STORAGE_KEY = "agentfailure.auth.tokens";
+const PENDING_ENROLLMENT_TOKEN_KEY = "agentfailure.auth.pendingEnrollmentToken";
+const ENROLLMENT_REDEEM_ERROR_KEY = "agentfailure.auth.enrollmentRedeemError";
 
 function makeIdToken(email: string) {
   const header = btoa(JSON.stringify({ alg: "none", typ: "JWT" }));
@@ -32,6 +34,7 @@ describe("App routing with auth guards", () => {
     window.sessionStorage.clear();
     vi.stubEnv("VITE_COGNITO_CLIENT_ID", "test-client-id");
     vi.stubEnv("VITE_COGNITO_USER_POOL_ID", "us-east-2_testpool");
+    vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "false");
   });
 
   it("redirects root to login", async () => {
@@ -96,6 +99,64 @@ describe("App routing with auth guards", () => {
     expect(
       await screen.findByRole("heading", {
         name: /Foundations of AI Agent Security/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("redirects authenticated users to enrollment when pending token exists", async () => {
+    vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "true");
+    window.sessionStorage.setItem(
+      AUTH_USER_STORAGE_KEY,
+      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
+    );
+    window.sessionStorage.setItem(
+      AUTH_TOKEN_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: "access-token",
+        idToken: makeIdToken("kane@example.com"),
+        refreshToken: null,
+        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
+    window.sessionStorage.setItem(
+      PENDING_ENROLLMENT_TOKEN_KEY,
+      "pending-token",
+    );
+
+    renderAt("/labs");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Complete Course Enrollment",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("redirects authenticated users to enrollment when redemption error exists", async () => {
+    vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "true");
+    window.sessionStorage.setItem(
+      AUTH_USER_STORAGE_KEY,
+      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
+    );
+    window.sessionStorage.setItem(
+      AUTH_TOKEN_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: "access-token",
+        idToken: makeIdToken("kane@example.com"),
+        refreshToken: null,
+        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
+    window.sessionStorage.setItem(
+      ENROLLMENT_REDEEM_ERROR_KEY,
+      "Token expired or already redeemed",
+    );
+
+    renderAt("/labs");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Complete Course Enrollment",
       }),
     ).toBeInTheDocument();
   });

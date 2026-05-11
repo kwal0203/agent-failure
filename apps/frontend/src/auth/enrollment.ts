@@ -1,13 +1,13 @@
 import { getCurrentAuthHeader } from "./context";
 
-const ENROLLMENT_API_ENABLED =
-  (import.meta.env.VITE_ENROLLMENT_API_ENABLED ?? "false").toLowerCase() ===
-  "true";
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+function getApiBaseUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+}
 
 export const PENDING_ENROLLMENT_TOKEN_KEY =
   "agentfailure.auth.pendingEnrollmentToken";
+export const ENROLLMENT_REDEEM_ERROR_KEY =
+  "agentfailure.auth.enrollmentRedeemError";
 
 type ValidateClassCodeResponse = {
   valid: boolean;
@@ -21,7 +21,10 @@ type RedeemEnrollmentResponse = {
 };
 
 export function isEnrollmentApiEnabled(): boolean {
-  return ENROLLMENT_API_ENABLED;
+  return (
+    (import.meta.env.VITE_ENROLLMENT_API_ENABLED ?? "false").toLowerCase() ===
+    "true"
+  );
 }
 
 export async function validateClassCode(
@@ -29,7 +32,7 @@ export async function validateClassCode(
   email: string,
 ): Promise<string> {
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/enrollment/validate-class-code`,
+    `${getApiBaseUrl()}/api/v1/enrollment/validate-class-code`,
     {
       method: "POST",
       headers: {
@@ -54,7 +57,7 @@ export async function validateClassCode(
 export async function redeemEnrollmentToken(
   enrollmentToken: string,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/enrollment/redeem`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/enrollment/redeem`, {
     method: "POST",
     headers: {
       Authorization: getCurrentAuthHeader(),
@@ -73,7 +76,7 @@ export async function redeemEnrollmentToken(
 }
 
 export async function tryRedeemPendingEnrollmentToken(): Promise<void> {
-  if (!ENROLLMENT_API_ENABLED) {
+  if (!isEnrollmentApiEnabled()) {
     return;
   }
 
@@ -82,6 +85,23 @@ export async function tryRedeemPendingEnrollmentToken(): Promise<void> {
     return;
   }
 
-  await redeemEnrollmentToken(token);
-  window.sessionStorage.removeItem(PENDING_ENROLLMENT_TOKEN_KEY);
+  try {
+    await redeemEnrollmentToken(token);
+    window.sessionStorage.removeItem(PENDING_ENROLLMENT_TOKEN_KEY);
+    window.sessionStorage.removeItem(ENROLLMENT_REDEEM_ERROR_KEY);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Enrollment token redemption failed.";
+    window.sessionStorage.setItem(ENROLLMENT_REDEEM_ERROR_KEY, message);
+  }
+}
+
+export function getEnrollmentRedeemError(): string | null {
+  return window.sessionStorage.getItem(ENROLLMENT_REDEEM_ERROR_KEY);
+}
+
+export function clearEnrollmentRedeemError(): void {
+  window.sessionStorage.removeItem(ENROLLMENT_REDEEM_ERROR_KEY);
 }
