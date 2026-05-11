@@ -58,6 +58,7 @@ export default function EnrollmentPage() {
   };
 
   const showRecoveryHelp =
+    error === "Enrollment token email does not match authenticated user" ||
     error === "Token expired or already redeemed" ||
     error === "Enrollment token redemption failed.";
 
@@ -68,7 +69,10 @@ export default function EnrollmentPage() {
           <div className="rounded-xl bg-lime-500/15 p-2.5 text-lime-300 ring-1 ring-lime-400/40">
             <Shield className="h-5 w-5" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white md:text-3xl">
+          <h1
+            className="text-2xl font-black tracking-tight text-white md:text-3xl"
+            style={{ color: "#ffffff" }}
+          >
             Complete Course Enrollment
           </h1>
         </div>

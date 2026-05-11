@@ -1,14 +1,17 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     ClassCodeModel,
     EnrollmentModel,
     EnrollmentTokenModel,
 )
+from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -242,4 +245,36 @@ def test_redeem_rejects_expired_token(db_session: Session) -> None:
         "enrolled": False,
         "course": None,
         "error": "Token expired or already redeemed",
+    }
+
+
+def test_redeem_succeeds_when_principal_email_missing(db_session: Session) -> None:
+    _seed_class_code(db_session, code="ABC123")
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_current_principal] = lambda: PrincipalContext(
+        user_id=uuid4(),
+        role="learner",
+        email=None,
+    )
+    try:
+        client = TestClient(app)
+        validate = client.post(
+            "/api/v1/enrollment/validate-class-code",
+            json={"classCode": "ABC123", "email": "student@example.edu"},
+        )
+        token = validate.json()["enrollmentToken"]
+
+        response = client.post(
+            "/api/v1/enrollment/redeem",
+            json={"enrollmentToken": token},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "enrolled": True,
+        "course": {"id": "course_01", "name": "CS 447 - AI Agent Security"},
+        "error": None,
     }

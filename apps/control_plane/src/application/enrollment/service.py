@@ -117,11 +117,13 @@ def redeem_enrollment(
         )
 
     principal_email = _normalize_email(principal.email or "")
-    if not principal_email or principal_email != claimed_email:
+    if principal_email and principal_email != claimed_email:
         return RedeemEnrollmentResult(
             enrolled=False,
             error="Enrollment token email does not match authenticated user",
         )
+
+    enrollment_email = principal_email or claimed_email
 
     if repo.is_user_enrolled(user_id=principal.user_id, course_id=token_row.course_id):
         repo.mark_enrollment_token_redeemed(nonce)
@@ -134,7 +136,7 @@ def redeem_enrollment(
     repo.create_enrollment(
         user_sub=str(principal.user_id),
         user_id=principal.user_id,
-        email=principal_email,
+        email=enrollment_email,
         course_id=token_row.course_id,
         course_name=token_row.course_name,
     )

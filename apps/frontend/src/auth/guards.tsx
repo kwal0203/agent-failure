@@ -7,11 +7,23 @@ import {
 } from "./enrollment";
 import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "./redirect";
 
+function AuthTransitionScreen() {
+  return (
+    <div className="min-h-screen bg-black text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-6">
+        <div className="rounded-xl border border-lime-400/30 bg-black/50 px-5 py-3 text-sm text-lime-200 shadow-[0_0_24px_rgba(132,204,22,0.2)]">
+          Loading session...
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProtectedRoute() {
-  const { isAuthenticated, isBootstrapping } = useAuth();
+  const { isAuthenticated, isBootstrapping, isAuthTransitioning } = useAuth();
   const location = useLocation();
 
-  if (isBootstrapping) return null;
+  if (isBootstrapping || isAuthTransitioning) return <AuthTransitionScreen />;
 
   if (!isAuthenticated) {
     const next = `${location.pathname}${location.search}${location.hash}`;
@@ -34,10 +46,10 @@ export function ProtectedRoute() {
 }
 
 export function PublicOnlyRoute() {
-  const { isAuthenticated, isBootstrapping } = useAuth();
+  const { isAuthenticated, isBootstrapping, isAuthTransitioning } = useAuth();
   const location = useLocation();
 
-  if (isBootstrapping) return null;
+  if (isBootstrapping || isAuthTransitioning) return <AuthTransitionScreen />;
 
   if (isAuthenticated) {
     const pendingNext = window.sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
