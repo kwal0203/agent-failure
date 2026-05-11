@@ -3,13 +3,21 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  GraduationCap,
   HelpCircle,
   Shield,
   ShieldCheck,
   User,
   Users,
 } from "lucide-react";
-import { type ElementType, type ReactNode, useMemo, useState } from "react";
+import {
+  type ElementType,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/context";
 import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "../../auth/redirect";
@@ -81,6 +89,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const existingAccountRef = useRef<HTMLHeadingElement | null>(null);
 
   const next = useMemo(
     () => resolveSafeNext(searchParams.get("next")),
@@ -92,6 +101,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (window.location.hash !== "#already-have-account") {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      existingAccountRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
 
   const onLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -162,18 +183,19 @@ export default function LoginPage() {
             <h1 className="text-5xl font-black leading-tight tracking-tight text-white md:text-6xl">
               <span style={{ color: "#ffffff" }}>AI Agent Security</span>
               <span className="block text-lime-300 drop-shadow-[0_0_22px_rgba(132,204,22,0.45)]">
-                Cyber Range
+                Educational Cyber Range
               </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              Learn how AI agents fail by exploiting realistic systems in a
-              controlled environment.
+              Students learn how AI agents fail by exploiting realistic systems
+              in a controlled environment.
             </p>
+            <br />
 
             <p className="mt-8 max-w-xl text-lg leading-8 text-slate-300">
               Attack vulnerable agents, inspect structured traces, and produce
-              evidence-backed security reports.
+              trace-backed security reports.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -184,27 +206,61 @@ export default function LoginPage() {
           </section>
 
           <section className="mx-auto w-full max-w-xl rounded-[2rem] border border-lime-400/50 bg-black/45 p-8 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur-md md:p-12">
-            <div>
-              <h2 className="text-4xl font-black tracking-tight text-white">
-                Sign in
-              </h2>
-            </div>
+            <h2
+              className="mb-7 text-4xl font-extrabold tracking-tight text-white"
+              style={{ color: "#ffffff" }}
+            >
+              Sign in
+            </h2>
 
-            <div className="mt-6 grid gap-3">
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                Continue with GitHub (Soon)
-              </button>
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                Continue with Google (Soon)
-              </button>
+            <div className="mt-6">
+              <h3 className="text-lg font-extrabold text-white">Get started</h3>
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-lime-400/45 bg-black/25 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-lime-500/15 p-2 text-lime-300">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-extrabold text-white">
+                        Joining a course
+                      </h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">
+                        Use the class code provided by your instructor.
+                      </p>
+                      <Link
+                        to="/signup"
+                        className="mt-3 inline-flex h-11 items-center justify-center rounded-lg border border-lime-400/60 bg-black/30 px-4 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
+                      >
+                        Join with class code
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-lime-400/45 bg-black/25 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-lime-500/15 p-2 text-lime-300">
+                      <GraduationCap className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-extrabold text-white">
+                        Teaching a course
+                      </h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">
+                        Interested in using Agent Failure in your university
+                        course?
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-3 inline-flex h-11 items-center justify-center rounded-lg border border-lime-400/60 bg-black/30 px-4 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
+                      >
+                        Request university pilot
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="my-8 flex items-center gap-4">
@@ -213,8 +269,16 @@ export default function LoginPage() {
               <div className="h-px flex-1 bg-lime-500/15" />
             </div>
 
+            <h3
+              id="already-have-account"
+              ref={existingAccountRef}
+              className="text-lg font-extrabold text-white"
+            >
+              Already have an account?
+            </h3>
+
             <form
-              className="space-y-6"
+              className="mt-4 space-y-6"
               onSubmit={(event) => {
                 event.preventDefault();
                 void onLogin();
@@ -273,29 +337,35 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="my-8 h-px bg-lime-500/15" />
+            <div className="my-8 flex items-center gap-4">
+              <div className="h-px flex-1 bg-lime-500/15" />
+              <span className="text-sm font-semibold text-slate-500">
+                CONTINUE WITH
+              </span>
+              <div className="h-px flex-1 bg-lime-500/15" />
+            </div>
 
-            <div>
-              <h3 className="text-lg font-extrabold text-white">
-                Joining a course?
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Use the class code provided by your instructor.
-              </p>
-
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-lg border border-lime-400/60 bg-black/30 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200 hover:shadow-[0_0_24px_rgba(132,204,22,0.25)]"
+                disabled
+                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
               >
-                <Users className="h-5 w-5" />
-                Join with class code
+                GitHub (soon)
+              </button>
+              <button
+                type="button"
+                disabled
+                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
+              >
+                Google (soon)
               </button>
             </div>
 
             <div className="my-8 h-px bg-lime-500/15" />
 
             <div className="mt-2 space-y-2 text-sm text-slate-400">
-              <p>
+              {/* <p>
                 Don&apos;t have an account?{" "}
                 <Link
                   to="/signup"
@@ -303,7 +373,7 @@ export default function LoginPage() {
                 >
                   Create account
                 </Link>
-              </p>
+              </p> */}
               <p>
                 Forgot your password?{" "}
                 <Link
