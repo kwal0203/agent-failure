@@ -53,3 +53,31 @@ class LearnerExplanationResponse(BaseModel):
     session_id: UUID
     explanation_id: UUID
     accepted: bool = True
+
+
+class ValidateClassCodeRequest(BaseModel):
+    classCode: str = Field(min_length=1, max_length=128)
+    email: str = Field(min_length=3, max_length=320)
+
+
+class CourseSummary(BaseModel):
+    id: str
+    name: str
+
+
+class ValidateClassCodeResponse(BaseModel):
+    valid: bool
+    enrollmentToken: str | None = None
+    expiresInSeconds: int | None = None
+    course: CourseSummary | None = None
+    error: str | None = None
+
+
+class RedeemEnrollmentRequest(BaseModel):
+    enrollmentToken: str = Field(min_length=1)
+
+
+class RedeemEnrollmentResponse(BaseModel):
+    enrolled: bool
+    course: CourseSummary | None = None
+    error: str | None = None

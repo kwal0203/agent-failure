@@ -321,6 +321,91 @@ class TraceEventModel(Base):
     )
 
 
+class ClassCodeModel(Base):
+    __tablename__ = "class_codes"
+    __table_args__ = (
+        CheckConstraint("code <> ''", name="ck_class_codes_code_not_empty"),
+        CheckConstraint("course_id <> ''", name="ck_class_codes_course_id_not_empty"),
+        CheckConstraint(
+            "course_name <> ''", name="ck_class_codes_course_name_not_empty"
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(128), nullable=False, unique=True, index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uses: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="active", server_default="active"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class EnrollmentTokenModel(Base):
+    __tablename__ = "enrollment_tokens"
+    __table_args__ = (UniqueConstraint("nonce", name="uq_enrollment_tokens_nonce"),)
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    nonce: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    redeemed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class EnrollmentModel(Base):
+    __tablename__ = "enrollments"
+    __table_args__ = (
+        UniqueConstraint("user_sub", "course_id", name="uq_enrollments_user_course"),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    user_sub: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    user_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="class_code", server_default="class_code"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (

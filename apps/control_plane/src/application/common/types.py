@@ -11,6 +11,7 @@ ALLOWED_LAB_DIFFICULTIES: frozenset[str] = frozenset({"easy", "medium"})
 class PrincipalContext:
     user_id: UUID
     role: str
+    email: str | None = None
 
 
 @dataclass(frozen=True)

@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { tryRedeemPendingEnrollmentToken } from "./enrollment";
 
 export type AuthUser = {
   id: string;
@@ -18,6 +19,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isBootstrapping: boolean;
+  isAuthTransitioning: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   confirmSignup: (email: string, code: string) => Promise<void>;
@@ -252,29 +254,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tokens, setTokens] = useState<CognitoTokens | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
 
   useEffect(() => {
-    try {
-      ensureCognitoConfigured();
-      const storedTokens = readStoredTokens();
-      const storedUser = readStoredUser();
+    const bootstrap = async () => {
+      setIsAuthTransitioning(true);
+      try {
+        ensureCognitoConfigured();
+        const storedTokens = readStoredTokens();
+        const storedUser = readStoredUser();
 
-      if (
-        storedTokens &&
-        storedUser &&
-        !isTokenExpired(storedTokens.expiresAtEpochSec)
-      ) {
-        setTokens(storedTokens);
-        setUser(storedUser);
-        currentAccessToken = storedTokens.accessToken;
-      } else {
-        currentAccessToken = "";
-        window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-        window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        if (
+          storedTokens &&
+          storedUser &&
+          !isTokenExpired(storedTokens.expiresAtEpochSec)
+        ) {
+          setTokens(storedTokens);
+          setUser(storedUser);
+          currentAccessToken = storedTokens.accessToken;
+          await tryRedeemPendingEnrollmentToken();
+        } else {
+          currentAccessToken = "";
+          window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+          window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        }
+      } finally {
+        setIsAuthTransitioning(false);
+        setIsBootstrapping(false);
       }
-    } finally {
-      setIsBootstrapping(false);
-    }
+    };
+
+    void bootstrap();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -294,6 +304,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       AUTH_USER_STORAGE_KEY,
       JSON.stringify(nextUser),
     );
+
+    setIsAuthTransitioning(true);
+    try {
+      await tryRedeemPendingEnrollmentToken();
+    } finally {
+      setIsAuthTransitioning(false);
+    }
   }, []);
 
   const signup = useCallback(async (email: string, password: string) => {
@@ -312,7 +329,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentAccessToken = "";
     window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
     window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-    window.location.assign("/login");
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {
@@ -339,6 +355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user && tokens && !isTokenExpired(tokens.expiresAtEpochSec),
       ),
       isBootstrapping,
+      isAuthTransitioning,
       login,
       signup,
       confirmSignup,
@@ -349,6 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       confirmPasswordReset,
       confirmSignup,
+      isAuthTransitioning,
       isBootstrapping,
       login,
       logout,

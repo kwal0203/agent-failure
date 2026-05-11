@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/context";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/guards";
 import AppShell from "./layout/AppShell";
 import AppHomePage from "./pages/app/AppHomePage";
+import EnrollmentPage from "./pages/EnrollmentPage";
 import HistoryPage from "./pages/HistoryPage";
 import LabsPage from "./pages/LabsPage";
 import PreLabPage from "./pages/PreLabPage";
@@ -27,6 +28,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route path="/app" element={<AppHomePage />} />
+            <Route path="/enrollment" element={<EnrollmentPage />} />
             <Route path="/labs" element={<LabsPage />} />
             <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
             <Route path="/history" element={<HistoryPage />} />

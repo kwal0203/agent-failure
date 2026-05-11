@@ -2,6 +2,11 @@ import { ArrowRight, Eye, EyeOff, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/context";
+import {
+  isEnrollmentApiEnabled,
+  PENDING_ENROLLMENT_TOKEN_KEY,
+  validateClassCode,
+} from "../../auth/enrollment";
 
 type SignupInputProps = {
   id: string;
@@ -68,6 +73,14 @@ export default function SignupPage() {
     setError(null);
     setSuccessMessage(null);
     try {
+      if (isEnrollmentApiEnabled()) {
+        const enrollmentToken = await validateClassCode(classCode, email);
+        window.sessionStorage.setItem(
+          PENDING_ENROLLMENT_TOKEN_KEY,
+          enrollmentToken,
+        );
+      }
+
       await signup(email, password);
       setAwaitingConfirmation(true);
       setSuccessMessage(

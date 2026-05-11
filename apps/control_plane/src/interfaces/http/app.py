@@ -18,6 +18,9 @@ from apps.control_plane.src.interfaces.http.dependencies import (
 )
 from apps.control_plane.src.interfaces.http.helpers import build_api_error_response
 from apps.control_plane.src.interfaces.http.routes.health import router as health_router
+from apps.control_plane.src.interfaces.http.routes.enrollment import (
+    router as enrollment_router,
+)
 from apps.control_plane.src.interfaces.http.routes.labs import router as labs_router
 from apps.control_plane.src.interfaces.http.routes.metadata import (
     router as metadata_router,
@@ -118,6 +121,7 @@ app.include_router(session_queries_router)
 app.include_router(session_email_router)
 app.include_router(session_explanation_submission_router)
 app.include_router(labs_router)
+app.include_router(enrollment_router)
 app.include_router(health_router)
 app.include_router(metadata_router)
 app.include_router(ws_stream_router)
