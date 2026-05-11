@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/context";
 import {
   clearEnrollmentRedeemError,
+  clearPendingEnrollmentToken,
   getEnrollmentRedeemError,
   PENDING_ENROLLMENT_TOKEN_KEY,
   redeemEnrollmentToken,
@@ -56,6 +57,10 @@ export default function EnrollmentPage() {
     }
   };
 
+  const showRecoveryHelp =
+    error === "Token expired or already redeemed" ||
+    error === "Enrollment token redemption failed.";
+
   return (
     <div className="min-h-[calc(100vh-96px)] px-6 py-8 md:px-10">
       <section className="mx-auto w-full max-w-2xl rounded-2xl border border-lime-400/40 bg-black/50 p-7 text-slate-100 shadow-[0_0_40px_rgba(132,204,22,0.14)] backdrop-blur-md md:p-10">
@@ -105,6 +110,27 @@ export default function EnrollmentPage() {
             <p className="text-sm text-emerald-300">{successMessage}</p>
           ) : null}
           {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+          {showRecoveryHelp ? (
+            <div className="rounded-lg border border-amber-400/40 bg-amber-950/20 p-3 text-sm text-amber-200">
+              <p>
+                Your previous enrollment link is no longer valid. Enter a class
+                code again to continue.
+              </p>
+              <button
+                type="button"
+                className="mt-2 text-xs font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                onClick={() => {
+                  clearPendingEnrollmentToken();
+                  clearEnrollmentRedeemError();
+                  setError(null);
+                  setSuccessMessage(null);
+                  setClassCode("");
+                }}
+              >
+                Enter a new class code
+              </button>
+            </div>
+          ) : null}
 
           <button
             type="button"

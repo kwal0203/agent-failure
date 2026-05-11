@@ -105,3 +105,7 @@ export function getEnrollmentRedeemError(): string | null {
 export function clearEnrollmentRedeemError(): void {
   window.sessionStorage.removeItem(ENROLLMENT_REDEEM_ERROR_KEY);
 }
+
+export function clearPendingEnrollmentToken(): void {
+  window.sessionStorage.removeItem(PENDING_ENROLLMENT_TOKEN_KEY);
+}

@@ -78,9 +78,10 @@ def get_admission_settings() -> AdmissionSettings:
 
 
 def get_enrollment_settings() -> EnrollmentSettings:
+    # Keep local dev usable while meeting HS256 recommended key length (>= 32 bytes).
+    default_secret = "local-dev-enrollment-secret-32-bytes-min"
     return EnrollmentSettings(
-        token_secret=_get_optional_str("ENROLLMENT_TOKEN_SECRET")
-        or "local-dev-enrollment-secret",
+        token_secret=_get_optional_str("ENROLLMENT_TOKEN_SECRET") or default_secret,
         token_ttl_seconds=_get_int("ENROLLMENT_TOKEN_TTL_SECONDS", default=600),
     )
 
