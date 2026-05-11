@@ -10,7 +10,14 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { type ElementType, type ReactNode, useMemo, useState } from "react";
+import {
+  type ElementType,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/context";
 import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "../../auth/redirect";
@@ -82,6 +89,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const existingAccountRef = useRef<HTMLHeadingElement | null>(null);
 
   const next = useMemo(
     () => resolveSafeNext(searchParams.get("next")),
@@ -93,6 +101,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (window.location.hash !== "#already-have-account") {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      existingAccountRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
 
   const onLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -208,12 +228,12 @@ export default function LoginPage() {
                       <p className="mt-1 text-sm leading-6 text-slate-400">
                         Use the class code provided by your instructor.
                       </p>
-                      <button
-                        type="button"
+                      <Link
+                        to="/signup"
                         className="mt-3 inline-flex h-11 items-center justify-center rounded-lg border border-lime-400/60 bg-black/30 px-4 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
                       >
                         Join with class code
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -249,7 +269,11 @@ export default function LoginPage() {
               <div className="h-px flex-1 bg-lime-500/15" />
             </div>
 
-            <h3 className="text-lg font-extrabold text-white">
+            <h3
+              id="already-have-account"
+              ref={existingAccountRef}
+              className="text-lg font-extrabold text-white"
+            >
               Already have an account?
             </h3>
 
