@@ -79,24 +79,16 @@ export default function PilotRequestsAdminPage() {
   };
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
-      >
-        <h1 style={{ margin: 0, fontSize: 24, color: "#d7ffd7" }}>
+    <div className="grid gap-4 text-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="m-0 font-heading text-2xl font-semibold tracking-wide text-lime-200">
           Pilot Requests
         </h1>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex items-center gap-2">
           <select
             value={filter}
             onChange={(event) => setFilter(event.target.value as StatusFilter)}
-            style={{
-              background: "#0d1a0d",
-              color: "#d7ffd7",
-              border: "1px solid #2e7d32",
-              borderRadius: 8,
-              padding: "8px 10px",
-            }}
+            className="rounded-md border border-lime-500/35 bg-black/60 px-3 py-2 text-sm text-lime-100 outline-none ring-0 transition focus:border-lime-400"
           >
             <option value="all">All statuses</option>
             <option value="new">New</option>
@@ -107,95 +99,63 @@ export default function PilotRequestsAdminPage() {
           <button
             type="button"
             onClick={() => void load()}
-            style={{
-              background: "#112a11",
-              color: "#b6ffb9",
-              border: "1px solid #2e7d32",
-              borderRadius: 8,
-              padding: "8px 12px",
-              cursor: "pointer",
-            }}
+            className="rounded-md border border-lime-500/40 bg-lime-950/40 px-3 py-2 text-sm font-semibold text-lime-100 transition hover:bg-lime-900/40"
           >
             Refresh
           </button>
         </div>
       </div>
 
-      {loading ? <p>Loading...</p> : null}
-      {error ? <p style={{ color: "#ffb3bf" }}>{error}</p> : null}
+      {loading ? <p className="text-lime-300/85">Loading...</p> : null}
+      {error ? <p className="text-rose-200">{error}</p> : null}
 
       {!loading ? (
-        <div
-          style={{
-            overflowX: "auto",
-            border: "1px solid #1b5e20",
-            borderRadius: 10,
-          }}
-        >
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}
-          >
+        <div className="overflow-x-auto rounded-xl border border-lime-700/60 bg-black/35 shadow-[0_0_28px_rgba(34,197,94,0.08)]">
+          <table className="min-w-[980px] w-full border-collapse text-sm">
             <thead>
-              <tr style={{ background: "#0b180b", color: "#9dc6a2" }}>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
-                  Created
-                </th>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
-                  Name
-                </th>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
-                  Email
-                </th>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
+              <tr className="bg-lime-950/35 text-lime-200/85">
+                <th className="px-3 py-2 text-left font-semibold">Created</th>
+                <th className="px-3 py-2 text-left font-semibold">Name</th>
+                <th className="px-3 py-2 text-left font-semibold">Email</th>
+                <th className="px-3 py-2 text-left font-semibold">
                   University
                 </th>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
-                  Status
-                </th>
-                <th style={{ textAlign: "left", padding: "10px 12px" }}>
-                  Actions
-                </th>
+                <th className="px-3 py-2 text-left font-semibold">Status</th>
+                <th className="px-3 py-2 text-left font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr
                   key={item.requestId}
-                  style={{ borderTop: "1px solid #163316" }}
+                  className="border-t border-lime-900/70 text-slate-100"
                 >
-                  <td style={{ padding: "10px 12px", color: "#9dc6a2" }}>
+                  <td className="px-3 py-2 text-lime-100/80">
                     {new Date(item.createdAt).toLocaleString()}
                   </td>
-                  <td style={{ padding: "10px 12px" }}>{item.fullName}</td>
-                  <td style={{ padding: "10px 12px" }}>{item.workEmail}</td>
-                  <td style={{ padding: "10px 12px" }}>{item.university}</td>
-                  <td style={{ padding: "10px 12px" }}>{item.status}</td>
-                  <td style={{ padding: "10px 12px" }}>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <td className="px-3 py-2">{item.fullName}</td>
+                  <td className="px-3 py-2">{item.workEmail}</td>
+                  <td className="px-3 py-2">{item.university}</td>
+                  <td className="px-3 py-2">
+                    <span className="rounded border border-lime-500/30 bg-lime-500/10 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-lime-200">
+                      {item.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-2">
                       {nextStatuses[item.status].map((status) => (
                         <button
                           key={status}
                           type="button"
                           disabled={!canEdit || updatingId === item.requestId}
                           onClick={() => void onUpdateStatus(item, status)}
-                          style={{
-                            background: "#102810",
-                            color: "#b6ffb9",
-                            border: "1px solid #2e7d32",
-                            borderRadius: 8,
-                            padding: "6px 10px",
-                            cursor: "pointer",
-                            opacity:
-                              !canEdit || updatingId === item.requestId
-                                ? 0.6
-                                : 1,
-                          }}
+                          className="rounded-md border border-lime-500/35 bg-lime-950/30 px-2.5 py-1.5 text-xs font-semibold text-lime-100 transition enabled:hover:bg-lime-900/45 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Mark {status}
                         </button>
                       ))}
                       {nextStatuses[item.status].length === 0 ? (
-                        <span>Final</span>
+                        <span className="text-xs text-slate-400">Final</span>
                       ) : null}
                     </div>
                   </td>

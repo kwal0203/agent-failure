@@ -40,6 +40,10 @@ export default function App() {
               path="/admin/pilot-requests"
               element={<PilotRequestsAdminPage />}
             />
+            <Route
+              path="/pilot-requests"
+              element={<PilotRequestsAdminPage />}
+            />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
           </Route>
         </Route>
