@@ -79,11 +79,18 @@ from apps.control_plane.src.application.pilot_requests.ports import (
 from apps.control_plane.src.application.pilot_provisioning.ports import (
     PilotProvisioningRepositoryPort,
 )
+from apps.control_plane.src.application.instructor_provisioning.ports import (
+    InstructorIdentityProviderPort,
+    InstructorProvisioningRepositoryPort,
+)
 from apps.control_plane.src.infrastructure.persistence.pilot_request_repository import (
     SQLAlchemyPilotRequestRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.pilot_provisioning_repository import (
     SQLAlchemyPilotProvisioningRepository,
+)
+from apps.control_plane.src.infrastructure.persistence.instructor_provisioning_repository import (
+    SQLAlchemyInstructorProvisioningRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
@@ -114,9 +121,11 @@ from apps.control_plane.src.infrastructure.classification.openrouter_authority_b
 from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
 from apps.control_plane.src.infrastructure.config.settings import (
     EmailClassifierSettings,
+    InstructorProvisioningSettings,
     PilotAlertEmailSettings,
     get_auth_verifier_config as load_auth_verifier_config,
     get_email_classifier_settings,
+    get_instructor_provisioning_settings as load_instructor_provisioning_settings,
     get_pilot_alert_email_settings as load_pilot_alert_email_settings,
     get_runtime_client_config as load_runtime_client_config,
 )
@@ -126,6 +135,11 @@ from apps.control_plane.src.application.pilot_requests.notifications import (
 from apps.control_plane.src.infrastructure.notifications.pilot_request_email_notifier import (
     NoopPilotRequestNotifier,
     SmtpPilotRequestNotifier,
+)
+from apps.control_plane.src.infrastructure.auth.cognito_instructor_identity_provider import (
+    CognitoInstructorIdentityProvider,
+    CognitoInstructorIdentitySettings,
+    NoopInstructorIdentityProvider,
 )
 
 
@@ -222,6 +236,12 @@ def get_pilot_provisioning_repository(
     return SQLAlchemyPilotProvisioningRepository(db=db)
 
 
+def get_instructor_provisioning_repository(
+    db: Session = Depends(get_db_session),
+) -> InstructorProvisioningRepositoryPort:
+    return SQLAlchemyInstructorProvisioningRepository(db=db)
+
+
 def get_session_lifecycle_uow() -> SQLAlchemyUnitOfWork:
     return SQLAlchemyUnitOfWork(session_factory=SessionFactory)
 
@@ -258,6 +278,11 @@ def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
 
 
 @lru_cache(maxsize=1)
+def get_instructor_provisioning_settings() -> InstructorProvisioningSettings:
+    return load_instructor_provisioning_settings()
+
+
+@lru_cache(maxsize=1)
 def get_pilot_request_notifier() -> PilotRequestNotifierPort:
     settings = get_pilot_alert_email_settings()
     if (
@@ -268,6 +293,25 @@ def get_pilot_request_notifier() -> PilotRequestNotifierPort:
     ):
         return NoopPilotRequestNotifier()
     return SmtpPilotRequestNotifier(settings)
+
+
+@lru_cache(maxsize=1)
+def get_instructor_identity_provider() -> InstructorIdentityProviderPort:
+    settings = get_instructor_provisioning_settings()
+    if (
+        not settings.enabled
+        or not settings.cognito_user_pool_id
+        or not settings.cognito_region
+    ):
+        return NoopInstructorIdentityProvider()
+    return CognitoInstructorIdentityProvider(
+        CognitoInstructorIdentitySettings(
+            enabled=settings.enabled,
+            user_pool_id=settings.cognito_user_pool_id,
+            region=settings.cognito_region,
+            instructor_group_name=settings.cognito_instructor_group_name,
+        )
+    )
 
 
 @lru_cache(maxsize=1)

@@ -145,3 +145,24 @@ class ProvisioningSummaryResponse(BaseModel):
 class ProvisionPilotRequestResponse(BaseModel):
     created: bool
     provisioningSummary: ProvisioningSummaryResponse
+
+
+class ProvisionInstructorRequest(BaseModel):
+    pilotRequestId: str = Field(min_length=1)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    createUserIfMissing: bool = False
+
+
+class InstructorProvisioningSummaryResponse(BaseModel):
+    pilotRequestId: str
+    courseId: str
+    courseName: str
+    instructorEmail: str
+    userCreated: bool
+    groupAssigned: bool
+    membershipCreated: bool
+    provisionedAt: datetime
+
+
+class ProvisionInstructorResponse(BaseModel):
+    provisioningSummary: InstructorProvisioningSummaryResponse

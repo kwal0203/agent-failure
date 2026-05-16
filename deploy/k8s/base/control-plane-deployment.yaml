@@ -99,6 +99,26 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: PILOT_ALERT_EMAIL_TO
+            - name: INSTRUCTOR_PROVISIONING_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: INSTRUCTOR_PROVISIONING_ENABLED
+            - name: COGNITO_USER_POOL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_USER_POOL_ID
+            - name: COGNITO_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_REGION
+            - name: COGNITO_INSTRUCTOR_GROUP_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_INSTRUCTOR_GROUP_NAME
       containers:
         - name: control-plane
           image: ghcr.io/kwal0203/agent-failure-control-plane
@@ -180,6 +200,26 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: PILOT_ALERT_EMAIL_TO
+            - name: INSTRUCTOR_PROVISIONING_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: INSTRUCTOR_PROVISIONING_ENABLED
+            - name: COGNITO_USER_POOL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_USER_POOL_ID
+            - name: COGNITO_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_REGION
+            - name: COGNITO_INSTRUCTOR_GROUP_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_INSTRUCTOR_GROUP_NAME
           resources:
             requests:
               cpu: "150m"

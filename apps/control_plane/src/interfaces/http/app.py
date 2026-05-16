@@ -31,6 +31,9 @@ from apps.control_plane.src.interfaces.http.routes.pilot_requests import (
 from apps.control_plane.src.interfaces.http.routes.pilot_provisioning import (
     router as pilot_provisioning_router,
 )
+from apps.control_plane.src.interfaces.http.routes.instructor_provisioning import (
+    router as instructor_provisioning_router,
+)
 from apps.control_plane.src.interfaces.http.routes.session_actions import (
     router as session_actions_router,
 )
@@ -130,6 +133,7 @@ app.include_router(labs_router)
 app.include_router(enrollment_router)
 app.include_router(pilot_requests_router)
 app.include_router(pilot_provisioning_router)
+app.include_router(instructor_provisioning_router)
 app.include_router(health_router)
 app.include_router(metadata_router)
 app.include_router(ws_stream_router)

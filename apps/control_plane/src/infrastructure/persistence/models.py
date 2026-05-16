@@ -495,6 +495,50 @@ class PilotRequestProvisionModel(Base):
     )
 
 
+class InstructorCourseMembershipModel(Base):
+    __tablename__ = "instructor_course_memberships"
+    __table_args__ = (
+        UniqueConstraint(
+            "instructor_email",
+            "course_id",
+            name="uq_instructor_course_memberships_email_course",
+        ),
+        CheckConstraint(
+            "instructor_email <> ''",
+            name="ck_instructor_course_memberships_email_not_empty",
+        ),
+        CheckConstraint(
+            "course_id <> ''",
+            name="ck_instructor_course_memberships_course_id_not_empty",
+        ),
+        CheckConstraint(
+            "course_name <> ''",
+            name="ck_instructor_course_memberships_course_name_not_empty",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    pilot_request_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    instructor_email: Mapped[str] = mapped_column(
+        String(320), nullable=False, index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (

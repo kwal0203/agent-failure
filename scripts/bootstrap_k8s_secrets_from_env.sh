@@ -64,6 +64,12 @@ if [[ "${PILOT_ALERT_EMAIL_ENABLED:-false}" == "true" ]]; then
   require_var PILOT_ALERT_EMAIL_TO
 fi
 
+if [[ "${INSTRUCTOR_PROVISIONING_ENABLED:-false}" == "true" ]]; then
+  require_var COGNITO_USER_POOL_ID
+  require_var COGNITO_REGION
+  require_var COGNITO_INSTRUCTOR_GROUP_NAME
+fi
+
 echo "Using namespace: $NS"
 
 kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
@@ -84,6 +90,10 @@ kubectl -n "$NS" create secret generic runtime-secrets \
   --from-literal=PILOT_ALERT_EMAIL_SMTP_STARTTLS="${PILOT_ALERT_EMAIL_SMTP_STARTTLS:-}" \
   --from-literal=PILOT_ALERT_EMAIL_FROM="${PILOT_ALERT_EMAIL_FROM:-}" \
   --from-literal=PILOT_ALERT_EMAIL_TO="${PILOT_ALERT_EMAIL_TO:-}" \
+  --from-literal=INSTRUCTOR_PROVISIONING_ENABLED="${INSTRUCTOR_PROVISIONING_ENABLED:-false}" \
+  --from-literal=COGNITO_USER_POOL_ID="${COGNITO_USER_POOL_ID:-}" \
+  --from-literal=COGNITO_REGION="${COGNITO_REGION:-}" \
+  --from-literal=COGNITO_INSTRUCTOR_GROUP_NAME="${COGNITO_INSTRUCTOR_GROUP_NAME:-}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Applying ghcr-pull image pull secret..."

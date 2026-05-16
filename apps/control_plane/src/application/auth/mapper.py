@@ -26,6 +26,10 @@ def _resolve_role(roles: tuple[str, ...]) -> str:
 
     if "admin" in normalized_roles:
         return "admin"
+    if "staff" in normalized_roles:
+        return "staff"
+    if "instructor" in normalized_roles:
+        return "instructor"
     if "learner" in normalized_roles:
         return "learner"
 

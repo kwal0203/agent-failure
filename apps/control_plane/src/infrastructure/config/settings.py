@@ -47,6 +47,14 @@ class PilotAlertEmailSettings:
     to_emails: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class InstructorProvisioningSettings:
+    enabled: bool
+    cognito_user_pool_id: str
+    cognito_region: str
+    cognito_instructor_group_name: str
+
+
 def _get_optional_str(name: str) -> str | None:
     value = os.getenv(name, "").strip()
     return value or None
@@ -182,4 +190,15 @@ def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
         smtp_starttls=_get_bool("PILOT_ALERT_EMAIL_SMTP_STARTTLS", default=True),
         from_email=_get_optional_str("PILOT_ALERT_EMAIL_FROM") or "",
         to_emails=to_emails,
+    )
+
+
+def get_instructor_provisioning_settings() -> InstructorProvisioningSettings:
+    return InstructorProvisioningSettings(
+        enabled=_get_bool("INSTRUCTOR_PROVISIONING_ENABLED", default=False),
+        cognito_user_pool_id=_get_optional_str("COGNITO_USER_POOL_ID") or "",
+        cognito_region=_get_optional_str("COGNITO_REGION") or "",
+        cognito_instructor_group_name=(
+            _get_optional_str("COGNITO_INSTRUCTOR_GROUP_NAME") or "instructor"
+        ),
     )
