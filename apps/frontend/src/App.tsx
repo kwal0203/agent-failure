@@ -9,6 +9,7 @@ import LabsPage from "./pages/LabsPage";
 import PreLabPage from "./pages/PreLabPage";
 import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
+import PilotRequestPage from "./pages/public/PilotRequestPage";
 import SignupPage from "./pages/public/SignupPage";
 import SessionPage from "./pages/SessionPage";
 import TracePage from "./pages/TracePage";
@@ -22,6 +23,7 @@ export default function App() {
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/pilot-request" element={<PilotRequestPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
 

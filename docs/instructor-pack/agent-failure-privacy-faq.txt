@@ -1,0 +1,557 @@
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+Privacy and Security FAQ
+Data Handling, Runtime Isolation, and University Pilot Security
+Agent Failure Labs
+
+University Pilot Pack
+
+FAQ Summary
+Agent Failure Labs are designed for controlled educational use. Lab scenarios use fictitious
+organizations, fictitious people, and synthetic sensitive information. The platform is intended
+to minimize student personal data collection while preserving the trace evidence instructors
+need for teaching, feedback, and grading.
+
+1. Purpose of This FAQ
+This FAQ is intended for instructors, university administrators, legal reviewers, privacy officers,
+and IT security teams evaluating Agent Failure Labs for course or pilot use.
+It answers common questions about:
+• student data collection;
+• trace and lab activity logging;
+• handling of student personally identifiable information;
+• data retention and deletion;
+• third-party service use;
+• runtime isolation;
+• platform abuse controls;
+• university pilot security considerations.
+Important Note
+This FAQ is a product and pilot-readiness document, not a formal legal certification. Institutions with specific legal, procurement, or compliance requirements should review those
+requirements with the Agent Failure team before adoption.
+
+2. Platform Overview
+2.1 What is Agent Failure?
+Agent Failure is a hosted educational cyber range for AI agent security. Students complete controlled labs involving intentionally vulnerable AI agents. The labs are designed to teach concepts
+such as prompt injection, tool misuse, trace analysis, sensitive-data disclosure, and agent security
+mitigations.
+1
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+2.2 Is this a real attack environment?
+No. Agent Failure Labs use controlled, synthetic environments. The target systems, organizations,
+people, email messages, secrets, and sensitive data used in the labs are fictitious.
+Students are not authorized to attack real systems, real users, production services, or third-party
+platforms.
+
+2.3 What is Lab 1 about?
+Lab 1, OpsMail Assistant: Indirect Prompt Injection via Poisoned Inbox, teaches students how
+attacker-controlled email content can influence an AI agent that reads inbox messages. The lab
+uses fictitious protected information, such as a fictional manager’s home address, to demonstrate a
+confidentiality failure in a safe environment.
+
+3. Data Collection
+3.1 What student data may be collected?
+Depending on pilot configuration, the platform may collect or process the following categories of
+data:
+Data Type
+
+Purpose
+
+Account identifier
+
+Allows students to log in and associate progress with a
+course.
+Used for account access if required by the pilot configuration.
+Allows instructors to manage student access and
+progress.
+Records whether students started, completed, or reset
+a lab.
+Includes prompts, attacker emails, and other inputs entered into the lab.
+Includes responses generated during the lab.
+Records tool calls, tool outputs, event timeline entries,
+and success/failure events.
+Stored if the platform supports report upload or report
+generation.
+Used for debugging, security, reliability, and abuse prevention.
+
+Email address or username
+Course or class membership
+Lab progress
+Student lab inputs
+Assistant outputs
+Trace events
+Report submissions
+Operational logs
+
+3.2 What data is not required for standard pilot use?
+Standard pilot use should not require students to provide:
+• government identification numbers;
+• home addresses;
+
+2
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+• phone numbers;
+• payment card details;
+• personal API keys;
+• campus network credentials;
+• local device credentials;
+• real sensitive personal information.
+
+3.3 Can students use pseudonymous identifiers?
+Where institution policy permits, students may be able to use pseudonymous or course-specific
+identifiers rather than full legal names. This can reduce privacy risk while still allowing instructors
+to associate work with students for grading.
+The exact identity model should be agreed during pilot setup.
+
+4. Student PII Minimization
+4.1 How does Agent Failure reduce student PII collection?
+The platform is intended to collect only the information needed to:
+• provide student access to labs;
+• associate attempts with a course;
+• enable instructor review;
+• support grading and feedback;
+• maintain platform reliability and security.
+For pilots, the recommended configuration is to use the minimum student identifier needed for
+course administration.
+
+4.2 Should students enter real personal data into labs?
+No. Students should not enter real personal data, real secrets, real credentials, real addresses, real
+customer information, or third-party private information into the lab environment.
+Lab scenarios are designed to use synthetic data. Instructors should remind students that the
+lab is a controlled educational environment.
+Student Safety Instruction
+Students should treat the lab as a simulated environment and should not enter real personal
+data, credentials, confidential university information, employer information, or third-party
+data into prompts, emails, reports, or lab inputs.
+
+3
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+5. Lab Trace Data
+5.1 What are traces?
+Traces are structured records of what happened during a lab attempt. They are used for teaching,
+debugging, grading, and security analysis.
+A trace may include:
+• student prompts;
+• attacker emails written inside the lab;
+• assistant responses;
+• tool calls;
+• tool outputs;
+• event timeline entries;
+• success or failure events;
+• timestamps;
+• lab session identifiers.
+
+5.2 Why are traces collected?
+Trace collection is central to the educational purpose of Agent Failure Labs. It allows students and
+instructors to understand not only whether an exploit succeeded, but how it happened.
+Traces help students:
+• reconstruct the exploit chain;
+• identify where untrusted content entered the agent context;
+• support claims in their security reports;
+• distinguish observation from interpretation;
+• propose better mitigations.
+Traces help instructors:
+• verify lab completion;
+• review student attempts;
+• grade reports objectively;
+• identify common failure modes;
+• provide targeted feedback.
+
+4
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+5.3 Who can see student traces?
+In a standard course setup, traces should be visible to:
+• the student who generated the trace;
+• the instructor or teaching staff for the course;
+• authorized platform administrators for support, reliability, and security purposes.
+Student traces should not be visible to other students unless the instructor intentionally uses
+anonymized examples for teaching.
+
+6. Data Retention and Deletion
+6.1 How long is pilot data retained?
+Retention should be agreed with the instructor or institution before the pilot.
+A recommended default for early pilots is:
+• lab activity and trace data retained during the course or pilot;
+• data retained for a short review period after course completion;
+• course data deleted or anonymized after the agreed retention period.
+Suggested Default Retention Policy
+For university pilots, Agent Failure may retain course data for up to 90 days after course
+completion unless otherwise agreed. Instructors may request earlier deletion or an institutionspecific retention period.
+
+6.2 Can course data be deleted after a pilot?
+Yes. Instructors or institutional contacts should be able to request deletion of course data after the
+pilot, subject to operational, legal, and security requirements.
+A deletion request should specify:
+• course or pilot identifier;
+• date range;
+• whether deletion should apply to all students or selected students;
+• whether anonymized aggregate usage metrics may be retained;
+• institutional contact authorizing the deletion.
+
+6.3 Can individual student data be deleted?
+Where technically feasible and consistent with course policy, individual student data may be deleted
+upon authorized request.
+For graded coursework, deletion timing should be coordinated with the instructor to avoid
+interfering with assessment records.
+5
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+7. Use of Student Data
+7.1 Is student data sold?
+No. Student lab data should not be sold.
+
+7.2 Is student lab data used to train public foundation models?
+Student lab data should not be used to train public foundation models.
+If third-party model APIs are used to power lab agents, those providers’ data handling terms
+should be reviewed and disclosed as part of the pilot configuration.
+
+7.3 Is student data used to improve Agent Failure?
+Aggregated or anonymized data may be used to improve lab design, identify common failure modes,
+improve teaching materials, and improve platform reliability.
+Examples include:
+• average time to completion;
+• common points where students get stuck;
+• frequency of successful lab completion;
+• common error categories;
+• anonymized examples of failure modes.
+Identifiable student work should not be used in public marketing, publications, or demonstrations without permission.
+
+8. Third-Party Services
+8.1 Does Agent Failure use third-party services?
+A hosted platform may use third-party services for hosting, authentication, logging, error monitoring, analytics, and AI model inference.
+The exact services should be documented for each deployment or pilot.
+
+8.2 Do students communicate directly with LLM providers?
+For university pilots, the preferred architecture is that students communicate with Agent Failure’s
+hosted platform, and the platform communicates with any model provider server-side.
+Students should not need their own API keys and should not need direct browser access to
+model provider APIs.
+
+6
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+Service Category
+
+Possible Use
+
+Data Consideration
+
+Cloud hosting
+
+Runs web application
+and lab infrastructure
+User login and session
+management
+Generates agent responses
+
+May process application and runtime data.
+May process identifiers such as
+email or username.
+May receive prompts, lab state, or
+synthetic scenario content if used
+server-side.
+May receive error logs and limited
+metadata.
+Should be minimized and disclosed
+if used.
+May process instructor or student
+email addresses.
+
+Authentication
+LLM API provider
+
+Error monitoring
+Analytics
+Email service
+
+Debugging and reliability
+Product improvement
+Platform notifications,
+if enabled
+
+8.3 What should be disclosed to institutions?
+Before a pilot, Agent Failure should disclose:
+• the main hosting provider;
+• authentication provider, if any;
+• model provider, if any;
+• whether analytics are enabled;
+• whether error monitoring is enabled;
+• whether student prompts or traces are sent to any third-party service.
+
+9. Runtime Isolation and Lab Security
+9.1 Are student lab sessions isolated?
+Student lab sessions should be isolated from one another. One student’s actions should not alter
+another student’s lab state, inbox, trace, or result.
+The expected isolation model is:
+• separate lab state per student or per attempt;
+• separate synthetic inbox per lab session;
+• separate trace records per session;
+• restricted access to other students’ data;
+• resettable lab environment.
+
+7
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+9.2 Can a student attack another student’s runtime?
+No. The platform should prevent students from accessing or modifying other students’ lab sessions.
+Students are only authorized to interact with the lab interfaces assigned to them.
+
+9.3 Can a student attack the hosting platform?
+No. The rules of engagement prohibit attacks on the hosting infrastructure, backend services,
+authentication systems, databases, networks, or unrelated platform components.
+The lab is limited to the educational scenario and provided interfaces.
+
+9.4 Does the lab access real sensitive data?
+No. Lab scenarios should use fictitious organizations, fictitious people, and synthetic sensitive
+information. For example, Lab 1 uses a fictional manager and a fictional protected address.
+
+9.5 Does the lab have internet access?
+The runtime network configuration may vary by deployment. For educational safety, lab runtimes
+should be restricted to the services required for the lab.
+A recommended configuration is:
+• no unrestricted outbound internet access from student-controlled lab components unless required;
+• no inbound access from the public internet to student sessions;
+• restricted tool permissions;
+• synthetic data only;
+• monitoring for abuse or out-of-scope activity.
+
+10. Instructor and Administrator Access
+10.1 What can instructors see?
+Depending on the platform configuration, instructors may be able to see:
+• roster or class membership;
+• lab start and completion status;
+• success/failure indicators;
+• student trace records;
+• student-submitted reports;
+• timestamps and progress events;
+• grade export data, if enabled.
+
+8
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+10.2 Can instructors export grades?
+If grade export is enabled, instructors may be able to export completion or grading data as CSV
+or another supported format.
+The export should include only information needed for course administration.
+
+10.3 Can teaching assistants access student traces?
+Teaching assistant access should be controlled by the instructor or course administrator. If enabled,
+teaching assistants may review traces and reports for grading or support.
+
+11. Security Controls
+11.1 What security controls are expected?
+A hosted educational cyber range should include controls such as:
+• HTTPS transport security;
+• authenticated access to course areas;
+• authorization checks for student and instructor data;
+• per-session or per-student lab isolation;
+• synthetic lab data;
+• logging and monitoring;
+• abuse detection or rate limiting;
+• runtime reset capability;
+• restricted lab tooling;
+• support process for vulnerability reports.
+
+11.2 How are lab prompts and outputs protected?
+Lab prompts and outputs should be stored and accessed according to the course access model.
+Students should only see their own work unless otherwise configured. Instructors and authorized
+teaching staff may review student traces and submissions for educational and grading purposes.
+
+11.3 What happens if a student finds a platform vulnerability?
+Students should report suspected platform vulnerabilities through the designated security contact
+rather than attempting further exploitation.
+Security Contact Placeholder
+Security contact: security@agentfailure.com
+
+9
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+12. Legal and Compliance Considerations
+12.1 Is Agent Failure FERPA compliant?
+Agent Failure should be designed to support privacy-conscious educational use, but formal FERPA
+evaluation depends on institutional use, data flows, contracts, and administrative configuration.
+Do not assume formal FERPA compliance without institutional review.
+
+12.2 Is Agent Failure GDPR compliant?
+GDPR applicability depends on the location of students, institution, data processing arrangements,
+subprocessors, retention policy, and legal basis for processing.
+If GDPR applies, the institution and Agent Failure should review required terms before deployment.
+
+12.3 Is Agent Failure SOC 2 or ISO 27001 certified?
+Unless a current certification exists, do not represent the platform as SOC 2 or ISO 27001 certified.
+For early pilots, the appropriate statement is that the platform is designed with data minimization, hosted runtime isolation, and controlled educational use in mind, but formal certification
+status should be confirmed separately.
+
+12.4 Does this lab involve real personal data?
+No. Lab scenarios are intended to use synthetic personal data. Students should not enter real
+personal data.
+
+13. Recommended University Pilot Configuration
+For initial university pilots, the recommended configuration is:
+Area
+
+Recommended Configuration
+
+Student identity
+
+Minimal identifier or course-specific pseudonym
+where possible.
+Synthetic only.
+Not required.
+Browser-only, hosted sessions.
+Student, instructor, authorized teaching staff.
+Delete or anonymize shortly after course completion.
+Disabled or minimized for pilots unless disclosed.
+Use synthetic or anonymized examples only.
+Instructor escalation path plus security contact.
+
+Lab data
+Student API keys
+Runtime access
+Trace access
+Retention
+Analytics
+Public examples
+Support
+
+10
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+14. Frequently Asked Questions
+14.1 Do students need to install anything?
+No. Students use a browser.
+
+14.2 Do students need to provide real personal information?
+Only the minimum account or course identifier required for access should be used. Students should
+not enter real personal data into the lab scenarios.
+
+14.3 Are the lab targets real companies or real people?
+No. Lab targets are fictitious.
+
+14.4 Can students access other students’ work?
+No. Student work should be isolated and access-controlled.
+
+14.5 Can instructors review student attempts?
+Yes. Instructor review is part of the educational and grading model.
+
+14.6 Are prompts and traces stored?
+Yes, prompts, emails, assistant responses, tool calls, tool outputs, and trace events may be stored
+for grading, feedback, debugging, and platform reliability.
+
+14.7 Can data be deleted after the course?
+Yes, course data deletion or anonymization should be available upon authorized request, subject
+to agreed retention requirements.
+
+14.8 Is student data used to train public models?
+No. Student lab data should not be used to train public foundation models.
+
+14.9 Do students need LLM provider accounts?
+No. Students should not need their own LLM API keys or provider accounts.
+
+14.10 What if a student enters real sensitive information by mistake?
+The instructor or authorized institutional contact should notify the Agent Failure support or privacy
+contact promptly and request deletion or remediation of the affected data.
+
+14.11 What if a student attempts out-of-scope activity?
+The instructor may remove access, reset the lab, or handle the issue under course conduct policy.
+Serious platform abuse should be reported to Agent Failure support.
+
+11
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+15. Data Handling Summary
+Question
+
+Summary Answer
+
+Does the platform collect student
+lab activity?
+Does the lab use real sensitive
+data?
+Should students enter real personal data?
+Are student traces visible to classmates?
+Can instructors review traces?
+Is local installation required?
+Are students given access to real
+infrastructure?
+Can data be deleted after a pilot?
+Is data sold?
+Is student data used to train public models?
+
+Yes, for grading, trace review, and learning feedback.
+No, lab data is synthetic.
+No.
+No, not by default.
+Yes.
+No.
+No.
+Yes, by authorized request and agreed policy.
+No.
+No.
+
+16. Institution Review Checklist
+Before adopting Agent Failure Labs, institutional reviewers may wish to confirm:
+• what student identifiers are required;
+• what data is collected during lab attempts;
+• how long data is retained;
+• how deletion requests are handled;
+• which third-party services are used;
+• whether LLM provider calls include student inputs or traces;
+• whether analytics are enabled;
+• who can access student traces;
+• whether runtime isolation meets institutional expectations;
+• whether the course use case requires a data processing agreement or other contract.
+
+12
+
+Agent Failure Labs
+
+Privacy and Security FAQ
+
+17. Contact Information
+Contact Placeholder
+General support: support@agentfailure.com
+Privacy contact: privacy@agentfailure.com
+Security contact: security@agentfailure.com
+Platform status: https://status.agentfailure.com
+
+18. End of Privacy and Security FAQ
+
+13

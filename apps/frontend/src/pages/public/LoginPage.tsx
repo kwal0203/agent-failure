@@ -254,6 +254,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         className="mt-3 inline-flex h-11 items-center justify-center rounded-lg border border-lime-400/60 bg-black/30 px-4 text-sm font-extrabold text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
+                        onClick={() => navigate("/pilot-request")}
                       >
                         Request university pilot
                       </button>
