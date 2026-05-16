@@ -54,6 +54,16 @@ require_var GHCR_USERNAME
 require_var GHCR_TOKEN
 require_var GHCR_EMAIL
 
+if [[ "${PILOT_ALERT_EMAIL_ENABLED:-false}" == "true" ]]; then
+  require_var PILOT_ALERT_EMAIL_SMTP_HOST
+  require_var PILOT_ALERT_EMAIL_SMTP_PORT
+  require_var PILOT_ALERT_EMAIL_SMTP_USERNAME
+  require_var PILOT_ALERT_EMAIL_SMTP_PASSWORD
+  require_var PILOT_ALERT_EMAIL_SMTP_STARTTLS
+  require_var PILOT_ALERT_EMAIL_FROM
+  require_var PILOT_ALERT_EMAIL_TO
+fi
+
 echo "Using namespace: $NS"
 
 kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
@@ -66,6 +76,14 @@ kubectl -n "$NS" create secret generic runtime-secrets \
   --from-literal=AUTH_AUDIENCE="$AUTH_AUDIENCE" \
   --from-literal=AUTH_JWKS_URI="$AUTH_JWKS_URI" \
   --from-literal=OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
+  --from-literal=PILOT_ALERT_EMAIL_ENABLED="${PILOT_ALERT_EMAIL_ENABLED:-false}" \
+  --from-literal=PILOT_ALERT_EMAIL_SMTP_HOST="${PILOT_ALERT_EMAIL_SMTP_HOST:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_SMTP_PORT="${PILOT_ALERT_EMAIL_SMTP_PORT:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_SMTP_USERNAME="${PILOT_ALERT_EMAIL_SMTP_USERNAME:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_SMTP_PASSWORD="${PILOT_ALERT_EMAIL_SMTP_PASSWORD:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_SMTP_STARTTLS="${PILOT_ALERT_EMAIL_SMTP_STARTTLS:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_FROM="${PILOT_ALERT_EMAIL_FROM:-}" \
+  --from-literal=PILOT_ALERT_EMAIL_TO="${PILOT_ALERT_EMAIL_TO:-}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Applying ghcr-pull image pull secret..."

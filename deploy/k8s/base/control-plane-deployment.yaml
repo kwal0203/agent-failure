@@ -59,6 +59,46 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: PILOT_ALERT_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_ENABLED
+            - name: PILOT_ALERT_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_HOST
+            - name: PILOT_ALERT_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PORT
+            - name: PILOT_ALERT_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_USERNAME
+            - name: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+            - name: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+            - name: PILOT_ALERT_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_FROM
+            - name: PILOT_ALERT_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_TO
       containers:
         - name: control-plane
           image: ghcr.io/kwal0203/agent-failure-control-plane
@@ -100,6 +140,46 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: PILOT_ALERT_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_ENABLED
+            - name: PILOT_ALERT_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_HOST
+            - name: PILOT_ALERT_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PORT
+            - name: PILOT_ALERT_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_USERNAME
+            - name: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+            - name: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+            - name: PILOT_ALERT_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_FROM
+            - name: PILOT_ALERT_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_TO
           resources:
             requests:
               cpu: "150m"
