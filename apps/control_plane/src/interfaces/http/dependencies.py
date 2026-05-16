@@ -108,9 +108,18 @@ from apps.control_plane.src.infrastructure.classification.openrouter_authority_b
 from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manager
 from apps.control_plane.src.infrastructure.config.settings import (
     EmailClassifierSettings,
+    PilotAlertEmailSettings,
     get_auth_verifier_config as load_auth_verifier_config,
     get_email_classifier_settings,
+    get_pilot_alert_email_settings as load_pilot_alert_email_settings,
     get_runtime_client_config as load_runtime_client_config,
+)
+from apps.control_plane.src.application.pilot_requests.notifications import (
+    PilotRequestNotifierPort,
+)
+from apps.control_plane.src.infrastructure.notifications.pilot_request_email_notifier import (
+    NoopPilotRequestNotifier,
+    SmtpPilotRequestNotifier,
 )
 
 
@@ -229,6 +238,24 @@ def get_email_classifier_config() -> EmailClassifierSettings:
 @lru_cache(maxsize=1)
 def get_auth_verifier_config() -> AuthVerifierConfig:
     return load_auth_verifier_config()
+
+
+@lru_cache(maxsize=1)
+def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
+    return load_pilot_alert_email_settings()
+
+
+@lru_cache(maxsize=1)
+def get_pilot_request_notifier() -> PilotRequestNotifierPort:
+    settings = get_pilot_alert_email_settings()
+    if (
+        not settings.enabled
+        or not settings.smtp_host
+        or not settings.from_email
+        or not settings.to_emails
+    ):
+        return NoopPilotRequestNotifier()
+    return SmtpPilotRequestNotifier(settings)
 
 
 @lru_cache(maxsize=1)

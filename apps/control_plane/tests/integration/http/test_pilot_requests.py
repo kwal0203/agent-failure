@@ -3,8 +3,14 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from apps.control_plane.src.application.pilot_requests.notifications import (
+    PilotRequestNotification,
+)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import PilotRequestModel
+from apps.control_plane.src.interfaces.http.dependencies import (
+    get_pilot_request_notifier,
+)
 from apps.control_plane.src.interfaces.http.main import app
 
 
@@ -44,6 +50,26 @@ def test_create_pilot_request_happy_path(db_session: Session) -> None:
     assert body["status"] == "new"
     assert isinstance(body["createdAt"], str)
     assert db_session.query(PilotRequestModel).count() == 1
+
+
+def test_create_pilot_request_triggers_notification(db_session: Session) -> None:
+    sent: list[PilotRequestNotification] = []
+
+    class _SpyNotifier:
+        def notify(self, payload: PilotRequestNotification) -> None:
+            sent.append(payload)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_pilot_request_notifier] = lambda: _SpyNotifier()
+    try:
+        client = TestClient(app)
+        response = client.post("/api/v1/pilot-requests", json=_payload())
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert len(sent) == 1
+    assert sent[0].work_email == "instructor@university.edu"
 
 
 def test_create_pilot_request_validation_error(db_session: Session) -> None:

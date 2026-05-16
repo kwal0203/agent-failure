@@ -35,6 +35,18 @@ class EnrollmentSettings:
     token_ttl_seconds: int
 
 
+@dataclass(frozen=True)
+class PilotAlertEmailSettings:
+    enabled: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str | None
+    smtp_password: str | None
+    smtp_starttls: bool
+    from_email: str
+    to_emails: tuple[str, ...]
+
+
 def _get_optional_str(name: str) -> str | None:
     value = os.getenv(name, "").strip()
     return value or None
@@ -146,4 +158,28 @@ def get_runtime_pod_env_settings() -> RuntimePodEnvSettings:
         ),
         model_name=_get_optional_str("MODEL_NAME") or "deepseek/deepseek-v3.2",
         openrouter_api_key=_get_optional_str("OPENROUTER_API_KEY") or "",
+    )
+
+
+def _get_bool(name: str, *, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
+    raw_to = _get_optional_str("PILOT_ALERT_EMAIL_TO") or ""
+    to_emails = tuple(
+        item.strip().lower() for item in raw_to.split(",") if item.strip()
+    )
+    return PilotAlertEmailSettings(
+        enabled=_get_bool("PILOT_ALERT_EMAIL_ENABLED", default=False),
+        smtp_host=_get_optional_str("PILOT_ALERT_EMAIL_SMTP_HOST") or "",
+        smtp_port=_get_int("PILOT_ALERT_EMAIL_SMTP_PORT", default=587),
+        smtp_username=_get_optional_str("PILOT_ALERT_EMAIL_SMTP_USERNAME"),
+        smtp_password=_get_optional_str("PILOT_ALERT_EMAIL_SMTP_PASSWORD"),
+        smtp_starttls=_get_bool("PILOT_ALERT_EMAIL_SMTP_STARTTLS", default=True),
+        from_email=_get_optional_str("PILOT_ALERT_EMAIL_FROM") or "",
+        to_emails=to_emails,
     )
