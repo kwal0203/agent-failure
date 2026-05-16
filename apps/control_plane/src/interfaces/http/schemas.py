@@ -117,3 +117,7 @@ class ListPilotRequestsResponse(BaseModel):
     items: list[PilotRequestItemResponse]
     limit: int
     offset: int
+
+
+class UpdatePilotRequestStatusRequest(BaseModel):
+    status: str = Field(min_length=1, max_length=32)

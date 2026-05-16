@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -112,6 +113,54 @@ class SQLAlchemyPilotRequestRepository(PilotRequestRepositoryPort):
                 created_at=row.created_at,
             )
             for row in rows
+        )
+
+    def get_pilot_request_by_id(self, *, request_id: UUID) -> PilotRequestRecord | None:
+        row = (
+            self._db.query(PilotRequestModel)
+            .filter(PilotRequestModel.id == request_id)
+            .one_or_none()
+        )
+        if row is None:
+            return None
+        return PilotRequestRecord(
+            id=row.id,
+            full_name=row.full_name,
+            work_email=row.work_email,
+            university=row.university,
+            role=row.role,
+            course_name=row.course_name,
+            cohort_size=row.cohort_size,
+            notes=row.notes,
+            source_ip=row.source_ip,
+            status=row.status,
+            created_at=row.created_at,
+        )
+
+    def update_pilot_request_status(
+        self, *, request_id: UUID, status: str
+    ) -> PilotRequestRecord | None:
+        row = (
+            self._db.query(PilotRequestModel)
+            .filter(PilotRequestModel.id == request_id)
+            .one_or_none()
+        )
+        if row is None:
+            return None
+        row.status = status
+        self._db.flush()
+        return PilotRequestRecord(
+            id=row.id,
+            full_name=row.full_name,
+            work_email=row.work_email,
+            university=row.university,
+            role=row.role,
+            course_name=row.course_name,
+            cohort_size=row.cohort_size,
+            notes=row.notes,
+            source_ip=row.source_ip,
+            status=row.status,
+            created_at=row.created_at,
         )
 
     def commit(self) -> None:

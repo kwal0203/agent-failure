@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -14,6 +15,7 @@ from apps.control_plane.src.application.pilot_requests.ports import (
 from apps.control_plane.src.application.pilot_requests.service import (
     create_pilot_request as create_pilot_request_service,
     list_pilot_requests as list_pilot_requests_service,
+    update_pilot_request_status as update_pilot_request_status_service,
 )
 from apps.control_plane.src.application.pilot_requests.types import (
     CreatePilotRequestInput,
@@ -29,6 +31,7 @@ from apps.control_plane.src.interfaces.http.schemas import (
     CreatePilotRequestResponse,
     ListPilotRequestsResponse,
     PilotRequestItemResponse,
+    UpdatePilotRequestStatusRequest,
 )
 
 router = APIRouter()
@@ -150,4 +153,43 @@ def list_pilot_requests(
         ],
         limit=result.limit,
         offset=result.offset,
+    )
+
+
+@router.patch(
+    "/api/v1/pilot-requests/{request_id}", response_model=PilotRequestItemResponse
+)
+def update_pilot_request_status(
+    request_id: UUID,
+    payload: UpdatePilotRequestStatusRequest,
+    principal: PrincipalContext = Depends(get_current_principal),
+    repo: PilotRequestRepositoryPort = Depends(get_pilot_request_repository),
+) -> PilotRequestItemResponse:
+    _require_admin_or_staff(principal)
+    result = update_pilot_request_status_service(
+        repo=repo, request_id=request_id, next_status=payload.status.strip().lower()
+    )
+    if not result.updated:
+        if result.error_code == "NOT_FOUND":
+            raise HTTPException(status_code=404, detail=result.error)
+        if result.error_code == "INVALID_TRANSITION":
+            raise HTTPException(status_code=409, detail=result.error)
+        raise HTTPException(status_code=422, detail=result.error)
+
+    item = result.request
+    if item is None:
+        raise HTTPException(status_code=500, detail="Pilot request update failed")
+
+    return PilotRequestItemResponse(
+        requestId=str(item.id),
+        fullName=item.full_name,
+        workEmail=item.work_email,
+        university=item.university,
+        role=item.role,
+        courseName=item.course_name,
+        cohortSize=item.cohort_size,
+        notes=item.notes,
+        sourceIp=item.source_ip,
+        status=item.status,
+        createdAt=item.created_at,
     )

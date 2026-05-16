@@ -51,3 +51,11 @@ class ListPilotRequestsResult:
     items: tuple[PilotRequestRecord, ...]
     limit: int
     offset: int
+
+
+@dataclass(frozen=True)
+class UpdatePilotRequestStatusResult:
+    updated: bool
+    request: PilotRequestRecord | None = None
+    error: str | None = None
+    error_code: str | None = None

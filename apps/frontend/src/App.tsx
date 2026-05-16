@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/context";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/guards";
 import AppShell from "./layout/AppShell";
+import PilotRequestsAdminPage from "./pages/admin/PilotRequestsAdminPage";
 import AppHomePage from "./pages/app/AppHomePage";
 import EnrollmentPage from "./pages/EnrollmentPage";
 import HistoryPage from "./pages/HistoryPage";
@@ -35,6 +36,10 @@ export default function App() {
             <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/trace" element={<TracePage />} />
+            <Route
+              path="/admin/pilot-requests"
+              element={<PilotRequestsAdminPage />}
+            />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
           </Route>
         </Route>

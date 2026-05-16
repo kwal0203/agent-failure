@@ -240,3 +240,80 @@ def test_list_pilot_requests_created_after_filter(db_session: Session) -> None:
     items = response.json()["items"]
     assert len(items) == 1
     assert items[0]["workEmail"] == "new@example.edu"
+
+
+def test_patch_pilot_request_status_happy_path(db_session: Session) -> None:
+    row = PilotRequestModel(
+        full_name="One",
+        work_email="one@example.edu",
+        university="U1",
+        status="new",
+    )
+    db_session.add(row)
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.patch(
+            f"/api/v1/pilot-requests/{row.id}",
+            headers=_auth_header("local:admin@example.edu:admin"),
+            json={"status": "contacted"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "contacted"
+
+
+def test_patch_pilot_request_status_rejects_invalid_transition(
+    db_session: Session,
+) -> None:
+    row = PilotRequestModel(
+        full_name="One",
+        work_email="one@example.edu",
+        university="U1",
+        status="new",
+    )
+    db_session.add(row)
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.patch(
+            f"/api/v1/pilot-requests/{row.id}",
+            headers=_auth_header("local:admin@example.edu:admin"),
+            json={"status": "approved"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+
+
+def test_patch_pilot_request_status_requires_admin_or_staff(
+    db_session: Session,
+) -> None:
+    row = PilotRequestModel(
+        full_name="One",
+        work_email="one@example.edu",
+        university="U1",
+        status="new",
+    )
+    db_session.add(row)
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.patch(
+            f"/api/v1/pilot-requests/{row.id}",
+            headers=_auth_header("local:learner@example.edu:learner"),
+            json={"status": "contacted"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403

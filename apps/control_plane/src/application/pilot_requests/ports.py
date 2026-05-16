@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from .types import CreatePilotRequestInput, PilotRequestRecord
 
@@ -27,5 +28,13 @@ class PilotRequestRepositoryPort(Protocol):
         limit: int,
         offset: int,
     ) -> tuple[PilotRequestRecord, ...]: ...
+
+    def get_pilot_request_by_id(
+        self, *, request_id: UUID
+    ) -> PilotRequestRecord | None: ...
+
+    def update_pilot_request_status(
+        self, *, request_id: UUID, status: str
+    ) -> PilotRequestRecord | None: ...
 
     def commit(self) -> None: ...

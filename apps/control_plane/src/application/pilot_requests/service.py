@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from .ports import PilotRequestRepositoryPort
 from .types import (
@@ -6,6 +7,7 @@ from .types import (
     CreatePilotRequestResult,
     ListPilotRequestsInput,
     ListPilotRequestsResult,
+    UpdatePilotRequestStatusResult,
 )
 
 
@@ -92,3 +94,54 @@ def list_pilot_requests(
         offset=safe_offset,
     )
     return ListPilotRequestsResult(items=items, limit=safe_limit, offset=safe_offset)
+
+
+def update_pilot_request_status(
+    *,
+    repo: PilotRequestRepositoryPort,
+    request_id: UUID,
+    next_status: str,
+) -> UpdatePilotRequestStatusResult:
+    allowed = {"new", "contacted", "approved", "rejected"}
+    if next_status not in allowed:
+        return UpdatePilotRequestStatusResult(
+            updated=False,
+            error="Invalid status",
+            error_code="INVALID_STATUS",
+        )
+
+    existing = repo.get_pilot_request_by_id(request_id=request_id)
+    if existing is None:
+        return UpdatePilotRequestStatusResult(
+            updated=False,
+            error="Pilot request not found",
+            error_code="NOT_FOUND",
+        )
+
+    allowed_transitions = {
+        "new": {"contacted"},
+        "contacted": {"approved", "rejected"},
+        "approved": set(),
+        "rejected": set(),
+    }
+    if next_status == existing.status:
+        return UpdatePilotRequestStatusResult(updated=True, request=existing)
+    if next_status not in allowed_transitions.get(existing.status, set()):
+        return UpdatePilotRequestStatusResult(
+            updated=False,
+            error="Invalid status transition",
+            error_code="INVALID_TRANSITION",
+        )
+
+    updated = repo.update_pilot_request_status(
+        request_id=request_id,
+        status=next_status,
+    )
+    if updated is None:
+        return UpdatePilotRequestStatusResult(
+            updated=False,
+            error="Pilot request not found",
+            error_code="NOT_FOUND",
+        )
+    repo.commit()
+    return UpdatePilotRequestStatusResult(updated=True, request=updated)
