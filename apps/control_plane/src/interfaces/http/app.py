@@ -25,6 +25,9 @@ from apps.control_plane.src.interfaces.http.routes.labs import router as labs_ro
 from apps.control_plane.src.interfaces.http.routes.metadata import (
     router as metadata_router,
 )
+from apps.control_plane.src.interfaces.http.routes.pilot_requests import (
+    router as pilot_requests_router,
+)
 from apps.control_plane.src.interfaces.http.routes.session_actions import (
     router as session_actions_router,
 )
@@ -122,6 +125,7 @@ app.include_router(session_email_router)
 app.include_router(session_explanation_submission_router)
 app.include_router(labs_router)
 app.include_router(enrollment_router)
+app.include_router(pilot_requests_router)
 app.include_router(health_router)
 app.include_router(metadata_router)
 app.include_router(ws_stream_router)

@@ -81,3 +81,19 @@ class RedeemEnrollmentResponse(BaseModel):
     enrolled: bool
     course: CourseSummary | None = None
     error: str | None = None
+
+
+class CreatePilotRequest(BaseModel):
+    fullName: str = Field(min_length=1, max_length=120)
+    workEmail: str = Field(min_length=3, max_length=254)
+    university: str = Field(min_length=1, max_length=160)
+    role: str | None = Field(default=None, max_length=120)
+    courseName: str | None = Field(default=None, max_length=120)
+    cohortSize: int | None = Field(default=None, ge=1, le=100000)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class CreatePilotRequestResponse(BaseModel):
+    requestId: str
+    status: str
+    createdAt: datetime

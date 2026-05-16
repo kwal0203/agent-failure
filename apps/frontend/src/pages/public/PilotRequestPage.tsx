@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { createPilotRequest } from "../../auth/pilotRequests";
 
 type PilotInputProps = {
   id: string;
@@ -47,18 +48,39 @@ export default function PilotRequestPage() {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!name.trim() || !email.trim() || !university.trim()) {
       setError("Name, work email, and university are required.");
       setSuccess(null);
       return;
     }
 
+    setSubmitting(true);
     setError(null);
-    setSuccess(
-      "Request captured. We will follow up to set up your university pilot.",
-    );
+    setSuccess(null);
+    try {
+      await createPilotRequest({
+        fullName: name.trim(),
+        workEmail: email.trim().toLowerCase(),
+        university: university.trim(),
+        role: undefined,
+        courseName: courseName.trim() || undefined,
+        notes: message.trim() || undefined,
+      });
+      setSuccess(
+        "Request captured. We will follow up to set up your university pilot.",
+      );
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Pilot request submission failed.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -94,7 +116,7 @@ export default function PilotRequestPage() {
               className="space-y-6"
               onSubmit={(event) => {
                 event.preventDefault();
-                onSubmit();
+                void onSubmit();
               }}
             >
               <PilotInput
@@ -148,9 +170,10 @@ export default function PilotRequestPage() {
 
               <button
                 type="submit"
+                disabled={submitting}
                 className="group flex h-16 w-full items-center justify-center gap-3 rounded-lg bg-lime-300 text-base font-black text-black shadow-[0_0_28px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_42px_rgba(132,204,22,0.75)]"
               >
-                Submit pilot request
+                {submitting ? "Submitting..." : "Submit pilot request"}
                 <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
               </button>
             </form>

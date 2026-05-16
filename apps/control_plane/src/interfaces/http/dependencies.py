@@ -73,6 +73,12 @@ from apps.control_plane.src.infrastructure.persistence.enrollment_repository imp
     SQLAlchemyEnrollmentRepository,
 )
 from apps.control_plane.src.application.enrollment.ports import EnrollmentRepositoryPort
+from apps.control_plane.src.application.pilot_requests.ports import (
+    PilotRequestRepositoryPort,
+)
+from apps.control_plane.src.infrastructure.persistence.pilot_request_repository import (
+    SQLAlchemyPilotRequestRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintSeenRepository,
 )
@@ -187,6 +193,12 @@ def get_enrollment_repository(
     db: Session = Depends(get_db_session),
 ) -> EnrollmentRepositoryPort:
     return SQLAlchemyEnrollmentRepository(db=db)
+
+
+def get_pilot_request_repository(
+    db: Session = Depends(get_db_session),
+) -> PilotRequestRepositoryPort:
+    return SQLAlchemyPilotRequestRepository(db=db)
 
 
 def get_session_lifecycle_uow() -> SQLAlchemyUnitOfWork:

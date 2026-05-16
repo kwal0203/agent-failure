@@ -406,6 +406,50 @@ class EnrollmentModel(Base):
     )
 
 
+class PilotRequestModel(Base):
+    __tablename__ = "pilot_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "full_name <> ''", name="ck_pilot_requests_full_name_not_empty"
+        ),
+        CheckConstraint(
+            "work_email <> ''", name="ck_pilot_requests_work_email_not_empty"
+        ),
+        CheckConstraint(
+            "university <> ''", name="ck_pilot_requests_university_not_empty"
+        ),
+        CheckConstraint("status <> ''", name="ck_pilot_requests_status_not_empty"),
+        CheckConstraint(
+            "status IN ('new', 'contacted', 'approved', 'rejected')",
+            name="ck_pilot_requests_status",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    work_email: Mapped[str] = mapped_column(String(254), nullable=False, index=True)
+    university: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    course_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cohort_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="new", server_default="new"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (
