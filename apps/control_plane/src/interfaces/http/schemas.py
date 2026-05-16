@@ -166,3 +166,18 @@ class InstructorProvisioningSummaryResponse(BaseModel):
 
 class ProvisionInstructorResponse(BaseModel):
     provisioningSummary: InstructorProvisioningSummaryResponse
+
+
+class ApproveAndProvisionRequest(BaseModel):
+    courseId: str = Field(min_length=1, max_length=128)
+    courseName: str = Field(min_length=1, max_length=256)
+    classCode: str = Field(min_length=1, max_length=128)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    classCodeMaxUses: int | None = Field(default=None, ge=1)
+    createInstructorIfMissing: bool = False
+
+
+class ApproveAndProvisionResponse(BaseModel):
+    pilotRequest: PilotRequestItemResponse
+    pilotProvisioning: ProvisioningSummaryResponse
+    instructorProvisioning: InstructorProvisioningSummaryResponse

@@ -129,3 +129,64 @@ export async function updatePilotRequestStatus(
   }
   return body as PilotRequestItem;
 }
+
+export type ApproveAndProvisionPayload = {
+  courseId: string;
+  courseName: string;
+  classCode: string;
+  instructorEmail: string;
+  classCodeMaxUses?: number;
+  createInstructorIfMissing?: boolean;
+};
+
+export type ApproveAndProvisionResponse = {
+  pilotRequest: PilotRequestItem;
+  pilotProvisioning: {
+    pilotRequestId: string;
+    courseId: string;
+    courseName: string;
+    classCode: string;
+    classCodeStatus: string;
+    classCodeMaxUses?: number | null;
+    instructorEmail: string;
+    provisionedAt: string;
+  };
+  instructorProvisioning: {
+    pilotRequestId: string;
+    courseId: string;
+    courseName: string;
+    instructorEmail: string;
+    userCreated: boolean;
+    groupAssigned: boolean;
+    membershipCreated: boolean;
+    provisionedAt: string;
+  };
+};
+
+export async function approveAndProvisionPilotRequest(
+  requestId: string,
+  payload: ApproveAndProvisionPayload,
+): Promise<ApproveAndProvisionResponse> {
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}/approve-and-provision`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: getCurrentAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  const body = (await response.json()) as
+    | ApproveAndProvisionResponse
+    | { detail?: string };
+  if (!response.ok) {
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body
+        ? body.detail
+        : null;
+    throw new Error(detail ?? "Failed to approve and provision pilot request.");
+  }
+  return body as ApproveAndProvisionResponse;
+}

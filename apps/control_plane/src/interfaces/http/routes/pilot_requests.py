@@ -17,20 +17,46 @@ from apps.control_plane.src.application.pilot_requests.service import (
     list_pilot_requests as list_pilot_requests_service,
     update_pilot_request_status as update_pilot_request_status_service,
 )
+from apps.control_plane.src.application.pilot_provisioning.ports import (
+    PilotProvisioningRepositoryPort,
+)
+from apps.control_plane.src.application.pilot_provisioning.service import (
+    provision_pilot_request as provision_pilot_request_service,
+)
+from apps.control_plane.src.application.pilot_provisioning.types import (
+    ProvisionPilotRequestInput,
+)
+from apps.control_plane.src.application.instructor_provisioning.ports import (
+    InstructorIdentityProviderPort,
+    InstructorProvisioningRepositoryPort,
+)
+from apps.control_plane.src.application.instructor_provisioning.service import (
+    provision_instructor as provision_instructor_service,
+)
+from apps.control_plane.src.application.instructor_provisioning.types import (
+    ProvisionInstructorInput,
+)
 from apps.control_plane.src.application.pilot_requests.types import (
     CreatePilotRequestInput,
     ListPilotRequestsInput,
 )
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
+    get_instructor_identity_provider,
+    get_instructor_provisioning_repository,
     get_pilot_request_notifier,
+    get_pilot_provisioning_repository,
     get_pilot_request_repository,
 )
 from apps.control_plane.src.interfaces.http.schemas import (
+    ApproveAndProvisionRequest,
+    ApproveAndProvisionResponse,
     CreatePilotRequest,
     CreatePilotRequestResponse,
+    InstructorProvisioningSummaryResponse,
     ListPilotRequestsResponse,
     PilotRequestItemResponse,
+    ProvisioningSummaryResponse,
     UpdatePilotRequestStatusRequest,
 )
 
@@ -40,6 +66,11 @@ logger = logging.getLogger(__name__)
 
 def _require_admin_or_staff(principal: PrincipalContext) -> None:
     if principal.role not in {"admin", "staff"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _require_admin(principal: PrincipalContext) -> None:
+    if principal.role != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
@@ -192,4 +223,113 @@ def update_pilot_request_status(
         sourceIp=item.source_ip,
         status=item.status,
         createdAt=item.created_at,
+    )
+
+
+@router.post(
+    "/api/v1/pilot-requests/{request_id}/approve-and-provision",
+    response_model=ApproveAndProvisionResponse,
+)
+def approve_and_provision_pilot_request(
+    request_id: UUID,
+    payload: ApproveAndProvisionRequest,
+    principal: PrincipalContext = Depends(get_current_principal),
+    pilot_request_repo: PilotRequestRepositoryPort = Depends(
+        get_pilot_request_repository
+    ),
+    pilot_provisioning_repo: PilotProvisioningRepositoryPort = Depends(
+        get_pilot_provisioning_repository
+    ),
+    instructor_repo: InstructorProvisioningRepositoryPort = Depends(
+        get_instructor_provisioning_repository
+    ),
+    identity_provider: InstructorIdentityProviderPort = Depends(
+        get_instructor_identity_provider
+    ),
+) -> ApproveAndProvisionResponse:
+    _require_admin(principal)
+
+    status_result = update_pilot_request_status_service(
+        repo=pilot_request_repo, request_id=request_id, next_status="approved"
+    )
+    if not status_result.updated:
+        if status_result.error_code == "NOT_FOUND":
+            raise HTTPException(status_code=404, detail=status_result.error)
+        if status_result.error_code == "INVALID_TRANSITION":
+            raise HTTPException(status_code=409, detail=status_result.error)
+        raise HTTPException(status_code=422, detail=status_result.error)
+    if status_result.request is None:
+        raise HTTPException(status_code=500, detail="Pilot request update failed")
+
+    pilot_result = provision_pilot_request_service(
+        repo=pilot_provisioning_repo,
+        request=ProvisionPilotRequestInput(
+            pilot_request_id=request_id,
+            course_id=payload.courseId,
+            course_name=payload.courseName,
+            class_code=payload.classCode,
+            instructor_email=payload.instructorEmail,
+            max_uses=payload.classCodeMaxUses,
+        ),
+    )
+    if not pilot_result.ok or pilot_result.summary is None:
+        if pilot_result.error_code == "NOT_FOUND":
+            raise HTTPException(status_code=404, detail=pilot_result.error)
+        if pilot_result.error_code == "CONFLICT":
+            raise HTTPException(status_code=409, detail=pilot_result.error)
+        raise HTTPException(status_code=422, detail=pilot_result.error)
+
+    instructor_result = provision_instructor_service(
+        repo=instructor_repo,
+        identity_provider=identity_provider,
+        request=ProvisionInstructorInput(
+            pilot_request_id=request_id,
+            instructor_email=payload.instructorEmail,
+            create_user_if_missing=payload.createInstructorIfMissing,
+        ),
+    )
+    if not instructor_result.ok or instructor_result.summary is None:
+        if instructor_result.error_code == "NOT_PROVISIONED":
+            raise HTTPException(status_code=404, detail=instructor_result.error)
+        if instructor_result.error_code in {"EMAIL_MISMATCH", "IDENTITY_ERROR"}:
+            raise HTTPException(status_code=409, detail=instructor_result.error)
+        raise HTTPException(status_code=422, detail=instructor_result.error)
+
+    status_item = status_result.request
+    pilot_summary = pilot_result.summary
+    instructor_summary = instructor_result.summary
+    return ApproveAndProvisionResponse(
+        pilotRequest=PilotRequestItemResponse(
+            requestId=str(status_item.id),
+            fullName=status_item.full_name,
+            workEmail=status_item.work_email,
+            university=status_item.university,
+            role=status_item.role,
+            courseName=status_item.course_name,
+            cohortSize=status_item.cohort_size,
+            notes=status_item.notes,
+            sourceIp=status_item.source_ip,
+            status=status_item.status,
+            createdAt=status_item.created_at,
+        ),
+        pilotProvisioning=ProvisioningSummaryResponse(
+            pilotRequestId=str(pilot_summary.pilot_request_id),
+            courseId=pilot_summary.course_id,
+            courseName=pilot_summary.course_name,
+            classCode=pilot_summary.class_code,
+            classCodeStatus=pilot_summary.class_code_status,
+            classCodeMaxUses=pilot_summary.class_code_max_uses,
+            instructorEmail=pilot_summary.instructor_email,
+            provisionedAt=pilot_summary.provisioned_at,
+        ),
+        instructorProvisioning=InstructorProvisioningSummaryResponse(
+            pilotRequestId=str(instructor_summary.pilot_request_id),
+            courseId=instructor_summary.course_id,
+            courseName=instructor_summary.course_name,
+            instructorEmail=instructor_summary.instructor_email,
+            userCreated=instructor_summary.user_created,
+            groupAssigned=instructor_summary.group_assigned,
+            membershipCreated=instructor_summary.membership_created,
+            provisionedAt=instructor_summary.provisioned_at,
+        ),
     )

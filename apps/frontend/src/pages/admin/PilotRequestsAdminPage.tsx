@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  type ApproveAndProvisionResponse,
+  approveAndProvisionPilotRequest,
   listPilotRequests,
   type PilotRequestItem,
   updatePilotRequestStatus,
@@ -23,6 +25,9 @@ export default function PilotRequestsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [provisioningId, setProvisioningId] = useState<string | null>(null);
+  const [provisioningResult, setProvisioningResult] =
+    useState<ApproveAndProvisionResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +80,62 @@ export default function PilotRequestsAdminPage() {
       );
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const buildProvisioningPayload = (item: PilotRequestItem) => {
+    const baseCourseName = item.courseName?.trim() || "Pilot Course";
+    const courseSlug = baseCourseName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48);
+    const courseId = `${courseSlug || "pilot-course"}-${item.requestId.slice(0, 8)}`;
+    const classCodeSeed = (item.courseName?.trim() || "PILOT")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "")
+      .slice(0, 8);
+    const classCode = `${classCodeSeed || "PILOT"}-${item.requestId
+      .slice(0, 4)
+      .toUpperCase()}`;
+    return {
+      courseId,
+      courseName: baseCourseName,
+      classCode,
+      instructorEmail: item.workEmail,
+      classCodeMaxUses:
+        typeof item.cohortSize === "number" && item.cohortSize > 0
+          ? Math.max(item.cohortSize * 2, item.cohortSize + 20)
+          : 200,
+      createInstructorIfMissing: true,
+    };
+  };
+
+  const onApproveAndProvision = async (item: PilotRequestItem) => {
+    setProvisioningId(item.requestId);
+    setError(null);
+    setProvisioningResult(null);
+    try {
+      const response = await approveAndProvisionPilotRequest(
+        item.requestId,
+        buildProvisioningPayload(item),
+      );
+      setProvisioningResult(response);
+      setItems((prev) =>
+        prev.map((current) =>
+          current.requestId === response.pilotRequest.requestId
+            ? response.pilotRequest
+            : current,
+        ),
+      );
+    } catch (provisionError) {
+      setError(
+        provisionError instanceof Error
+          ? provisionError.message
+          : "Failed to approve and provision pilot request.",
+      );
+    } finally {
+      setProvisioningId(null);
     }
   };
 
@@ -157,6 +218,18 @@ export default function PilotRequestsAdminPage() {
                       {nextStatuses[item.status].length === 0 ? (
                         <span className="text-xs text-slate-400">Final</span>
                       ) : null}
+                      {item.status === "contacted" ? (
+                        <button
+                          type="button"
+                          disabled={
+                            !canEdit || provisioningId === item.requestId
+                          }
+                          onClick={() => void onApproveAndProvision(item)}
+                          className="rounded-md border border-emerald-500/40 bg-emerald-950/35 px-2.5 py-1.5 text-xs font-semibold text-emerald-100 transition enabled:hover:bg-emerald-900/45 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Approve + Provision
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -164,6 +237,28 @@ export default function PilotRequestsAdminPage() {
             </tbody>
           </table>
         </div>
+      ) : null}
+
+      {provisioningResult ? (
+        <section className="rounded-xl border border-emerald-600/45 bg-emerald-950/25 p-4">
+          <h2 className="m-0 text-base font-semibold text-emerald-200">
+            Provisioning Result
+          </h2>
+          <p className="mb-2 mt-2 text-sm text-emerald-100/90">
+            Request {provisioningResult.pilotRequest.requestId} is{" "}
+            {provisioningResult.pilotRequest.status}.
+          </p>
+          <p className="m-0 text-sm text-emerald-100/90">
+            Class code: {provisioningResult.pilotProvisioning.classCode} |
+            Course: {provisioningResult.pilotProvisioning.courseName}
+          </p>
+          <p className="mb-0 mt-1 text-sm text-emerald-100/90">
+            Instructor group assigned:{" "}
+            {provisioningResult.instructorProvisioning.groupAssigned
+              ? "yes"
+              : "no"}
+          </p>
+        </section>
       ) : null}
     </div>
   );
