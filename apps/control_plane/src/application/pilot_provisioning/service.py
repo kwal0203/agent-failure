@@ -39,6 +39,8 @@ def provision_pilot_request(
                 class_code=class_code,
                 instructor_email=instructor_email,
                 max_uses=request.max_uses,
+                provisioned_by=request.provisioned_by,
+                provisioning_correlation_id=request.provisioning_correlation_id,
             )
         )
     except ValueError as exc:
@@ -59,9 +61,12 @@ def provision_pilot_request(
             course_id=provision.course_id,
             course_name=provision.course_name,
             class_code=provision.class_code,
+            class_code_id=provision.class_code_id,
             class_code_status=provision.class_code_status,
             class_code_max_uses=provision.class_code_max_uses,
             instructor_email=provision.instructor_email,
+            provisioned_by=provision.provisioned_by,
+            provisioning_correlation_id=provision.provisioning_correlation_id,
             provisioned_at=provision.created_at,
         ),
     )

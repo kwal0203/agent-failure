@@ -136,9 +136,12 @@ class ProvisioningSummaryResponse(BaseModel):
     courseId: str
     courseName: str
     classCode: str
+    classCodeId: str
     classCodeStatus: str
     classCodeMaxUses: int | None = None
     instructorEmail: str
+    provisionedBy: str | None = None
+    provisioningCorrelationId: str | None = None
     provisionedAt: datetime
 
 
@@ -160,7 +163,10 @@ class InstructorProvisioningSummaryResponse(BaseModel):
     instructorEmail: str
     userCreated: bool
     groupAssigned: bool
+    instructorUserId: str | None = None
     membershipCreated: bool
+    provisionedBy: str | None = None
+    provisioningCorrelationId: str | None = None
     provisionedAt: datetime
 
 
@@ -179,6 +185,8 @@ class ApproveAndProvisionRequest(BaseModel):
 
 class ApproveAndProvisionResponse(BaseModel):
     pilotRequest: PilotRequestItemResponse
+    isRetry: bool
+    runCorrelationId: str
     approvedStep: bool
     pilotProvisionStep: ProvisioningSummaryResponse | None = None
     pilotProvisionError: str | None = None

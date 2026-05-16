@@ -53,6 +53,8 @@ class SQLAlchemyPilotProvisioningRepository(PilotProvisioningRepositoryPort):
             class_code=row.class_code,
             instructor_email=row.instructor_email,
             class_code_id=class_code.id,
+            provisioned_by=row.provisioned_by,
+            provisioning_correlation_id=row.provisioning_correlation_id,
             class_code_status=class_code.status,
             class_code_max_uses=class_code.max_uses,
             created_at=row.created_at,
@@ -107,7 +109,10 @@ class SQLAlchemyPilotProvisioningRepository(PilotProvisioningRepositoryPort):
             course_id=request.course_id,
             course_name=request.course_name,
             class_code=request.class_code,
+            class_code_id=class_code_row.id,
             instructor_email=request.instructor_email,
+            provisioned_by=request.provisioned_by,
+            provisioning_correlation_id=request.provisioning_correlation_id,
         )
         self._db.add(provision_row)
         self._db.flush()
@@ -120,6 +125,8 @@ class SQLAlchemyPilotProvisioningRepository(PilotProvisioningRepositoryPort):
                 class_code=provision_row.class_code,
                 instructor_email=provision_row.instructor_email,
                 class_code_id=class_code_row.id,
+                provisioned_by=provision_row.provisioned_by,
+                provisioning_correlation_id=provision_row.provisioning_correlation_id,
                 class_code_status=class_code_row.status,
                 class_code_max_uses=class_code_row.max_uses,
                 created_at=provision_row.created_at,

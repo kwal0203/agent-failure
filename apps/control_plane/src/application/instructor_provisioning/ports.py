@@ -18,8 +18,11 @@ class InstructorProvisioningRepositoryPort(Protocol):
         *,
         pilot_request_id: UUID,
         instructor_email: str,
+        instructor_user_id: str | None,
         course_id: str,
         course_name: str,
+        provisioned_by: UUID | None,
+        provisioning_correlation_id: str | None,
     ) -> tuple[InstructorCourseMembershipRecord, bool]: ...
 
     def commit(self) -> None: ...

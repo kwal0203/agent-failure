@@ -481,8 +481,17 @@ class PilotRequestProvisionModel(Base):
     course_id: Mapped[str] = mapped_column(String(128), nullable=False)
     course_name: Mapped[str] = mapped_column(String(256), nullable=False)
     class_code: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    class_code_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
     instructor_email: Mapped[str] = mapped_column(
         String(320), nullable=False, index=True
+    )
+    provisioned_by: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    provisioning_correlation_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -526,8 +535,17 @@ class InstructorCourseMembershipModel(Base):
     instructor_email: Mapped[str] = mapped_column(
         String(320), nullable=False, index=True
     )
+    instructor_user_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
     course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    provisioned_by: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    provisioning_correlation_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

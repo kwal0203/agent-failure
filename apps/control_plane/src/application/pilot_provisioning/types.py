@@ -11,6 +11,8 @@ class ProvisionPilotRequestInput:
     class_code: str
     instructor_email: str
     max_uses: int | None = None
+    provisioned_by: UUID | None = None
+    provisioning_correlation_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,8 @@ class PilotProvisionRecord:
     class_code: str
     instructor_email: str
     class_code_id: UUID
+    provisioned_by: UUID | None
+    provisioning_correlation_id: str | None
     class_code_status: str
     class_code_max_uses: int | None
     created_at: datetime
@@ -33,9 +37,12 @@ class ProvisionPilotRequestSummary:
     course_id: str
     course_name: str
     class_code: str
+    class_code_id: UUID
     class_code_status: str
     class_code_max_uses: int | None
     instructor_email: str
+    provisioned_by: UUID | None
+    provisioning_correlation_id: str | None
     provisioned_at: datetime
 
 

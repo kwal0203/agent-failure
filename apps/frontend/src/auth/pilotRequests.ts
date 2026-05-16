@@ -164,24 +164,32 @@ export type ProvisionPilotResponse = {
     courseId: string;
     courseName: string;
     classCode: string;
+    classCodeId?: string;
     classCodeStatus: string;
     classCodeMaxUses?: number | null;
     instructorEmail: string;
+    provisionedBy?: string | null;
+    provisioningCorrelationId?: string | null;
     provisionedAt: string;
   };
 };
 
 export type ApproveAndProvisionResponse = {
   pilotRequest: PilotRequestItem;
+  isRetry: boolean;
+  runCorrelationId: string;
   approvedStep: boolean;
   pilotProvisionStep?: {
     pilotRequestId: string;
     courseId: string;
     courseName: string;
     classCode: string;
+    classCodeId: string;
     classCodeStatus: string;
     classCodeMaxUses?: number | null;
     instructorEmail: string;
+    provisionedBy?: string | null;
+    provisioningCorrelationId?: string | null;
     provisionedAt: string;
   };
   pilotProvisionError?: string | null;
@@ -192,7 +200,10 @@ export type ApproveAndProvisionResponse = {
     instructorEmail: string;
     userCreated: boolean;
     groupAssigned: boolean;
+    instructorUserId?: string | null;
     membershipCreated: boolean;
+    provisionedBy?: string | null;
+    provisioningCorrelationId?: string | null;
     provisionedAt: string;
   };
   instructorProvisionError?: string | null;

@@ -37,11 +37,13 @@ class CognitoInstructorIdentityProvider(InstructorIdentityProviderPort):
         client = boto3.client("cognito-idp", region_name=self._settings.region)
 
         user_created = False
+        user_id: str | None = None
         try:
-            client.admin_get_user(
+            existing = client.admin_get_user(
                 UserPoolId=self._settings.user_pool_id,
                 Username=email,
             )
+            user_id = str(existing.get("Username") or email)
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             if code != "UserNotFoundException":
@@ -60,6 +62,7 @@ class CognitoInstructorIdentityProvider(InstructorIdentityProviderPort):
                     ],
                 )
                 user_created = True
+                user_id = email
             except ClientError as create_exc:
                 raise ValueError("Failed to create instructor account.") from create_exc
 
@@ -76,4 +79,5 @@ class CognitoInstructorIdentityProvider(InstructorIdentityProviderPort):
             email=email,
             user_created=user_created,
             group_assigned=True,
+            user_id=user_id or email,
         )

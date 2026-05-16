@@ -512,6 +512,10 @@ export default function PilotRequestsAdminPage() {
             Request {provisioningResult.pilotRequest.requestId} is{" "}
             {provisioningResult.pilotRequest.status}.
           </p>
+          <p className="mb-2 mt-0 text-sm text-emerald-100/90">
+            Retry: {provisioningResult.isRetry ? "yes" : "no"} | Run:{" "}
+            {provisioningResult.runCorrelationId}
+          </p>
           <ul className="m-0 grid gap-1 pl-5 text-sm text-emerald-100/90">
             <li>
               Approve step: {provisioningResult.approvedStep ? "ok" : "failed"}
@@ -524,6 +528,12 @@ export default function PilotRequestsAdminPage() {
               <li>
                 Class code: {provisioningResult.pilotProvisionStep.classCode} |
                 Course: {provisioningResult.pilotProvisionStep.courseName}
+              </li>
+            ) : null}
+            {provisioningResult.pilotProvisionStep?.provisionedBy ? (
+              <li>
+                Provisioned by:{" "}
+                {provisioningResult.pilotProvisionStep.provisionedBy}
               </li>
             ) : null}
             {provisioningResult.pilotProvisionError ? (
@@ -541,6 +551,12 @@ export default function PilotRequestsAdminPage() {
                 {provisioningResult.instructorProvisionStep.groupAssigned
                   ? "yes"
                   : "no"}
+              </li>
+            ) : null}
+            {provisioningResult.instructorProvisionStep?.instructorUserId ? (
+              <li>
+                Instructor user id:{" "}
+                {provisioningResult.instructorProvisionStep.instructorUserId}
               </li>
             ) : null}
             {provisioningResult.instructorProvisionError ? (

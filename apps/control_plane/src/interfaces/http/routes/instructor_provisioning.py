@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.common.observability import get_correlation_id
 from apps.control_plane.src.application.instructor_provisioning.ports import (
     InstructorIdentityProviderPort,
     InstructorProvisioningRepositoryPort,
@@ -59,6 +60,8 @@ def provision_instructor(
             pilot_request_id=pilot_request_id,
             instructor_email=payload.instructorEmail,
             create_user_if_missing=payload.createUserIfMissing,
+            provisioned_by=principal.user_id,
+            provisioning_correlation_id=get_correlation_id(),
         ),
     )
     if not result.ok:
@@ -79,7 +82,14 @@ def provision_instructor(
             instructorEmail=result.summary.instructor_email,
             userCreated=result.summary.user_created,
             groupAssigned=result.summary.group_assigned,
+            instructorUserId=result.summary.instructor_user_id,
             membershipCreated=result.summary.membership_created,
+            provisionedBy=(
+                str(result.summary.provisioned_by)
+                if result.summary.provisioned_by is not None
+                else None
+            ),
+            provisioningCorrelationId=result.summary.provisioning_correlation_id,
             provisionedAt=result.summary.provisioned_at,
         )
     )

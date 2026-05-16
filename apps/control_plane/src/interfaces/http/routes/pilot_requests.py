@@ -5,6 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from apps.control_plane.src.application.common.types import PrincipalContext
+from apps.control_plane.src.application.common.observability import (
+    get_correlation_id,
+    log_fields,
+)
 from apps.control_plane.src.application.pilot_requests.notifications import (
     PilotRequestNotification,
     PilotRequestNotifierPort,
@@ -254,12 +258,14 @@ def approve_and_provision_pilot_request(
     ),
 ) -> ApproveAndProvisionResponse:
     _require_admin(principal)
+    run_correlation_id = get_correlation_id()
 
     existing = pilot_request_repo.get_pilot_request_by_id(request_id=request_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Pilot request not found")
 
     approved_step = False
+    is_retry = False
     if existing.status == "contacted":
         approved_result = update_pilot_request_status_service(
             repo=pilot_request_repo, request_id=request_id, next_status="approved"
@@ -271,6 +277,7 @@ def approve_and_provision_pilot_request(
         approved_step = True
     elif existing.status == "approved_provisioning_failed":
         approved_step = True
+        is_retry = True
     else:
         raise HTTPException(
             status_code=409,
@@ -286,6 +293,8 @@ def approve_and_provision_pilot_request(
             class_code=payload.classCode,
             instructor_email=payload.instructorEmail,
             max_uses=payload.classCodeMaxUses,
+            provisioned_by=principal.user_id,
+            provisioning_correlation_id=run_correlation_id,
         ),
     )
     if not pilot_result.ok or pilot_result.summary is None:
@@ -295,6 +304,17 @@ def approve_and_provision_pilot_request(
             next_status="approved_provisioning_failed",
         )
         status_item = failed_status_result.request or existing
+        logger.warning(
+            "approve and provision failed in pilot provisioning step",
+            extra={
+                **log_fields(principal_id=principal.user_id),
+                "event": "pilot_request_approve_and_provision_failed",
+                "pilot_request_id": str(request_id),
+                "step": "pilot_provision",
+                "is_retry": is_retry,
+                "error_code": pilot_result.error_code,
+            },
+        )
         return ApproveAndProvisionResponse(
             pilotRequest=PilotRequestItemResponse(
                 requestId=str(status_item.id),
@@ -309,6 +329,8 @@ def approve_and_provision_pilot_request(
                 status=status_item.status,
                 createdAt=status_item.created_at,
             ),
+            isRetry=is_retry,
+            runCorrelationId=run_correlation_id,
             approvedStep=approved_step,
             pilotProvisionError=pilot_result.error or "Pilot provisioning failed",
         )
@@ -320,6 +342,8 @@ def approve_and_provision_pilot_request(
             pilot_request_id=request_id,
             instructor_email=payload.instructorEmail,
             create_user_if_missing=payload.createInstructorIfMissing,
+            provisioned_by=principal.user_id,
+            provisioning_correlation_id=run_correlation_id,
         ),
     )
     if not instructor_result.ok or instructor_result.summary is None:
@@ -330,6 +354,17 @@ def approve_and_provision_pilot_request(
         )
         status_item = failed_status_result.request or existing
         pilot_summary = pilot_result.summary
+        logger.warning(
+            "approve and provision failed in instructor provisioning step",
+            extra={
+                **log_fields(principal_id=principal.user_id),
+                "event": "pilot_request_approve_and_provision_failed",
+                "pilot_request_id": str(request_id),
+                "step": "instructor_provision",
+                "is_retry": is_retry,
+                "error_code": instructor_result.error_code,
+            },
+        )
         return ApproveAndProvisionResponse(
             pilotRequest=PilotRequestItemResponse(
                 requestId=str(status_item.id),
@@ -344,15 +379,24 @@ def approve_and_provision_pilot_request(
                 status=status_item.status,
                 createdAt=status_item.created_at,
             ),
+            isRetry=is_retry,
+            runCorrelationId=run_correlation_id,
             approvedStep=approved_step,
             pilotProvisionStep=ProvisioningSummaryResponse(
                 pilotRequestId=str(pilot_summary.pilot_request_id),
                 courseId=pilot_summary.course_id,
                 courseName=pilot_summary.course_name,
                 classCode=pilot_summary.class_code,
+                classCodeId=str(pilot_summary.class_code_id),
                 classCodeStatus=pilot_summary.class_code_status,
                 classCodeMaxUses=pilot_summary.class_code_max_uses,
                 instructorEmail=pilot_summary.instructor_email,
+                provisionedBy=(
+                    str(pilot_summary.provisioned_by)
+                    if pilot_summary.provisioned_by is not None
+                    else None
+                ),
+                provisioningCorrelationId=pilot_summary.provisioning_correlation_id,
                 provisionedAt=pilot_summary.provisioned_at,
             ),
             instructorProvisionError=instructor_result.error
@@ -365,6 +409,15 @@ def approve_and_provision_pilot_request(
     status_item = final_status_result.request or existing
     pilot_summary = pilot_result.summary
     instructor_summary = instructor_result.summary
+    logger.info(
+        "approve and provision completed",
+        extra={
+            **log_fields(principal_id=principal.user_id),
+            "event": "pilot_request_approve_and_provision_completed",
+            "pilot_request_id": str(request_id),
+            "is_retry": is_retry,
+        },
+    )
     return ApproveAndProvisionResponse(
         pilotRequest=PilotRequestItemResponse(
             requestId=str(status_item.id),
@@ -379,15 +432,24 @@ def approve_and_provision_pilot_request(
             status=status_item.status,
             createdAt=status_item.created_at,
         ),
+        isRetry=is_retry,
+        runCorrelationId=run_correlation_id,
         approvedStep=approved_step,
         pilotProvisionStep=ProvisioningSummaryResponse(
             pilotRequestId=str(pilot_summary.pilot_request_id),
             courseId=pilot_summary.course_id,
             courseName=pilot_summary.course_name,
             classCode=pilot_summary.class_code,
+            classCodeId=str(pilot_summary.class_code_id),
             classCodeStatus=pilot_summary.class_code_status,
             classCodeMaxUses=pilot_summary.class_code_max_uses,
             instructorEmail=pilot_summary.instructor_email,
+            provisionedBy=(
+                str(pilot_summary.provisioned_by)
+                if pilot_summary.provisioned_by is not None
+                else None
+            ),
+            provisioningCorrelationId=pilot_summary.provisioning_correlation_id,
             provisionedAt=pilot_summary.provisioned_at,
         ),
         instructorProvisionStep=InstructorProvisioningSummaryResponse(
@@ -397,7 +459,14 @@ def approve_and_provision_pilot_request(
             instructorEmail=instructor_summary.instructor_email,
             userCreated=instructor_summary.user_created,
             groupAssigned=instructor_summary.group_assigned,
+            instructorUserId=instructor_summary.instructor_user_id,
             membershipCreated=instructor_summary.membership_created,
+            provisionedBy=(
+                str(instructor_summary.provisioned_by)
+                if instructor_summary.provisioned_by is not None
+                else None
+            ),
+            provisioningCorrelationId=instructor_summary.provisioning_correlation_id,
             provisionedAt=instructor_summary.provisioned_at,
         ),
     )

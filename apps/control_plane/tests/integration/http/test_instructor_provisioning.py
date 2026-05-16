@@ -1,11 +1,13 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from uuid import UUID
 
 from apps.control_plane.src.application.instructor_provisioning.types import (
     InstructorIdentityResult,
 )
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
+    ClassCodeModel,
     InstructorCourseMembershipModel,
     PilotRequestModel,
     PilotRequestProvisionModel,
@@ -53,6 +55,29 @@ def _payload() -> dict[str, object]:
     }
 
 
+def _seed_pilot_provision_context(db_session: Session, pilot_request_id: UUID) -> None:
+    class_code = ClassCodeModel(
+        code="CS447-FALL26",
+        course_id="course-cs447-fall-2026",
+        course_name="CS447 Fall 2026",
+        status="active",
+        max_uses=200,
+    )
+    db_session.add(class_code)
+    db_session.flush()
+    db_session.add(
+        PilotRequestProvisionModel(
+            pilot_request_id=pilot_request_id,
+            course_id="course-cs447-fall-2026",
+            course_name="CS447 Fall 2026",
+            class_code="CS447-FALL26",
+            class_code_id=class_code.id,
+            instructor_email="instructor@university.edu",
+        )
+    )
+    db_session.flush()
+
+
 def test_provision_instructor_requires_admin(db_session: Session) -> None:
     pilot_request = PilotRequestModel(
         full_name="Instructor One",
@@ -62,16 +87,7 @@ def test_provision_instructor_requires_admin(db_session: Session) -> None:
     )
     db_session.add(pilot_request)
     db_session.flush()
-    db_session.add(
-        PilotRequestProvisionModel(
-            pilot_request_id=pilot_request.id,
-            course_id="course-cs447-fall-2026",
-            course_name="CS447 Fall 2026",
-            class_code="CS447-FALL26",
-            instructor_email="instructor@university.edu",
-        )
-    )
-    db_session.flush()
+    _seed_pilot_provision_context(db_session, pilot_request.id)
 
     payload = _payload()
     payload["pilotRequestId"] = str(pilot_request.id)
@@ -101,16 +117,7 @@ def test_provision_instructor_happy_path(db_session: Session) -> None:
     )
     db_session.add(pilot_request)
     db_session.flush()
-    db_session.add(
-        PilotRequestProvisionModel(
-            pilot_request_id=pilot_request.id,
-            course_id="course-cs447-fall-2026",
-            course_name="CS447 Fall 2026",
-            class_code="CS447-FALL26",
-            instructor_email="instructor@university.edu",
-        )
-    )
-    db_session.flush()
+    _seed_pilot_provision_context(db_session, pilot_request.id)
 
     payload = _payload()
     payload["pilotRequestId"] = str(pilot_request.id)
@@ -155,16 +162,7 @@ def test_provision_instructor_idempotent_membership(db_session: Session) -> None
     )
     db_session.add(pilot_request)
     db_session.flush()
-    db_session.add(
-        PilotRequestProvisionModel(
-            pilot_request_id=pilot_request.id,
-            course_id="course-cs447-fall-2026",
-            course_name="CS447 Fall 2026",
-            class_code="CS447-FALL26",
-            instructor_email="instructor@university.edu",
-        )
-    )
-    db_session.flush()
+    _seed_pilot_provision_context(db_session, pilot_request.id)
 
     payload = _payload()
     payload["pilotRequestId"] = str(pilot_request.id)

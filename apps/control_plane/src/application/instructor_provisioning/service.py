@@ -54,8 +54,11 @@ def provision_instructor(
     membership, membership_created = repo.upsert_instructor_course_membership(
         pilot_request_id=context.pilot_request_id,
         instructor_email=email,
+        instructor_user_id=identity.user_id,
         course_id=context.course_id,
         course_name=context.course_name,
+        provisioned_by=request.provisioned_by,
+        provisioning_correlation_id=request.provisioning_correlation_id,
     )
     if membership_created:
         repo.commit()
@@ -69,7 +72,10 @@ def provision_instructor(
             instructor_email=email,
             user_created=identity.user_created,
             group_assigned=identity.group_assigned,
+            instructor_user_id=identity.user_id,
             membership_created=membership_created,
+            provisioned_by=membership.provisioned_by,
+            provisioning_correlation_id=membership.provisioning_correlation_id,
             provisioned_at=membership.created_at
             if membership_created
             else datetime.now(UTC),

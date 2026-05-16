@@ -41,8 +41,11 @@ class SQLAlchemyInstructorProvisioningRepository(InstructorProvisioningRepositor
         *,
         pilot_request_id: UUID,
         instructor_email: str,
+        instructor_user_id: str | None,
         course_id: str,
         course_name: str,
+        provisioned_by: UUID | None,
+        provisioning_correlation_id: str | None,
     ) -> tuple[InstructorCourseMembershipRecord, bool]:
         row = (
             self._db.query(InstructorCourseMembershipModel)
@@ -56,13 +59,25 @@ class SQLAlchemyInstructorProvisioningRepository(InstructorProvisioningRepositor
             row = InstructorCourseMembershipModel(
                 pilot_request_id=pilot_request_id,
                 instructor_email=instructor_email,
+                instructor_user_id=instructor_user_id,
                 course_id=course_id,
                 course_name=course_name,
+                provisioned_by=provisioned_by,
+                provisioning_correlation_id=provisioning_correlation_id,
             )
             self._db.add(row)
             self._db.flush()
             created = True
         else:
+            if row.instructor_user_id is None and instructor_user_id is not None:
+                row.instructor_user_id = instructor_user_id
+            if row.provisioned_by is None and provisioned_by is not None:
+                row.provisioned_by = provisioned_by
+            if (
+                row.provisioning_correlation_id is None
+                and provisioning_correlation_id is not None
+            ):
+                row.provisioning_correlation_id = provisioning_correlation_id
             created = False
 
         return (
@@ -72,6 +87,9 @@ class SQLAlchemyInstructorProvisioningRepository(InstructorProvisioningRepositor
                 course_id=row.course_id,
                 course_name=row.course_name,
                 pilot_request_id=row.pilot_request_id,
+                instructor_user_id=row.instructor_user_id,
+                provisioned_by=row.provisioned_by,
+                provisioning_correlation_id=row.provisioning_correlation_id,
                 created_at=row.created_at,
             ),
             created,
