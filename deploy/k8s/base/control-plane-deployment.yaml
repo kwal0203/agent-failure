@@ -59,6 +59,16 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: ENROLLMENT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_SECRET
+            - name: ENROLLMENT_TOKEN_TTL_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_TTL_SECONDS
             - name: PILOT_ALERT_EMAIL_ENABLED
               valueFrom:
                 secretKeyRef:
@@ -99,6 +109,56 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: PILOT_ALERT_EMAIL_TO
+            - name: PILOT_PROVISIONING_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ENABLED
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+            - name: PILOT_PROVISIONING_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_FROM
+            - name: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+            - name: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+            - name: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
             - name: INSTRUCTOR_PROVISIONING_ENABLED
               valueFrom:
                 secretKeyRef:
@@ -160,6 +220,16 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: ENROLLMENT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_SECRET
+            - name: ENROLLMENT_TOKEN_TTL_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_TTL_SECONDS
             - name: PILOT_ALERT_EMAIL_ENABLED
               valueFrom:
                 secretKeyRef:
@@ -200,6 +270,56 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: PILOT_ALERT_EMAIL_TO
+            - name: PILOT_PROVISIONING_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ENABLED
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+            - name: PILOT_PROVISIONING_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_FROM
+            - name: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+            - name: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+            - name: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
             - name: INSTRUCTOR_PROVISIONING_ENABLED
               valueFrom:
                 secretKeyRef:
