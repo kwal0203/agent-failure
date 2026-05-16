@@ -18,6 +18,14 @@ class CreatePilotRequestInput:
 @dataclass(frozen=True)
 class PilotRequestRecord:
     id: UUID
+    full_name: str
+    work_email: str
+    university: str
+    role: str | None
+    course_name: str | None
+    cohort_size: int | None
+    notes: str | None
+    source_ip: str | None
     status: str
     created_at: datetime
 
@@ -28,3 +36,18 @@ class CreatePilotRequestResult:
     request: PilotRequestRecord | None = None
     error: str | None = None
     error_code: str | None = None
+
+
+@dataclass(frozen=True)
+class ListPilotRequestsInput:
+    status: str | None = None
+    created_after: datetime | None = None
+    limit: int = 20
+    offset: int = 0
+
+
+@dataclass(frozen=True)
+class ListPilotRequestsResult:
+    items: tuple[PilotRequestRecord, ...]
+    limit: int
+    offset: int

@@ -67,7 +67,51 @@ class SQLAlchemyPilotRequestRepository(PilotRequestRepositoryPort):
         self._db.add(row)
         self._db.flush()
         return PilotRequestRecord(
-            id=row.id, status=row.status, created_at=row.created_at
+            id=row.id,
+            full_name=row.full_name,
+            work_email=row.work_email,
+            university=row.university,
+            role=row.role,
+            course_name=row.course_name,
+            cohort_size=row.cohort_size,
+            notes=row.notes,
+            source_ip=row.source_ip,
+            status=row.status,
+            created_at=row.created_at,
+        )
+
+    def list_pilot_requests(
+        self,
+        *,
+        status: str | None,
+        created_after: datetime | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[PilotRequestRecord, ...]:
+        query = self._db.query(PilotRequestModel).order_by(
+            PilotRequestModel.created_at.desc()
+        )
+        if status is not None:
+            query = query.filter(PilotRequestModel.status == status)
+        if created_after is not None:
+            query = query.filter(PilotRequestModel.created_at > created_after)
+
+        rows = query.offset(offset).limit(limit).all()
+        return tuple(
+            PilotRequestRecord(
+                id=row.id,
+                full_name=row.full_name,
+                work_email=row.work_email,
+                university=row.university,
+                role=row.role,
+                course_name=row.course_name,
+                cohort_size=row.cohort_size,
+                notes=row.notes,
+                source_ip=row.source_ip,
+                status=row.status,
+                created_at=row.created_at,
+            )
+            for row in rows
         )
 
     def commit(self) -> None:

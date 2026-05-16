@@ -1,7 +1,9 @@
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.pilot_requests.notifications import (
     PilotRequestNotification,
     PilotRequestNotifierPort,
@@ -11,10 +13,13 @@ from apps.control_plane.src.application.pilot_requests.ports import (
 )
 from apps.control_plane.src.application.pilot_requests.service import (
     create_pilot_request as create_pilot_request_service,
+    list_pilot_requests as list_pilot_requests_service,
 )
 from apps.control_plane.src.application.pilot_requests.types import (
     CreatePilotRequestInput,
+    ListPilotRequestsInput,
 )
+from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_pilot_request_notifier,
     get_pilot_request_repository,
@@ -22,10 +27,17 @@ from apps.control_plane.src.interfaces.http.dependencies import (
 from apps.control_plane.src.interfaces.http.schemas import (
     CreatePilotRequest,
     CreatePilotRequestResponse,
+    ListPilotRequestsResponse,
+    PilotRequestItemResponse,
 )
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _require_admin_or_staff(principal: PrincipalContext) -> None:
+    if principal.role not in {"admin", "staff"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 @router.post(
@@ -93,4 +105,49 @@ def create_pilot_request(
 
     return CreatePilotRequestResponse(
         requestId=str(created.id), status=created.status, createdAt=created.created_at
+    )
+
+
+@router.get("/api/v1/pilot-requests", response_model=ListPilotRequestsResponse)
+def list_pilot_requests(
+    principal: PrincipalContext = Depends(get_current_principal),
+    repo: PilotRequestRepositoryPort = Depends(get_pilot_request_repository),
+    status: str | None = None,
+    created_after: datetime | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> ListPilotRequestsResponse:
+    _require_admin_or_staff(principal)
+    allowed_statuses = {"new", "contacted", "approved", "rejected"}
+    if status is not None and status not in allowed_statuses:
+        raise HTTPException(status_code=422, detail="Invalid status filter")
+
+    result = list_pilot_requests_service(
+        repo=repo,
+        query=ListPilotRequestsInput(
+            status=status,
+            created_after=created_after,
+            limit=limit,
+            offset=offset,
+        ),
+    )
+    return ListPilotRequestsResponse(
+        items=[
+            PilotRequestItemResponse(
+                requestId=str(item.id),
+                fullName=item.full_name,
+                workEmail=item.work_email,
+                university=item.university,
+                role=item.role,
+                courseName=item.course_name,
+                cohortSize=item.cohort_size,
+                notes=item.notes,
+                sourceIp=item.source_ip,
+                status=item.status,
+                createdAt=item.created_at,
+            )
+            for item in result.items
+        ],
+        limit=result.limit,
+        offset=result.offset,
     )

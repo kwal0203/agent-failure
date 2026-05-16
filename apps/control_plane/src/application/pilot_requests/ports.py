@@ -19,4 +19,13 @@ class PilotRequestRepositoryPort(Protocol):
         self, request: CreatePilotRequestInput
     ) -> PilotRequestRecord: ...
 
+    def list_pilot_requests(
+        self,
+        *,
+        status: str | None,
+        created_after: datetime | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[PilotRequestRecord, ...]: ...
+
     def commit(self) -> None: ...

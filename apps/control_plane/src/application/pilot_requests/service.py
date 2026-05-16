@@ -1,7 +1,12 @@
 from datetime import UTC, datetime, timedelta
 
 from .ports import PilotRequestRepositoryPort
-from .types import CreatePilotRequestInput, CreatePilotRequestResult
+from .types import (
+    CreatePilotRequestInput,
+    CreatePilotRequestResult,
+    ListPilotRequestsInput,
+    ListPilotRequestsResult,
+)
 
 
 def create_pilot_request(
@@ -71,3 +76,19 @@ def create_pilot_request(
     repo.commit()
 
     return CreatePilotRequestResult(accepted=True, request=created)
+
+
+def list_pilot_requests(
+    *,
+    repo: PilotRequestRepositoryPort,
+    query: ListPilotRequestsInput,
+) -> ListPilotRequestsResult:
+    safe_limit = min(max(query.limit, 1), 100)
+    safe_offset = max(query.offset, 0)
+    items = repo.list_pilot_requests(
+        status=query.status,
+        created_after=query.created_after,
+        limit=safe_limit,
+        offset=safe_offset,
+    )
+    return ListPilotRequestsResult(items=items, limit=safe_limit, offset=safe_offset)

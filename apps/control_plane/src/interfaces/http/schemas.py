@@ -97,3 +97,23 @@ class CreatePilotRequestResponse(BaseModel):
     requestId: str
     status: str
     createdAt: datetime
+
+
+class PilotRequestItemResponse(BaseModel):
+    requestId: str
+    fullName: str
+    workEmail: str
+    university: str
+    role: str | None = None
+    courseName: str | None = None
+    cohortSize: int | None = None
+    notes: str | None = None
+    sourceIp: str | None = None
+    status: str
+    createdAt: datetime
+
+
+class ListPilotRequestsResponse(BaseModel):
+    items: list[PilotRequestItemResponse]
+    limit: int
+    offset: int
