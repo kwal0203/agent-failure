@@ -420,7 +420,7 @@ class PilotRequestModel(Base):
         ),
         CheckConstraint("status <> ''", name="ck_pilot_requests_status_not_empty"),
         CheckConstraint(
-            "status IN ('new', 'contacted', 'approved', 'rejected')",
+            "status IN ('new', 'contacted', 'approved', 'approved_provisioning_failed', 'rejected')",
             name="ck_pilot_requests_status",
         ),
     )

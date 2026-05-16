@@ -152,7 +152,13 @@ def list_pilot_requests(
     offset: int = 0,
 ) -> ListPilotRequestsResponse:
     _require_admin_or_staff(principal)
-    allowed_statuses = {"new", "contacted", "approved", "rejected"}
+    allowed_statuses = {
+        "new",
+        "contacted",
+        "approved",
+        "approved_provisioning_failed",
+        "rejected",
+    }
     if status is not None and status not in allowed_statuses:
         raise HTTPException(status_code=422, detail="Invalid status filter")
 
@@ -249,17 +255,27 @@ def approve_and_provision_pilot_request(
 ) -> ApproveAndProvisionResponse:
     _require_admin(principal)
 
-    status_result = update_pilot_request_status_service(
-        repo=pilot_request_repo, request_id=request_id, next_status="approved"
-    )
-    if not status_result.updated:
-        if status_result.error_code == "NOT_FOUND":
-            raise HTTPException(status_code=404, detail=status_result.error)
-        if status_result.error_code == "INVALID_TRANSITION":
-            raise HTTPException(status_code=409, detail=status_result.error)
-        raise HTTPException(status_code=422, detail=status_result.error)
-    if status_result.request is None:
-        raise HTTPException(status_code=500, detail="Pilot request update failed")
+    existing = pilot_request_repo.get_pilot_request_by_id(request_id=request_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Pilot request not found")
+
+    approved_step = False
+    if existing.status == "contacted":
+        approved_result = update_pilot_request_status_service(
+            repo=pilot_request_repo, request_id=request_id, next_status="approved"
+        )
+        if not approved_result.updated:
+            if approved_result.error_code == "INVALID_TRANSITION":
+                raise HTTPException(status_code=409, detail=approved_result.error)
+            raise HTTPException(status_code=422, detail=approved_result.error)
+        approved_step = True
+    elif existing.status == "approved_provisioning_failed":
+        approved_step = True
+    else:
+        raise HTTPException(
+            status_code=409,
+            detail="Pilot request must be contacted or approved_provisioning_failed.",
+        )
 
     pilot_result = provision_pilot_request_service(
         repo=pilot_provisioning_repo,
@@ -273,11 +289,29 @@ def approve_and_provision_pilot_request(
         ),
     )
     if not pilot_result.ok or pilot_result.summary is None:
-        if pilot_result.error_code == "NOT_FOUND":
-            raise HTTPException(status_code=404, detail=pilot_result.error)
-        if pilot_result.error_code == "CONFLICT":
-            raise HTTPException(status_code=409, detail=pilot_result.error)
-        raise HTTPException(status_code=422, detail=pilot_result.error)
+        failed_status_result = update_pilot_request_status_service(
+            repo=pilot_request_repo,
+            request_id=request_id,
+            next_status="approved_provisioning_failed",
+        )
+        status_item = failed_status_result.request or existing
+        return ApproveAndProvisionResponse(
+            pilotRequest=PilotRequestItemResponse(
+                requestId=str(status_item.id),
+                fullName=status_item.full_name,
+                workEmail=status_item.work_email,
+                university=status_item.university,
+                role=status_item.role,
+                courseName=status_item.course_name,
+                cohortSize=status_item.cohort_size,
+                notes=status_item.notes,
+                sourceIp=status_item.source_ip,
+                status=status_item.status,
+                createdAt=status_item.created_at,
+            ),
+            approvedStep=approved_step,
+            pilotProvisionError=pilot_result.error or "Pilot provisioning failed",
+        )
 
     instructor_result = provision_instructor_service(
         repo=instructor_repo,
@@ -289,13 +323,46 @@ def approve_and_provision_pilot_request(
         ),
     )
     if not instructor_result.ok or instructor_result.summary is None:
-        if instructor_result.error_code == "NOT_PROVISIONED":
-            raise HTTPException(status_code=404, detail=instructor_result.error)
-        if instructor_result.error_code in {"EMAIL_MISMATCH", "IDENTITY_ERROR"}:
-            raise HTTPException(status_code=409, detail=instructor_result.error)
-        raise HTTPException(status_code=422, detail=instructor_result.error)
+        failed_status_result = update_pilot_request_status_service(
+            repo=pilot_request_repo,
+            request_id=request_id,
+            next_status="approved_provisioning_failed",
+        )
+        status_item = failed_status_result.request or existing
+        pilot_summary = pilot_result.summary
+        return ApproveAndProvisionResponse(
+            pilotRequest=PilotRequestItemResponse(
+                requestId=str(status_item.id),
+                fullName=status_item.full_name,
+                workEmail=status_item.work_email,
+                university=status_item.university,
+                role=status_item.role,
+                courseName=status_item.course_name,
+                cohortSize=status_item.cohort_size,
+                notes=status_item.notes,
+                sourceIp=status_item.source_ip,
+                status=status_item.status,
+                createdAt=status_item.created_at,
+            ),
+            approvedStep=approved_step,
+            pilotProvisionStep=ProvisioningSummaryResponse(
+                pilotRequestId=str(pilot_summary.pilot_request_id),
+                courseId=pilot_summary.course_id,
+                courseName=pilot_summary.course_name,
+                classCode=pilot_summary.class_code,
+                classCodeStatus=pilot_summary.class_code_status,
+                classCodeMaxUses=pilot_summary.class_code_max_uses,
+                instructorEmail=pilot_summary.instructor_email,
+                provisionedAt=pilot_summary.provisioned_at,
+            ),
+            instructorProvisionError=instructor_result.error
+            or "Instructor provisioning failed",
+        )
 
-    status_item = status_result.request
+    final_status_result = update_pilot_request_status_service(
+        repo=pilot_request_repo, request_id=request_id, next_status="approved"
+    )
+    status_item = final_status_result.request or existing
     pilot_summary = pilot_result.summary
     instructor_summary = instructor_result.summary
     return ApproveAndProvisionResponse(
@@ -312,7 +379,8 @@ def approve_and_provision_pilot_request(
             status=status_item.status,
             createdAt=status_item.created_at,
         ),
-        pilotProvisioning=ProvisioningSummaryResponse(
+        approvedStep=approved_step,
+        pilotProvisionStep=ProvisioningSummaryResponse(
             pilotRequestId=str(pilot_summary.pilot_request_id),
             courseId=pilot_summary.course_id,
             courseName=pilot_summary.course_name,
@@ -322,7 +390,7 @@ def approve_and_provision_pilot_request(
             instructorEmail=pilot_summary.instructor_email,
             provisionedAt=pilot_summary.provisioned_at,
         ),
-        instructorProvisioning=InstructorProvisioningSummaryResponse(
+        instructorProvisionStep=InstructorProvisioningSummaryResponse(
             pilotRequestId=str(instructor_summary.pilot_request_id),
             courseId=instructor_summary.course_id,
             courseName=instructor_summary.course_name,

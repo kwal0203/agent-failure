@@ -56,7 +56,12 @@ export type PilotRequestItem = {
   cohortSize?: number | null;
   notes?: string | null;
   sourceIp?: string | null;
-  status: "new" | "contacted" | "approved" | "rejected";
+  status:
+    | "new"
+    | "contacted"
+    | "approved"
+    | "approved_provisioning_failed"
+    | "rejected";
   createdAt: string;
 };
 
@@ -104,7 +109,12 @@ export async function listPilotRequests(params?: {
 
 export async function updatePilotRequestStatus(
   requestId: string,
-  status: "new" | "contacted" | "approved" | "rejected",
+  status:
+    | "new"
+    | "contacted"
+    | "approved"
+    | "approved_provisioning_failed"
+    | "rejected",
 ): Promise<PilotRequestItem> {
   const response = await fetch(
     `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}`,
@@ -139,9 +149,17 @@ export type ApproveAndProvisionPayload = {
   createInstructorIfMissing?: boolean;
 };
 
-export type ApproveAndProvisionResponse = {
-  pilotRequest: PilotRequestItem;
-  pilotProvisioning: {
+export type ProvisionPilotPayload = {
+  courseId: string;
+  courseName: string;
+  classCode: string;
+  instructorEmail: string;
+  maxUses?: number;
+};
+
+export type ProvisionPilotResponse = {
+  created: boolean;
+  provisioningSummary: {
     pilotRequestId: string;
     courseId: string;
     courseName: string;
@@ -151,7 +169,23 @@ export type ApproveAndProvisionResponse = {
     instructorEmail: string;
     provisionedAt: string;
   };
-  instructorProvisioning: {
+};
+
+export type ApproveAndProvisionResponse = {
+  pilotRequest: PilotRequestItem;
+  approvedStep: boolean;
+  pilotProvisionStep?: {
+    pilotRequestId: string;
+    courseId: string;
+    courseName: string;
+    classCode: string;
+    classCodeStatus: string;
+    classCodeMaxUses?: number | null;
+    instructorEmail: string;
+    provisionedAt: string;
+  };
+  pilotProvisionError?: string | null;
+  instructorProvisionStep?: {
     pilotRequestId: string;
     courseId: string;
     courseName: string;
@@ -161,6 +195,7 @@ export type ApproveAndProvisionResponse = {
     membershipCreated: boolean;
     provisionedAt: string;
   };
+  instructorProvisionError?: string | null;
 };
 
 export async function approveAndProvisionPilotRequest(
@@ -189,4 +224,32 @@ export async function approveAndProvisionPilotRequest(
     throw new Error(detail ?? "Failed to approve and provision pilot request.");
   }
   return body as ApproveAndProvisionResponse;
+}
+
+export async function provisionPilotRequest(
+  requestId: string,
+  payload: ProvisionPilotPayload,
+): Promise<ProvisionPilotResponse> {
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}/provision`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: getCurrentAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  const body = (await response.json()) as
+    | ProvisionPilotResponse
+    | { detail?: string };
+  if (!response.ok) {
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body
+        ? body.detail
+        : null;
+    throw new Error(detail ?? "Failed to provision pilot request.");
+  }
+  return body as ProvisionPilotResponse;
 }

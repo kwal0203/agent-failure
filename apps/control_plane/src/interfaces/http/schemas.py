@@ -179,5 +179,8 @@ class ApproveAndProvisionRequest(BaseModel):
 
 class ApproveAndProvisionResponse(BaseModel):
     pilotRequest: PilotRequestItemResponse
-    pilotProvisioning: ProvisioningSummaryResponse
-    instructorProvisioning: InstructorProvisioningSummaryResponse
+    approvedStep: bool
+    pilotProvisionStep: ProvisioningSummaryResponse | None = None
+    pilotProvisionError: str | None = None
+    instructorProvisionStep: InstructorProvisioningSummaryResponse | None = None
+    instructorProvisionError: str | None = None

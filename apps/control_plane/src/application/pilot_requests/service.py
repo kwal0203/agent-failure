@@ -102,7 +102,13 @@ def update_pilot_request_status(
     request_id: UUID,
     next_status: str,
 ) -> UpdatePilotRequestStatusResult:
-    allowed = {"new", "contacted", "approved", "rejected"}
+    allowed = {
+        "new",
+        "contacted",
+        "approved",
+        "approved_provisioning_failed",
+        "rejected",
+    }
     if next_status not in allowed:
         return UpdatePilotRequestStatusResult(
             updated=False,
@@ -120,8 +126,9 @@ def update_pilot_request_status(
 
     allowed_transitions = {
         "new": {"contacted"},
-        "contacted": {"approved", "rejected"},
-        "approved": set(),
+        "contacted": {"approved", "approved_provisioning_failed", "rejected"},
+        "approved": {"approved_provisioning_failed"},
+        "approved_provisioning_failed": {"approved"},
         "rejected": set(),
     }
     if next_status == existing.status:
