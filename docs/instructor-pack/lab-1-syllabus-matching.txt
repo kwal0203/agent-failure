@@ -1,0 +1,556 @@
+Agent Failure Labs
+
+Syllabus Mapping
+
+Syllabus Mapping
+Where Lab 1 Fits in a University Course
+Agent Failure Labs
+
+University Pilot Pack
+
+Document Purpose
+This document helps instructors identify where Agent Failure Lab 1 can fit within a university
+cybersecurity, secure software engineering, AI security, or privacy-focused course. It shows
+how the lab can replace, enhance, or assess common topics in a standard semester.
+
+1. Lab 1 Summary
+Field
+
+Description
+
+Lab title
+
+OpsMail Assistant: Indirect Prompt Injection via Poisoned Inbox
+Indirect prompt injection in AI agents
+Security tester or external attacker in a controlled educational cyber range
+AI email assistant used for onboarding operations
+Attacker-controlled email content
+Synthetic manager home address
+Untrusted email content is treated as instruction-like context
+Trace-backed security report with root-cause analysis and
+mitigations
+60–90 minutes including briefing, lab, trace review, and
+short report discussion
+
+Primary topic
+Student role
+Target system
+Attack vector
+Target asset
+Core failure
+Student output
+Recommended duration
+
+2. What Lab 1 Teaches
+Lab 1 is designed to give students hands-on experience with a modern AI agent security failure. It is
+not merely a prompt-writing exercise. The intended learning outcome is for students to understand
+how untrusted external content can influence an AI agent when that content is retrieved, placed
+into context, and processed alongside trusted instructions or sensitive data.
+
+2.1 Core Concepts
+• Indirect prompt injection
+• AI agents and tool use
+• Untrusted external content
+• Trust boundaries
+1
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+• Instruction/data separation
+• Sensitive-data disclosure
+• Least-privilege access
+• Output policy enforcement
+• Trace-backed security analysis
+• Professional vulnerability reporting
+
+2.2 What Students Produce
+Students complete the lab and submit a short security report. A strong report includes:
+• attack objective;
+• threat model;
+• malicious email payload;
+• victim prompt or trigger action;
+• trace evidence;
+• observed assistant output;
+• root-cause analysis;
+• impact assessment;
+• mitigation recommendations;
+• limitations or residual risk.
+
+3. Recommended Course Types
+Course Type
+
+Fit
+
+Recommended Use
+
+Introduction to Cybersecurity
+
+Medium
+
+Secure Software Engineering
+Web and Application Security
+
+High
+
+AI Security / ML Security
+
+Very High
+
+Use as an emerging-threat case study or optional practical lab after students learn basic
+security principles.
+Use during modules on secure design, input
+handling, least privilege, or threat modeling.
+Use as a comparison to injection vulnerabilities and unsafe input handling in traditional
+applications.
+Use as a primary practical lab for prompt injection, agent security, or LLM application security.
+
+Medium
+
+2
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+Privacy Engineering
+
+High
+
+Digital Forensics / Incident
+Response
+Cybersecurity Capstone
+
+Medium
+
+Use as a synthetic PII disclosure case involving access control and output controls.
+Use as a trace-analysis exercise where students reconstruct an AI-agent failure chain.
+Use as a starter lab before students design
+their own AI security assessment or mitigation project.
+
+High
+
+4. Course Integration Modes
+Agent Failure Lab 1 can be used in several ways depending on the course level and instructor goals.
+Mode
+
+Meaning
+
+Replace
+
+Use the lab instead of a static prompt-injection worksheet, toy demo,
+or purely lecture-based example.
+Use the lab after a lecture to provide applied practice and tracebacked evidence.
+Use the lab as a graded practical report or take-home security writeup.
+Use the lab as a bridge into broader AI security, agent security, governance, or capstone work.
+
+Enhance
+Assess
+Extend
+
+5. Standard 15-Week Cybersecurity Course Mapping
+The following table shows where Lab 1 can fit inside a general cybersecurity course.
+Week
+
+Typical Topic
+
+Fit
+
+How Lab 1 Helps
+
+1
+
+Security principles and threat
+models
+
+Optional
+ence
+
+2
+
+Authentication, authorization,
+and access control
+
+Enhancement
+
+3
+
+Web security basics
+
+Optional comparison
+
+4
+
+Application security and input
+validation
+
+Enhancement
+
+5
+
+Secure software design
+
+Strong enhancement
+
+3
+
+refer-
+
+Later lab uses confidentiality,
+assets, attacker capability, and
+trust boundaries.
+Shows why least-privilege access
+matters when an AI agent can
+access sensitive data.
+Allows comparison between
+traditional injection flaws and
+natural-language
+instruction
+injection.
+Extends input-handling concepts to natural language and
+retrieved content.
+Demonstrates design failure
+caused by weak instruction/data
+separation.
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+6
+
+Privacy and sensitive data
+handling
+
+Strong fit
+
+7
+
+Threat modeling and abuse
+cases
+
+Strong fit
+
+8
+
+AI/ML security introduction
+
+Strong fit
+
+9
+
+Prompt injection and LLM application security
+Secure logging and monitoring
+
+Direct
+replacement or lab
+Enhancement
+
+Incident response and forensic
+analysis
+Risk management and governance
+Standards, frameworks, and
+compliance
+
+Enhancement
+
+Student reports or presentations
+Capstone or review
+
+Assessment artifact
+Optional extension
+
+10
+11
+12
+13
+
+14
+15
+
+Enhancement
+Enhancement
+
+Demonstrates synthetic PII disclosure and disclosure-control
+failures.
+Students identify attacker capability, target asset, trust boundary, and success condition.
+Introduces AI-specific attack
+surfaces through a hands-on
+agent lab.
+Provides
+hands-on
+indirect
+prompt injection experience.
+Students use traces, tool calls,
+and event timelines as evidence.
+Students reconstruct an exploit
+chain from trace evidence.
+Students propose mitigations
+and residual-risk controls.
+Students map the failure to AI
+and cybersecurity risk frameworks.
+Students submit a structured security report.
+Lab can motivate broader AI
+agent security projects.
+
+6. Standard 15-Week AI Security Course Mapping
+The following table shows where Lab 1 can fit inside an AI security, ML security, or trustworthy
+AI course.
+Week
+
+Typical Topic
+
+Fit
+
+How Lab 1 Helps
+
+1
+
+Introduction to AI security
+and safety
+Threat modeling AI systems
+
+Optional preview
+
+3
+
+Data poisoning and trainingtime attacks
+
+Contrast case
+
+4
+
+Evasion and adversarial examples
+
+Contrast case
+
+5
+
+Model extraction and privacy
+leakage
+LLM foundations and instruction following
+
+Privacy bridge
+
+Provides an early example of
+agentic AI failure.
+Students identify assets, adversaries, trust boundaries, and success criteria.
+Shows
+an
+inferencetime/application-layer
+attack
+rather than a training-time
+attack.
+Shows text and workflow manipulation rather than model-input
+perturbation.
+Connects
+AI
+security
+to
+sensitive-data disclosure risk.
+Helps students understand why
+instruction hierarchy matters.
+
+2
+
+6
+
+Strong enhancement
+
+Preparation
+
+4
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+7
+
+Prompt injection and jailbreaks
+
+Direct lab
+
+8
+
+Indirect prompt injection and
+tool-using agents
+
+Core module
+
+9
+
+RAG and retrieval risks
+
+Extension point
+
+10
+
+Agent tool misuse and autonomy risk
+
+Strong enhancement
+
+11
+
+Monitoring, logging, and evaluation
+AI governance and risk management
+Secure AI system design
+
+Strong enhancement
+Enhancement
+
+Student reports or presentations
+Capstone
+
+Assessment artifact
+Foundation
+
+12
+13
+
+14
+15
+
+Mitigation workshop
+
+7. Replacement and Enhancement Guide
+7.1 Lab 1 Can Replace
+• a toy prompt-injection worksheet;
+• a static lecture demo about LLM vulnerabilities;
+• a generic “write a jailbreak prompt” exercise;
+• a short written case study on AI data leakage;
+• a non-interactive discussion of OWASP LLM risks.
+
+7.2 Lab 1 Can Enhance
+• a lecture on trust boundaries;
+• a secure design module;
+• a privacy or sensitive-data handling module;
+• an AI security lecture;
+• an incident-response or log-analysis session;
+• a standards-mapping or risk-management discussion.
+5
+
+Provides hands-on experience
+with malicious instruction design.
+Directly demonstrates attackercontrolled external content influencing an agent.
+The same trust-boundary principles apply to retrieved documents and knowledge bases.
+Shows how tool use increases impact when untrusted content enters context.
+Students use trace-backed evidence to explain the failure.
+Students discuss policy, disclosure controls, and residual risk.
+Students design controls such as
+least privilege and output filtering.
+Students submit and discuss
+structured security reports.
+Lab can serve as the first module in a larger agent security capstone.
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+8. Suggested Pre-Lab Preparation
+Students do not need deep machine learning expertise to complete Lab 1. However, the lab is most
+effective if students understand the following concepts before beginning.
+• Basic confidentiality, integrity, and availability concepts
+• Security assets and threat modeling
+• Difference between trusted and untrusted input
+• Basic concept of an AI agent using tools
+• Basic concept of prompt injection
+• Professional rules of engagement for controlled security labs
+
+8.1 Suggested Pre-Lab Mini-Briefing
+A 5–10 minute instructor briefing can cover:
+1. An AI agent may read external content and use tools.
+2. External content may be attacker-controlled.
+3. Indirect prompt injection occurs when malicious instructions are hidden in that external content.
+4. The goal is not only to exploit the system, but to explain the exploit using trace evidence.
+
+9. Suggested Post-Lab Discussion
+After students complete the lab, instructors can lead a discussion using the following prompts.
+1. Why is this an indirect prompt injection rather than a direct jailbreak?
+2. What was the attacker-controlled input source?
+3. Where did the trust boundary fail?
+4. Did the victim user directly ask for sensitive information?
+5. Why did tool access increase the risk?
+6. Would stricter prompt wording alone be enough to fix the issue?
+7. What architectural mitigation would most directly prevent the leak?
+8. How would this failure change if the agent could send emails, approve payments, or access
+customer records?
+
+10. Assessment Integration
+Lab 1 can be assessed in several ways.
+6
+
+Agent Failure Labs
+
+Syllabus Mapping
+
+Assessment Type
+
+Description
+
+Completion lab
+Short report
+Trace analysis
+
+Students complete the exploit and capture evidence.
+Students submit a 2–4 page security report.
+Students explain the exploit chain using the event timeline and
+trace stream.
+Students propose system-level mitigations.
+Students present the exploit path, root cause, and mitigation
+design.
+Instructor uses the lab as a basis for a written threat-modeling
+or mitigation question.
+
+Mitigation memo
+Presentation
+Exam question
+
+Activity
+
+Estimated Time
+
+Notes
+
+Instructor preparation
+
+20–40 min
+
+Pre-lab briefing
+
+5–10 min
+
+Student lab time
+Trace review discussion
+Report writing
+Grading
+
+15–25 min
+10–15 min
+30–60 min
+5–10 min per student
+
+Review handout, guide, rubric,
+and sample report.
+Explain indirect prompt injection
+and rules of engagement.
+Students complete hands-on lab.
+Optional in-class review.
+Can be assigned as homework.
+Faster if using rubric and platform
+traces.
+
+11. Instructor Effort Estimate
+12. Summary Recommendation
+For a general cybersecurity course, Lab 1 is best placed after students have learned basic threat
+modeling, input handling, and confidentiality. For an AI security course, Lab 1 is best placed
+during the prompt injection, LLM application security, or agent security module.
+The strongest adoption pattern is:
+Recommended Use
+Use Lab 1 as a one-session practical module that enhances or replaces a lecture-only prompt
+injection unit. Students complete the lab, inspect traces, and submit a short report explaining the exploit, root cause, impact, and mitigations.
+
+13. End of Syllabus Mapping
+
+7

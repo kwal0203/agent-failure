@@ -20,7 +20,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/context";
 import { useShellBootstrap } from "../shell/context";
@@ -66,6 +66,36 @@ type CatalogModule = {
   action: "Open Module";
   isLaunchEnabled: boolean;
 };
+
+type StoredAuthTokens = {
+  idToken?: string;
+};
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function canViewPilotRequests(): boolean {
+  const rawTokens = window.sessionStorage.getItem("agentfailure.auth.tokens");
+  if (!rawTokens) return false;
+  try {
+    const parsed = JSON.parse(rawTokens) as StoredAuthTokens;
+    if (!parsed.idToken) return false;
+    const payload = decodeJwtPayload(parsed.idToken);
+    const groups = payload?.["cognito:groups"];
+    if (!Array.isArray(groups)) return false;
+    return groups.includes("admin") || groups.includes("staff");
+  } catch {
+    return false;
+  }
+}
 
 const navItems = [
   { label: "Dashboard", icon: Home },
@@ -435,6 +465,7 @@ export function LabCatalog({
   onOpenPreLab,
 }: LabCatalogProps) {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [labs, setLabs] = useState<LabCatalogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -447,6 +478,7 @@ export function LabCatalog({
   );
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const showPilotRequestsLink = useMemo(() => canViewPilotRequests(), []);
 
   const refreshLabs = useCallback(async () => {
     setIsLoading(true);
@@ -709,6 +741,19 @@ export function LabCatalog({
                       role="menu"
                       className="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-lime-500/30 bg-black/95 p-1 shadow-[0_0_20px_rgba(132,204,22,0.18)] backdrop-blur"
                     >
+                      {showPilotRequestsLink ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            navigate("/pilot-requests");
+                          }}
+                          className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-lime-500/10 hover:text-lime-100"
+                        >
+                          Pilot Requests
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         role="menuitem"

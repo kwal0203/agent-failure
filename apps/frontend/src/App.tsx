@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/context";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/guards";
 import AppShell from "./layout/AppShell";
+import PilotRequestsAdminPage from "./pages/admin/PilotRequestsAdminPage";
 import AppHomePage from "./pages/app/AppHomePage";
 import EnrollmentPage from "./pages/EnrollmentPage";
 import HistoryPage from "./pages/HistoryPage";
@@ -9,6 +10,7 @@ import LabsPage from "./pages/LabsPage";
 import PreLabPage from "./pages/PreLabPage";
 import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
+import PilotRequestPage from "./pages/public/PilotRequestPage";
 import SignupPage from "./pages/public/SignupPage";
 import SessionPage from "./pages/SessionPage";
 import TracePage from "./pages/TracePage";
@@ -22,6 +24,7 @@ export default function App() {
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/pilot-request" element={<PilotRequestPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
 
@@ -33,6 +36,14 @@ export default function App() {
             <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/trace" element={<TracePage />} />
+            <Route
+              path="/admin/pilot-requests"
+              element={<PilotRequestsAdminPage />}
+            />
+            <Route
+              path="/pilot-requests"
+              element={<PilotRequestsAdminPage />}
+            />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
           </Route>
         </Route>

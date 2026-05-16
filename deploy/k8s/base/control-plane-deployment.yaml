@@ -44,6 +44,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_DEFAULT_REGION
             - name: AUTH_ISSUER
               valueFrom:
                 secretKeyRef:
@@ -59,6 +74,126 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: ENROLLMENT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_SECRET
+            - name: ENROLLMENT_TOKEN_TTL_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_TTL_SECONDS
+            - name: PILOT_ALERT_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_ENABLED
+            - name: PILOT_ALERT_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_HOST
+            - name: PILOT_ALERT_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PORT
+            - name: PILOT_ALERT_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_USERNAME
+            - name: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+            - name: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+            - name: PILOT_ALERT_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_FROM
+            - name: PILOT_ALERT_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_TO
+            - name: PILOT_PROVISIONING_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ENABLED
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+            - name: PILOT_PROVISIONING_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_FROM
+            - name: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+            - name: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+            - name: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+            - name: INSTRUCTOR_PROVISIONING_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: INSTRUCTOR_PROVISIONING_ENABLED
+            - name: COGNITO_USER_POOL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_USER_POOL_ID
+            - name: COGNITO_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_REGION
+            - name: COGNITO_INSTRUCTOR_GROUP_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_INSTRUCTOR_GROUP_NAME
       containers:
         - name: control-plane
           image: ghcr.io/kwal0203/agent-failure-control-plane
@@ -85,6 +220,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_DEFAULT_REGION
             - name: AUTH_ISSUER
               valueFrom:
                 secretKeyRef:
@@ -100,6 +250,126 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: AUTH_JWKS_URI
+            - name: ENROLLMENT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_SECRET
+            - name: ENROLLMENT_TOKEN_TTL_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: ENROLLMENT_TOKEN_TTL_SECONDS
+            - name: PILOT_ALERT_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_ENABLED
+            - name: PILOT_ALERT_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_HOST
+            - name: PILOT_ALERT_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PORT
+            - name: PILOT_ALERT_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_USERNAME
+            - name: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_PASSWORD
+            - name: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_SMTP_STARTTLS
+            - name: PILOT_ALERT_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_FROM
+            - name: PILOT_ALERT_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_ALERT_EMAIL_TO
+            - name: PILOT_PROVISIONING_EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ENABLED
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_HOST
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PORT
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_USERNAME
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD
+            - name: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS
+            - name: PILOT_PROVISIONING_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_FROM
+            - name: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_EMAIL_ADMIN_TO
+            - name: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_LOGIN_URL
+            - name: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL
+            - name: INSTRUCTOR_PROVISIONING_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: INSTRUCTOR_PROVISIONING_ENABLED
+            - name: COGNITO_USER_POOL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_USER_POOL_ID
+            - name: COGNITO_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_REGION
+            - name: COGNITO_INSTRUCTOR_GROUP_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: COGNITO_INSTRUCTOR_GROUP_NAME
           resources:
             requests:
               cpu: "150m"

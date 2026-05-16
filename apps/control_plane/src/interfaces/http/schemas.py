@@ -81,3 +81,115 @@ class RedeemEnrollmentResponse(BaseModel):
     enrolled: bool
     course: CourseSummary | None = None
     error: str | None = None
+
+
+class CreatePilotRequest(BaseModel):
+    fullName: str = Field(min_length=1, max_length=120)
+    workEmail: str = Field(min_length=3, max_length=254)
+    university: str = Field(min_length=1, max_length=160)
+    role: str | None = Field(default=None, max_length=120)
+    courseName: str | None = Field(default=None, max_length=120)
+    cohortSize: int | None = Field(default=None, ge=1, le=100000)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class CreatePilotRequestResponse(BaseModel):
+    requestId: str
+    status: str
+    createdAt: datetime
+
+
+class PilotRequestItemResponse(BaseModel):
+    requestId: str
+    fullName: str
+    workEmail: str
+    university: str
+    role: str | None = None
+    courseName: str | None = None
+    cohortSize: int | None = None
+    notes: str | None = None
+    sourceIp: str | None = None
+    status: str
+    createdAt: datetime
+
+
+class ListPilotRequestsResponse(BaseModel):
+    items: list[PilotRequestItemResponse]
+    limit: int
+    offset: int
+
+
+class UpdatePilotRequestStatusRequest(BaseModel):
+    status: str = Field(min_length=1, max_length=32)
+
+
+class ProvisionPilotRequestPayload(BaseModel):
+    courseId: str = Field(min_length=1, max_length=128)
+    courseName: str = Field(min_length=1, max_length=256)
+    classCode: str = Field(min_length=1, max_length=128)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    maxUses: int | None = Field(default=None, ge=1)
+
+
+class ProvisioningSummaryResponse(BaseModel):
+    pilotRequestId: str
+    courseId: str
+    courseName: str
+    classCode: str
+    classCodeId: str
+    classCodeStatus: str
+    classCodeMaxUses: int | None = None
+    instructorEmail: str
+    provisionedBy: str | None = None
+    provisioningCorrelationId: str | None = None
+    provisionedAt: datetime
+
+
+class ProvisionPilotRequestResponse(BaseModel):
+    created: bool
+    provisioningSummary: ProvisioningSummaryResponse
+
+
+class ProvisionInstructorRequest(BaseModel):
+    pilotRequestId: str = Field(min_length=1)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    createUserIfMissing: bool = False
+
+
+class InstructorProvisioningSummaryResponse(BaseModel):
+    pilotRequestId: str
+    courseId: str
+    courseName: str
+    instructorEmail: str
+    userCreated: bool
+    inviteSent: bool
+    groupAssigned: bool
+    instructorUserId: str | None = None
+    membershipCreated: bool
+    provisionedBy: str | None = None
+    provisioningCorrelationId: str | None = None
+    provisionedAt: datetime
+
+
+class ProvisionInstructorResponse(BaseModel):
+    provisioningSummary: InstructorProvisioningSummaryResponse
+
+
+class ApproveAndProvisionRequest(BaseModel):
+    courseId: str = Field(min_length=1, max_length=128)
+    courseName: str = Field(min_length=1, max_length=256)
+    classCode: str = Field(min_length=1, max_length=128)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    classCodeMaxUses: int | None = Field(default=None, ge=1)
+    createInstructorIfMissing: bool = False
+
+
+class ApproveAndProvisionResponse(BaseModel):
+    pilotRequest: PilotRequestItemResponse
+    isRetry: bool
+    runCorrelationId: str
+    approvedStep: bool
+    pilotProvisionStep: ProvisioningSummaryResponse | None = None
+    pilotProvisionError: str | None = None
+    instructorProvisionStep: InstructorProvisioningSummaryResponse | None = None
+    instructorProvisionError: str | None = None

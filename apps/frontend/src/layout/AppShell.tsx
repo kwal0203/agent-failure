@@ -28,6 +28,9 @@ export default function AppShell() {
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
   const isLabsCatalogRoute = location.pathname === "/labs";
+  const isPilotRequestsRoute =
+    location.pathname === "/pilot-requests" ||
+    location.pathname === "/admin/pilot-requests";
   const hideShellChrome = !isDebug && (isLabsCatalogRoute || isPreLabRoute);
 
   return (
@@ -127,6 +130,24 @@ export default function AppShell() {
                     Back to Labs
                   </button>
                 ) : null}
+                {isPilotRequestsRoute ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/labs")}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      border: "1px solid #2e7d32",
+                      background: "#102810",
+                      color: "#b6ffb9",
+                    }}
+                  >
+                    Back to Labs
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={logout}
@@ -164,6 +185,9 @@ export default function AppShell() {
               </NavLink>
               <NavLink to="/trace" style={navLinkStyle}>
                 Trace
+              </NavLink>
+              <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
+                Pilot Requests
               </NavLink>
             </nav>
           )}

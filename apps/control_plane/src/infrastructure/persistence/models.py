@@ -406,6 +406,157 @@ class EnrollmentModel(Base):
     )
 
 
+class PilotRequestModel(Base):
+    __tablename__ = "pilot_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "full_name <> ''", name="ck_pilot_requests_full_name_not_empty"
+        ),
+        CheckConstraint(
+            "work_email <> ''", name="ck_pilot_requests_work_email_not_empty"
+        ),
+        CheckConstraint(
+            "university <> ''", name="ck_pilot_requests_university_not_empty"
+        ),
+        CheckConstraint("status <> ''", name="ck_pilot_requests_status_not_empty"),
+        CheckConstraint(
+            "status IN ('new', 'contacted', 'approved', 'approved_provisioning_failed', 'rejected')",
+            name="ck_pilot_requests_status",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    work_email: Mapped[str] = mapped_column(String(254), nullable=False, index=True)
+    university: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    course_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cohort_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="new", server_default="new"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class PilotRequestProvisionModel(Base):
+    __tablename__ = "pilot_request_provisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "pilot_request_id", name="uq_pilot_request_provisions_request_id"
+        ),
+        CheckConstraint(
+            "course_id <> ''", name="ck_pilot_request_provisions_course_id_not_empty"
+        ),
+        CheckConstraint(
+            "course_name <> ''",
+            name="ck_pilot_request_provisions_course_name_not_empty",
+        ),
+        CheckConstraint(
+            "class_code <> ''", name="ck_pilot_request_provisions_class_code_not_empty"
+        ),
+        CheckConstraint(
+            "instructor_email <> ''",
+            name="ck_pilot_request_provisions_instructor_email_not_empty",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    pilot_request_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    class_code: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    class_code_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    instructor_email: Mapped[str] = mapped_column(
+        String(320), nullable=False, index=True
+    )
+    provisioned_by: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    provisioning_correlation_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class InstructorCourseMembershipModel(Base):
+    __tablename__ = "instructor_course_memberships"
+    __table_args__ = (
+        UniqueConstraint(
+            "instructor_email",
+            "course_id",
+            name="uq_instructor_course_memberships_email_course",
+        ),
+        CheckConstraint(
+            "instructor_email <> ''",
+            name="ck_instructor_course_memberships_email_not_empty",
+        ),
+        CheckConstraint(
+            "course_id <> ''",
+            name="ck_instructor_course_memberships_course_id_not_empty",
+        ),
+        CheckConstraint(
+            "course_name <> ''",
+            name="ck_instructor_course_memberships_course_name_not_empty",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    pilot_request_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    instructor_email: Mapped[str] = mapped_column(
+        String(320), nullable=False, index=True
+    )
+    instructor_user_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    provisioned_by: Mapped[PyUUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    provisioning_correlation_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (
