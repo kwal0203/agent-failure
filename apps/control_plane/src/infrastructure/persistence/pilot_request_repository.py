@@ -40,11 +40,11 @@ class SQLAlchemyPilotRequestRepository(PilotRequestRepositoryPort):
     def exists_recent_duplicate(
         self, *, work_email: str, university: str, since: datetime
     ) -> bool:
+        _ = university
         row = (
             self._db.query(PilotRequestModel.id)
             .filter(
                 PilotRequestModel.work_email == work_email,
-                PilotRequestModel.university == university,
                 PilotRequestModel.created_at >= since,
             )
             .first()

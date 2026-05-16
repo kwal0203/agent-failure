@@ -547,6 +547,22 @@ export default function PilotRequestsAdminPage() {
             </li>
             {provisioningResult.instructorProvisionStep ? (
               <li>
+                Instructor user created:{" "}
+                {provisioningResult.instructorProvisionStep.userCreated
+                  ? "yes"
+                  : "no"}
+              </li>
+            ) : null}
+            {provisioningResult.instructorProvisionStep ? (
+              <li>
+                Instructor invite sent:{" "}
+                {provisioningResult.instructorProvisionStep.inviteSent
+                  ? "yes"
+                  : "no"}
+              </li>
+            ) : null}
+            {provisioningResult.instructorProvisionStep ? (
+              <li>
                 Instructor group assigned:{" "}
                 {provisioningResult.instructorProvisionStep.groupAssigned
                   ? "yes"

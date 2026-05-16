@@ -162,6 +162,7 @@ class InstructorProvisioningSummaryResponse(BaseModel):
     courseName: str
     instructorEmail: str
     userCreated: bool
+    inviteSent: bool
     groupAssigned: bool
     instructorUserId: str | None = None
     membershipCreated: bool

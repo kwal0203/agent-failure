@@ -535,6 +535,7 @@ def approve_and_provision_pilot_request(
             courseName=instructor_summary.course_name,
             instructorEmail=instructor_summary.instructor_email,
             userCreated=instructor_summary.user_created,
+            inviteSent=instructor_summary.invite_sent,
             groupAssigned=instructor_summary.group_assigned,
             instructorUserId=instructor_summary.instructor_user_id,
             membershipCreated=instructor_summary.membership_created,

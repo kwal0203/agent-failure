@@ -43,6 +43,7 @@ class _StubIdentityProvider:
         return InstructorIdentityResult(
             email=email,
             user_created=create_user_if_missing,
+            invite_sent=create_user_if_missing,
             group_assigned=True,
         )
 

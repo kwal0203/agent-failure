@@ -50,6 +50,12 @@ def provision_instructor(
             error=str(exc),
             error_code="IDENTITY_ERROR",
         )
+    except Exception:
+        return ProvisionInstructorResult(
+            ok=False,
+            error="Failed to provision instructor identity.",
+            error_code="IDENTITY_ERROR",
+        )
 
     membership, membership_created = repo.upsert_instructor_course_membership(
         pilot_request_id=context.pilot_request_id,
@@ -71,6 +77,7 @@ def provision_instructor(
             course_name=context.course_name,
             instructor_email=email,
             user_created=identity.user_created,
+            invite_sent=identity.invite_sent,
             group_assigned=identity.group_assigned,
             instructor_user_id=identity.user_id,
             membership_created=membership_created,

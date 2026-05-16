@@ -199,6 +199,7 @@ export type ApproveAndProvisionResponse = {
     courseName: string;
     instructorEmail: string;
     userCreated: boolean;
+    inviteSent: boolean;
     groupAssigned: boolean;
     instructorUserId?: string | null;
     membershipCreated: boolean;

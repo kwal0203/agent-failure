@@ -116,14 +116,46 @@ def test_create_pilot_request_rejects_recent_duplicate(db_session: Session) -> N
     assert "already exists" in response.json()["detail"]
 
 
-def test_create_pilot_request_rate_limited_by_email(db_session: Session) -> None:
+def test_create_pilot_request_rejects_recent_duplicate_email_across_universities(
+    db_session: Session,
+) -> None:
+    db_session.add(
+        PilotRequestModel(
+            full_name="Instructor One",
+            work_email="instructor@university.edu",
+            university="Northwood University",
+            status="new",
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/pilot-requests",
+            json={
+                **_payload(),
+                "university": "Another University",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert "recent request for this email" in response.json()["detail"].lower()
+
+
+def test_create_pilot_request_duplicate_email_takes_precedence_over_rate_limit(
+    db_session: Session,
+) -> None:
     now = datetime.now(UTC)
     for _ in range(3):
         db_session.add(
             PilotRequestModel(
                 full_name="Instructor One",
                 work_email="instructor@university.edu",
-                university="Other University",
+                university=f"Other University {_}",
                 status="new",
                 created_at=now - timedelta(minutes=10),
             )
@@ -137,8 +169,8 @@ def test_create_pilot_request_rate_limited_by_email(db_session: Session) -> None
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 429
-    assert "Too many requests" in response.json()["detail"]
+    assert response.status_code == 409
+    assert "recent request for this email" in response.json()["detail"].lower()
 
 
 def test_list_pilot_requests_requires_admin_or_staff(db_session: Session) -> None:

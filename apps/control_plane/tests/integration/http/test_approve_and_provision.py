@@ -42,6 +42,7 @@ class _StubIdentityProvider:
         return InstructorIdentityResult(
             email=email,
             user_created=create_user_if_missing,
+            invite_sent=create_user_if_missing,
             group_assigned=True,
         )
 
@@ -51,6 +52,14 @@ class _FailingStubIdentityProvider:
         self, *, email: str, create_user_if_missing: bool
     ) -> InstructorIdentityResult:
         raise ValueError("identity provider unavailable")
+
+
+class _CrashingStubIdentityProvider:
+    def ensure_instructor_group_membership(
+        self, *, email: str, create_user_if_missing: bool
+    ) -> InstructorIdentityResult:
+        _ = email, create_user_if_missing
+        raise RuntimeError("botocore NoCredentialsError")
 
 
 class _SpyProvisioningNotifier:
@@ -259,3 +268,47 @@ def test_retry_approve_and_provision_from_failed_state(db_session: Session) -> N
     assert body["approvedStep"] is True
     assert body["pilotProvisionStep"]["classCode"] == "CS447-FALL26"
     assert body["instructorProvisionStep"]["groupAssigned"] is True
+
+
+def test_approve_and_provision_sets_failed_status_on_unexpected_identity_error(
+    db_session: Session,
+) -> None:
+    row = PilotRequestModel(
+        full_name="Instructor One",
+        work_email="instructor@university.edu",
+        university="Northwood University",
+        status="contacted",
+        course_name="CS447",
+        cohort_size=120,
+    )
+    db_session.add(row)
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_instructor_identity_provider] = lambda: (
+        _CrashingStubIdentityProvider()
+    )
+    try:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/pilot-requests/{row.id}/approve-and-provision",
+            headers=_auth_header("local:admin@example.edu:admin"),
+            json={
+                "courseId": "course-cs447-fall-2026",
+                "courseName": "CS447 Fall 2026",
+                "classCode": "CS447-FALL26",
+                "instructorEmail": "instructor@university.edu",
+                "classCodeMaxUses": 200,
+                "createInstructorIfMissing": True,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pilotRequest"]["status"] == "approved_provisioning_failed"
+    assert body["instructorProvisionStep"] is None
+    assert (
+        body["instructorProvisionError"] == "Failed to provision instructor identity."
+    )

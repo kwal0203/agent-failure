@@ -35,11 +35,13 @@ def create_pilot_request(
     now = datetime.now(UTC)
     duplicate_window = now - timedelta(days=7)
     if repo.exists_recent_duplicate(
-        work_email=work_email, university=university, since=duplicate_window
+        work_email=work_email,
+        university=university,
+        since=duplicate_window,
     ):
         return CreatePilotRequestResult(
             accepted=False,
-            error="A recent request for this email and university already exists.",
+            error="A recent request for this email already exists.",
             error_code="DUPLICATE_REQUEST",
         )
 

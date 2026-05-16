@@ -81,6 +81,7 @@ def provision_instructor(
             courseName=result.summary.course_name,
             instructorEmail=result.summary.instructor_email,
             userCreated=result.summary.user_created,
+            inviteSent=result.summary.invite_sent,
             groupAssigned=result.summary.group_assigned,
             instructorUserId=result.summary.instructor_user_id,
             membershipCreated=result.summary.membership_created,

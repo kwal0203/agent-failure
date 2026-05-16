@@ -37,6 +37,7 @@ class InstructorCourseMembershipRecord:
 class InstructorIdentityResult:
     email: str
     user_created: bool
+    invite_sent: bool
     group_assigned: bool
     user_id: str | None = None
 
@@ -48,6 +49,7 @@ class ProvisionInstructorSummary:
     course_name: str
     instructor_email: str
     user_created: bool
+    invite_sent: bool
     group_assigned: bool
     instructor_user_id: str | None
     membership_created: bool

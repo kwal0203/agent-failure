@@ -77,6 +77,9 @@ check_secret_key runtime-secrets AUTH_ISSUER
 check_secret_key runtime-secrets AUTH_AUDIENCE
 check_secret_key runtime-secrets AUTH_JWKS_URI
 check_secret_key runtime-secrets OPENROUTER_API_KEY
+check_secret_key runtime-secrets AWS_ACCESS_KEY_ID
+check_secret_key runtime-secrets AWS_SECRET_ACCESS_KEY
+check_secret_key runtime-secrets AWS_DEFAULT_REGION
 check_secret_key runtime-secrets ENROLLMENT_TOKEN_SECRET
 check_secret_key runtime-secrets ENROLLMENT_TOKEN_TTL_SECONDS
 

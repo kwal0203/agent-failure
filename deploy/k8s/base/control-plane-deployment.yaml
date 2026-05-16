@@ -44,6 +44,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_DEFAULT_REGION
             - name: AUTH_ISSUER
               valueFrom:
                 secretKeyRef:
@@ -205,6 +220,21 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: OPENROUTER_API_KEY
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: runtime-secrets
+                  key: AWS_DEFAULT_REGION
             - name: AUTH_ISSUER
               valueFrom:
                 secretKeyRef:

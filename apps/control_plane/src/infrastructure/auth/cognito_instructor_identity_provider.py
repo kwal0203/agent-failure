@@ -37,39 +37,59 @@ class CognitoInstructorIdentityProvider(InstructorIdentityProviderPort):
         client = boto3.client("cognito-idp", region_name=self._settings.region)
 
         user_created = False
+        invite_sent = False
         user_id: str | None = None
+        cognito_username: str | None = None
         try:
             existing = client.admin_get_user(
                 UserPoolId=self._settings.user_pool_id,
                 Username=email,
             )
-            user_id = str(existing.get("Username") or email)
+            cognito_username = str(existing.get("Username") or email)
+            user_id = cognito_username
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             if code != "UserNotFoundException":
                 raise ValueError("Failed to query instructor account.") from exc
-            if not create_user_if_missing:
-                raise ValueError(
-                    "Instructor account not found; create_user_if_missing=false."
-                ) from exc
-            try:
-                client.admin_create_user(
-                    UserPoolId=self._settings.user_pool_id,
-                    Username=email,
-                    UserAttributes=[
-                        {"Name": "email", "Value": email},
-                        {"Name": "email_verified", "Value": "true"},
-                    ],
-                )
-                user_created = True
-                user_id = email
-            except ClientError as create_exc:
-                raise ValueError("Failed to create instructor account.") from create_exc
+            list_result = client.list_users(
+                UserPoolId=self._settings.user_pool_id,
+                Filter=f'email = "{email}"',
+                Limit=1,
+            )
+            users = list_result.get("Users") or []
+            if users:
+                cognito_username = str(users[0].get("Username") or email)
+                user_id = cognito_username
+            else:
+                if not create_user_if_missing:
+                    raise ValueError(
+                        "Instructor account not found; create_user_if_missing=false."
+                    ) from exc
+                try:
+                    created = client.admin_create_user(
+                        UserPoolId=self._settings.user_pool_id,
+                        Username=email,
+                        DesiredDeliveryMediums=["EMAIL"],
+                        UserAttributes=[
+                            {"Name": "email", "Value": email},
+                            {"Name": "email_verified", "Value": "true"},
+                        ],
+                    )
+                    user_created = True
+                    invite_sent = True
+                    cognito_username = str(
+                        created.get("User", {}).get("Username") or email
+                    )
+                    user_id = cognito_username
+                except ClientError as create_exc:
+                    raise ValueError(
+                        "Failed to create instructor account."
+                    ) from create_exc
 
         try:
             client.admin_add_user_to_group(
                 UserPoolId=self._settings.user_pool_id,
-                Username=email,
+                Username=cognito_username or email,
                 GroupName=self._settings.instructor_group_name,
             )
         except ClientError as exc:
@@ -78,6 +98,7 @@ class CognitoInstructorIdentityProvider(InstructorIdentityProviderPort):
         return InstructorIdentityResult(
             email=email,
             user_created=user_created,
+            invite_sent=invite_sent,
             group_assigned=True,
             user_id=user_id or email,
         )
