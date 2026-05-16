@@ -48,6 +48,20 @@ class PilotAlertEmailSettings:
 
 
 @dataclass(frozen=True)
+class PilotProvisioningEmailSettings:
+    enabled: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str | None
+    smtp_password: str | None
+    smtp_starttls: bool
+    from_email: str
+    admin_to_emails: tuple[str, ...]
+    onboarding_login_url: str
+    onboarding_quickstart_url: str | None
+
+
+@dataclass(frozen=True)
 class InstructorProvisioningSettings:
     enabled: bool
     cognito_user_pool_id: str
@@ -190,6 +204,29 @@ def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
         smtp_starttls=_get_bool("PILOT_ALERT_EMAIL_SMTP_STARTTLS", default=True),
         from_email=_get_optional_str("PILOT_ALERT_EMAIL_FROM") or "",
         to_emails=to_emails,
+    )
+
+
+def get_pilot_provisioning_email_settings() -> PilotProvisioningEmailSettings:
+    raw_admin_to = _get_optional_str("PILOT_PROVISIONING_EMAIL_ADMIN_TO") or ""
+    admin_to_emails = tuple(
+        item.strip().lower() for item in raw_admin_to.split(",") if item.strip()
+    )
+    return PilotProvisioningEmailSettings(
+        enabled=_get_bool("PILOT_PROVISIONING_EMAIL_ENABLED", default=False),
+        smtp_host=_get_optional_str("PILOT_PROVISIONING_EMAIL_SMTP_HOST") or "",
+        smtp_port=_get_int("PILOT_PROVISIONING_EMAIL_SMTP_PORT", default=587),
+        smtp_username=_get_optional_str("PILOT_PROVISIONING_EMAIL_SMTP_USERNAME"),
+        smtp_password=_get_optional_str("PILOT_PROVISIONING_EMAIL_SMTP_PASSWORD"),
+        smtp_starttls=_get_bool("PILOT_PROVISIONING_EMAIL_SMTP_STARTTLS", default=True),
+        from_email=_get_optional_str("PILOT_PROVISIONING_EMAIL_FROM") or "",
+        admin_to_emails=admin_to_emails,
+        onboarding_login_url=(
+            _get_optional_str("PILOT_PROVISIONING_ONBOARDING_LOGIN_URL") or ""
+        ),
+        onboarding_quickstart_url=_get_optional_str(
+            "PILOT_PROVISIONING_ONBOARDING_QUICKSTART_URL"
+        ),
     )
 
 
