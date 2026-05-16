@@ -450,6 +450,51 @@ class PilotRequestModel(Base):
     )
 
 
+class PilotRequestProvisionModel(Base):
+    __tablename__ = "pilot_request_provisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "pilot_request_id", name="uq_pilot_request_provisions_request_id"
+        ),
+        CheckConstraint(
+            "course_id <> ''", name="ck_pilot_request_provisions_course_id_not_empty"
+        ),
+        CheckConstraint(
+            "course_name <> ''",
+            name="ck_pilot_request_provisions_course_name_not_empty",
+        ),
+        CheckConstraint(
+            "class_code <> ''", name="ck_pilot_request_provisions_class_code_not_empty"
+        ),
+        CheckConstraint(
+            "instructor_email <> ''",
+            name="ck_pilot_request_provisions_instructor_email_not_empty",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    pilot_request_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    course_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    class_code: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    instructor_email: Mapped[str] = mapped_column(
+        String(320), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (

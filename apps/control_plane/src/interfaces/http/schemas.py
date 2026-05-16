@@ -121,3 +121,27 @@ class ListPilotRequestsResponse(BaseModel):
 
 class UpdatePilotRequestStatusRequest(BaseModel):
     status: str = Field(min_length=1, max_length=32)
+
+
+class ProvisionPilotRequestPayload(BaseModel):
+    courseId: str = Field(min_length=1, max_length=128)
+    courseName: str = Field(min_length=1, max_length=256)
+    classCode: str = Field(min_length=1, max_length=128)
+    instructorEmail: str = Field(min_length=3, max_length=320)
+    maxUses: int | None = Field(default=None, ge=1)
+
+
+class ProvisioningSummaryResponse(BaseModel):
+    pilotRequestId: str
+    courseId: str
+    courseName: str
+    classCode: str
+    classCodeStatus: str
+    classCodeMaxUses: int | None = None
+    instructorEmail: str
+    provisionedAt: datetime
+
+
+class ProvisionPilotRequestResponse(BaseModel):
+    created: bool
+    provisioningSummary: ProvisioningSummaryResponse
