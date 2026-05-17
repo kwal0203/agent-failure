@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import (
     ApiErrorEnvelope,
@@ -41,6 +42,7 @@ from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_evaluator_repository,
+    get_request_db_session,
     get_session_metadata_repository,
     get_session_report_evidence_repository,
     get_trace_event_repository,
@@ -182,6 +184,7 @@ def get_report_evidence(
 def put_report_evidence(
     session_id: UUID,
     request: PutSessionReportEvidenceRequest,
+    db: Session = Depends(get_request_db_session),
     principal: PrincipalContext = Depends(get_current_principal),
     repo: SessionReportEvidenceRepositoryPort = Depends(
         get_session_report_evidence_repository
@@ -197,6 +200,7 @@ def put_report_evidence(
             repo=repo,
             trace_repo=trace_repo,
         )
+        db.commit()
         rows = get_session_report_evidence(
             session_id=session_id,
             principal=principal,

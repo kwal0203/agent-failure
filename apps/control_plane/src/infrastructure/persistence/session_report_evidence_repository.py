@@ -94,6 +94,9 @@ class SQLAlchemySessionReportEvidenceRepository(SessionReportEvidenceRepositoryP
                     student_note=item.student_note,
                 )
             )
+        # Request-scoped sessions use autoflush=False; flush so immediate readbacks
+        # in the same request see the replaced rows.
+        self._db.flush()
 
     # Convenience aliases matching planning shorthand.
     def list_by_session(self, *, session_id: UUID) -> list[SessionReportEvidenceRow]:

@@ -590,3 +590,210 @@ def test_post_import_selected_evidence_rejects_override_not_in_selection(
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_REPORT_EVIDENCE"
+
+
+def test_put_report_evidence_is_idempotent_for_same_payload(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-idempotent-put"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=3,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    payload = {
+        "items": [
+            {
+                "event_id": str(event_id),
+                "position": 99,
+                "title": "ignored",
+                "description": "ignored",
+                "details": {"ignored": True},
+                "occurred_at": datetime.now(timezone.utc).isoformat(),
+                "trace_version": 1,
+                "event_index": 99,
+                "evidence_type": "exploit_outcome",
+                "objective_keys": ["lab1.token_disclosed"],
+                "why_it_matters": "ignored",
+                "default_priority": "high",
+                "citation_label": None,
+                "objective_mapping": None,
+                "evidence_strength": None,
+                "student_note": None,
+            }
+        ]
+    }
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        first = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json=payload,
+        )
+        second = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json=payload,
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["items"] == second.json()["items"]
+
+    rows = (
+        db_session.query(SessionReportEvidenceModel)
+        .filter(SessionReportEvidenceModel.session_id == session_id)
+        .all()
+    )
+    assert len(rows) == 1
+
+
+def test_select_refresh_import_returns_same_snapshot_fields(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-select-refresh-import"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=5,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        put_response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 2,
+                        "title": "client title ignored",
+                        "description": "client description ignored",
+                        "details": {"client": "ignored"},
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 999,
+                        "event_index": 999,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "citation_label": None,
+                        "objective_mapping": None,
+                        "evidence_strength": None,
+                        "student_note": None,
+                    }
+                ]
+            },
+        )
+        get_response = client.get(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+        import_response = client.post(
+            f"/api/v1/sessions/{session_id}/report/import-selected-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert put_response.status_code == 200
+    assert get_response.status_code == 200
+    assert import_response.status_code == 200
+
+    get_item = get_response.json()["items"][0]
+    import_item = import_response.json()["items"][0]
+    assert import_item["event_id"] == get_item["event_id"]
+    assert import_item["title"] == get_item["title"]
+    assert import_item["description"] == get_item["description"]
+    assert import_item["details"] == get_item["details"]
+    assert import_item["occurred_at"] == get_item["occurred_at"]
+    assert import_item["trace_version"] == get_item["trace_version"]
+    assert import_item["event_index"] == get_item["event_index"]
+    assert import_item["citation_label"] == get_item["citation_label"]
+
+
+def test_import_selected_evidence_survives_missing_trace_event_after_selection(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-missing-trace-after-select"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=8,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        put_response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 0,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": None,
+                        "default_priority": "high",
+                        "citation_label": None,
+                        "objective_mapping": None,
+                        "evidence_strength": None,
+                        "student_note": None,
+                    }
+                ]
+            },
+        )
+        deleted = (
+            db_session.query(TraceEventModel)
+            .filter(
+                TraceEventModel.session_id == session_id,
+                TraceEventModel.event_id == event_id,
+            )
+            .delete()
+        )
+        db_session.flush()
+        import_response = client.post(
+            f"/api/v1/sessions/{session_id}/report/import-selected-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert put_response.status_code == 200
+    assert deleted == 1
+    assert import_response.status_code == 200
+    imported_items = import_response.json()["items"]
+    assert len(imported_items) == 1
+    assert imported_items[0]["event_id"] == str(event_id)
