@@ -352,9 +352,12 @@ class SessionReportEvidenceModel(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    details: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    trace_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    event_index: Mapped[int] = mapped_column(Integer, nullable=False)
     evidence_type: Mapped[str] = mapped_column(String(32), nullable=False)
     objective_keys: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list

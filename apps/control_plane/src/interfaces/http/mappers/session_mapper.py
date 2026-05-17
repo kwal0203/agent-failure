@@ -13,6 +13,7 @@ from apps.contracts.src.schemas import (
     GetSessionTraceResponse,
     SessionTraceEvent,
     GetSessionReportEvidenceResponse,
+    ObjectiveMappingItem,
     ReportEvidenceItem,
 )
 from apps.control_plane.src.application.evaluator_feedback.types import (
@@ -21,8 +22,12 @@ from apps.control_plane.src.application.evaluator_feedback.types import (
 from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.session_report_evidence.types import (
+    ReportEvidenceProjection,
     SessionReportEvidenceItemInput,
     SessionReportEvidenceRow,
+)
+from apps.control_plane.src.application.session_report_evidence.service import (
+    project_report_evidence,
 )
 
 EvidenceType = Literal[
@@ -245,21 +250,41 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
 def map_session_report_evidence_response(
     rows: Sequence[SessionReportEvidenceRow],
 ) -> GetSessionReportEvidenceResponse:
+    projections = project_report_evidence(rows)
+    return map_report_evidence_projection_response(projections)
+
+
+def map_report_evidence_projection_response(
+    items: Sequence[ReportEvidenceProjection],
+) -> GetSessionReportEvidenceResponse:
     return GetSessionReportEvidenceResponse(
         items=tuple(
             ReportEvidenceItem(
-                event_id=row.event_id,
-                position=row.position,
-                title=row.title,
-                description=row.description,
-                occurred_at=row.occurred_at,
-                evidence_type=row.evidence_type,
-                objective_keys=row.objective_keys,
-                why_it_matters=row.why_it_matters,
-                default_priority=row.default_priority,
-                student_note=row.student_note,
+                event_id=item.event_id,
+                position=item.position,
+                title=item.title,
+                description=item.description,
+                details=item.details,
+                occurred_at=item.occurred_at,
+                trace_version=item.trace_version,
+                event_index=item.event_index,
+                evidence_type=item.evidence_type,
+                objective_keys=item.objective_keys,
+                why_it_matters=item.why_it_matters,
+                default_priority=item.default_priority,
+                citation_label=item.citation_label,
+                objective_mapping=tuple(
+                    ObjectiveMappingItem(
+                        objective_key=mapped.objective_key,
+                        label=mapped.label,
+                        rubric_target=mapped.rubric_target,
+                    )
+                    for mapped in item.objective_mapping
+                ),
+                evidence_strength=item.evidence_strength,
+                student_note=item.student_note,
             )
-            for row in rows
+            for item in items
         )
     )
 
@@ -273,7 +298,10 @@ def map_report_evidence_items_to_inputs(
             position=item.position,
             title=item.title,
             description=item.description,
+            details=item.details,
             occurred_at=item.occurred_at,
+            trace_version=item.trace_version,
+            event_index=item.event_index,
             evidence_type=item.evidence_type,
             objective_keys=tuple(item.objective_keys),
             why_it_matters=item.why_it_matters,

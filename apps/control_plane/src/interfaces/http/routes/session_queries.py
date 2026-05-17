@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from apps.contracts.src.schemas import (
     ApiErrorEnvelope,
     GetFeedbackResponse,
+    ImportSelectedEvidenceRequest,
+    ImportSelectedEvidenceResponse,
     GetSessionReportEvidenceResponse,
     GetSessionTraceResponse,
     PutSessionReportEvidenceRequest,
@@ -29,6 +31,7 @@ from apps.control_plane.src.application.session_report_evidence.ports import (
 )
 from apps.control_plane.src.application.session_report_evidence.service import (
     get_session_report_evidence,
+    import_selected_evidence,
     replace_session_report_evidence,
 )
 from apps.control_plane.src.application.trace.service import (
@@ -206,6 +209,46 @@ def put_report_evidence(
             return mapped
         logger.exception(
             "put session report-evidence endpoint failed for session=%s",
+            str(session_id),
+        )
+        return map_unexpected_exception(session_id=session_id)
+
+
+@router.post(
+    "/api/v1/sessions/{session_id}/report/import-selected-evidence",
+    response_model=ImportSelectedEvidenceResponse,
+    responses={
+        400: {"model": ApiErrorEnvelope},
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def post_import_selected_evidence(
+    session_id: UUID,
+    request: ImportSelectedEvidenceRequest | None = None,
+    principal: PrincipalContext = Depends(get_current_principal),
+    repo: SessionReportEvidenceRepositoryPort = Depends(
+        get_session_report_evidence_repository
+    ),
+) -> ImportSelectedEvidenceResponse | JSONResponse:
+    try:
+        rows = import_selected_evidence(
+            session_id=session_id,
+            principal=principal,
+            repo=repo,
+            event_ids_override=request.event_ids if request else None,
+        )
+        return ImportSelectedEvidenceResponse(
+            items=map_session_report_evidence_response(rows).items
+        )
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
+        logger.exception(
+            "post import selected evidence endpoint failed for session=%s",
             str(session_id),
         )
         return map_unexpected_exception(session_id=session_id)

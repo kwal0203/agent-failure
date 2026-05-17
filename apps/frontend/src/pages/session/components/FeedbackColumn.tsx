@@ -241,11 +241,17 @@ export function FeedbackColumn({
               position: index,
               title: event.title,
               description: event.description,
+              details: null,
               occurred_at: event.timestamp,
+              trace_version: 1,
+              event_index: index,
               evidence_type: event.evidence_type ?? "noise",
               objective_keys: event.objective_keys ?? [],
               why_it_matters: event.why_it_matters ?? null,
               default_priority: event.default_priority ?? "low",
+              citation_label: null,
+              objective_mapping: null,
+              evidence_strength: null,
               student_note: null,
             };
           })

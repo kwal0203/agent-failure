@@ -38,7 +38,10 @@ def _item(*, position: int) -> SessionReportEvidenceItemInput:
         position=position,
         title=f"Title {position}",
         description=f"Description {position}",
+        details={"k": position},
         occurred_at=datetime(2026, 5, 17, 21, position, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=position,
         evidence_type="exploit_step",
         objective_keys=("lab1.token_disclosed",),
         why_it_matters="Shows exploit progression.",
@@ -73,6 +76,9 @@ def test_replace_and_list_report_evidence_for_session(db_session: Session) -> No
     assert len(listed_second) == 1
     assert listed_second[0].title == "Title 0"
     assert listed_second[0].description == "Description 0"
+    assert listed_second[0].details == {"k": 0}
+    assert listed_second[0].trace_version == 1
+    assert listed_second[0].event_index == 0
     assert listed_second[0].objective_keys == ("lab1.token_disclosed",)
 
 

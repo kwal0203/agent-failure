@@ -13,6 +13,8 @@ from apps.control_plane.src.application.session_report_evidence.errors import (
 )
 from apps.control_plane.src.application.session_report_evidence.service import (
     get_session_report_evidence,
+    import_selected_evidence,
+    project_report_evidence,
     replace_session_report_evidence,
 )
 from apps.control_plane.src.application.session_report_evidence.types import (
@@ -68,7 +70,9 @@ class _FakeTraceRepo:
         return 0
 
 
-def _trace_event(*, session_id: UUID, event_id: UUID, event_type: str) -> TraceEvent:
+def _trace_event(
+    *, session_id: UUID, event_id: UUID, event_type: str, event_index: int = 1
+) -> TraceEvent:
     return TraceEvent(
         event_id=event_id,
         session_id=session_id,
@@ -76,7 +80,7 @@ def _trace_event(*, session_id: UUID, event_id: UUID, event_type: str) -> TraceE
         event_type=event_type,
         occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
         source="runtime",
-        event_index=1,
+        event_index=event_index,
         payload={},
     )
 
@@ -87,7 +91,10 @@ def _item(*, event_id: UUID, position: int) -> SessionReportEvidenceItemInput:
         position=position,
         title="Evidence title",
         description="Evidence description",
+        details=None,
         occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=position,
         evidence_type="exploit_step",
         objective_keys=("lab1.token_disclosed",),
         why_it_matters="Useful exploit evidence",
@@ -106,7 +113,10 @@ def test_get_session_report_evidence_owner_allowed() -> None:
         position=0,
         title="Title",
         description=None,
+        details=None,
         occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=3,
         evidence_type="exploit_outcome",
         objective_keys=("lab1.token_disclosed",),
         why_it_matters=None,
@@ -242,6 +252,7 @@ def test_replace_session_report_evidence_normalizes_positions_from_request_order
                 session_id=session_id,
                 event_id=second_event_id,
                 event_type="ATTACK_EMAIL_SENT",
+                event_index=2,
             ),
         )
     )
@@ -262,3 +273,170 @@ def test_replace_session_report_evidence_normalizes_positions_from_request_order
     saved_items = repo.last_replace_call["items"]
     assert isinstance(saved_items, list)
     assert [item.position for item in saved_items] == [0, 1]
+    assert saved_items[0].trace_version == 1
+    assert [item.event_index for item in saved_items] == [1, 2]
+
+
+def test_import_selected_evidence_defaults_to_persisted_order() -> None:
+    session_id = uuid4()
+    owner_user_id = uuid4()
+    row_a = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=session_id,
+        event_id=uuid4(),
+        position=0,
+        title="A",
+        description=None,
+        details=None,
+        occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=1,
+        evidence_type="exploit_step",
+        objective_keys=(),
+        why_it_matters=None,
+        default_priority="low",
+        student_note=None,
+        created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+    )
+    row_b = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=session_id,
+        event_id=uuid4(),
+        position=1,
+        title="B",
+        description=None,
+        details=None,
+        occurred_at=datetime(2026, 5, 17, 20, 0, 1, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=2,
+        evidence_type="exploit_step",
+        objective_keys=(),
+        why_it_matters=None,
+        default_priority="low",
+        student_note=None,
+        created_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
+    )
+    repo = _FakeReportEvidenceRepo(owner_user_id=owner_user_id, rows=[row_a, row_b])
+
+    result = import_selected_evidence(
+        session_id=session_id,
+        principal=PrincipalContext(user_id=owner_user_id, role="learner"),
+        repo=repo,
+        event_ids_override=None,
+    )
+
+    assert [row.event_id for row in result] == [row_a.event_id, row_b.event_id]
+
+
+def test_import_selected_evidence_supports_subset_and_order_override() -> None:
+    session_id = uuid4()
+    owner_user_id = uuid4()
+    row_a = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=session_id,
+        event_id=uuid4(),
+        position=0,
+        title="A",
+        description=None,
+        details=None,
+        occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=1,
+        evidence_type="exploit_step",
+        objective_keys=(),
+        why_it_matters=None,
+        default_priority="low",
+        student_note=None,
+        created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+    )
+    row_b = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=session_id,
+        event_id=uuid4(),
+        position=1,
+        title="B",
+        description=None,
+        details=None,
+        occurred_at=datetime(2026, 5, 17, 20, 0, 1, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=2,
+        evidence_type="exploit_step",
+        objective_keys=(),
+        why_it_matters=None,
+        default_priority="low",
+        student_note=None,
+        created_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
+    )
+    repo = _FakeReportEvidenceRepo(owner_user_id=owner_user_id, rows=[row_a, row_b])
+
+    result = import_selected_evidence(
+        session_id=session_id,
+        principal=PrincipalContext(user_id=owner_user_id, role="learner"),
+        repo=repo,
+        event_ids_override=(row_b.event_id,),
+    )
+
+    assert [row.event_id for row in result] == [row_b.event_id]
+
+
+def test_project_report_evidence_adds_mapping_and_strength_rules() -> None:
+    session_id = uuid4()
+    row = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=session_id,
+        event_id=uuid4(),
+        position=0,
+        title="Token disclosed",
+        description=None,
+        details=None,
+        occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=1,
+        event_index=4,
+        evidence_type="exploit_outcome",
+        objective_keys=("lab1.token_disclosed",),
+        why_it_matters=None,
+        default_priority="medium",
+        student_note=None,
+        created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+    )
+
+    projected = project_report_evidence((row,))
+    assert projected[0].citation_label == "E1"
+    assert projected[0].evidence_strength == "high"
+    assert projected[0].objective_mapping[0].rubric_target == (
+        "sensitive_data_exposure_outcome"
+    )
+
+
+def test_project_report_evidence_preserves_stored_snapshot_content() -> None:
+    row = SessionReportEvidenceRow(
+        id=uuid4(),
+        session_id=uuid4(),
+        event_id=uuid4(),
+        position=5,
+        title="Stored title from selection time",
+        description="Stored description from selection time",
+        details={"raw_message": "stored payload snapshot"},
+        occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+        trace_version=2,
+        event_index=77,
+        evidence_type="system_context",
+        objective_keys=("lab1.unknown_objective",),
+        why_it_matters="stored rationale",
+        default_priority="high",
+        student_note="stored note",
+        created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
+    )
+
+    projected = project_report_evidence((row,))
+    first = projected[0]
+    assert first.title == "Stored title from selection time"
+    assert first.description == "Stored description from selection time"
+    assert first.details == {"raw_message": "stored payload snapshot"}
+    assert first.citation_label == "E6"

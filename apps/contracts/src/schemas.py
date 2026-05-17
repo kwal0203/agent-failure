@@ -385,12 +385,24 @@ class ReportEvidenceItem(BaseModel):
     position: int
     title: str
     description: str | None = None
+    details: dict[str, Any] | None = None
     occurred_at: datetime
+    trace_version: int = 1
+    event_index: int
     evidence_type: TraceEvidenceType
     objective_keys: tuple[str, ...] = ()
     why_it_matters: str | None = None
     default_priority: TraceEvidencePriority
+    citation_label: str | None = None
+    objective_mapping: tuple["ObjectiveMappingItem", ...] | None = None
+    evidence_strength: TraceEvidencePriority | None = None
     student_note: str | None = None
+
+
+class ObjectiveMappingItem(BaseModel):
+    objective_key: str
+    label: str
+    rubric_target: str
 
 
 class GetSessionReportEvidenceResponse(BaseModel):
@@ -398,6 +410,14 @@ class GetSessionReportEvidenceResponse(BaseModel):
 
 
 class PutSessionReportEvidenceRequest(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class ImportSelectedEvidenceRequest(BaseModel):
+    event_ids: tuple[UUID, ...] | None = None
+
+
+class ImportSelectedEvidenceResponse(BaseModel):
     items: tuple[ReportEvidenceItem, ...]
 
 
