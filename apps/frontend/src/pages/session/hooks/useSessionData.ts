@@ -146,18 +146,6 @@ function mapPersistedTraceToTimelineEvent(
     };
   }
 
-  if (event.event_type === "MODEL_TURN_COMPLETED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "agent_action",
-      granularity: "high",
-      title: "Agent response completed",
-      description: "Assistant completed a response turn.",
-      ...evidenceFields,
-    };
-  }
-
   if (event.event_type === "MODEL_TURN_FAILED") {
     const errorCode =
       typeof event.payload.error_code === "string"
