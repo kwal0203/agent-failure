@@ -111,7 +111,6 @@ export default function SessionPage() {
   useSessionStreamIngestion({
     messages,
     ensureRevealLoop,
-    appendTimelineEvent,
     registerLearnerFeedbackEvents,
     activeEntryTsRef,
     pendingBufferRef,

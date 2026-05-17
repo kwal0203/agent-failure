@@ -323,6 +323,14 @@ class SessionEvaluateRequestedPayload(BaseModel):
 EvaluatorFeedbackStatusType = Literal[
     "learned", "progress", "no_progress", "session_terminal"
 ]
+TraceEvidenceType = Literal[
+    "exploit_step",
+    "exploit_outcome",
+    "system_context",
+    "coaching_feedback",
+    "noise",
+]
+TraceEvidencePriority = Literal["high", "medium", "low"]
 
 
 class LabCapabilitiesResponse(BaseModel):
@@ -360,6 +368,11 @@ class SessionTraceEvent(BaseModel):
     source: str
     occurred_at: datetime
     payload: dict[str, Any]
+    report_selectable: bool = False
+    evidence_type: TraceEvidenceType = "noise"
+    objective_keys: list[str] = Field(default_factory=list)
+    why_it_matters: str | None = None
+    default_priority: TraceEvidencePriority = "low"
 
 
 class GetSessionTraceResponse(BaseModel):

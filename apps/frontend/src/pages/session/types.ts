@@ -75,6 +75,13 @@ export type EventType =
   | "explanation";
 
 export type EventGranularity = "high" | "detailed" | "full";
+export type EvidenceType =
+  | "exploit_step"
+  | "exploit_outcome"
+  | "system_context"
+  | "coaching_feedback"
+  | "noise";
+export type EvidencePriority = "high" | "medium" | "low";
 
 export type TimelineEvent = {
   id: string;
@@ -85,6 +92,11 @@ export type TimelineEvent = {
   description: string;
   details?: string;
   important?: boolean;
+  report_selectable?: boolean;
+  evidence_type?: EvidenceType;
+  objective_keys?: string[];
+  why_it_matters?: string | null;
+  default_priority?: EvidencePriority;
 };
 
 export type SessionTelemetryLog = {

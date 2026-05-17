@@ -45,6 +45,16 @@ export type SessionTraceEvent = {
   source: string;
   occurred_at: string;
   payload: Record<string, unknown>;
+  report_selectable: boolean;
+  evidence_type:
+    | "exploit_step"
+    | "exploit_outcome"
+    | "system_context"
+    | "coaching_feedback"
+    | "noise";
+  objective_keys: string[];
+  why_it_matters: string | null;
+  default_priority: "high" | "medium" | "low";
 };
 
 export type GetSessionTraceResponse = {

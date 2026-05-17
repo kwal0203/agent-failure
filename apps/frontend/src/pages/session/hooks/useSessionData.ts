@@ -127,6 +127,13 @@ function mapPersistedTraceToTimelineEvent(
 ): TimelineEvent | null {
   const timestamp = event.occurred_at;
   const eventId = `trace-${event.id}`;
+  const evidenceFields = {
+    report_selectable: event.report_selectable,
+    evidence_type: event.evidence_type,
+    objective_keys: event.objective_keys,
+    why_it_matters: event.why_it_matters,
+    default_priority: event.default_priority,
+  };
   if (event.event_type === "SESSION_CREATED") {
     return {
       id: eventId,
@@ -135,6 +142,7 @@ function mapPersistedTraceToTimelineEvent(
       granularity: "high",
       title: "Session created",
       description: "Lab session was created.",
+      ...evidenceFields,
     };
   }
 
@@ -146,6 +154,7 @@ function mapPersistedTraceToTimelineEvent(
       granularity: "high",
       title: "Agent response completed",
       description: "Assistant completed a response turn.",
+      ...evidenceFields,
     };
   }
 
@@ -162,6 +171,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Agent response failed",
       description: `Model turn failed (${errorCode}).`,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -172,6 +182,7 @@ function mapPersistedTraceToTimelineEvent(
       typeof event.payload.email_from === "string"
         ? event.payload.email_from
         : "";
+    const maliciousMarker = event.payload.malicious_marker === true;
     const emailId =
       typeof event.payload.email_id === "string" && event.payload.email_id
         ? ` (id: ${event.payload.email_id})`
@@ -181,31 +192,12 @@ function mapPersistedTraceToTimelineEvent(
       timestamp,
       type: "attacker_action",
       granularity: "high",
-      title: "Email received in inbox",
+      title: maliciousMarker
+        ? "Malicious email received"
+        : "Benign email received",
       description: `Email accepted${emailId}.`,
       details: `From: ${emailFrom}\nSubject: ${subject}`,
-    };
-  }
-
-  if (event.event_type === "RUNTIME_PROVISION_REQUESTED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "system",
-      granularity: "high",
-      title: "Runtime provisioning requested",
-      description: "Control plane requested runtime provisioning.",
-    };
-  }
-
-  if (event.event_type === "RUNTIME_PROVISION_ACCEPTED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "system",
-      granularity: "high",
-      title: "Runtime provisioning accepted",
-      description: "Runtime was provisioned and accepted.",
+      ...evidenceFields,
     };
   }
 
@@ -222,6 +214,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Runtime provisioning failed",
       description: `Runtime provisioning failed (${reasonCode}).`,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -238,6 +231,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Hint: Use Attack Console",
       description: hintMessage,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -263,6 +257,7 @@ function mapPersistedTraceToTimelineEvent(
       description: toolName
         ? `${toolName} ${statusWord}`
         : event.event_type.toLowerCase().replaceAll("_", " "),
+      ...evidenceFields,
     };
   }
 
@@ -275,6 +270,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Malicious email entered model context",
       description: "Assistant read learner-injected malicious email content.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -287,6 +283,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Token disclosure attempted",
       description: "Assistant attempted to disclose sensitive token material.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -299,6 +296,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Token disclosed",
       description: "Sensitive token was exposed during the session.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -620,12 +618,12 @@ export function useSessionData({
     };
   }, [appendTelemetryLog, metadata?.lab_id, metadata?.state, sessionId]);
 
-  // Poll metadata while provisioning/active so session transitions and timed hint unlocks
-  // are reflected even if evaluator feedback polling is delayed or unavailable.
+  // Poll persisted metadata + trace so timeline stays sourced from durable annotated
+  // trace events instead of websocket-only transient events.
   useEffect(() => {
     if (!sessionId) return;
     const state = (metadata?.state ?? "").toUpperCase();
-    if (state !== "PROVISIONING" && state !== "ACTIVE") return;
+    if (!["CREATED", "PROVISIONING", "ACTIVE", "IDLE"].includes(state)) return;
 
     let cancelled = false;
     let timeoutId: number | null = null;
