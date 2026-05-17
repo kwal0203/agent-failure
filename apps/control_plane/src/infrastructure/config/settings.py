@@ -74,6 +74,17 @@ def _get_optional_str(name: str) -> str | None:
     return value or None
 
 
+def get_app_env() -> str:
+    raw = (_get_optional_str("APP_ENV") or "staging").strip().lower()
+    if raw in {"production", "prod"}:
+        return "production"
+    if raw in {"staging", "stage"}:
+        return "staging"
+    if raw in {"dev", "development", "local"}:
+        return "dev"
+    return "staging"
+
+
 def _require_str(name: str) -> str:
     value = _get_optional_str(name)
     if value is None:

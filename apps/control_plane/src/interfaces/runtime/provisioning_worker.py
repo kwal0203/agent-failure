@@ -28,6 +28,7 @@ from apps.control_plane.src.application.common.observability import (
     set_correlation_id,
 )
 from apps.control_plane.src.infrastructure.config.settings import (
+    get_app_env,
     get_runtime_pod_env_settings,
 )
 
@@ -72,10 +73,26 @@ def _build_dependencies() -> tuple[
     SQLAlchemyWorkerHeartbeatRepository,
     K8sRuntimeInspector,
 ]:
+    app_env = get_app_env()
+    env_dir = "production" if app_env == "production" else "staging"
+    lock_file = Path(f"deploy/k8s/{env_dir}/runtime-image.lock")
+    selection_file = Path(f"deploy/k8s/{env_dir}/runtime-image-selection.yaml")
+
+    logger.info(
+        "provisioning worker runtime image config selected",
+        extra={
+            **log_fields(),
+            "worker_name": WORKER_NAME,
+            "app_env": app_env,
+            "lock_file": str(lock_file),
+            "selection_file": str(selection_file),
+        },
+    )
+
     uow = SQLAlchemyProcessPendingOnceUnitOfWork(session_factory=SessionFactory)
     resolver = RuntimeImageResolver(
-        lock_file=Path("deploy/k8s/staging/runtime-image.lock"),
-        selection_file=Path("deploy/k8s/staging/runtime-image-selection.yaml"),
+        lock_file=lock_file,
+        selection_file=selection_file,
     )
     provisioner = K8sRuntimeProvisioner()
     # NOTE(P2-EA-T4): This is a pragmatic shortcut: the worker directly instantiates
