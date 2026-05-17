@@ -22,11 +22,15 @@ from apps.control_plane.src.application.orchestrator.types import (
     RuntimeProvisionRequest,
 )
 from apps.control_plane.src.application.session_lifecycle.ports import (
+    SessionRow,
     UnitOfWork as SessionLifecycleUnitOfWork,
 )
 from apps.control_plane.src.application.session_hints.types import HintTemplate
 from apps.control_plane.src.application.trace.types import TraceEvent
-from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+from apps.control_plane.src.domain.session_lifecycle.state_machine import (
+    SessionState,
+    Trigger,
+)
 
 
 @dataclass
@@ -160,6 +164,9 @@ class _FakeTraceRepo:
 
 
 class _FakeTraceOutbox:
+    def __init__(self) -> None:
+        self.cleanup_enqueues: list[dict[str, Any]] = []
+
     def enqueue_for_evaluator(
         self,
         *,
@@ -181,11 +188,43 @@ class _FakeTraceOutbox:
             requested_at,
         )
 
+    def enqueue_for_cleanup(
+        self,
+        session_id: UUID,
+        runtime_id: str | None,
+        terminal_state: str | None,
+        reason_code: str | None,
+        requested_at: datetime | None,
+    ) -> None:
+        self.cleanup_enqueues.append(
+            {
+                "session_id": session_id,
+                "runtime_id": runtime_id,
+                "terminal_state": terminal_state,
+                "reason_code": reason_code,
+                "requested_at": requested_at,
+            }
+        )
+
+
+class _FakeLifecycleSessions:
+    def __init__(
+        self, state_by_session_id: dict[UUID, SessionState] | None = None
+    ) -> None:
+        self._state_by_session_id = state_by_session_id or {}
+
+    def get_for_update(self, session_id: UUID) -> SessionRow | None:
+        state = self._state_by_session_id.get(session_id, SessionState.PROVISIONING)
+        return SessionRow(id=session_id, runtime_id=None, state=state)
+
 
 class _FakeLifecycleUoW:
-    def __init__(self) -> None:
+    def __init__(
+        self, state_by_session_id: dict[UUID, SessionState] | None = None
+    ) -> None:
         self._trace = _FakeTraceRepo()
         self._outbox = _FakeTraceOutbox()
+        self._sessions = _FakeLifecycleSessions(state_by_session_id=state_by_session_id)
 
     @property
     def trace(self) -> _FakeTraceRepo:
@@ -194,6 +233,10 @@ class _FakeLifecycleUoW:
     @property
     def outbox(self) -> _FakeTraceOutbox:
         return self._outbox
+
+    @property
+    def sessions(self) -> _FakeLifecycleSessions:
+        return self._sessions
 
     @contextmanager
     def transaction(self):
@@ -271,10 +314,17 @@ class _FakeSessionHintWriter:
 
 
 class _FakeProcessPendingOnceUoW:
-    def __init__(self, outbox: _FakeOutbox) -> None:
+    def __init__(
+        self,
+        outbox: _FakeOutbox,
+        *,
+        lifecycle_state_by_session_id: dict[UUID, SessionState] | None = None,
+    ) -> None:
         self._outbox = outbox
         self._lab = _FakeLabRepository()
-        self._lifecycle_uow: SessionLifecycleUnitOfWork = _FakeLifecycleUoW()  # type: ignore[assignment]
+        self._lifecycle_uow: SessionLifecycleUnitOfWork = _FakeLifecycleUoW(
+            state_by_session_id=lifecycle_state_by_session_id
+        )  # type: ignore[assignment]
         self._trace = _FakeTraceRepo()
         self._runtime_binding = _FakeRuntimeBindingRepo()
         self._objective_templates = _FakeObjectiveTemplateRepo()
@@ -541,10 +591,67 @@ def test_process_pending_once_missing_runtime_id_marks_terminal_and_transitions_
     assert result.failed_count == 1
     assert len(outbox.processed_calls) == 0
     assert len(outbox.terminal_calls) == 1
-    assert outbox.terminal_calls[0].error_message == "Provisioning failed: MISSING_RUNTIME_ID"
+    assert (
+        outbox.terminal_calls[0].error_message
+        == "Provisioning failed: MISSING_RUNTIME_ID"
+    )
     assert len(transition_calls) == 1
     assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
     assert transition_calls[0]["session_id"] == ev.session_id
+
+
+def test_process_pending_once_terminal_race_skips_activation_and_enqueues_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ev = _make_event(
+        payload={
+            "lab_id": str(uuid4()),
+            "lab_version_id": str(uuid4()),
+        }
+    )
+    outbox = _FakeOutbox(events=[ev])
+    uow = _FakeProcessPendingOnceUoW(
+        outbox=outbox,
+        lifecycle_state_by_session_id={ev.session_id: SessionState.CANCELLED},
+    )
+    provisioner = _FakeProvisioner(
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id="r-terminal-race",
+            details={"base_url": "http://runtime.test.local:8000"},
+        )
+    )
+    inspector = _FakeInspector(responses={})
+    resolver = _FakeResolver()
+
+    transition_calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        transition_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        orchestrator_service, "transition_session", _fake_transition_session
+    )
+
+    result = process_pending_once(
+        uow=uow,
+        image_resolver=resolver,
+        provisioner=provisioner,
+        runtime_inspector=inspector,
+    )
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 1
+    assert result.failed_count == 0
+    assert len(outbox.processed_calls) == 1
+    assert len(transition_calls) == 0
+    assert len(uow.lifecycle_uow.outbox.cleanup_enqueues) == 1  # type: ignore[attr-defined]
+    cleanup = uow.lifecycle_uow.outbox.cleanup_enqueues[0]  # type: ignore[attr-defined]
+    assert cleanup["session_id"] == ev.session_id
+    assert cleanup["runtime_id"] == "r-terminal-race"
+    assert cleanup["terminal_state"] == SessionState.CANCELLED.value
+    assert cleanup["reason_code"] == "PROVISIONED_AFTER_TERMINAL"
 
 
 def test_process_pending_once_malformed_payload_marks_terminal_and_skips_transition(

@@ -186,6 +186,29 @@ def test_process_cleanup_pending_once_already_gone_marks_processed() -> None:
     assert len(outbox.terminal_calls) == 0
 
 
+def test_process_cleanup_pending_once_already_gone_terminal_first_attempt_retries() -> (
+    None
+):
+    ev = _make_cleanup_event(
+        payload={"runtime_id": "pod-1", "terminal_state": "CANCELLED"},
+        attempt_count=0,
+    )
+    outbox = _FakeCleanupOutbox(events=[ev])
+    uow = _FakeCleanupUoW(outbox=outbox)
+    teardown = _FakeTeardown(result=RuntimeTeardownResult(status="already_gone"))
+
+    result = process_cleanup_pending_once(uow=uow, teardown=teardown)
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 0
+    assert result.failed_count == 0
+    assert result.retried_count == 1
+    assert len(outbox.processed_calls) == 0
+    assert len(outbox.retryable_calls) == 1
+    assert outbox.retryable_calls[0].error_message == "CLEANUP_ALREADY_GONE_REVERIFY"
+    assert len(outbox.terminal_calls) == 0
+
+
 def test_process_cleanup_pending_once_retryable_failure_marks_retryable() -> None:
     ev = _make_cleanup_event(payload={"runtime_id": "pod-1"}, attempt_count=0)
     outbox = _FakeCleanupOutbox(events=[ev])
