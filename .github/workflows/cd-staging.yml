@@ -1,9 +1,6 @@
 name: CD Staging
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       git_sha:
@@ -34,30 +31,17 @@ env:
 
 jobs:
   release-staging:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     runs-on: ubuntu-latest
     environment: staging
-    env:
-      EVENT_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
       - name: Resolve target commit
         id: target
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ -n "${{ inputs.git_sha }}" ]]; then
-              echo "sha=${{ inputs.git_sha }}" >> "$GITHUB_OUTPUT"
-            else
-              echo "sha=main" >> "$GITHUB_OUTPUT"
-            fi
+          if [[ -n "${{ inputs.git_sha }}" ]]; then
+            echo "sha=${{ inputs.git_sha }}" >> "$GITHUB_OUTPUT"
           else
-            echo "sha=${EVENT_HEAD_SHA}" >> "$GITHUB_OUTPUT"
+            echo "sha=main" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout target
@@ -153,13 +137,31 @@ jobs:
             "${{ env.STAGING_MANIFESTS }}/runtime-image.lock" \
             "${{ env.AGENT_TARGET_LABS }}"
 
+      - name: Write release metadata file
+        run: |
+          mkdir -p deploy/releases/staging
+          cat > "deploy/releases/staging/${{ steps.meta.outputs.full_sha }}.json" <<EOF
+          {
+            "workflow": "cd-staging",
+            "environment": "staging",
+            "commit_short_sha": "${{ steps.meta.outputs.git_sha }}",
+            "commit_full_sha": "${{ steps.meta.outputs.full_sha }}",
+            "control_plane_image": "${{ env.CONTROL_PLANE_IMAGE }}@${{ steps.digests.outputs.cp }}",
+            "runtime_image": "${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.RUNTIME_IMAGE_REPO }}@${{ steps.digests.outputs.rt }}",
+            "built_at_utc": "${{ steps.meta.outputs.build_ts }}",
+            "run_id": "${{ github.run_id }}",
+            "run_attempt": "${{ github.run_attempt }}"
+          }
+          EOF
+
       - name: Commit staging manifest updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add \
             "${{ env.STAGING_MANIFESTS }}/kustomization.yaml" \
-            "${{ env.STAGING_MANIFESTS }}/runtime-image.lock"
+            "${{ env.STAGING_MANIFESTS }}/runtime-image.lock" \
+            "deploy/releases/staging/${{ steps.meta.outputs.full_sha }}.json"
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No staging manifest changes"
@@ -181,10 +183,12 @@ jobs:
             - commit: `${{ steps.meta.outputs.full_sha }}`
             - control-plane digest: `${{ steps.digests.outputs.cp }}`
             - runtime digest: `${{ steps.digests.outputs.rt }}`
+            - release metadata: `deploy/releases/staging/${{ steps.meta.outputs.full_sha }}.json`
           commit-message: "cd(staging): update image digests for ${{ steps.meta.outputs.git_sha }}"
           add-paths: |
             ${{ env.STAGING_MANIFESTS }}/kustomization.yaml
             ${{ env.STAGING_MANIFESTS }}/runtime-image.lock
+            deploy/releases/staging/${{ steps.meta.outputs.full_sha }}.json
           labels: |
             automation
             staging

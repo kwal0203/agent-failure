@@ -3,13 +3,10 @@ name: CD Production
 on:
   workflow_dispatch:
     inputs:
-      source_environment:
-        description: "Environment to promote from"
+      release_commit:
+        description: "Full commit SHA for the staged release metadata to promote"
         required: true
-        type: choice
-        options:
-          - staging
-        default: staging
+        type: string
       reason:
         description: "Optional promotion note"
         required: false
@@ -25,7 +22,7 @@ concurrency:
 
 env:
   CONTROL_PLANE_IMAGE: ghcr.io/kwal0203/agent-failure-control-plane
-  STAGING_MANIFESTS: deploy/k8s/staging
+  STAGING_RELEASES: deploy/releases/staging
   PRODUCTION_MANIFESTS: deploy/k8s/production
   AGENT_TARGET_LABS: agent-prompt-injection,agent-tool-misuse,agent-memory-poisoning
 
@@ -41,27 +38,31 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Resolve staged digests
+      - name: Resolve staged release metadata
         id: staged
         run: |
-          cp_digest="$(awk '
-            /^images:[[:space:]]*$/ {in_images=1; next}
-            in_images && /^[^[:space:]]/ {in_images=0}
-            in_images && $1=="digest:" {print $2; exit}
-          ' "${STAGING_MANIFESTS}/kustomization.yaml")"
-
-          if [[ -z "${cp_digest}" ]]; then
-            echo "Unable to resolve control-plane digest from ${STAGING_MANIFESTS}/kustomization.yaml"
+          release_file="${STAGING_RELEASES}/${{ inputs.release_commit }}.json"
+          if [[ ! -f "${release_file}" ]]; then
+            echo "Release metadata file not found: ${release_file}"
             exit 1
           fi
 
-          runtime_ref="$(awk -F'"' '/image_ref:/{print $2; exit}' "${STAGING_MANIFESTS}/runtime-image.lock")"
-          if [[ -z "${runtime_ref}" ]]; then
-            echo "Unable to resolve runtime image_ref from ${STAGING_MANIFESTS}/runtime-image.lock"
+          cp_ref="$(jq -r '.control_plane_image' "${release_file}")"
+          runtime_ref="$(jq -r '.runtime_image' "${release_file}")"
+          build_git_sha="$(jq -r '.commit_short_sha' "${release_file}")"
+          build_ts="$(jq -r '.built_at_utc' "${release_file}")"
+
+          if [[ -z "${cp_ref}" || "${cp_ref}" == "null" ]]; then
+            echo "Invalid control_plane_image in ${release_file}"
             exit 1
           fi
+          if [[ -z "${runtime_ref}" || "${runtime_ref}" == "null" ]]; then
+            echo "Invalid runtime_image in ${release_file}"
+            exit 1
+          fi
+
+          cp_digest="${cp_ref##*@}"
           runtime_base="${runtime_ref%@*}"
-
           runtime_digest="${runtime_ref##*@}"
 
           if ! [[ "${cp_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
@@ -79,6 +80,9 @@ jobs:
           echo "runtime_ref=${runtime_ref}" >> "$GITHUB_OUTPUT"
           echo "runtime_base=${runtime_base}" >> "$GITHUB_OUTPUT"
           echo "runtime_digest=${runtime_digest}" >> "$GITHUB_OUTPUT"
+          echo "build_git_sha=${build_git_sha}" >> "$GITHUB_OUTPUT"
+          echo "build_ts=${build_ts}" >> "$GITHUB_OUTPUT"
+          echo "release_file=${release_file}" >> "$GITHUB_OUTPUT"
 
       - name: Apply production manifest updates
         env:
@@ -86,9 +90,6 @@ jobs:
           RUNTIME_BASE: ${{ steps.staged.outputs.runtime_base }}
           RUNTIME_REF: ${{ steps.staged.outputs.runtime_ref }}
         run: |
-          BUILD_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          GIT_SHA="$(git rev-parse --short HEAD)"
-
           .task/update_kustomization_digest.sh \
             "${PRODUCTION_MANIFESTS}/kustomization.yaml" \
             "${CONTROL_PLANE_IMAGE}" \
@@ -98,8 +99,8 @@ jobs:
             "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
             "${RUNTIME_BASE}" \
             "${RUNTIME_REF}" \
-            "${GIT_SHA}" \
-            "${BUILD_TS}" \
+            "${{ steps.staged.outputs.build_git_sha }}" \
+            "${{ steps.staged.outputs.build_ts }}" \
             "${AGENT_TARGET_LABS}" \
             "production"
 
@@ -137,11 +138,11 @@ jobs:
           delete-branch: true
           title: "cd(production): promote digests from staging"
           body: |
-            Automated production manifest promotion from staging.
+            Automated production manifest promotion from staged release metadata.
 
             - control-plane digest: `${{ steps.staged.outputs.cp }}`
             - runtime digest: `${{ steps.staged.outputs.runtime_digest }}`
-            - source environment: `${{ inputs.source_environment }}`
+            - release metadata: `${{ steps.staged.outputs.release_file }}`
             - reason: `${{ inputs.reason }}`
           commit-message: "cd(production): promote digests from staging cp=${{ steps.staged.outputs.cp }} rt=${{ steps.staged.outputs.runtime_digest }}"
           add-paths: |
