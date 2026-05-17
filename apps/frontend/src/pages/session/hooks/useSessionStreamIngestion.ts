@@ -5,14 +5,12 @@ import type {
   AgentStatus,
   LearnerFeedbackItem,
   SessionMetadata,
-  TimelineEvent,
   TranscriptEntry,
 } from "../types";
 
 type UseSessionStreamIngestionParams = {
   messages: ServerMessage[];
   ensureRevealLoop: () => void;
-  appendTimelineEvent: (event: TimelineEvent) => void;
   registerLearnerFeedbackEvents: (
     feedback: LearnerFeedbackItem[],
     timestamp: string,
@@ -26,47 +24,6 @@ type UseSessionStreamIngestionParams = {
   setAgentStatus: (status: AgentStatus) => void;
   refreshSessionMetadata: () => Promise<void>;
 };
-
-function formatTraceTitle(eventCode: string, message: string): string {
-  const normalizedMessage = message.toLowerCase();
-
-  if (
-    eventCode === "TOOL_CALL_SUCCEEDED" &&
-    normalizedMessage.includes("write_memory")
-  ) {
-    return "Memory write accepted";
-  }
-
-  if (
-    eventCode === "TOOL_CALL_SUCCEEDED" &&
-    normalizedMessage.includes("retrieve_memory")
-  ) {
-    return "Payment memory retrieved";
-  }
-
-  if (
-    eventCode === "TOOL_CALL_SUCCEEDED" &&
-    normalizedMessage.includes("pay_invoice")
-  ) {
-    return "Invoice payment routed";
-  }
-
-  if (
-    eventCode === "TOOL_CALL_REQUESTED" &&
-    normalizedMessage.includes("pay_invoice")
-  ) {
-    return "Invoice payment requested";
-  }
-
-  if (
-    eventCode === "TOOL_CALL_FAILED" &&
-    normalizedMessage.includes("pay_invoice")
-  ) {
-    return "Invoice payment failed";
-  }
-
-  return eventCode;
-}
 
 export function useSessionStreamIngestion(
   params: UseSessionStreamIngestionParams,
@@ -93,14 +50,6 @@ export function useSessionStreamIngestion(
               }
             : prev,
         );
-        params.appendTimelineEvent({
-          id: `status-${message.timestamp}-${message.payload.state}-${message.payload.runtime_substate ?? "none"}`,
-          timestamp: message.timestamp,
-          type: "system",
-          granularity: "high",
-          title: "Session status updated",
-          description: `${message.payload.state}${message.payload.runtime_substate ? ` · ${message.payload.runtime_substate}` : ""}`,
-        });
         if (message.payload.state !== "ACTIVE") {
           params.setAgentStatus("idle");
         }
@@ -117,14 +66,6 @@ export function useSessionStreamIngestion(
           params.setAgentStatus("idle");
           params.finalizePendingRef.current = true;
           void params.refreshSessionMetadata();
-          params.appendTimelineEvent({
-            id: `agent-final-${message.timestamp}`,
-            timestamp: message.timestamp,
-            type: "agent_action",
-            granularity: "detailed",
-            title: "Agent response completed",
-            description: "A streamed response finished in the transcript.",
-          });
         }
         params.ensureRevealLoop();
         continue;
@@ -141,16 +82,6 @@ export function useSessionStreamIngestion(
         ]);
         params.setIsAwaitingResponse(false);
         params.setAgentStatus("idle");
-        params.appendTimelineEvent({
-          id: `policy-denial-${message.timestamp}-${message.payload.reason_code}`,
-          timestamp: message.timestamp,
-          type: "important",
-          granularity: "high",
-          title: "Policy denial",
-          description: message.payload.message,
-          details: `Policy code: ${message.payload.reason_code}`,
-          important: true,
-        });
         continue;
       }
 
@@ -173,19 +104,6 @@ export function useSessionStreamIngestion(
             timestamp: message.timestamp,
           },
         ]);
-        params.appendTimelineEvent({
-          id: `trace-${message.timestamp}-${message.payload.event_code}`,
-          timestamp: message.timestamp,
-          type: message.payload.event_code.includes("TOOL")
-            ? "tool_call"
-            : "system",
-          granularity: "detailed",
-          title: formatTraceTitle(
-            message.payload.event_code,
-            message.payload.message,
-          ),
-          description: message.payload.message,
-        });
         continue;
       }
 
@@ -200,16 +118,6 @@ export function useSessionStreamIngestion(
         ]);
         params.setIsAwaitingResponse(false);
         params.setAgentStatus("idle");
-        params.appendTimelineEvent({
-          id: `system-error-${message.timestamp}-${message.payload.error_code}`,
-          timestamp: message.timestamp,
-          type: "important",
-          granularity: "high",
-          title: "System error",
-          description: message.payload.message,
-          details: `Error code: ${message.payload.error_code}`,
-          important: true,
-        });
         continue;
       }
 
@@ -225,7 +133,6 @@ export function useSessionStreamIngestion(
   }, [
     params.messages,
     params.ensureRevealLoop,
-    params.appendTimelineEvent,
     params.registerLearnerFeedbackEvents,
     params.activeEntryTsRef,
     params.finalizePendingRef,

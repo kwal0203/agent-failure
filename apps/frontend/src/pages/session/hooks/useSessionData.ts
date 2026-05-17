@@ -9,7 +9,6 @@ import type {
   GetSessionMetadataResponse,
   GetSessionTraceResponse,
   LearnerFeedbackItem,
-  SessionFeedbackItem,
   SessionInvoice,
   SessionMetadata,
   SessionProgressChip,
@@ -17,7 +16,7 @@ import type {
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
-import { API_BASE, getAuthHeader, humanizeFeedbackKey } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
@@ -128,6 +127,13 @@ function mapPersistedTraceToTimelineEvent(
 ): TimelineEvent | null {
   const timestamp = event.occurred_at;
   const eventId = `trace-${event.id}`;
+  const evidenceFields = {
+    report_selectable: event.report_selectable,
+    evidence_type: event.evidence_type,
+    objective_keys: event.objective_keys,
+    why_it_matters: event.why_it_matters,
+    default_priority: event.default_priority,
+  };
   if (event.event_type === "SESSION_CREATED") {
     return {
       id: eventId,
@@ -136,17 +142,7 @@ function mapPersistedTraceToTimelineEvent(
       granularity: "high",
       title: "Session created",
       description: "Lab session was created.",
-    };
-  }
-
-  if (event.event_type === "MODEL_TURN_COMPLETED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "agent_action",
-      granularity: "high",
-      title: "Agent response completed",
-      description: "Assistant completed a response turn.",
+      ...evidenceFields,
     };
   }
 
@@ -163,6 +159,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Agent response failed",
       description: `Model turn failed (${errorCode}).`,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -173,6 +170,7 @@ function mapPersistedTraceToTimelineEvent(
       typeof event.payload.email_from === "string"
         ? event.payload.email_from
         : "";
+    const maliciousMarker = event.payload.malicious_marker === true;
     const emailId =
       typeof event.payload.email_id === "string" && event.payload.email_id
         ? ` (id: ${event.payload.email_id})`
@@ -182,31 +180,12 @@ function mapPersistedTraceToTimelineEvent(
       timestamp,
       type: "attacker_action",
       granularity: "high",
-      title: "Email received in inbox",
+      title: maliciousMarker
+        ? "Malicious email received"
+        : "Benign email received",
       description: `Email accepted${emailId}.`,
       details: `From: ${emailFrom}\nSubject: ${subject}`,
-    };
-  }
-
-  if (event.event_type === "RUNTIME_PROVISION_REQUESTED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "system",
-      granularity: "high",
-      title: "Runtime provisioning requested",
-      description: "Control plane requested runtime provisioning.",
-    };
-  }
-
-  if (event.event_type === "RUNTIME_PROVISION_ACCEPTED") {
-    return {
-      id: eventId,
-      timestamp,
-      type: "system",
-      granularity: "high",
-      title: "Runtime provisioning accepted",
-      description: "Runtime was provisioned and accepted.",
+      ...evidenceFields,
     };
   }
 
@@ -223,6 +202,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Runtime provisioning failed",
       description: `Runtime provisioning failed (${reasonCode}).`,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -239,6 +219,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Hint: Use Attack Console",
       description: hintMessage,
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -264,6 +245,7 @@ function mapPersistedTraceToTimelineEvent(
       description: toolName
         ? `${toolName} ${statusWord}`
         : event.event_type.toLowerCase().replaceAll("_", " "),
+      ...evidenceFields,
     };
   }
 
@@ -276,6 +258,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Malicious email entered model context",
       description: "Assistant read learner-injected malicious email content.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -288,6 +271,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Token disclosure attempted",
       description: "Assistant attempted to disclose sensitive token material.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -300,6 +284,7 @@ function mapPersistedTraceToTimelineEvent(
       title: "Token disclosed",
       description: "Sensitive token was exposed during the session.",
       important: true,
+      ...evidenceFields,
     };
   }
 
@@ -311,7 +296,6 @@ export function useSessionData({
 }: UseSessionDataParams): UseSessionDataResult {
   const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
   const [metadataReady, setMetadataReady] = useState(false);
-  const seenFeedbackKeysRef = useRef(new Set<string>());
   const seenTimelineEventIdsRef = useRef(new Set<string>());
   const seenTelemetryLogIdsRef = useRef(new Set<string>());
   const seenInvoiceIdsRef = useRef(new Set<string>());
@@ -529,27 +513,6 @@ export function useSessionData({
     sessionId,
   ]);
 
-  const registerMetadataFeedbackEvents = useCallback(
-    (feedbackItems: SessionFeedbackItem[]) => {
-      for (const item of feedbackItems) {
-        const key = item.id;
-        if (seenFeedbackKeysRef.current.has(key)) continue;
-        seenFeedbackKeysRef.current.add(key);
-        appendTimelineEvent({
-          id: `feedback-item-${key}`,
-          timestamp: item.created_at,
-          type: "explanation",
-          granularity: "high",
-          title: humanizeFeedbackKey(item.feedback_key),
-          description: item.message,
-          details: `${item.severity} · ${item.reason_code}`,
-          important: item.severity === "error",
-        });
-      }
-    },
-    [appendTimelineEvent],
-  );
-
   const refreshSessionMetadata = useCallback(async () => {
     if (!sessionId) return;
 
@@ -570,16 +533,10 @@ export function useSessionData({
       const session = data.session;
       setMetadata(session);
       setMetadataReady(true);
-      const feedbackItems = Array.isArray(session.feedback_items)
-        ? session.feedback_items
-        : Array.isArray(session.feedback)
-          ? session.feedback
-          : [];
-      registerMetadataFeedbackEvents(feedbackItems);
     } catch {
       return;
     }
-  }, [registerMetadataFeedbackEvents, sessionId]);
+  }, [sessionId]);
 
   const registerLearnerFeedbackEvents = useCallback(
     (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
@@ -604,7 +561,6 @@ export function useSessionData({
     seenTimelineEventIdsRef.current.clear();
     seenTelemetryLogIdsRef.current.clear();
     seenInvoiceIdsRef.current.clear();
-    seenFeedbackKeysRef.current.clear();
     lab2TelemetryCursorRef.current = 0;
     setMetadataReady(false);
     void refreshSessionMetadata();
@@ -650,12 +606,12 @@ export function useSessionData({
     };
   }, [appendTelemetryLog, metadata?.lab_id, metadata?.state, sessionId]);
 
-  // Poll metadata while provisioning/active so session transitions and timed hint unlocks
-  // are reflected even if evaluator feedback polling is delayed or unavailable.
+  // Poll persisted metadata + trace so timeline stays sourced from durable annotated
+  // trace events instead of websocket-only transient events.
   useEffect(() => {
     if (!sessionId) return;
     const state = (metadata?.state ?? "").toUpperCase();
-    if (state !== "PROVISIONING" && state !== "ACTIVE") return;
+    if (!["CREATED", "PROVISIONING", "ACTIVE", "IDLE"].includes(state)) return;
 
     let cancelled = false;
     let timeoutId: number | null = null;

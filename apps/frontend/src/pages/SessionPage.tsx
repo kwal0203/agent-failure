@@ -54,7 +54,6 @@ export default function SessionPage() {
     feedbackError,
     feedbackLoading,
     feedbackReady,
-    appendTimelineEvent,
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
     sessionState,
@@ -111,7 +110,6 @@ export default function SessionPage() {
   useSessionStreamIngestion({
     messages,
     ensureRevealLoop,
-    appendTimelineEvent,
     registerLearnerFeedbackEvents,
     activeEntryTsRef,
     pendingBufferRef,
@@ -129,7 +127,6 @@ export default function SessionPage() {
       hints: metadata?.hints,
       unreadHintCount: metadata?.unread_hint_count,
       refreshSessionMetadata,
-      appendTimelineEvent,
     });
   const { feedbackItems, feedbackPanelOpen, onFeedbackChipClick } =
     useFeedbackState({
@@ -166,38 +163,16 @@ export default function SessionPage() {
         },
       );
       if (!response.ok) {
-        appendTimelineEvent({
-          id: `stop-failed-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          type: "system",
-          granularity: "high",
-          title: "Session stop failed",
-          description: `Control plane returned HTTP ${response.status}.`,
-          details:
-            "Retry stopping the session. If this persists, check backend logs.",
-          important: true,
-        });
         return;
       }
       await refreshSessionMetadata();
       navigate("/labs");
     } catch {
-      appendTimelineEvent({
-        id: `stop-error-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: "system",
-        granularity: "high",
-        title: "Session stop request failed",
-        description: "Could not reach control plane.",
-        details:
-          "Retry stopping the session. If this persists, check your network.",
-        important: true,
-      });
+      return;
     } finally {
       setStoppingSession(false);
     }
   }, [
-    appendTimelineEvent,
     canStopSession,
     navigate,
     refreshSessionMetadata,
@@ -454,6 +429,7 @@ export default function SessionPage() {
             }}
           >
             <FeedbackColumn
+              sessionId={sessionId}
               feedbackLoading={feedbackLoading}
               feedbackReady={feedbackReady}
               feedbackError={feedbackError}

@@ -1,38 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EventGranularity, EventType, TimelineEvent } from "../types";
-import { DEMO_H2_STYLE } from "../ui";
+import type {
+  GetSessionReportEvidenceResponse,
+  PutSessionReportEvidenceRequest,
+  TimelineEvent,
+} from "../types";
+import { API_BASE, DEMO_H2_STYLE, getAuthHeader } from "../ui";
 
 type FeedbackColumnProps = {
+  sessionId?: string;
   feedbackLoading: boolean;
   feedbackReady: boolean;
   feedbackError: string | null;
   timelineEvents: TimelineEvent[];
 };
 
-const EVENT_TYPE_FILTERS: Array<{ label: string; value: "all" | EventType }> = [
-  { label: "All", value: "all" },
-  { label: "Important", value: "important" },
-  { label: "Attacker actions", value: "attacker_action" },
-  { label: "Agent actions", value: "agent_action" },
-  { label: "Tool calls", value: "tool_call" },
-  { label: "System", value: "system" },
-  { label: "Learning explanations", value: "explanation" },
-];
-
-const GRANULARITY_FILTERS: Array<{ label: string; value: EventGranularity }> = [
-  { label: "High-level", value: "high" },
-  { label: "Detailed", value: "detailed" },
-  { label: "Full trace", value: "full" },
-];
-
-const EVENT_TYPE_BADGE: Record<EventType, string> = {
-  important: "important",
-  attacker_action: "attacker",
-  agent_action: "agent",
-  tool_call: "tool",
-  system: "system",
-  explanation: "learning",
-};
+function toTraceEventId(timelineEventId: string): string | null {
+  if (!timelineEventId.startsWith("trace-")) return null;
+  const raw = timelineEventId.slice("trace-".length).trim();
+  return raw.length > 0 ? raw : null;
+}
 
 function isTokenExposureEvent(event: TimelineEvent): boolean {
   const haystack =
@@ -42,6 +28,14 @@ function isTokenExposureEvent(event: TimelineEvent): boolean {
     haystack.includes("system_token") ||
     haystack.includes("orch-7429")
   );
+}
+
+function isMaliciousEmailReceivedEvent(event: TimelineEvent): boolean {
+  return event.title.toLowerCase() === "malicious email received";
+}
+
+function isBenignEmailReceivedEvent(event: TimelineEvent): boolean {
+  return event.title.toLowerCase() === "benign email received";
 }
 
 function eventTone(event: TimelineEvent): {
@@ -56,6 +50,24 @@ function eventTone(event: TimelineEvent): {
       background: "rgba(93, 21, 21, 0.35)",
       titleColor: "#ffd7d7",
       bodyColor: "#ffe9e9",
+    };
+  }
+
+  if (isMaliciousEmailReceivedEvent(event)) {
+    return {
+      border: "1px solid #cf513f",
+      background: "rgba(98, 31, 22, 0.36)",
+      titleColor: "#ffe0da",
+      bodyColor: "#ffece7",
+    };
+  }
+
+  if (isBenignEmailReceivedEvent(event)) {
+    return {
+      border: "1px solid #4e9d74",
+      background: "rgba(25, 75, 52, 0.34)",
+      titleColor: "#dbffe9",
+      bodyColor: "#ebfff3",
     };
   }
 
@@ -112,40 +124,22 @@ function eventTone(event: TimelineEvent): {
   }
 }
 
-function formatTimestamp(isoTs: string): string {
-  const date = new Date(isoTs);
-  if (Number.isNaN(date.getTime())) return isoTs;
-  return date.toLocaleTimeString();
-}
-
 export function FeedbackColumn({
+  sessionId,
   feedbackLoading,
   feedbackReady,
   feedbackError,
   timelineEvents,
 }: FeedbackColumnProps) {
-  const [selectedType, setSelectedType] = useState<"all" | EventType>("all");
-  const [selectedGranularity, setSelectedGranularity] =
-    useState<EventGranularity>("high");
-  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
-  const [granularityMenuOpen, setGranularityMenuOpen] = useState(false);
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const controlsRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (controlsRef.current?.contains(target)) return;
-      setTypeMenuOpen(false);
-      setGranularityMenuOpen(false);
-    };
-
-    window.addEventListener("mousedown", onPointerDown);
-    return () => {
-      window.removeEventListener("mousedown", onPointerDown);
-    };
-  }, []);
-
+  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
+  const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const preselectionAppliedRef = useRef(false);
   const sortedEvents = useMemo(
     () =>
       [...timelineEvents].sort(
@@ -155,20 +149,169 @@ export function FeedbackColumn({
     [timelineEvents],
   );
 
-  const filteredEvents = useMemo(
-    () =>
-      sortedEvents.filter(
-        (event) => selectedType === "all" || event.type === selectedType,
-      ),
-    [sortedEvents, selectedType],
-  );
+  useEffect(() => {
+    void sessionId;
+    setSelectedEventIds(new Set());
+    setPreselectedTraceEventIds(new Set());
+    setHasHydratedSelection(false);
+    preselectionAppliedRef.current = false;
+  }, [sessionId]);
 
-  const selectedTypeLabel =
-    EVENT_TYPE_FILTERS.find((filter) => filter.value === selectedType)?.label ??
-    "All";
-  const selectedGranularityLabel =
-    GRANULARITY_FILTERS.find((filter) => filter.value === selectedGranularity)
-      ?.label ?? "Detailed";
+  useEffect(() => {
+    if (!sessionId) {
+      setHasHydratedSelection(true);
+      return;
+    }
+
+    let cancelled = false;
+    const loadSelection = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: getAuthHeader(),
+              "Content-Type": "application/json",
+            },
+          },
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data =
+          (await response.json()) as GetSessionReportEvidenceResponse;
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (cancelled) return;
+        setPreselectedTraceEventIds(
+          new Set(
+            items
+              .map((item) => item.event_id)
+              .filter((eventId): eventId is string => !!eventId),
+          ),
+        );
+        preselectionAppliedRef.current = false;
+      } finally {
+        if (!cancelled) {
+          setHasHydratedSelection(true);
+        }
+      }
+    };
+    void loadSelection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!hasHydratedSelection) return;
+    if (preselectionAppliedRef.current) return;
+    if (sortedEvents.length === 0) return;
+
+    const selectedFromServer = new Set<string>();
+    for (const event of sortedEvents) {
+      if (event.report_selectable !== true) continue;
+      const traceEventId = toTraceEventId(event.id);
+      if (!traceEventId) continue;
+      if (preselectedTraceEventIds.has(traceEventId)) {
+        selectedFromServer.add(event.id);
+      }
+    }
+    setSelectedEventIds(selectedFromServer);
+    preselectionAppliedRef.current = true;
+  }, [hasHydratedSelection, preselectedTraceEventIds, sortedEvents]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (!hasHydratedSelection) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const selectedItems = sortedEvents.filter(
+        (event) =>
+          event.report_selectable === true && selectedEventIds.has(event.id),
+      );
+      const requestBody: PutSessionReportEvidenceRequest = {
+        items: selectedItems
+          .map((event, index) => {
+            const eventId = toTraceEventId(event.id);
+            if (!eventId) return null;
+            return {
+              event_id: eventId,
+              position: index,
+              title: event.title,
+              description: event.description,
+              details: null,
+              occurred_at: event.timestamp,
+              trace_version: 1,
+              event_index: index,
+              evidence_type: event.evidence_type ?? "noise",
+              objective_keys: event.objective_keys ?? [],
+              why_it_matters: event.why_it_matters ?? null,
+              default_priority: event.default_priority ?? "low",
+              citation_label: null,
+              objective_mapping: null,
+              evidence_strength: null,
+              student_note: null,
+            };
+          })
+          .filter((item) => item !== null),
+      };
+
+      void fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`, {
+        method: "PUT",
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasHydratedSelection, selectedEventIds, sessionId, sortedEvents]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (controlsRef.current?.contains(target)) return;
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const knownIds = new Set(sortedEvents.map((event) => event.id));
+    setSelectedEventIds((prev) => {
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (knownIds.has(id)) {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  }, [sortedEvents]);
+
+  const selectedCount = selectedEventIds.size;
+
+  const toggleEventSelection = (eventId: string) => {
+    setSelectedEventIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  };
 
   return (
     <section
@@ -213,98 +356,101 @@ export function FeedbackColumn({
       >
         {!feedbackReady ? (
           <p style={{ margin: 0, opacity: 0.85 }} />
-        ) : filteredEvents.length === 0 ? (
-          <p style={{ margin: 0, opacity: 0.85 }}>
-            No events for current filters.
-          </p>
+        ) : sortedEvents.length === 0 ? (
+          <p style={{ margin: 0, opacity: 0.85 }}>No events to display.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filteredEvents.map((event, index) => {
+            {sortedEvents.map((event, index) => {
               const tone = eventTone(event);
-              return (
+              const isSelected = selectedEventIds.has(event.id);
+              const isSelectable = event.report_selectable === true;
+              const chipStyle = {
+                border: tone.border,
+                background: tone.background,
+                borderRadius: 8,
+                padding: 10,
+                opacity: 0,
+                transform: "translateY(4px)",
+                animationName: "timelineEventIn",
+                animationDuration: "330ms",
+                animationTimingFunction: "ease-out",
+                animationFillMode: "forwards",
+                animationDelay: `${Math.min(index, 8) * 36}ms`,
+                boxShadow: isSelected
+                  ? "0 0 0 1px rgba(255, 255, 255, 0.12)"
+                  : undefined,
+                filter: isSelected ? "brightness(1.08)" : undefined,
+                cursor: isSelectable ? "pointer" : "default",
+              } as const;
+              const chipBody = (
                 <div
-                  key={event.id}
                   style={{
-                    border: tone.border,
-                    background: tone.background,
-                    borderRadius: 8,
-                    padding: 10,
-                    opacity: 0,
-                    transform: "translateY(4px)",
-                    animationName: "timelineEventIn",
-                    animationDuration: "330ms",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${Math.min(index, 8) * 36}ms`,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 0,
+                    alignItems: "flex-start",
+                    position: "relative",
                   }}
                 >
-                  <div
+                  {isSelected ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: -4,
+                        right: -2,
+                        width: 16,
+                        height: 16,
+                        borderRadius: "999px",
+                        background: "rgba(210, 235, 255, 0.95)",
+                        color: "#1f5f85",
+                        fontSize: 11,
+                        lineHeight: "16px",
+                        textAlign: "center",
+                        fontWeight: 700,
+                        boxShadow: "0 0 0 1px rgba(17, 24, 39, 0.35)",
+                      }}
+                    >
+                      ✓
+                    </span>
+                  ) : null}
+                  <p
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                      alignItems: "flex-start",
+                      margin: 0,
+                      fontWeight: 600,
+                      color: tone.titleColor,
                     }}
                   >
-                    <p
-                      style={{
-                        margin: 0,
-                        fontWeight: 600,
-                        color: tone.titleColor,
-                      }}
-                    >
-                      {event.title}
-                    </p>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        gap: 6,
-                        alignItems: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 11,
-                          lineHeight: 1,
-                          border: "1px solid rgba(255, 255, 255, 0.35)",
-                          borderRadius: 999,
-                          padding: "2px 7px",
-                          color: tone.bodyColor,
-                          opacity: 0.95,
-                        }}
-                      >
-                        {EVENT_TYPE_BADGE[event.type]}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          opacity: 0.9,
-                          color: tone.bodyColor,
-                        }}
-                      >
-                        {formatTimestamp(event.timestamp)}
-                      </span>
-                    </div>
-                  </div>
-                  {selectedGranularity !== "high" ? (
-                    <p
-                      style={{
-                        margin: "6px 0 0 0",
-                        fontSize: 13,
-                        color: tone.bodyColor,
-                      }}
-                    >
-                      {event.description}
-                    </p>
-                  ) : null}
-                  {selectedGranularity === "full" && event.details ? (
-                    <details style={{ marginTop: 6, color: tone.bodyColor }}>
-                      <summary>Details</summary>
-                      <p style={{ margin: "6px 0 0 0", fontSize: 13 }}>
-                        {event.details}
-                      </p>
-                    </details>
-                  ) : null}
+                    {event.title}
+                  </p>
+                </div>
+              );
+
+              if (isSelectable) {
+                return (
+                  <button
+                    key={event.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      toggleEventSelection(event.id);
+                    }}
+                    style={{
+                      ...chipStyle,
+                      borderWidth: 1,
+                      borderStyle: "solid",
+                      textAlign: "left",
+                      width: "100%",
+                    }}
+                  >
+                    {chipBody}
+                  </button>
+                );
+              }
+
+              return (
+                <div key={event.id} style={chipStyle}>
+                  {chipBody}
                 </div>
               );
             })}
@@ -349,153 +495,9 @@ export function FeedbackColumn({
           position: "relative",
         }}
       >
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Event type</span>
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={typeMenuOpen}
-              onClick={() => {
-                setTypeMenuOpen((prev) => !prev);
-                setGranularityMenuOpen(false);
-              }}
-              style={{
-                padding: "4px 10px",
-                fontSize: 12,
-                borderRadius: 999,
-                border: "1px solid #4ea4d9",
-                background: "rgba(26, 76, 107, 0.55)",
-                color: "#d6f1ff",
-                cursor: "pointer",
-              }}
-            >
-              {selectedTypeLabel} ▾
-            </button>
-            {typeMenuOpen ? (
-              <div
-                role="menu"
-                style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 6px)",
-                  left: 0,
-                  zIndex: 5,
-                  minWidth: 180,
-                  border: "1px solid #7f93a6",
-                  borderRadius: 8,
-                  background: "#ffffff",
-                  boxShadow: "0 8px 24px rgba(6, 24, 39, 0.18)",
-                  padding: 6,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                {EVENT_TYPE_FILTERS.map((filter) => {
-                  const isActive = selectedType === filter.value;
-                  return (
-                    <button
-                      key={filter.value}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      onClick={() => {
-                        setSelectedType(filter.value);
-                        setTypeMenuOpen(false);
-                      }}
-                      style={{
-                        textAlign: "left",
-                        padding: "6px 8px",
-                        borderRadius: 6,
-                        border: "1px solid transparent",
-                        background: isActive ? "#e8f4ff" : "#ffffff",
-                        color: "#203040",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      {filter.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Granularity</span>
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={granularityMenuOpen}
-              onClick={() => {
-                setGranularityMenuOpen((prev) => !prev);
-                setTypeMenuOpen(false);
-              }}
-              style={{
-                padding: "4px 10px",
-                fontSize: 12,
-                borderRadius: 999,
-                border: "1px solid #4ea4d9",
-                background: "rgba(26, 76, 107, 0.55)",
-                color: "#d6f1ff",
-                cursor: "pointer",
-              }}
-            >
-              {selectedGranularityLabel} ▾
-            </button>
-            {granularityMenuOpen ? (
-              <div
-                role="menu"
-                style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 6px)",
-                  left: 0,
-                  zIndex: 5,
-                  minWidth: 150,
-                  border: "1px solid #7f93a6",
-                  borderRadius: 8,
-                  background: "#ffffff",
-                  boxShadow: "0 8px 24px rgba(6, 24, 39, 0.18)",
-                  padding: 6,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                {GRANULARITY_FILTERS.map((filter) => {
-                  const isActive = selectedGranularity === filter.value;
-                  return (
-                    <button
-                      key={filter.value}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      onClick={() => {
-                        setSelectedGranularity(filter.value);
-                        setGranularityMenuOpen(false);
-                      }}
-                      style={{
-                        textAlign: "left",
-                        padding: "6px 8px",
-                        borderRadius: 6,
-                        border: "1px solid transparent",
-                        background: isActive ? "#e8f4ff" : "#ffffff",
-                        color: "#203040",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      {filter.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <span style={{ fontWeight: 600, fontSize: 13, color: "#d6f1ff" }}>
+          Selected: {selectedCount}
+        </span>
       </div>
     </section>
   );

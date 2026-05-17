@@ -45,11 +45,67 @@ export type SessionTraceEvent = {
   source: string;
   occurred_at: string;
   payload: Record<string, unknown>;
+  report_selectable: boolean;
+  evidence_type:
+    | "exploit_step"
+    | "exploit_outcome"
+    | "system_context"
+    | "coaching_feedback"
+    | "noise";
+  objective_keys: string[];
+  why_it_matters: string | null;
+  default_priority: "high" | "medium" | "low";
 };
 
 export type GetSessionTraceResponse = {
   events: SessionTraceEvent[];
   next_cursor?: string | null;
+};
+
+export type ReportEvidenceItem = {
+  event_id: string;
+  position: number;
+  title: string;
+  description: string | null;
+  details: Record<string, unknown> | null;
+  occurred_at: string;
+  trace_version: number;
+  event_index: number;
+  evidence_type:
+    | "exploit_step"
+    | "exploit_outcome"
+    | "system_context"
+    | "coaching_feedback"
+    | "noise";
+  objective_keys: string[];
+  why_it_matters: string | null;
+  default_priority: "high" | "medium" | "low";
+  citation_label: string | null;
+  objective_mapping: ObjectiveMappingItem[] | null;
+  evidence_strength: "high" | "medium" | "low" | null;
+  student_note: string | null;
+};
+
+export type ObjectiveMappingItem = {
+  objective_key: string;
+  label: string;
+  rubric_target: string;
+};
+
+export type GetSessionReportEvidenceResponse = {
+  items: ReportEvidenceItem[];
+};
+
+export type PutSessionReportEvidenceRequest = {
+  items: ReportEvidenceItem[];
+};
+
+export type ImportSelectedEvidenceRequest = {
+  event_ids?: string[] | null;
+};
+
+export type ImportSelectedEvidenceResponse = {
+  items: ReportEvidenceItem[];
 };
 
 export type SessionProgressChipResponse = {

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from collections.abc import Sequence
+from typing import Literal
 
 from apps.contracts.src.schemas import (
     EvaluatorFeedbackResponse,
@@ -11,12 +12,110 @@ from apps.contracts.src.schemas import (
     SessionRuntimeFileResponse,
     GetSessionTraceResponse,
     SessionTraceEvent,
+    GetSessionReportEvidenceResponse,
+    ObjectiveMappingItem,
+    ReportEvidenceItem,
 )
 from apps.control_plane.src.application.evaluator_feedback.types import (
     LearnerEvaluatorFeedback,
 )
 from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
 from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.session_report_evidence.types import (
+    ReportEvidenceProjection,
+    SessionReportEvidenceItemInput,
+    SessionReportEvidenceRow,
+)
+from apps.control_plane.src.application.session_report_evidence.service import (
+    project_report_evidence,
+)
+
+EvidenceType = Literal[
+    "exploit_step",
+    "exploit_outcome",
+    "system_context",
+    "coaching_feedback",
+    "noise",
+]
+EvidencePriority = Literal["high", "medium", "low"]
+
+
+def _trace_evidence_annotation(
+    *, event_type: str
+) -> tuple[bool, EvidenceType, list[str], str | None, EvidencePriority]:
+    if event_type == "MALICIOUS_EMAIL_READ":
+        return (
+            True,
+            "exploit_step",
+            ["lab1.malicious_content_in_context"],
+            "This shows attacker-controlled content entered the model context.",
+            "high",
+        )
+    if event_type == "TOKEN_DISCLOSURE_ATTEMPTED":
+        return (
+            True,
+            "exploit_step",
+            ["lab1.token_disclosure_attempt"],
+            "This shows the assistant attempted to disclose sensitive token material.",
+            "high",
+        )
+    if event_type == "TOKEN_DISCLOSED":
+        return (
+            True,
+            "exploit_outcome",
+            ["lab1.token_disclosed"],
+            "This is direct exploit evidence: the sensitive token was disclosed.",
+            "high",
+        )
+    if event_type == "ATTACK_EMAIL_SENT":
+        return (
+            True,
+            "exploit_step",
+            ["lab1.attack_delivery"],
+            "This records attacker message delivery into the target inbox.",
+            "medium",
+        )
+    if event_type in {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"}:
+        return (
+            True,
+            "system_context",
+            [],
+            "This captures an action boundary crossing attempt or tool execution result.",
+            "medium",
+        )
+    if event_type in {
+        "MODEL_TURN_FAILED",
+        "RUNTIME_PROVISION_FAILED",
+    }:
+        return (
+            True,
+            "system_context",
+            [],
+            "This error event helps explain blocked progression or session instability.",
+            "medium",
+        )
+    if event_type in {
+        "SESSION_CREATED",
+        "RUNTIME_PROVISION_REQUESTED",
+        "RUNTIME_PROVISION_ACCEPTED",
+        "MODEL_TURN_COMPLETED",
+    }:
+        return (
+            False,
+            "noise",
+            [],
+            None,
+            "low",
+        )
+    if event_type == "TRY_ATTACK_CONSOLE_HINT":
+        return (
+            False,
+            "coaching_feedback",
+            [],
+            "This is coaching guidance, not execution evidence.",
+            "low",
+        )
+    return (False, "noise", [], None, "low")
 
 
 def map_session_metadata_response(
@@ -119,8 +218,16 @@ def map_evaluator_feedback_response(
 
 
 def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceResponse:
-    return GetSessionTraceResponse(
-        events=tuple(
+    mapped_events: list[SessionTraceEvent] = []
+    for event in events:
+        (
+            report_selectable,
+            evidence_type,
+            objective_keys,
+            why_it_matters,
+            default_priority,
+        ) = _trace_evidence_annotation(event_type=event.event_type)
+        mapped_events.append(
             SessionTraceEvent(
                 id=event.event_id,
                 event_index=event.event_index,
@@ -129,7 +236,77 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
                 source=event.source,
                 occurred_at=event.occurred_at,
                 payload=dict(event.payload),
+                report_selectable=report_selectable,
+                evidence_type=evidence_type,
+                objective_keys=objective_keys,
+                why_it_matters=why_it_matters,
+                default_priority=default_priority,
             )
-            for event in events
         )
+
+    return GetSessionTraceResponse(events=tuple(mapped_events))
+
+
+def map_session_report_evidence_response(
+    rows: Sequence[SessionReportEvidenceRow],
+) -> GetSessionReportEvidenceResponse:
+    projections = project_report_evidence(rows)
+    return map_report_evidence_projection_response(projections)
+
+
+def map_report_evidence_projection_response(
+    items: Sequence[ReportEvidenceProjection],
+) -> GetSessionReportEvidenceResponse:
+    return GetSessionReportEvidenceResponse(
+        items=tuple(
+            ReportEvidenceItem(
+                event_id=item.event_id,
+                position=item.position,
+                title=item.title,
+                description=item.description,
+                details=item.details,
+                occurred_at=item.occurred_at,
+                trace_version=item.trace_version,
+                event_index=item.event_index,
+                evidence_type=item.evidence_type,
+                objective_keys=item.objective_keys,
+                why_it_matters=item.why_it_matters,
+                default_priority=item.default_priority,
+                citation_label=item.citation_label,
+                objective_mapping=tuple(
+                    ObjectiveMappingItem(
+                        objective_key=mapped.objective_key,
+                        label=mapped.label,
+                        rubric_target=mapped.rubric_target,
+                    )
+                    for mapped in item.objective_mapping
+                ),
+                evidence_strength=item.evidence_strength,
+                student_note=item.student_note,
+            )
+            for item in items
+        )
+    )
+
+
+def map_report_evidence_items_to_inputs(
+    items: Sequence[ReportEvidenceItem],
+) -> tuple[SessionReportEvidenceItemInput, ...]:
+    return tuple(
+        SessionReportEvidenceItemInput(
+            event_id=item.event_id,
+            position=item.position,
+            title=item.title,
+            description=item.description,
+            details=item.details,
+            occurred_at=item.occurred_at,
+            trace_version=item.trace_version,
+            event_index=item.event_index,
+            evidence_type=item.evidence_type,
+            objective_keys=tuple(item.objective_keys),
+            why_it_matters=item.why_it_matters,
+            default_priority=item.default_priority,
+            student_note=item.student_note,
+        )
+        for item in items
     )

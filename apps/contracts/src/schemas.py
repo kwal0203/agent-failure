@@ -323,6 +323,14 @@ class SessionEvaluateRequestedPayload(BaseModel):
 EvaluatorFeedbackStatusType = Literal[
     "learned", "progress", "no_progress", "session_terminal"
 ]
+TraceEvidenceType = Literal[
+    "exploit_step",
+    "exploit_outcome",
+    "system_context",
+    "coaching_feedback",
+    "noise",
+]
+TraceEvidencePriority = Literal["high", "medium", "low"]
 
 
 class LabCapabilitiesResponse(BaseModel):
@@ -360,11 +368,57 @@ class SessionTraceEvent(BaseModel):
     source: str
     occurred_at: datetime
     payload: dict[str, Any]
+    report_selectable: bool = False
+    evidence_type: TraceEvidenceType = "noise"
+    objective_keys: list[str] = Field(default_factory=list)
+    why_it_matters: str | None = None
+    default_priority: TraceEvidencePriority = "low"
 
 
 class GetSessionTraceResponse(BaseModel):
     events: tuple[SessionTraceEvent, ...]
     next_cursor: str | None = None
+
+
+class ReportEvidenceItem(BaseModel):
+    event_id: UUID
+    position: int
+    title: str
+    description: str | None = None
+    details: dict[str, Any] | None = None
+    occurred_at: datetime
+    trace_version: int = 1
+    event_index: int
+    evidence_type: TraceEvidenceType
+    objective_keys: tuple[str, ...] = ()
+    why_it_matters: str | None = None
+    default_priority: TraceEvidencePriority
+    citation_label: str | None = None
+    objective_mapping: tuple["ObjectiveMappingItem", ...] | None = None
+    evidence_strength: TraceEvidencePriority | None = None
+    student_note: str | None = None
+
+
+class ObjectiveMappingItem(BaseModel):
+    objective_key: str
+    label: str
+    rubric_target: str
+
+
+class GetSessionReportEvidenceResponse(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class PutSessionReportEvidenceRequest(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class ImportSelectedEvidenceRequest(BaseModel):
+    event_ids: tuple[UUID, ...] | None = None
+
+
+class ImportSelectedEvidenceResponse(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
 
 
 class SessionProgressChipResponse(BaseModel):

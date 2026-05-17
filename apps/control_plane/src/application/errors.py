@@ -38,6 +38,11 @@ from apps.control_plane.src.application.session_lifecycle.errors import (
 from apps.control_plane.src.application.session_query.errors import (
     ForbiddenErrorSessionQuery,
 )
+from apps.control_plane.src.application.session_report_evidence.errors import (
+    ForbiddenErrorSessionReportEvidence,
+    InvalidSessionReportEvidenceError,
+    SessionNotFoundErrorSessionReportEvidence,
+)
 
 __all__ = [
     "AdmissionDecisionError",
@@ -47,9 +52,11 @@ __all__ = [
     "ForbiddenErrorSessionFeedback",
     "ForbiddenErrorSessionHints",
     "ForbiddenErrorSessionQuery",
+    "ForbiddenErrorSessionReportEvidence",
     "InvalidIdempotencyKeyError",
     "InvalidLabDifficulty",
     "InvalidLearnerExplanationError",
+    "InvalidSessionReportEvidenceError",
     "InvalidTransition",
     "LabNotAvailableError",
     "QuotaExceededError",
@@ -60,4 +67,5 @@ __all__ = [
     "SessionNotFound",
     "SessionNotFoundErrorSessionFeedback",
     "SessionNotFoundErrorSessionHints",
+    "SessionNotFoundErrorSessionReportEvidence",
 ]
