@@ -74,6 +74,8 @@ jobs:
           fi
 
           echo "cp=${cp_digest}" >> "$GITHUB_OUTPUT"
+          cp_sanitized="${cp_digest//:/-}"
+          echo "cp_sanitized=${cp_sanitized}" >> "$GITHUB_OUTPUT"
           echo "runtime_ref=${runtime_ref}" >> "$GITHUB_OUTPUT"
           echo "runtime_base=${runtime_base}" >> "$GITHUB_OUTPUT"
           echo "runtime_digest=${runtime_digest}" >> "$GITHUB_OUTPUT"
@@ -130,7 +132,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           base: main
-          branch: automation/cd-production-${{ steps.staged.outputs.cp }}
+          branch: automation/cd-production-${{ steps.staged.outputs.cp_sanitized }}
           delete-branch: true
           title: "cd(production): promote digests from staging"
           body: |
