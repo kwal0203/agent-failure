@@ -12,12 +12,18 @@ from apps.contracts.src.schemas import (
     SessionRuntimeFileResponse,
     GetSessionTraceResponse,
     SessionTraceEvent,
+    GetSessionReportEvidenceResponse,
+    ReportEvidenceItem,
 )
 from apps.control_plane.src.application.evaluator_feedback.types import (
     LearnerEvaluatorFeedback,
 )
 from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
 from apps.control_plane.src.application.trace.types import TraceEvent
+from apps.control_plane.src.application.session_report_evidence.types import (
+    SessionReportEvidenceItemInput,
+    SessionReportEvidenceRow,
+)
 
 EvidenceType = Literal[
     "exploit_step",
@@ -234,3 +240,45 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
         )
 
     return GetSessionTraceResponse(events=tuple(mapped_events))
+
+
+def map_session_report_evidence_response(
+    rows: Sequence[SessionReportEvidenceRow],
+) -> GetSessionReportEvidenceResponse:
+    return GetSessionReportEvidenceResponse(
+        items=tuple(
+            ReportEvidenceItem(
+                event_id=row.event_id,
+                position=row.position,
+                title=row.title,
+                description=row.description,
+                occurred_at=row.occurred_at,
+                evidence_type=row.evidence_type,
+                objective_keys=row.objective_keys,
+                why_it_matters=row.why_it_matters,
+                default_priority=row.default_priority,
+                student_note=row.student_note,
+            )
+            for row in rows
+        )
+    )
+
+
+def map_report_evidence_items_to_inputs(
+    items: Sequence[ReportEvidenceItem],
+) -> tuple[SessionReportEvidenceItemInput, ...]:
+    return tuple(
+        SessionReportEvidenceItemInput(
+            event_id=item.event_id,
+            position=item.position,
+            title=item.title,
+            description=item.description,
+            occurred_at=item.occurred_at,
+            evidence_type=item.evidence_type,
+            objective_keys=tuple(item.objective_keys),
+            why_it_matters=item.why_it_matters,
+            default_priority=item.default_priority,
+            student_note=item.student_note,
+        )
+        for item in items
+    )

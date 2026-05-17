@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { TimelineEvent } from "../types";
-import { DEMO_H2_STYLE } from "../ui";
+import type {
+  GetSessionReportEvidenceResponse,
+  PutSessionReportEvidenceRequest,
+  TimelineEvent,
+} from "../types";
+import { API_BASE, DEMO_H2_STYLE, getAuthHeader } from "../ui";
 
 type FeedbackColumnProps = {
+  sessionId?: string;
   feedbackLoading: boolean;
   feedbackReady: boolean;
   feedbackError: string | null;
   timelineEvents: TimelineEvent[];
 };
+
+function toTraceEventId(timelineEventId: string): string | null {
+  if (!timelineEventId.startsWith("trace-")) return null;
+  const raw = timelineEventId.slice("trace-".length).trim();
+  return raw.length > 0 ? raw : null;
+}
 
 function isTokenExposureEvent(event: TimelineEvent): boolean {
   const haystack =
@@ -114,6 +125,7 @@ function eventTone(event: TimelineEvent): {
 }
 
 export function FeedbackColumn({
+  sessionId,
   feedbackLoading,
   feedbackReady,
   feedbackError,
@@ -123,6 +135,137 @@ export function FeedbackColumn({
     () => new Set(),
   );
   const controlsRef = useRef<HTMLDivElement | null>(null);
+  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
+  const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const preselectionAppliedRef = useRef(false);
+  const sortedEvents = useMemo(
+    () =>
+      [...timelineEvents].sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      ),
+    [timelineEvents],
+  );
+
+  useEffect(() => {
+    void sessionId;
+    setSelectedEventIds(new Set());
+    setPreselectedTraceEventIds(new Set());
+    setHasHydratedSelection(false);
+    preselectionAppliedRef.current = false;
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setHasHydratedSelection(true);
+      return;
+    }
+
+    let cancelled = false;
+    const loadSelection = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: getAuthHeader(),
+              "Content-Type": "application/json",
+            },
+          },
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data =
+          (await response.json()) as GetSessionReportEvidenceResponse;
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (cancelled) return;
+        setPreselectedTraceEventIds(
+          new Set(
+            items
+              .map((item) => item.event_id)
+              .filter((eventId): eventId is string => !!eventId),
+          ),
+        );
+        preselectionAppliedRef.current = false;
+      } finally {
+        if (!cancelled) {
+          setHasHydratedSelection(true);
+        }
+      }
+    };
+    void loadSelection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!hasHydratedSelection) return;
+    if (preselectionAppliedRef.current) return;
+    if (sortedEvents.length === 0) return;
+
+    const selectedFromServer = new Set<string>();
+    for (const event of sortedEvents) {
+      if (event.report_selectable !== true) continue;
+      const traceEventId = toTraceEventId(event.id);
+      if (!traceEventId) continue;
+      if (preselectedTraceEventIds.has(traceEventId)) {
+        selectedFromServer.add(event.id);
+      }
+    }
+    setSelectedEventIds(selectedFromServer);
+    preselectionAppliedRef.current = true;
+  }, [hasHydratedSelection, preselectedTraceEventIds, sortedEvents]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (!hasHydratedSelection) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const selectedItems = sortedEvents.filter(
+        (event) =>
+          event.report_selectable === true && selectedEventIds.has(event.id),
+      );
+      const requestBody: PutSessionReportEvidenceRequest = {
+        items: selectedItems
+          .map((event, index) => {
+            const eventId = toTraceEventId(event.id);
+            if (!eventId) return null;
+            return {
+              event_id: eventId,
+              position: index,
+              title: event.title,
+              description: event.description,
+              occurred_at: event.timestamp,
+              evidence_type: event.evidence_type ?? "noise",
+              objective_keys: event.objective_keys ?? [],
+              why_it_matters: event.why_it_matters ?? null,
+              default_priority: event.default_priority ?? "low",
+              student_note: null,
+            };
+          })
+          .filter((item) => item !== null),
+      };
+
+      void fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`, {
+        method: "PUT",
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasHydratedSelection, selectedEventIds, sessionId, sortedEvents]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -136,15 +279,6 @@ export function FeedbackColumn({
       window.removeEventListener("mousedown", onPointerDown);
     };
   }, []);
-
-  const sortedEvents = useMemo(
-    () =>
-      [...timelineEvents].sort(
-        (a, b) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-      ),
-    [timelineEvents],
-  );
 
   useEffect(() => {
     const knownIds = new Set(sortedEvents.map((event) => event.id));

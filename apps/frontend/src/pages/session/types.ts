@@ -1,7 +1,10 @@
 import type {
   GetFeedbackResponse,
   GetSessionMetadataResponse,
+  GetSessionReportEvidenceResponse,
   GetSessionTraceResponse,
+  PutSessionReportEvidenceRequest,
+  ReportEvidenceItem,
   SessionCompletionStatus,
   SessionFeedbackResponse,
   SessionHintResponse,
@@ -13,7 +16,10 @@ import type {
 
 export type {
   GetSessionMetadataResponse,
+  GetSessionReportEvidenceResponse,
   GetSessionTraceResponse,
+  PutSessionReportEvidenceRequest,
+  ReportEvidenceItem,
   SessionCompletionStatus,
   SessionTraceEvent,
 };

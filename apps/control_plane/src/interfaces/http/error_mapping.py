@@ -13,9 +13,11 @@ from apps.control_plane.src.application.errors import (
     ForbiddenErrorSessionFeedback,
     ForbiddenErrorSessionHints,
     ForbiddenErrorSessionQuery,
+    ForbiddenErrorSessionReportEvidence,
     InvalidIdempotencyKeyError,
     InvalidLabDifficulty,
     InvalidLearnerExplanationError,
+    InvalidSessionReportEvidenceError,
     InvalidTransition,
     LabNotAvailableError,
     QuotaExceededError,
@@ -25,6 +27,7 @@ from apps.control_plane.src.application.errors import (
     SessionExplanationPolicyError,
     SessionNotFoundErrorSessionFeedback,
     SessionNotFoundErrorSessionHints,
+    SessionNotFoundErrorSessionReportEvidence,
 )
 from apps.control_plane.src.interfaces.http.errors import (
     api_error,
@@ -38,7 +41,14 @@ def map_exception_to_http_response(
 ) -> JSONResponse | None:
     if isinstance(exc, (ForbiddenError, ForbiddenErrorSessionQuery)):
         return forbidden(exc.message, exc.details)
-    if isinstance(exc, (ForbiddenErrorSessionHints, ForbiddenErrorSessionFeedback)):
+    if isinstance(
+        exc,
+        (
+            ForbiddenErrorSessionHints,
+            ForbiddenErrorSessionFeedback,
+            ForbiddenErrorSessionReportEvidence,
+        ),
+    ):
         return forbidden(exc.message, exc.details)
 
     if isinstance(exc, LabNotAvailableError):
@@ -112,7 +122,12 @@ def map_exception_to_http_response(
             details=details,
         )
     if isinstance(
-        exc, (SessionNotFoundErrorSessionHints, SessionNotFoundErrorSessionFeedback)
+        exc,
+        (
+            SessionNotFoundErrorSessionHints,
+            SessionNotFoundErrorSessionFeedback,
+            SessionNotFoundErrorSessionReportEvidence,
+        ),
     ):
         missing_details: dict[str, object] = {"exists": False}
         if session_id is not None:
@@ -130,6 +145,14 @@ def map_exception_to_http_response(
             message=exc.message,
             retryable=exc.retryable,
             status_code=exc.status_code,
+            details=exc.details,
+        )
+    if isinstance(exc, InvalidSessionReportEvidenceError):
+        return api_error(
+            code="INVALID_REPORT_EVIDENCE",
+            message=exc.message,
+            retryable=False,
+            status_code=400,
             details=exc.details,
         )
     if isinstance(exc, RuntimeClientError):
