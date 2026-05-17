@@ -131,6 +131,7 @@ jobs:
       - name: Open PR for production manifest promotion
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.PR_CREATOR_TOKEN }}
           base: main
           branch: automation/cd-production-${{ steps.staged.outputs.cp_sanitized }}
           delete-branch: true
