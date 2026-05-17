@@ -321,6 +321,59 @@ class TraceEventModel(Base):
     )
 
 
+class SessionReportEvidenceModel(Base):
+    __tablename__ = "session_report_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "event_id",
+            name="uq_session_report_evidence_session_id_event_id",
+        ),
+        CheckConstraint(
+            "evidence_type IN ('exploit_step', 'exploit_outcome', 'system_context', 'coaching_feedback', 'noise')",
+            name="ck_session_report_evidence_type",
+        ),
+        CheckConstraint(
+            "default_priority IN ('high', 'medium', 'low')",
+            name="ck_session_report_evidence_default_priority",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    event_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    evidence_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    objective_keys: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    why_it_matters: Mapped[str | None] = mapped_column(Text, nullable=True)
+    default_priority: Mapped[str] = mapped_column(String(16), nullable=False)
+    student_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ClassCodeModel(Base):
     __tablename__ = "class_codes"
     __table_args__ = (

@@ -62,6 +62,32 @@ export type GetSessionTraceResponse = {
   next_cursor?: string | null;
 };
 
+export type ReportEvidenceItem = {
+  event_id: string;
+  position: number;
+  title: string;
+  description: string | null;
+  occurred_at: string;
+  evidence_type:
+    | "exploit_step"
+    | "exploit_outcome"
+    | "system_context"
+    | "coaching_feedback"
+    | "noise";
+  objective_keys: string[];
+  why_it_matters: string | null;
+  default_priority: "high" | "medium" | "low";
+  student_note: string | null;
+};
+
+export type GetSessionReportEvidenceResponse = {
+  items: ReportEvidenceItem[];
+};
+
+export type PutSessionReportEvidenceRequest = {
+  items: ReportEvidenceItem[];
+};
+
 export type SessionProgressChipResponse = {
   objective_key: string;
   label: string;

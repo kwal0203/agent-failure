@@ -380,6 +380,27 @@ class GetSessionTraceResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class ReportEvidenceItem(BaseModel):
+    event_id: UUID
+    position: int
+    title: str
+    description: str | None = None
+    occurred_at: datetime
+    evidence_type: TraceEvidenceType
+    objective_keys: tuple[str, ...] = ()
+    why_it_matters: str | None = None
+    default_priority: TraceEvidencePriority
+    student_note: str | None = None
+
+
+class GetSessionReportEvidenceResponse(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class PutSessionReportEvidenceRequest(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
 class SessionProgressChipResponse(BaseModel):
     objective_key: str
     label: str
