@@ -1,4 +1,7 @@
-from apps.control_plane.src.domain.session_lifecycle.state_machine import Trigger
+from apps.control_plane.src.domain.session_lifecycle.state_machine import (
+    SessionState,
+    Trigger,
+)
 from apps.control_plane.src.application.session_objectives.service import (
     initialize_session_objectives,
 )
@@ -76,6 +79,12 @@ CLEANUP_BACKOFF_SECONDS = 15
 PROVISIONING_TIMEOUT_SECONDS = 900
 MAX_SESSION_LIFETIME_SECONDS = 86_400
 IDLE_TIMEOUT_SECONDS = 3_600
+TERMINAL_SESSION_STATES = {
+    SessionState.CANCELLED,
+    SessionState.COMPLETED,
+    SessionState.FAILED,
+    SessionState.EXPIRED,
+}
 
 
 def _append_runtime_trace(
@@ -280,6 +289,40 @@ def process_pending_once(
                             time.sleep(1.0)
 
                         if is_ready:
+                            with uow.lifecycle_uow.transaction():
+                                current_session = (
+                                    uow.lifecycle_uow.sessions.get_for_update(
+                                        session_id=session_id
+                                    )
+                                )
+                            if current_session is None:
+                                uow.outbox.mark_terminal_failure(
+                                    outbox_event_id=event.outbox_event_id,
+                                    error_message="Provisioning race: SESSION_NOT_FOUND",
+                                    failed_at=datetime.now(timezone.utc),
+                                )
+                                failed_count += 1
+                                continue
+
+                            if current_session.state in TERMINAL_SESSION_STATES:
+                                # Session was terminal by the time runtime became ready.
+                                # Do not transition back to ACTIVE; ensure runtime is cleaned up.
+                                now = datetime.now(timezone.utc)
+                                uow.outbox.mark_processed(
+                                    outbox_event_id=event.outbox_event_id,
+                                    processed_at=now,
+                                )
+                                with uow.lifecycle_uow.transaction():
+                                    uow.lifecycle_uow.outbox.enqueue_for_cleanup(
+                                        session_id=session_id,
+                                        runtime_id=provision_result.runtime_id,
+                                        terminal_state=current_session.state.value,
+                                        reason_code="PROVISIONED_AFTER_TERMINAL",
+                                        requested_at=now,
+                                    )
+                                succeeded_count += 1
+                                continue
+
                             activated_at = datetime.now(timezone.utc)
                             uow.outbox.mark_processed(
                                 outbox_event_id=event.outbox_event_id,
@@ -644,6 +687,24 @@ def process_cleanup_pending_once(
                         teardown_result.details,
                     )
                     if teardown_result.status in {"already_gone", "deleted"}:
+                        if (
+                            teardown_result.status == "already_gone"
+                            and terminal_state
+                            in {"COMPLETED", "FAILED", "EXPIRED", "CANCELLED"}
+                            and attempt_count == 0
+                        ):
+                            # One-time reverify for terminal-session cleanup to absorb
+                            # late-create races where the pod appears just after a
+                            # "not found" response.
+                            uow.outbox.mark_retryable_failure(
+                                outbox_event_id=outbox_event_id,
+                                error_message="CLEANUP_ALREADY_GONE_REVERIFY",
+                                backoff_seconds=5,
+                                failed_at=ts,
+                            )
+                            retried_count += 1
+                            continue
+
                         pod_still_exists = False
                         if hasattr(teardown, "pod_exists"):
                             try:
