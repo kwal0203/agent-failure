@@ -6,6 +6,8 @@ resources:
   - ../base
   - letsencrypt-clusterissuer.yaml
   - control-plane-ingress.yaml
+patches:
+  - path: control-plane-config-patch.yaml
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
