@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: cd-production-main
@@ -104,7 +105,7 @@ jobs:
             "${PRODUCTION_MANIFESTS}/runtime-image.lock" \
             "${AGENT_TARGET_LABS}"
 
-      - name: Commit and push production promotion
+      - name: Commit production promotion
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -124,29 +125,25 @@ jobs:
           fi
 
           git commit -m "$msg"
-          git push origin HEAD:main
 
-      - name: Wait for production health endpoint
-        env:
-          API_BASE: ${{ secrets.API_BASE }}
-        run: |
-          if [[ -z "${API_BASE}" ]]; then
-            echo "Missing required production secret: API_BASE"
-            exit 1
-          fi
+      - name: Open PR for production manifest promotion
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: main
+          branch: automation/cd-production-${{ steps.staged.outputs.cp }}
+          delete-branch: true
+          title: "cd(production): promote digests from staging"
+          body: |
+            Automated production manifest promotion from staging.
 
-          for i in {1..30}; do
-            health_code="$(curl -sS -o /tmp/production_healthz.out -w '%{http_code}' "${API_BASE}/healthz" || true)"
-            if [[ "${health_code}" == "200" ]]; then
-              echo "Production health check passed"
-              exit 0
-            fi
-            echo "Waiting for production healthz (attempt ${i}/30, status=${health_code})"
-            sleep 10
-          done
-
-          echo "Health check failed: ${API_BASE}/healthz (http=${health_code})"
-          if [[ -s /tmp/production_healthz.out ]]; then
-            cat /tmp/production_healthz.out
-          fi
-          exit 1
+            - control-plane digest: `${{ steps.staged.outputs.cp }}`
+            - runtime digest: `${{ steps.staged.outputs.runtime_digest }}`
+            - source environment: `${{ inputs.source_environment }}`
+            - reason: `${{ inputs.reason }}`
+          commit-message: "cd(production): promote digests from staging cp=${{ steps.staged.outputs.cp }} rt=${{ steps.staged.outputs.runtime_digest }}"
+          add-paths: |
+            ${{ env.PRODUCTION_MANIFESTS }}/kustomization.yaml
+            ${{ env.PRODUCTION_MANIFESTS }}/runtime-image.lock
+          labels: |
+            automation
+            production
