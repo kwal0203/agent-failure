@@ -9,7 +9,6 @@ import type {
   GetSessionMetadataResponse,
   GetSessionTraceResponse,
   LearnerFeedbackItem,
-  SessionFeedbackItem,
   SessionInvoice,
   SessionMetadata,
   SessionProgressChip,
@@ -17,7 +16,7 @@ import type {
   SessionTraceEvent,
   TimelineEvent,
 } from "../types";
-import { API_BASE, getAuthHeader, humanizeFeedbackKey } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
@@ -311,7 +310,6 @@ export function useSessionData({
 }: UseSessionDataParams): UseSessionDataResult {
   const [metadata, setMetadata] = useState<SessionMetadata | null>(null);
   const [metadataReady, setMetadataReady] = useState(false);
-  const seenFeedbackKeysRef = useRef(new Set<string>());
   const seenTimelineEventIdsRef = useRef(new Set<string>());
   const seenTelemetryLogIdsRef = useRef(new Set<string>());
   const seenInvoiceIdsRef = useRef(new Set<string>());
@@ -529,27 +527,6 @@ export function useSessionData({
     sessionId,
   ]);
 
-  const registerMetadataFeedbackEvents = useCallback(
-    (feedbackItems: SessionFeedbackItem[]) => {
-      for (const item of feedbackItems) {
-        const key = item.id;
-        if (seenFeedbackKeysRef.current.has(key)) continue;
-        seenFeedbackKeysRef.current.add(key);
-        appendTimelineEvent({
-          id: `feedback-item-${key}`,
-          timestamp: item.created_at,
-          type: "explanation",
-          granularity: "high",
-          title: humanizeFeedbackKey(item.feedback_key),
-          description: item.message,
-          details: `${item.severity} · ${item.reason_code}`,
-          important: item.severity === "error",
-        });
-      }
-    },
-    [appendTimelineEvent],
-  );
-
   const refreshSessionMetadata = useCallback(async () => {
     if (!sessionId) return;
 
@@ -570,16 +547,10 @@ export function useSessionData({
       const session = data.session;
       setMetadata(session);
       setMetadataReady(true);
-      const feedbackItems = Array.isArray(session.feedback_items)
-        ? session.feedback_items
-        : Array.isArray(session.feedback)
-          ? session.feedback
-          : [];
-      registerMetadataFeedbackEvents(feedbackItems);
     } catch {
       return;
     }
-  }, [registerMetadataFeedbackEvents, sessionId]);
+  }, [sessionId]);
 
   const registerLearnerFeedbackEvents = useCallback(
     (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
@@ -604,7 +575,6 @@ export function useSessionData({
     seenTimelineEventIdsRef.current.clear();
     seenTelemetryLogIdsRef.current.clear();
     seenInvoiceIdsRef.current.clear();
-    seenFeedbackKeysRef.current.clear();
     lab2TelemetryCursorRef.current = 0;
     setMetadataReady(false);
     void refreshSessionMetadata();

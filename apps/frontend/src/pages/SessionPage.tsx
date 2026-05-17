@@ -129,7 +129,6 @@ export default function SessionPage() {
       hints: metadata?.hints,
       unreadHintCount: metadata?.unread_hint_count,
       refreshSessionMetadata,
-      appendTimelineEvent,
     });
   const { feedbackItems, feedbackPanelOpen, onFeedbackChipClick } =
     useFeedbackState({
