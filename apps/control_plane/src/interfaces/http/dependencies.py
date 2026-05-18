@@ -54,6 +54,8 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyTraceEventRepository,
 )
 from apps.control_plane.src.application.session_query.ports import (
+    SessionLatestByLabRepository,
+    SessionListByLabRepository,
     SessionMetadataRepository,
 )
 from apps.control_plane.src.infrastructure.persistence.db import (
@@ -193,6 +195,18 @@ def get_create_session_uow() -> CreateSessionUnitOfWork:
 def get_session_metadata_repository(
     db: Session = Depends(get_db_session),
 ) -> SessionMetadataRepository:
+    return SQLAlchemySessionMetadataRepository(db=db)
+
+
+def get_session_latest_by_lab_repository(
+    db: Session = Depends(get_db_session),
+) -> SessionLatestByLabRepository:
+    return SQLAlchemySessionMetadataRepository(db=db)
+
+
+def get_session_list_by_lab_repository(
+    db: Session = Depends(get_db_session),
+) -> SessionListByLabRepository:
     return SQLAlchemySessionMetadataRepository(db=db)
 
 

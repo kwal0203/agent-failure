@@ -3,13 +3,15 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from apps.contracts.src.schemas import (
     ApiErrorEnvelope,
     GetFeedbackResponse,
+    GetSessionsResponse,
+    LatestLabSessionResponse,
     ImportSelectedEvidenceRequest,
     ImportSelectedEvidenceResponse,
     GetSessionReportEvidenceResponse,
@@ -22,9 +24,13 @@ from apps.control_plane.src.application.evaluator_feedback import (
 )
 from apps.control_plane.src.application.evaluator_feedback.ports import EvaluatorPort
 from apps.control_plane.src.application.session_query.ports import (
+    SessionLatestByLabRepository,
+    SessionListByLabRepository,
     SessionMetadataRepository,
 )
 from apps.control_plane.src.application.session_query.service import (
+    get_latest_session_id_for_lab,
+    list_sessions_for_lab,
     get_session_metadata,
 )
 from apps.control_plane.src.application.session_report_evidence.ports import (
@@ -43,6 +49,8 @@ from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_evaluator_repository,
     get_request_db_session,
+    get_session_latest_by_lab_repository,
+    get_session_list_by_lab_repository,
     get_session_metadata_repository,
     get_session_report_evidence_repository,
     get_trace_event_repository,
@@ -55,12 +63,87 @@ from apps.control_plane.src.interfaces.http.errors import session_not_found
 from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_report_evidence_items_to_inputs,
     map_evaluator_feedback_response,
+    map_sessions_response,
     map_session_report_evidence_response,
     map_session_trace_response,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.get(
+    "/api/v1/sessions",
+    response_model=GetSessionsResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def get_sessions(
+    lab_id: UUID,
+    limit: int = Query(default=1, ge=1, le=100),
+    sort: str = Query(default="created_at:desc"),
+    principal: PrincipalContext = Depends(get_current_principal),
+    repo: SessionListByLabRepository = Depends(get_session_list_by_lab_repository),
+) -> GetSessionsResponse | JSONResponse:
+    try:
+        if sort != "created_at:desc":
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "INVALID_SORT",
+                        "message": "Unsupported sort value",
+                        "retryable": False,
+                        "details": {"sort": sort},
+                    }
+                },
+            )
+        sessions = list_sessions_for_lab(
+            lab_id=lab_id,
+            principal=principal,
+            repo=repo,
+            limit=limit,
+        )
+        return map_sessions_response(sessions)
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=lab_id)
+        if mapped is not None:
+            return mapped
+        logger.exception("get sessions endpoint failed for lab=%s", str(lab_id))
+        return map_unexpected_exception(session_id=lab_id)
+
+
+@router.get(
+    "/api/v1/labs/{lab_id}/latest-session",
+    response_model=LatestLabSessionResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def get_latest_lab_session(
+    lab_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    repo: SessionLatestByLabRepository = Depends(get_session_latest_by_lab_repository),
+) -> LatestLabSessionResponse | JSONResponse:
+    try:
+        session_id = get_latest_session_id_for_lab(
+            lab_id=lab_id,
+            principal=principal,
+            repo=repo,
+        )
+        if session_id is None:
+            return session_not_found(f"latest-session:{lab_id}")
+        return LatestLabSessionResponse(session_id=session_id)
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=lab_id)
+        if mapped is not None:
+            return mapped
+        logger.exception("get latest session endpoint failed for lab=%s", str(lab_id))
+        return map_unexpected_exception(session_id=lab_id)
 
 
 @router.get(

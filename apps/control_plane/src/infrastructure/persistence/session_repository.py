@@ -21,6 +21,7 @@ from apps.control_plane.src.application.session_query.types import (
     SessionHintRow,
     SessionMetadataRow,
     SessionObjectiveRow,
+    SessionSummaryRow,
     SessionMetadataBundleRow,
 )
 from apps.control_plane.src.application.session_query.helpers import (
@@ -317,6 +318,38 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             hints=hints,
             feedback=feedback,
         )
+
+    def get_latest_session_id_for_lab(
+        self, *, lab_id: UUID, owner_user_id: UUID | None
+    ) -> UUID | None:
+        stmt = select(SessionModel.id).where(SessionModel.lab_id == lab_id)
+        if owner_user_id is not None:
+            stmt = stmt.where(SessionModel.owner_user_id == owner_user_id)
+        stmt = stmt.order_by(SessionModel.created_at.desc()).limit(1)
+        return self._db.execute(stmt).scalar_one_or_none()
+
+    def list_sessions_for_lab(
+        self, *, lab_id: UUID, owner_user_id: UUID | None, limit: int
+    ) -> tuple[SessionSummaryRow, ...]:
+        stmt = select(SessionModel).where(SessionModel.lab_id == lab_id)
+        if owner_user_id is not None:
+            stmt = stmt.where(SessionModel.owner_user_id == owner_user_id)
+        stmt = stmt.order_by(SessionModel.created_at.desc()).limit(limit)
+        rows = self._db.execute(stmt).scalars().all()
+        summaries: list[SessionSummaryRow] = []
+        for row in rows:
+            if row.lab_id is None:
+                continue
+            summaries.append(
+                SessionSummaryRow(
+                    session_id=row.id,
+                    lab_id=row.lab_id,
+                    created_at=row.created_at,
+                    state=row.state,
+                    completion_status=parse_completion_status(row.completion_status),
+                )
+            )
+        return tuple(summaries)
 
 
 class SQLAlchemyCreateSessionRepository(CreateSessionRepository):

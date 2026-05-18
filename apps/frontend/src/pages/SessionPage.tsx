@@ -515,6 +515,10 @@ export default function SessionPage() {
         <SessionSuccessModal
           completedAt={metadata?.completed_at ?? null}
           onClose={() => setSuccessModalDismissed(true)}
+          onOpenReport={() => {
+            if (!sessionId) return;
+            navigate(`/sessions/${sessionId}/report`);
+          }}
         />
       ) : null}
     </main>

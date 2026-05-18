@@ -135,3 +135,21 @@ class SessionMetadataBundleRow:
     objectives: list[SessionObjectiveRow]
     hints: list[SessionHintRow]
     feedback: list[SessionFeedbackRow]
+
+
+@dataclass(frozen=True)
+class SessionSummaryRow:
+    session_id: UUID
+    lab_id: UUID
+    created_at: datetime
+    state: str
+    completion_status: CompletionStatus
+
+
+@dataclass(frozen=True)
+class SessionSummaryDTO:
+    session_id: UUID
+    lab_id: UUID
+    created_at: datetime
+    state: str
+    completion_status: CompletionStatus

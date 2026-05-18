@@ -1,5 +1,6 @@
 import type {
   GetLabsResponse,
+  GetSessionsResponse,
   LabCatalogItemResponse,
 } from "../../../contracts/ts/index";
 import { getCurrentAuthHeader } from "../auth/context";
@@ -189,4 +190,39 @@ export async function createSessionForLab(
   }
 
   return sessionId;
+}
+
+export async function getLatestSessionIdForLab(
+  apiBaseUrl: string,
+  labId: string,
+): Promise<string | null> {
+  const params = new URLSearchParams({
+    lab_id: labId,
+    limit: "1",
+    sort: "created_at:desc",
+  });
+  const response = await fetch(`${apiBaseUrl}/api/v1/sessions?${params}`, {
+    method: "GET",
+    headers: {
+      Authorization: getCurrentAuthHeader(),
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Session query failed (HTTP ${response.status})`);
+  }
+
+  const payload = (await response.json()) as GetSessionsResponse;
+  const first = Array.isArray(payload.sessions)
+    ? payload.sessions[0]
+    : undefined;
+  if (
+    !first ||
+    typeof first.session_id !== "string" ||
+    first.session_id.length < 1
+  ) {
+    return null;
+  }
+  return first.session_id;
 }

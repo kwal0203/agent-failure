@@ -12,7 +12,9 @@ import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
 import PilotRequestPage from "./pages/public/PilotRequestPage";
 import SignupPage from "./pages/public/SignupPage";
+import ReportsPage from "./pages/ReportsPage";
 import SessionPage from "./pages/SessionPage";
+import SessionReportPage from "./pages/SessionReportPage";
 import TracePage from "./pages/TracePage";
 
 export default function App() {
@@ -35,6 +37,7 @@ export default function App() {
             <Route path="/labs" element={<LabsPage />} />
             <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/trace" element={<TracePage />} />
             <Route
               path="/admin/pilot-requests"
@@ -45,6 +48,10 @@ export default function App() {
               element={<PilotRequestsAdminPage />}
             />
             <Route path="/sessions/:sessionId" element={<SessionPage />} />
+            <Route
+              path="/sessions/:sessionId/report"
+              element={<SessionReportPage />}
+            />
           </Route>
         </Route>
 

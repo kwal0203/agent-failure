@@ -174,6 +174,22 @@ export type GetSessionMetadataResponse = {
   session: SessionMetadataResponse;
 };
 
+export type LatestLabSessionResponse = {
+  session_id: string;
+};
+
+export type SessionSummaryResponse = {
+  session_id: string;
+  lab_id: string;
+  created_at: string;
+  state: string;
+  completion_status: SessionCompletionStatus;
+};
+
+export type GetSessionsResponse = {
+  sessions: SessionSummaryResponse[];
+};
+
 export type LearnerFeedbackItem = {
   status: EvaluatorFeedbackStatusType;
   reason_code: string;
