@@ -5,9 +5,11 @@ from typing import Literal
 from apps.contracts.src.schemas import (
     EvaluatorFeedbackResponse,
     GetFeedbackResponse,
+    GetSessionsResponse,
     SessionFeedbackResponse,
     SessionHintResponse,
     SessionMetadataResponse,
+    SessionSummaryResponse,
     SessionProgressChipResponse,
     SessionRuntimeFileResponse,
     GetSessionTraceResponse,
@@ -19,7 +21,10 @@ from apps.contracts.src.schemas import (
 from apps.control_plane.src.application.evaluator_feedback.types import (
     LearnerEvaluatorFeedback,
 )
-from apps.control_plane.src.application.session_query.types import SessionMetadataDTO
+from apps.control_plane.src.application.session_query.types import (
+    SessionMetadataDTO,
+    SessionSummaryDTO,
+)
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.session_report_evidence.types import (
     ReportEvidenceProjection,
@@ -213,6 +218,21 @@ def map_evaluator_feedback_response(
                 evidence_snippet=item.evidence_snippet,
             )
             for item in feedback
+        )
+    )
+
+
+def map_sessions_response(items: Sequence[SessionSummaryDTO]) -> GetSessionsResponse:
+    return GetSessionsResponse(
+        sessions=tuple(
+            SessionSummaryResponse(
+                session_id=item.session_id,
+                lab_id=item.lab_id,
+                created_at=item.created_at,
+                state=item.state,
+                completion_status=item.completion_status,
+            )
+            for item in items
         )
     )
 

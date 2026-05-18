@@ -485,3 +485,19 @@ class SessionMetadataResponse(BaseModel):
 
 class GetSessionMetadataResponse(BaseModel):
     session: SessionMetadataResponse
+
+
+class LatestLabSessionResponse(BaseModel):
+    session_id: UUID
+
+
+class SessionSummaryResponse(BaseModel):
+    session_id: UUID
+    lab_id: UUID
+    created_at: datetime
+    state: str
+    completion_status: SessionCompletionStatus
+
+
+class GetSessionsResponse(BaseModel):
+    sessions: tuple[SessionSummaryResponse, ...]

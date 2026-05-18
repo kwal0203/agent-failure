@@ -135,11 +135,11 @@ export default function SessionReportPage() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => navigate(`/sessions/${sessionId ?? ""}`)}
+                onClick={() => navigate("/reports")}
                 className="inline-flex items-center gap-2 rounded-lg border border-lime-500/35 bg-black/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-lime-200 transition hover:bg-lime-500/10"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to Session
+                Back to Reports
               </button>
               <div className="rounded-lg border border-lime-400/35 bg-lime-500/10 p-2 text-lime-200">
                 <FileText className="h-5 w-5" />

@@ -24,9 +24,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/context";
 import { useShellBootstrap } from "../shell/context";
-import { type LabCatalogItem, loadLabCatalog } from "./labCatalogApi";
-
-const LATEST_SESSION_BY_LAB_KEY = "agentfailure.latestSessionByLab";
+import {
+  getLatestSessionIdForLab,
+  type LabCatalogItem,
+  loadLabCatalog,
+} from "./labCatalogApi";
 
 type CatalogModule = {
   id: string;
@@ -194,16 +196,6 @@ function canViewPilotRequests(): boolean {
   }
 }
 
-function latestSessionByLabId(): Record<string, string> {
-  try {
-    const raw = window.localStorage.getItem(LATEST_SESSION_BY_LAB_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
 function getModuleLab(
   moduleId: string,
   labs: LabCatalogItem[],
@@ -307,6 +299,9 @@ export default function ReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [latestSessionByLab, setLatestSessionByLab] = useState<
+    Record<string, string>
+  >({});
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const showPilotRequestsLink = useMemo(() => canViewPilotRequests(), []);
@@ -329,6 +324,49 @@ export default function ReportsPage() {
   useEffect(() => {
     void refreshLabs();
   }, [refreshLabs]);
+
+  useEffect(() => {
+    if (labs.length < 1) {
+      setLatestSessionByLab({});
+      return;
+    }
+
+    let cancelled = false;
+    const loadLatestSessions = async () => {
+      const mappedLabs = modules
+        .map((module) => getModuleLab(module.id, labs))
+        .filter((lab): lab is LabCatalogItem => lab !== null);
+      const uniqueLabs = Array.from(
+        new Map(mappedLabs.map((lab) => [lab.id, lab])).values(),
+      );
+      const entries = await Promise.all(
+        uniqueLabs.map(async (lab) => {
+          try {
+            const sessionId = await getLatestSessionIdForLab(
+              bootstrap.apiBaseUrl,
+              lab.id,
+            );
+            return [lab.id, sessionId] as const;
+          } catch {
+            return [lab.id, null] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const [labId, sessionId] of entries) {
+        if (typeof sessionId === "string" && sessionId.length > 0) {
+          next[labId] = sessionId;
+        }
+      }
+      setLatestSessionByLab(next);
+    };
+
+    void loadLatestSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrap.apiBaseUrl, labs]);
 
   useEffect(() => {
     if (bootstrap.mode !== "demo") {
@@ -456,12 +494,10 @@ export default function ReportsPage() {
                   {modules.map((module) => {
                     const Icon = module.icon;
                     const moduleLab = getModuleLab(module.id, labs);
-                    const latestByLab = latestSessionByLabId();
                     const latestSessionId = moduleLab
-                      ? latestByLab[moduleLab.id]
+                      ? latestSessionByLab[moduleLab.id]
                       : undefined;
                     const isEnabled =
-                      module.isReportEnabled &&
                       !!moduleLab &&
                       typeof latestSessionId === "string" &&
                       latestSessionId.length > 0;

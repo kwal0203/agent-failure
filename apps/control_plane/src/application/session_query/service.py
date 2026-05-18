@@ -1,5 +1,7 @@
 from apps.control_plane.src.application.session_query.ports import (
+    SessionListByLabRepository,
     SessionMetadataRepository,
+    SessionLatestByLabRepository,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
 from uuid import UUID
@@ -11,6 +13,7 @@ from .types import (
     SessionHintDTO,
     SessionMetadataDTO,
     SessionObjectiveDTO,
+    SessionSummaryDTO,
 )
 
 
@@ -102,4 +105,42 @@ def get_session_metadata(
         feedback_items=feedback,
         feedback=feedback,
         unread_feedback_count=unread_feedback_count,
+    )
+
+
+def get_latest_session_id_for_lab(
+    *,
+    lab_id: UUID,
+    principal: PrincipalContext,
+    repo: SessionLatestByLabRepository,
+) -> UUID | None:
+    owner_user_id = None if principal.role == "admin" else principal.user_id
+    return repo.get_latest_session_id_for_lab(
+        lab_id=lab_id,
+        owner_user_id=owner_user_id,
+    )
+
+
+def list_sessions_for_lab(
+    *,
+    lab_id: UUID,
+    principal: PrincipalContext,
+    repo: SessionListByLabRepository,
+    limit: int = 1,
+) -> tuple[SessionSummaryDTO, ...]:
+    owner_user_id = None if principal.role == "admin" else principal.user_id
+    rows = repo.list_sessions_for_lab(
+        lab_id=lab_id,
+        owner_user_id=owner_user_id,
+        limit=limit,
+    )
+    return tuple(
+        SessionSummaryDTO(
+            session_id=row.session_id,
+            lab_id=row.lab_id,
+            created_at=row.created_at,
+            state=row.state,
+            completion_status=row.completion_status,
+        )
+        for row in rows
     )
