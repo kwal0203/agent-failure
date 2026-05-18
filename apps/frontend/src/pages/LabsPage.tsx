@@ -99,7 +99,7 @@ function canViewPilotRequests(): boolean {
 
 const navItems = [
   { label: "Dashboard", icon: Home },
-  { label: "Catalog", icon: BookOpen, active: true },
+  { label: "Catalog", icon: BookOpen },
   { label: "Courses", icon: GraduationCap },
   { label: "Reports", icon: BarChart3 },
   { label: "Instructor View", icon: Users },
@@ -258,28 +258,6 @@ function StatusBadge({
   );
 }
 
-function FilterChip({
-  children,
-  active = false,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <button
-      className={[
-        "inline-flex items-center justify-center rounded-lg border px-5 py-2 text-sm font-bold transition",
-        active
-          ? "border-lime-400/80 bg-lime-500/10 text-lime-200 shadow-[0_0_20px_rgba(132,204,22,0.25)]"
-          : "border-emerald-500/20 bg-slate-950/70 text-slate-200 hover:border-lime-400/60 hover:bg-lime-500/10 hover:text-lime-200",
-      ].join(" ")}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
 function ModuleCard({
   module,
   onOpen,
@@ -350,7 +328,13 @@ function ModuleCard({
   );
 }
 
-function Sidebar() {
+function Sidebar({
+  activeLabel,
+  onNavigate,
+}: {
+  activeLabel: string;
+  onNavigate: (label: string) => void;
+}) {
   return (
     <aside className="relative z-20 flex w-64 min-w-64 shrink-0 flex-col border-r border-lime-500/20 bg-black/80">
       <div className="flex h-20 items-center gap-3 border-b border-lime-500/20 px-6">
@@ -373,9 +357,10 @@ function Sidebar() {
             <button
               key={item.label}
               type="button"
+              onClick={() => onNavigate(item.label)}
               className={[
                 "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition",
-                item.active
+                item.label === activeLabel
                   ? "border border-lime-400/40 bg-lime-500/10 text-lime-200 shadow-[0_0_18px_rgba(132,204,22,0.18)] before:absolute before:left-0 before:top-1/2 before:h-8 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-lime-400 before:shadow-[0_0_16px_rgba(132,204,22,0.9)]"
                   : "text-slate-300 hover:bg-lime-500/5 hover:text-lime-200",
               ].join(" ")}
@@ -704,7 +689,19 @@ export function LabCatalog({
           <div className="h-full w-full bg-[linear-gradient(180deg,rgba(132,204,22,0.35)_1px,transparent_1px)] bg-[size:18px_18px]" />
         </div>
 
-        <Sidebar />
+        <Sidebar
+          activeLabel="Catalog"
+          onNavigate={(label) => {
+            if (label === "Catalog") return;
+            if (label === "Reports") {
+              navigate("/reports");
+              return;
+            }
+            if (label === "Dashboard") {
+              navigate("/app");
+            }
+          }}
+        />
 
         <main className="relative flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 h-20 border-b border-lime-500/20 bg-black/55 px-5 backdrop-blur md:px-8 lg:px-10">
@@ -774,16 +771,6 @@ export function LabCatalog({
 
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 text-[17px] md:px-8 lg:px-10">
-              <section className="mb-6 space-y-4">
-                <div className="flex flex-wrap gap-3">
-                  <FilterChip active>All</FilterChip>
-                  <FilterChip>Full Labs</FilterChip>
-                  <FilterChip>Micro-Labs</FilterChip>
-                  <FilterChip>Trace Exercises</FilterChip>
-                  <FilterChip>Assessments</FilterChip>
-                </div>
-              </section>
-
               {isLoading && (
                 <p className="mt-6 text-lime-300/85">Loading lab catalog...</p>
               )}

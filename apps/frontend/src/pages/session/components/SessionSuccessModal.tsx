@@ -3,11 +3,13 @@ import { formatTime } from "../helpers";
 type SessionSuccessModalProps = {
   completedAt: string | null;
   onClose: () => void;
+  onOpenReport?: () => void;
 };
 
 export function SessionSuccessModal({
   completedAt,
   onClose,
+  onOpenReport,
 }: SessionSuccessModalProps) {
   return (
     <div
@@ -94,6 +96,31 @@ export function SessionSuccessModal({
           <p style={{ margin: "0 0 4px", textAlign: "center", opacity: 0.9 }}>
             Completed at {formatTime(completedAt)}
           </p>
+        ) : null}
+        {onOpenReport ? (
+          <div
+            style={{
+              marginTop: 14,
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenReport}
+              style={{
+                border: "1px solid #7ee0ad",
+                background: "rgba(18, 74, 50, 0.45)",
+                color: "#d9ffe8",
+                borderRadius: 10,
+                padding: "9px 14px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Open Report Draft
+            </button>
+          </div>
         ) : null}
       </section>
     </div>

@@ -38,6 +38,24 @@ import {
   loadLabCatalog,
 } from "./labCatalogApi";
 
+const LATEST_SESSION_BY_LAB_KEY = "agentfailure.latestSessionByLab";
+
+function rememberLatestSessionForLab(labId: string, sessionId: string): void {
+  try {
+    const raw = window.localStorage.getItem(LATEST_SESSION_BY_LAB_KEY);
+    const parsed: Record<string, string> = raw
+      ? (JSON.parse(raw) as Record<string, string>)
+      : {};
+    parsed[labId] = sessionId;
+    window.localStorage.setItem(
+      LATEST_SESSION_BY_LAB_KEY,
+      JSON.stringify(parsed),
+    );
+  } catch {
+    // Non-fatal: reporting shortcut can still be accessed manually by URL.
+  }
+}
+
 type PreLabRouteState = {
   labId?: string;
   labName?: string;
@@ -440,6 +458,7 @@ export default function PreLabPage() {
         labId,
         difficulty,
       );
+      rememberLatestSessionForLab(labId, sessionId);
       navigate(`/sessions/${sessionId}`, {
         state: { labName: lab?.name ?? state?.labName ?? "Lab Session" },
       });
