@@ -127,28 +127,10 @@ from apps.control_plane.src.interfaces.http.ws_manager_registry import ws_manage
 from apps.control_plane.src.infrastructure.config.settings import (
     EmailClassifierSettings,
     InstructorProvisioningSettings,
-    PilotAlertEmailSettings,
-    PilotProvisioningEmailSettings,
     get_auth_verifier_config as load_auth_verifier_config,
     get_email_classifier_settings,
     get_instructor_provisioning_settings as load_instructor_provisioning_settings,
-    get_pilot_alert_email_settings as load_pilot_alert_email_settings,
-    get_pilot_provisioning_email_settings as load_pilot_provisioning_email_settings,
     get_runtime_client_config as load_runtime_client_config,
-)
-from apps.control_plane.src.application.pilot_requests.notifications import (
-    PilotRequestNotifierPort,
-)
-from apps.control_plane.src.application.pilot_requests.provisioning_notifications import (
-    PilotProvisioningNotifierPort,
-)
-from apps.control_plane.src.infrastructure.notifications.pilot_request_email_notifier import (
-    NoopPilotRequestNotifier,
-    SmtpPilotRequestNotifier,
-)
-from apps.control_plane.src.infrastructure.notifications.pilot_provisioning_email_notifier import (
-    NoopPilotProvisioningNotifier,
-    SmtpPilotProvisioningNotifier,
 )
 from apps.control_plane.src.infrastructure.auth.cognito_instructor_identity_provider import (
     CognitoInstructorIdentityProvider,
@@ -305,45 +287,8 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
 
 
 @lru_cache(maxsize=1)
-def get_pilot_alert_email_settings() -> PilotAlertEmailSettings:
-    return load_pilot_alert_email_settings()
-
-
-@lru_cache(maxsize=1)
-def get_pilot_provisioning_email_settings() -> PilotProvisioningEmailSettings:
-    return load_pilot_provisioning_email_settings()
-
-
-@lru_cache(maxsize=1)
 def get_instructor_provisioning_settings() -> InstructorProvisioningSettings:
     return load_instructor_provisioning_settings()
-
-
-@lru_cache(maxsize=1)
-def get_pilot_request_notifier() -> PilotRequestNotifierPort:
-    settings = get_pilot_alert_email_settings()
-    if (
-        not settings.enabled
-        or not settings.smtp_host
-        or not settings.from_email
-        or not settings.to_emails
-    ):
-        return NoopPilotRequestNotifier()
-    return SmtpPilotRequestNotifier(settings)
-
-
-@lru_cache(maxsize=1)
-def get_pilot_provisioning_notifier() -> PilotProvisioningNotifierPort:
-    settings = get_pilot_provisioning_email_settings()
-    if (
-        not settings.enabled
-        or not settings.smtp_host
-        or not settings.from_email
-        or not settings.onboarding_login_url
-        or not settings.admin_to_emails
-    ):
-        return NoopPilotProvisioningNotifier()
-    return SmtpPilotProvisioningNotifier(settings)
 
 
 @lru_cache(maxsize=1)

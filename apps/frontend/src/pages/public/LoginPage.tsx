@@ -391,9 +391,17 @@ export default function LoginPage() {
         <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 px-6 pb-8 text-sm text-slate-500">
           <span>© 2026 Agent Failure. All rights reserved.</span>
           <span className="hidden h-4 w-px bg-lime-500/20 sm:block" />
-          <span>Privacy Policy</span>
+          <Link to="/privacy" className="transition hover:text-lime-300">
+            Privacy Policy
+          </Link>
           <span className="hidden h-4 w-px bg-lime-500/20 sm:block" />
-          <span>Terms of Use</span>
+          <Link to="/terms" className="transition hover:text-lime-300">
+            Terms of Use
+          </Link>
+          <span className="hidden h-4 w-px bg-lime-500/20 sm:block" />
+          <Link to="/contact" className="transition hover:text-lime-300">
+            Contact
+          </Link>
         </footer>
       </div>
     </div>

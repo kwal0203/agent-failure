@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -8,15 +8,6 @@ from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.common.observability import (
     get_correlation_id,
     log_fields,
-)
-from apps.control_plane.src.application.pilot_requests.notifications import (
-    PilotRequestNotification,
-    PilotRequestNotifierPort,
-)
-from apps.control_plane.src.application.pilot_requests.provisioning_notifications import (
-    PilotProvisioningFailureNotification,
-    PilotProvisioningNotifierPort,
-    PilotProvisioningSuccessNotification,
 )
 from apps.control_plane.src.application.pilot_requests.ports import (
     PilotRequestRepositoryPort,
@@ -53,8 +44,6 @@ from apps.control_plane.src.interfaces.http.auth import get_current_principal
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_instructor_identity_provider,
     get_instructor_provisioning_repository,
-    get_pilot_provisioning_notifier,
-    get_pilot_request_notifier,
     get_pilot_provisioning_repository,
     get_pilot_request_repository,
 )
@@ -93,7 +82,6 @@ def create_pilot_request(
     payload: CreatePilotRequest,
     request: Request,
     repo: PilotRequestRepositoryPort = Depends(get_pilot_request_repository),
-    notifier: PilotRequestNotifierPort = Depends(get_pilot_request_notifier),
 ) -> CreatePilotRequestResponse:
     source_ip = request.client.host if request.client is not None else None
     result = create_pilot_request_service(
@@ -120,32 +108,6 @@ def create_pilot_request(
     created = result.request
     if created is None:
         raise HTTPException(status_code=500, detail="Pilot request was not persisted")
-
-    try:
-        notifier.notify(
-            PilotRequestNotification(
-                request_id=created.id,
-                status=created.status,
-                created_at=created.created_at,
-                full_name=payload.fullName.strip(),
-                work_email=payload.workEmail.strip().lower(),
-                university=payload.university.strip(),
-                role=payload.role.strip() if payload.role else None,
-                course_name=payload.courseName.strip() if payload.courseName else None,
-                cohort_size=payload.cohortSize,
-                notes=payload.notes.strip() if payload.notes else None,
-                source_ip=source_ip,
-            )
-        )
-    except Exception:
-        # Notification delivery should not block pilot request creation.
-        logger.exception(
-            "pilot request email alert failed",
-            extra={
-                "event": "pilot_request_alert_failed",
-                "request_id": str(created.id),
-            },
-        )
 
     return CreatePilotRequestResponse(
         requestId=str(created.id), status=created.status, createdAt=created.created_at
@@ -262,9 +224,6 @@ def approve_and_provision_pilot_request(
     identity_provider: InstructorIdentityProviderPort = Depends(
         get_instructor_identity_provider
     ),
-    provisioning_notifier: PilotProvisioningNotifierPort = Depends(
-        get_pilot_provisioning_notifier
-    ),
 ) -> ApproveAndProvisionResponse:
     _require_admin(principal)
     run_correlation_id = get_correlation_id()
@@ -308,28 +267,6 @@ def approve_and_provision_pilot_request(
     )
     if not pilot_result.ok or pilot_result.summary is None:
         pilot_error_message = pilot_result.error or "Pilot provisioning failed"
-        try:
-            provisioning_notifier.notify_failure(
-                PilotProvisioningFailureNotification(
-                    pilot_request_id=request_id,
-                    instructor_email=payload.instructorEmail,
-                    step="pilot_provision",
-                    error_code=pilot_result.error_code,
-                    error_message=pilot_error_message,
-                    is_retry=is_retry,
-                    run_correlation_id=run_correlation_id,
-                    failed_at=datetime.now(UTC),
-                )
-            )
-        except Exception:
-            logger.exception(
-                "pilot provisioning failure notification failed",
-                extra={
-                    "event": "pilot_provisioning_failure_notification_failed",
-                    "pilot_request_id": str(request_id),
-                    "step": "pilot_provision",
-                },
-            )
         failed_status_result = update_pilot_request_status_service(
             repo=pilot_request_repo,
             request_id=request_id,
@@ -382,28 +319,6 @@ def approve_and_provision_pilot_request(
         instructor_error_message = (
             instructor_result.error or "Instructor provisioning failed"
         )
-        try:
-            provisioning_notifier.notify_failure(
-                PilotProvisioningFailureNotification(
-                    pilot_request_id=request_id,
-                    instructor_email=payload.instructorEmail,
-                    step="instructor_provision",
-                    error_code=instructor_result.error_code,
-                    error_message=instructor_error_message,
-                    is_retry=is_retry,
-                    run_correlation_id=run_correlation_id,
-                    failed_at=datetime.now(UTC),
-                )
-            )
-        except Exception:
-            logger.exception(
-                "pilot provisioning failure notification failed",
-                extra={
-                    "event": "pilot_provisioning_failure_notification_failed",
-                    "pilot_request_id": str(request_id),
-                    "step": "instructor_provision",
-                },
-            )
         failed_status_result = update_pilot_request_status_service(
             repo=pilot_request_repo,
             request_id=request_id,
@@ -474,27 +389,6 @@ def approve_and_provision_pilot_request(
             "is_retry": is_retry,
         },
     )
-    try:
-        provisioning_notifier.notify_success(
-            PilotProvisioningSuccessNotification(
-                pilot_request_id=request_id,
-                course_id=payload.courseId,
-                course_name=payload.courseName,
-                class_code=payload.classCode,
-                instructor_email=payload.instructorEmail,
-                create_user_if_missing=payload.createInstructorIfMissing,
-                run_correlation_id=run_correlation_id,
-                provisioned_at=datetime.now(UTC),
-            )
-        )
-    except Exception:
-        logger.exception(
-            "pilot provisioning success notification failed",
-            extra={
-                "event": "pilot_provisioning_success_notification_failed",
-                "pilot_request_id": str(request_id),
-            },
-        )
     return ApproveAndProvisionResponse(
         pilotRequest=PilotRequestItemResponse(
             requestId=str(status_item.id),

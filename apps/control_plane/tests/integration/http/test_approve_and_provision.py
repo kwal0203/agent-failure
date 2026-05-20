@@ -4,10 +4,6 @@ from sqlalchemy.orm import Session
 from apps.control_plane.src.application.instructor_provisioning.types import (
     InstructorIdentityResult,
 )
-from apps.control_plane.src.application.pilot_requests.provisioning_notifications import (
-    PilotProvisioningFailureNotification,
-    PilotProvisioningSuccessNotification,
-)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     ClassCodeModel,
@@ -16,7 +12,6 @@ from apps.control_plane.src.infrastructure.persistence.models import (
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_instructor_identity_provider,
-    get_pilot_provisioning_notifier,
 )
 from apps.control_plane.src.interfaces.http.main import app
 
@@ -62,18 +57,6 @@ class _CrashingStubIdentityProvider:
         raise RuntimeError("botocore NoCredentialsError")
 
 
-class _SpyProvisioningNotifier:
-    def __init__(self) -> None:
-        self.success: list[PilotProvisioningSuccessNotification] = []
-        self.failure: list[PilotProvisioningFailureNotification] = []
-
-    def notify_success(self, payload: PilotProvisioningSuccessNotification) -> None:
-        self.success.append(payload)
-
-    def notify_failure(self, payload: PilotProvisioningFailureNotification) -> None:
-        self.failure.append(payload)
-
-
 def test_approve_and_provision_happy_path(db_session: Session) -> None:
     row = PilotRequestModel(
         full_name="Instructor One",
@@ -86,12 +69,10 @@ def test_approve_and_provision_happy_path(db_session: Session) -> None:
     db_session.add(row)
     db_session.flush()
 
-    notifier_spy = _SpyProvisioningNotifier()
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_instructor_identity_provider] = lambda: (
         _StubIdentityProvider()
     )
-    app.dependency_overrides[get_pilot_provisioning_notifier] = lambda: notifier_spy
     try:
         client = TestClient(app)
         response = client.post(
@@ -115,9 +96,6 @@ def test_approve_and_provision_happy_path(db_session: Session) -> None:
     assert body["approvedStep"] is True
     assert body["pilotProvisionStep"]["classCode"] == "CS447-FALL26"
     assert body["instructorProvisionStep"]["groupAssigned"] is True
-    assert len(notifier_spy.success) == 1
-    assert notifier_spy.success[0].course_id == "course-cs447-fall-2026"
-    assert len(notifier_spy.failure) == 0
 
     class_code = (
         db_session.query(ClassCodeModel)
@@ -184,12 +162,10 @@ def test_approve_and_provision_sets_failed_status_on_instructor_error(
     db_session.add(row)
     db_session.flush()
 
-    notifier_spy = _SpyProvisioningNotifier()
     app.dependency_overrides[get_db_session] = _override_db_session(db_session)
     app.dependency_overrides[get_instructor_identity_provider] = lambda: (
         _FailingStubIdentityProvider()
     )
-    app.dependency_overrides[get_pilot_provisioning_notifier] = lambda: notifier_spy
     try:
         client = TestClient(app)
         response = client.post(
@@ -214,9 +190,6 @@ def test_approve_and_provision_sets_failed_status_on_instructor_error(
     assert body["pilotProvisionStep"]["classCode"] == "CS447-FALL26"
     assert body["instructorProvisionStep"] is None
     assert body["instructorProvisionError"] == "identity provider unavailable"
-    assert len(notifier_spy.failure) == 1
-    assert notifier_spy.failure[0].step == "instructor_provision"
-    assert len(notifier_spy.success) == 0
 
 
 def test_retry_approve_and_provision_from_failed_state(db_session: Session) -> None:
