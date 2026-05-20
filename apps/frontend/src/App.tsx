@@ -8,10 +8,13 @@ import EnrollmentPage from "./pages/EnrollmentPage";
 import HistoryPage from "./pages/HistoryPage";
 import LabsPage from "./pages/LabsPage";
 import PreLabPage from "./pages/PreLabPage";
+import ContactPage from "./pages/public/ContactPage";
 import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import LoginPage from "./pages/public/LoginPage";
 import PilotRequestPage from "./pages/public/PilotRequestPage";
+import PrivacyPolicyPage from "./pages/public/PrivacyPolicyPage";
 import SignupPage from "./pages/public/SignupPage";
+import TermsOfUsePage from "./pages/public/TermsOfUsePage";
 import ReportsPage from "./pages/ReportsPage";
 import SessionPage from "./pages/SessionPage";
 import SessionReportPage from "./pages/SessionReportPage";
@@ -22,6 +25,9 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsOfUsePage />} />
+        <Route path="/contact" element={<ContactPage />} />
 
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<LoginPage />} />
