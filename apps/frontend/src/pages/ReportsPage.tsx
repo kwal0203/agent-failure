@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FileText,
   GraduationCap,
-  Home,
   Landmark,
   LifeBuoy,
   ListChecks,
@@ -46,11 +45,9 @@ type CatalogModule = {
 };
 
 const navItems = [
-  { label: "Dashboard", icon: Home },
   { label: "Catalog", icon: BookOpen },
   { label: "Courses", icon: GraduationCap },
   { label: "Reports", icon: BarChart3 },
-  { label: "Instructor View", icon: Users },
 ];
 
 const resourceItems = [
@@ -403,9 +400,7 @@ export default function ReportsPage() {
             if (label === "Reports") return;
             if (label === "Catalog") {
               navigate("/labs");
-              return;
             }
-            if (label === "Dashboard") navigate("/app");
           }}
         />
         <main className="relative flex min-w-0 flex-1 flex-col">

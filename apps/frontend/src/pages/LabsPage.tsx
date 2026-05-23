@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FileText,
   GraduationCap,
-  Home,
   Landmark,
   LifeBuoy,
   ListChecks,
@@ -98,11 +97,9 @@ function canViewPilotRequests(): boolean {
 }
 
 const navItems = [
-  { label: "Dashboard", icon: Home },
   { label: "Catalog", icon: BookOpen },
   { label: "Courses", icon: GraduationCap },
   { label: "Reports", icon: BarChart3 },
-  { label: "Instructor View", icon: Users },
 ];
 
 const resourceItems = [
@@ -695,10 +692,6 @@ export function LabCatalog({
             if (label === "Catalog") return;
             if (label === "Reports") {
               navigate("/reports");
-              return;
-            }
-            if (label === "Dashboard") {
-              navigate("/app");
             }
           }}
         />
