@@ -182,12 +182,6 @@ export default function AppShell() {
               <NavLink to="/labs" style={navLinkStyle}>
                 Labs
               </NavLink>
-              <NavLink to="/history" style={navLinkStyle}>
-                History
-              </NavLink>
-              <NavLink to="/trace" style={navLinkStyle}>
-                Trace
-              </NavLink>
               <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
                 Pilot Requests
               </NavLink>

@@ -11,13 +11,11 @@ export default function AppHomePage() {
         Signed in as <strong>{user?.email ?? "unknown"}</strong>.
       </p>
       <p style={{ margin: "0 0 18px", opacity: 0.85 }}>
-        This is the authenticated app entrypoint. Labs, sessions, history, and
-        trace are now protected routes.
+        This is the authenticated app entrypoint. Labs and sessions are
+        protected routes.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <Link to="/labs">Browse Labs</Link>
-        <Link to="/history">History</Link>
-        <Link to="/trace">Trace</Link>
         <button type="button" onClick={logout}>
           Log out
         </button>
