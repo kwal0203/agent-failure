@@ -145,6 +145,8 @@ export default function AppShell() {
 
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
+  const hideLegacyHeader = isSessionRoute || isPreLabRoute;
+  const isWideContentRoute = isSessionRoute || isPreLabRoute;
   const isPilotRequestsRoute =
     location.pathname === "/pilot-requests" ||
     location.pathname === "/admin/pilot-requests";
@@ -359,7 +361,7 @@ export default function AppShell() {
             }
       }
     >
-      {!isSessionRoute ? (
+      {!hideLegacyHeader ? (
         <header
           style={{
             borderBottom: "1px solid #1b5e20",
@@ -374,9 +376,9 @@ export default function AppShell() {
         >
           <div
             style={{
-              maxWidth: isSessionRoute ? undefined : 1240,
-              margin: isSessionRoute ? 0 : "0 auto",
-              padding: isSessionRoute ? "14px 16px" : "14px 24px",
+              maxWidth: isWideContentRoute ? undefined : 1240,
+              margin: isWideContentRoute ? 0 : "0 auto",
+              padding: isWideContentRoute ? "14px 16px" : "14px 24px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -409,7 +411,7 @@ export default function AppShell() {
                   : "Cyberrange Demo Surface"}
               </div>
             </div>
-            {isSessionRoute ? (
+            {isWideContentRoute ? (
               <div />
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -453,9 +455,9 @@ export default function AppShell() {
           {bootstrap.mode === "debug" && (
             <nav
               style={{
-                maxWidth: isSessionRoute ? undefined : 1120,
-                margin: isSessionRoute ? 0 : "0 auto",
-                padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
+                maxWidth: isWideContentRoute ? undefined : 1120,
+                margin: isWideContentRoute ? 0 : "0 auto",
+                padding: isWideContentRoute ? "0 16px 10px" : "0 20px 10px",
                 display: "flex",
                 gap: 16,
               }}
@@ -472,14 +474,14 @@ export default function AppShell() {
       ) : null}
       <main
         style={{
-          maxWidth: isSessionRoute ? undefined : 1240,
-          margin: isSessionRoute ? 0 : "0 auto",
-          padding: isSessionRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
+          maxWidth: isWideContentRoute ? undefined : 1240,
+          margin: isWideContentRoute ? 0 : "0 auto",
+          padding: isWideContentRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
           flex: "1 1 auto",
           minHeight: 0,
           width: "100%",
-          display: isSessionRoute ? "flex" : undefined,
-          flexDirection: isSessionRoute ? "column" : undefined,
+          display: isWideContentRoute ? "flex" : undefined,
+          flexDirection: isWideContentRoute ? "column" : undefined,
         }}
       >
         <Outlet context={bootstrap} />
@@ -487,7 +489,7 @@ export default function AppShell() {
       <footer
         style={{
           borderTop: "1px solid #1b5e20",
-          padding: isSessionRoute ? "10px 16px" : "10px 24px",
+          padding: isWideContentRoute ? "10px 16px" : "10px 24px",
           color: "#7ea683",
           fontSize: 12,
           background: "rgba(6, 12, 6, 0.9)",
@@ -495,8 +497,8 @@ export default function AppShell() {
       >
         <div
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
+            maxWidth: isWideContentRoute ? undefined : 1240,
+            margin: isWideContentRoute ? 0 : "0 auto",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",

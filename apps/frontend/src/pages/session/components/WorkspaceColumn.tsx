@@ -424,7 +424,7 @@ export function WorkspaceColumn({
           <div
             ref={transcriptViewportRef}
             onScroll={onTranscriptScroll}
-            className="transcript-scroll-region h-0 min-h-0 flex-[1_1_auto] overflow-y-auto pr-0.5"
+            className="transcript-scroll-region h-0 min-h-0 flex-[1_1_auto] overflow-y-auto pb-2 pr-0.5"
           >
             {transcriptEntries.length === 0 && !activeEntry && (
               <p className="m-0 text-slate-300/85">
@@ -480,7 +480,7 @@ export function WorkspaceColumn({
                 <button
                   type="button"
                   onClick={onJumpToLatest}
-                  className="rounded-md border border-lime-400/45 bg-lime-500/10 px-2.5 py-1 text-xs font-semibold text-lime-200 hover:bg-lime-500/20"
+                  className="rounded-lg border border-slate-400 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100"
                 >
                   Jump to latest
                 </button>
