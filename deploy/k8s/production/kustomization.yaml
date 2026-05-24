@@ -12,4 +12,4 @@ patches:
 
 images:
   - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:dae402510e356c0d329d8f0d590eacd1bb0ce8f30e0be1971867bf599cac1601
+    digest: sha256:aba38074d11091d8fffc14c87bd6f8c3aa0f876a19b3299d651cdc613cdcac39
