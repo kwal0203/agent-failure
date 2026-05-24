@@ -26,6 +26,26 @@ const DEFAULT_DRAFT: DraftSections = {
   mitigations: "",
 };
 
+type ReportSection =
+  | "unassigned"
+  | "executive_summary"
+  | "threat_model"
+  | "methodology"
+  | "evidence_and_results"
+  | "mitigations";
+
+const REPORT_SECTION_OPTIONS: ReadonlyArray<{
+  value: ReportSection;
+  label: string;
+}> = [
+  { value: "unassigned", label: "Unassigned" },
+  { value: "executive_summary", label: "Executive Summary" },
+  { value: "threat_model", label: "Threat Model" },
+  { value: "methodology", label: "Methodology" },
+  { value: "evidence_and_results", label: "Evidence & Results" },
+  { value: "mitigations", label: "Mitigations" },
+];
+
 export default function SessionReportPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -36,10 +56,17 @@ export default function SessionReportPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [selectedEventSections, setSelectedEventSections] = useState<
+    Record<string, ReportSection>
+  >({});
   const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
   const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
     Set<string>
   >(() => new Set());
+  const [
+    preselectedSectionsByTraceEventId,
+    setPreselectedSectionsByTraceEventId,
+  ] = useState<Record<string, ReportSection>>({});
 
   const toTraceEventId = useCallback(
     (timelineEventId: string): string | null => {
@@ -187,6 +214,19 @@ export default function SessionReportPage() {
             .filter((eventId): eventId is string => !!eventId),
         ),
       );
+      const sectionMap: Record<string, ReportSection> = {};
+      for (const item of items) {
+        if (!item?.event_id) continue;
+        const section =
+          item.report_section &&
+          REPORT_SECTION_OPTIONS.some(
+            (opt) => opt.value === item.report_section,
+          )
+            ? (item.report_section as ReportSection)
+            : "unassigned";
+        sectionMap[item.event_id] = section;
+      }
+      setPreselectedSectionsByTraceEventId(sectionMap);
       setHasHydratedSelection(true);
     } catch (fetchError) {
       setError(
@@ -216,19 +256,24 @@ export default function SessionReportPage() {
     if (orderedEvidence.length === 0) return;
 
     const selectedFromServer = new Set<string>();
+    const sectionsByTimelineEventId: Record<string, ReportSection> = {};
     for (const event of orderedEvidence) {
       if (event.report_selectable !== true) continue;
       const traceEventId = toTraceEventId(event.id);
       if (!traceEventId) continue;
       if (preselectedTraceEventIds.has(traceEventId)) {
         selectedFromServer.add(event.id);
+        sectionsByTimelineEventId[event.id] =
+          preselectedSectionsByTraceEventId[traceEventId] ?? "unassigned";
       }
     }
     setSelectedEventIds(selectedFromServer);
+    setSelectedEventSections(sectionsByTimelineEventId);
   }, [
     hasHydratedSelection,
     orderedEvidence,
     preselectedTraceEventIds,
+    preselectedSectionsByTraceEventId,
     toTraceEventId,
   ]);
 
@@ -263,7 +308,7 @@ export default function SessionReportPage() {
               objective_mapping: null,
               evidence_strength: null,
               student_note: null,
-              report_section: "unassigned",
+              report_section: selectedEventSections[event.id] ?? "unassigned",
               section_position: null,
             };
           })
@@ -286,22 +331,53 @@ export default function SessionReportPage() {
   }, [
     hasHydratedSelection,
     orderedEvidence,
+    selectedEventSections,
     selectedEventIds,
     sessionId,
     toTraceEventId,
   ]);
 
   const toggleEventSelection = (eventId: string) => {
+    const wasSelected = selectedEventIds.has(eventId);
     setSelectedEventIds((prev) => {
       const next = new Set(prev);
-      if (next.has(eventId)) {
+      if (wasSelected) {
         next.delete(eventId);
       } else {
         next.add(eventId);
       }
       return next;
     });
+    setSelectedEventSections((prevSections) => {
+      const nextSections = { ...prevSections };
+      if (wasSelected) {
+        delete nextSections[eventId];
+      } else if (!nextSections[eventId]) {
+        nextSections[eventId] = "unassigned";
+      }
+      return nextSections;
+    });
   };
+
+  const setEventSection = (eventId: string, section: ReportSection) => {
+    setSelectedEventSections((prev) => ({ ...prev, [eventId]: section }));
+  };
+
+  const selectedEvidenceBySection = useMemo(() => {
+    const grouped = new Map<ReportSection, TimelineEvent[]>();
+    for (const option of REPORT_SECTION_OPTIONS) {
+      grouped.set(option.value, []);
+    }
+    for (const event of orderedEvidence) {
+      if (!selectedEventIds.has(event.id)) continue;
+      const section = selectedEventSections[event.id] ?? "unassigned";
+      const bucket = grouped.get(section);
+      if (bucket) {
+        bucket.push(event);
+      }
+    }
+    return grouped;
+  }, [orderedEvidence, selectedEventIds, selectedEventSections]);
 
   const updateDraftField = <K extends keyof DraftSections>(
     key: K,
@@ -374,6 +450,8 @@ export default function SessionReportPage() {
                   const isSelected = selectedEventIds.has(event.id);
                   const isSelectable = event.report_selectable === true;
                   const tone = eventTone(event);
+                  const selectedSection =
+                    selectedEventSections[event.id] ?? "unassigned";
                   const chipBody = (
                     <div className="relative flex flex-col items-start gap-0">
                       {isSelected ? (
@@ -387,6 +465,30 @@ export default function SessionReportPage() {
                       <p className={`m-0 font-semibold ${tone.titleClass}`}>
                         {event.title}
                       </p>
+                      {isSelected ? (
+                        <label className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-500/35 bg-black/40 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
+                          Section
+                          <select
+                            value={selectedSection}
+                            onChange={(selectEvent) => {
+                              setEventSection(
+                                event.id,
+                                selectEvent.target.value as ReportSection,
+                              );
+                            }}
+                            onClick={(selectEvent) =>
+                              selectEvent.stopPropagation()
+                            }
+                            className="rounded-full border border-slate-500/40 bg-slate-900/90 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 outline-none"
+                          >
+                            {REPORT_SECTION_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                     </div>
                   );
 
@@ -429,6 +531,44 @@ export default function SessionReportPage() {
             <h2 className="m-0 text-sm font-black uppercase tracking-wide text-lime-300">
               Report Draft
             </h2>
+
+            <div className="rounded-xl border border-slate-600/30 bg-black/25 p-3">
+              <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-300">
+                Evidence By Section
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {REPORT_SECTION_OPTIONS.map((sectionOption) => {
+                  const eventsForSection =
+                    selectedEvidenceBySection.get(sectionOption.value) ?? [];
+                  return (
+                    <div
+                      key={sectionOption.value}
+                      className="rounded-lg border border-slate-600/35 bg-slate-900/35 p-2.5"
+                    >
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">
+                        {sectionOption.label}
+                      </p>
+                      {eventsForSection.length === 0 ? (
+                        <p className="text-xs text-slate-500">
+                          No evidence assigned
+                        </p>
+                      ) : (
+                        <div className="space-y-1">
+                          {eventsForSection.map((event) => (
+                            <div
+                              key={event.id}
+                              className="rounded border border-slate-500/30 bg-black/35 px-2 py-1 text-xs text-slate-200"
+                            >
+                              {event.title}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             <label className="grid gap-2">
               <span className="text-sm font-bold text-slate-200">
