@@ -164,6 +164,9 @@ function mapPersistedTraceToTimelineEvent(
   }
 
   if (event.event_type === "ATTACK_EMAIL_SENT") {
+    if (event.family !== "learner") {
+      return null;
+    }
     const subject =
       typeof event.payload.subject === "string" ? event.payload.subject : "";
     const emailFrom =
