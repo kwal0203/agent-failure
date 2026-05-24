@@ -4,9 +4,7 @@ import {
   Eye,
   EyeOff,
   GraduationCap,
-  HelpCircle,
   Shield,
-  ShieldCheck,
   User,
   Users,
 } from "lucide-react";
@@ -155,21 +153,7 @@ export default function LoginPage() {
           <div className="absolute bottom-16 left-1/2 h-28 w-px -translate-x-1/2 bg-lime-300 shadow-[0_0_40px_rgba(132,204,22,0.9)]" />
         </div>
 
-        <header className="relative z-10 flex items-center justify-end px-6 py-6 md:px-10">
-          <div className="flex items-center gap-5 text-sm font-semibold text-slate-300">
-            <span className="inline-flex items-center gap-2">
-              <HelpCircle className="h-5 w-5" />
-              Help
-            </span>
-            <div className="h-6 w-px bg-lime-500/20" />
-            <span className="inline-flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" />
-              Status
-            </span>
-          </div>
-        </header>
-
-        <main className="relative z-10 mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl grid-cols-1 items-center gap-12 px-6 pb-12 md:px-10 lg:grid-cols-[1fr_0.95fr]">
+        <main className="relative z-10 mx-auto grid min-h-screen max-w-7xl grid-cols-1 items-center gap-12 px-6 pt-8 pb-12 md:px-10 md:pt-10 lg:grid-cols-[1fr_0.95fr]">
           <section className="max-w-2xl">
             <div className="mb-16 flex items-center gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-lime-500/15 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_34px_rgba(132,204,22,0.35)]">

@@ -3,9 +3,7 @@ import { AuthProvider } from "./auth/context";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/guards";
 import AppShell from "./layout/AppShell";
 import PilotRequestsAdminPage from "./pages/admin/PilotRequestsAdminPage";
-import AppHomePage from "./pages/app/AppHomePage";
 import EnrollmentPage from "./pages/EnrollmentPage";
-import HistoryPage from "./pages/HistoryPage";
 import LabsPage from "./pages/LabsPage";
 import PreLabPage from "./pages/PreLabPage";
 import ContactPage from "./pages/public/ContactPage";
@@ -18,7 +16,6 @@ import TermsOfUsePage from "./pages/public/TermsOfUsePage";
 import ReportsPage from "./pages/ReportsPage";
 import SessionPage from "./pages/SessionPage";
 import SessionReportPage from "./pages/SessionReportPage";
-import TracePage from "./pages/TracePage";
 
 export default function App() {
   return (
@@ -38,13 +35,11 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route path="/app" element={<AppHomePage />} />
+            <Route path="/app" element={<Navigate to="/labs" replace />} />
             <Route path="/enrollment" element={<EnrollmentPage />} />
             <Route path="/labs" element={<LabsPage />} />
             <Route path="/labs/:labId/pre-lab" element={<PreLabPage />} />
-            <Route path="/history" element={<HistoryPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/trace" element={<TracePage />} />
             <Route
               path="/admin/pilot-requests"
               element={<PilotRequestsAdminPage />}
