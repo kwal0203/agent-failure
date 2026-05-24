@@ -16,107 +16,40 @@ export function SessionSuccessModal({
       role="dialog"
       aria-modal="true"
       aria-label="Session completion success"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "rgba(3, 11, 19, 0.64)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-4"
     >
-      <section
-        style={{
-          width: "min(560px, 100%)",
-          borderRadius: 16,
-          border: "1px solid #3d8f68",
-          background:
-            "linear-gradient(165deg, rgba(8, 30, 22, 0.98) 0%, rgba(10, 20, 17, 0.98) 100%)",
-          boxShadow: "0 16px 40px rgba(0, 0, 0, 0.42)",
-          color: "#dcffe9",
-          padding: "18px 20px 20px",
-          position: "relative",
-        }}
-      >
+      <section className="relative w-full max-w-[560px] rounded-2xl border border-emerald-700 bg-gradient-to-br from-emerald-950/95 to-slate-950/95 px-5 pb-5 pt-4 text-emerald-100 shadow-[0_16px_40px_rgba(0,0,0,0.42)]">
         <button
           type="button"
           onClick={onClose}
           aria-label="Close success popup"
-          style={{
-            position: "absolute",
-            top: 10,
-            right: 10,
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            border: "1px solid #6ba987",
-            background: "rgba(12, 38, 28, 0.8)",
-            color: "#d9ffe8",
-            cursor: "pointer",
-            fontSize: 18,
-            lineHeight: 1,
-          }}
+          className="absolute right-2.5 top-2.5 h-[30px] w-[30px] cursor-pointer rounded-full border border-emerald-600 bg-emerald-950/80 text-lg leading-none text-emerald-100"
         >
           ×
         </button>
         <div
           aria-hidden="true"
-          style={{
-            width: 72,
-            height: 72,
-            borderRadius: "50%",
-            margin: "2px auto 12px",
-            border: "2px solid #7ee0ad",
-            background: "rgba(18, 74, 50, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 36,
-            fontWeight: 800,
-            color: "#b8ffd8",
-          }}
+          className="mx-auto mb-3 mt-0.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-800/45 text-4xl font-extrabold text-emerald-200"
         >
           ✓
         </div>
-        <h2
-          style={{
-            margin: "0 0 10px",
-            textAlign: "center",
-            color: "#dcffe9",
-          }}
-        >
+        <h2 className="mb-2.5 mt-0 text-center text-2xl font-semibold text-emerald-100">
           Lab completed successfully
         </h2>
-        <p style={{ margin: "0 0 8px", textAlign: "center", color: "#c8f6dd" }}>
+        <p className="mb-2 mt-0 text-center text-emerald-200">
           All required objectives are complete.
         </p>
         {completedAt ? (
-          <p style={{ margin: "0 0 4px", textAlign: "center", opacity: 0.9 }}>
+          <p className="mb-1 mt-0 text-center opacity-90">
             Completed at {formatTime(completedAt)}
           </p>
         ) : null}
         {onOpenReport ? (
-          <div
-            style={{
-              marginTop: 14,
-              display: "flex",
-              justifyContent: "center",
-            }}
-          >
+          <div className="mt-3.5 flex justify-center">
             <button
               type="button"
               onClick={onOpenReport}
-              style={{
-                border: "1px solid #7ee0ad",
-                background: "rgba(18, 74, 50, 0.45)",
-                color: "#d9ffe8",
-                borderRadius: 10,
-                padding: "9px 14px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
+              className="cursor-pointer rounded-[10px] border border-emerald-300 bg-emerald-800/45 px-3.5 py-2 font-bold text-emerald-100 hover:bg-emerald-700/45"
             >
               Open Report Draft
             </button>

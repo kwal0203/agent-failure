@@ -77,7 +77,14 @@ export function ProgressStatusHeader({
       opacity: 0.92,
     };
 
-    return <div style={placeholderStyle}>Loading objective status</div>;
+    return (
+      <div
+        className="rounded-md px-2.5 py-1.5 text-sm"
+        style={placeholderStyle}
+      >
+        Loading objective status
+      </div>
+    );
   }
 
   return (
@@ -88,6 +95,7 @@ export function ProgressStatusHeader({
         return (
           <div
             key={chip.objective_key}
+            className="rounded-md px-2.5 py-1.5 text-sm"
             style={{
               ...statusChipStyle(tone),
               animation: "progressChipIn 220ms ease-out both",
@@ -141,7 +149,7 @@ export function SessionStatusHeader({
 
     return (
       <section
-        className="hints-scroll-region"
+        className="hints-scroll-region absolute right-0 z-[4] box-border max-h-[640px] w-[420px] max-w-full overflow-x-hidden overflow-y-auto rounded-[10px] border border-sky-800 bg-slate-950 p-3 pr-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
         style={{
           position: "absolute",
           top: "calc(100% + 8px)",
@@ -153,45 +161,27 @@ export function SessionStatusHeader({
           overflowY: "auto",
           overflowX: "hidden",
           paddingRight: 6,
-          background: "#09131f",
-          border: "1px solid #35607f",
-          borderRadius: 10,
-          padding: 12,
           boxSizing: "border-box",
-          boxShadow: "0 10px 24px rgba(0, 0, 0, 0.35)",
         }}
       >
         {!hintsReady ? (
-          <p style={{ margin: 0, opacity: 0.88 }} />
+          <p className="m-0 opacity-90" />
         ) : unlockedHints.length === 0 ? (
-          <p style={{ margin: 0, opacity: 0.88 }}>
+          <p className="m-0 opacity-90">
             No hints unlocked yet. Continue interacting and check back.
           </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {unlockedHints.map((hint) => (
               <div
                 key={`hint-${hint.index}`}
-                style={{
-                  border: "1px solid #9a4f8a",
-                  borderRadius: 8,
-                  padding: 10,
-                  background: "rgba(64, 24, 58, 0.64)",
-                }}
+                className="rounded-lg border border-fuchsia-700 bg-fuchsia-950/65 p-2.5"
               >
-                <p
-                  style={{
-                    margin: "0 0 4px",
-                    fontWeight: 700,
-                    color: "#ffd8f5",
-                  }}
-                >
+                <p className="mb-1 mt-0 font-bold text-fuchsia-100">
                   Hint {hint.index + 1}
                 </p>
-                <p style={{ margin: "0 0 6px", color: "#ffeafd" }}>
-                  {hint.text}
-                </p>
-                <p style={{ margin: 0, fontSize: 12, color: "#f2cbe8" }}>
+                <p className="mb-1.5 mt-0 text-fuchsia-50">{hint.text}</p>
+                <p className="m-0 text-xs text-fuchsia-200">
                   Unlocked at {formatTime(hint.unlockedAt)}
                 </p>
               </div>
@@ -207,6 +197,7 @@ export function SessionStatusHeader({
       <button
         type="button"
         onClick={onFeedbackChipClick}
+        className="rounded-md px-2.5 py-1.5 text-sm"
         style={{
           ...statusChipStyle(feedbackTone),
           cursor: "pointer",
@@ -217,12 +208,13 @@ export function SessionStatusHeader({
       >
         <strong>Feedback</strong>
         {feedbackCount > 0 ? (
-          <span style={{ marginLeft: 6 }}>({feedbackCount})</span>
+          <span className="ml-1.5">({feedbackCount})</span>
         ) : null}
       </button>
       <button
         type="button"
         onClick={onHintsChipClick}
+        className="rounded-md px-2.5 py-1.5 text-sm"
         style={{
           ...statusChipStyle(hintsTone),
           cursor: "pointer",
@@ -233,13 +225,19 @@ export function SessionStatusHeader({
       >
         <strong>Hints</strong>
         {unlockedHints.length > 0 ? (
-          <span style={{ marginLeft: 6 }}>({unlockedHints.length})</span>
+          <span className="ml-1.5">({unlockedHints.length})</span>
         ) : null}
       </button>
-      <div style={statusChipStyle(agentTone)}>
+      <div
+        className="rounded-md px-2.5 py-1.5 text-sm"
+        style={statusChipStyle(agentTone)}
+      >
         <strong>{agentLabel}</strong>
       </div>
-      <div style={statusChipStyle(tone)}>
+      <div
+        className="rounded-md px-2.5 py-1.5 text-sm"
+        style={statusChipStyle(tone)}
+      >
         <strong>{sessionLabel}</strong>
       </div>
       {completionStatus === "completed_failure" ? (
@@ -253,6 +251,7 @@ export function SessionStatusHeader({
         type="button"
         onClick={onStopSession}
         disabled={!canStopSession || stoppingSession}
+        className="rounded-md px-2.5 py-1.5 text-sm"
         style={{
           ...statusChipStyle({
             background: "rgba(83, 21, 31, 0.72)",
@@ -298,30 +297,14 @@ export function SessionHeaderStatus(props: SessionHeaderStatusProps) {
   } = props;
 
   return (
-    <div
-      style={{
-        width: "100%",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <div className="flex w-full flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-2">
         <ProgressStatusHeader
           progressReady={progressReady}
           progressChips={progressChips}
         />
       </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          position: "relative",
-        }}
-      >
+      <div className="relative flex flex-wrap gap-2">
         <SessionStatusHeader
           agentStatus={agentStatus}
           completionStatus={completionStatus}
