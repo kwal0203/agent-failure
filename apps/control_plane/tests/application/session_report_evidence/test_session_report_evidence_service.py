@@ -281,6 +281,145 @@ def test_replace_session_report_evidence_normalizes_positions_from_request_order
     assert [item.event_index for item in saved_items] == [1, 2]
 
 
+def test_replace_session_report_evidence_rejects_invalid_report_section() -> None:
+    session_id = uuid4()
+    owner_user_id = uuid4()
+    event_id = uuid4()
+    repo = _FakeReportEvidenceRepo(owner_user_id=owner_user_id)
+    trace_repo = _FakeTraceRepo(
+        (
+            _trace_event(
+                session_id=session_id,
+                event_id=event_id,
+                event_type="TOKEN_DISCLOSED",
+            ),
+        )
+    )
+
+    with pytest.raises(InvalidSessionReportEvidenceError):
+        replace_session_report_evidence(
+            session_id=session_id,
+            principal=PrincipalContext(user_id=owner_user_id, role="learner"),
+            items=(
+                SessionReportEvidenceItemInput(
+                    event_id=event_id,
+                    position=99,
+                    title="ignored",
+                    description=None,
+                    details=None,
+                    occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+                    trace_version=1,
+                    event_index=0,
+                    evidence_type="noise",
+                    objective_keys=(),
+                    why_it_matters=None,
+                    default_priority="low",
+                    student_note=None,
+                    report_section="bad_section",
+                    section_position=123,
+                ),
+            ),
+            repo=repo,
+            trace_repo=trace_repo,
+        )
+
+
+def test_replace_session_report_evidence_normalizes_section_position_per_section() -> (
+    None
+):
+    session_id = uuid4()
+    owner_user_id = uuid4()
+    first_event_id = uuid4()
+    second_event_id = uuid4()
+    third_event_id = uuid4()
+    repo = _FakeReportEvidenceRepo(owner_user_id=owner_user_id)
+    trace_repo = _FakeTraceRepo(
+        (
+            _trace_event(
+                session_id=session_id,
+                event_id=first_event_id,
+                event_type="TOKEN_DISCLOSED",
+            ),
+            _trace_event(
+                session_id=session_id,
+                event_id=second_event_id,
+                event_type="ATTACK_EMAIL_SENT",
+            ),
+            _trace_event(
+                session_id=session_id,
+                event_id=third_event_id,
+                event_type="MALICIOUS_EMAIL_READ",
+            ),
+        )
+    )
+
+    items = (
+        SessionReportEvidenceItemInput(
+            event_id=first_event_id,
+            position=50,
+            title="ignored",
+            description=None,
+            details=None,
+            occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+            trace_version=1,
+            event_index=0,
+            evidence_type="noise",
+            objective_keys=(),
+            why_it_matters=None,
+            default_priority="low",
+            student_note=None,
+            report_section="executive_summary",
+            section_position=999,
+        ),
+        SessionReportEvidenceItemInput(
+            event_id=second_event_id,
+            position=51,
+            title="ignored",
+            description=None,
+            details=None,
+            occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+            trace_version=1,
+            event_index=0,
+            evidence_type="noise",
+            objective_keys=(),
+            why_it_matters=None,
+            default_priority="low",
+            student_note=None,
+            report_section="threat_model",
+            section_position=888,
+        ),
+        SessionReportEvidenceItemInput(
+            event_id=third_event_id,
+            position=52,
+            title="ignored",
+            description=None,
+            details=None,
+            occurred_at=datetime(2026, 5, 17, 20, 0, 0, tzinfo=timezone.utc),
+            trace_version=1,
+            event_index=0,
+            evidence_type="noise",
+            objective_keys=(),
+            why_it_matters=None,
+            default_priority="low",
+            student_note=None,
+            report_section="executive_summary",
+            section_position=777,
+        ),
+    )
+
+    normalized = replace_session_report_evidence(
+        session_id=session_id,
+        principal=PrincipalContext(user_id=owner_user_id, role="learner"),
+        items=items,
+        repo=repo,
+        trace_repo=trace_repo,
+    )
+
+    assert normalized[0].section_position == 0
+    assert normalized[1].section_position == 0
+    assert normalized[2].section_position == 1
+
+
 def test_import_selected_evidence_defaults_to_persisted_order() -> None:
     session_id = uuid4()
     owner_user_id = uuid4()
