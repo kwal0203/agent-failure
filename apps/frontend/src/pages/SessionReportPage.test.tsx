@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SessionReportPage from "./SessionReportPage";
 import * as sessionUi from "./session/ui";
@@ -15,29 +15,32 @@ function mockJsonResponse(body: unknown, status = 200) {
 }
 
 function renderReportPage(sessionId = SESSION_ID) {
-  return render(
-    <MemoryRouter initialEntries={[`/sessions/${sessionId}/report`]}>
-      <Routes>
-        <Route
-          path="/sessions/:sessionId/report"
-          element={<SessionReportPage />}
-        />
-      </Routes>
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/sessions/:sessionId/report",
+        element: <SessionReportPage />,
+      },
+    ],
+    {
+      initialEntries: [`/sessions/${sessionId}/report`],
+    },
   );
+  return render(<RouterProvider router={router} />);
 }
 
 describe("SessionReportPage evidence selection", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.spyOn(sessionUi, "getAuthHeader").mockReturnValue("Bearer test-token");
+    window.localStorage.clear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("persists selected evidence with a debounced full PUT payload", async () => {
+  it("persists selected evidence only after explicit save", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -106,6 +109,14 @@ describe("SessionReportPage evidence selection", () => {
     fireEvent.change(sectionSelectors[0], {
       target: { value: "mitigations" },
     });
+    const putCallsBeforeSave = fetchMock.mock.calls.filter(
+      ([requestUrl, requestInit]) =>
+        String(requestUrl).endsWith(
+          `/api/v1/sessions/${SESSION_ID}/report-evidence`,
+        ) && requestInit?.method === "PUT",
+    );
+    expect(putCallsBeforeSave).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(
       () => {

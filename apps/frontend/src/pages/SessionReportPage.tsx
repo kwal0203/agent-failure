@@ -1,6 +1,6 @@
 import { ArrowLeft, Download, FileText, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useBeforeUnload, useNavigate, useParams } from "react-router-dom";
 import { mapPersistedTraceToTimelineEvent } from "./session/timelineEventMapper";
 import type {
   GetSessionReportEvidenceResponse,
@@ -25,6 +25,7 @@ const DEFAULT_DRAFT: DraftSections = {
   evidenceAndResults: "",
   mitigations: "",
 };
+const DRAFT_LOCAL_STORAGE_PREFIX = "session-report-draft:";
 
 type ReportSection =
   | "unassigned"
@@ -67,6 +68,9 @@ export default function SessionReportPage() {
     preselectedSectionsByTraceEventId,
     setPreselectedSectionsByTraceEventId,
   ] = useState<Record<string, ReportSection>>({});
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>("");
 
   const toTraceEventId = useCallback(
     (timelineEventId: string): string | null => {
@@ -227,6 +231,24 @@ export default function SessionReportPage() {
         sectionMap[item.event_id] = section;
       }
       setPreselectedSectionsByTraceEventId(sectionMap);
+      const localDraftRaw =
+        window.localStorage.getItem(
+          `${DRAFT_LOCAL_STORAGE_PREFIX}${sessionId}`,
+        ) ?? "";
+      if (localDraftRaw) {
+        try {
+          const parsed = JSON.parse(localDraftRaw) as Partial<DraftSections>;
+          setDraft({
+            executiveSummary: parsed.executiveSummary ?? "",
+            threatModel: parsed.threatModel ?? "",
+            methodology: parsed.methodology ?? "",
+            evidenceAndResults: parsed.evidenceAndResults ?? "",
+            mitigations: parsed.mitigations ?? "",
+          });
+        } catch {
+          // Ignore malformed local draft payload and keep defaults.
+        }
+      }
       setHasHydratedSelection(true);
     } catch (fetchError) {
       setError(
@@ -269,71 +291,12 @@ export default function SessionReportPage() {
     }
     setSelectedEventIds(selectedFromServer);
     setSelectedEventSections(sectionsByTimelineEventId);
+    setIsHydrated(true);
   }, [
     hasHydratedSelection,
     orderedEvidence,
     preselectedTraceEventIds,
     preselectedSectionsByTraceEventId,
-    toTraceEventId,
-  ]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    if (!hasHydratedSelection) return;
-
-    const timeoutId = window.setTimeout(() => {
-      const selectedItems = orderedEvidence.filter(
-        (event) =>
-          event.report_selectable === true && selectedEventIds.has(event.id),
-      );
-      const requestBody: PutSessionReportEvidenceRequest = {
-        items: selectedItems
-          .map((event, index) => {
-            const eventId = toTraceEventId(event.id);
-            if (!eventId) return null;
-            return {
-              event_id: eventId,
-              position: index,
-              title: event.title,
-              description: event.description,
-              details: null,
-              occurred_at: event.timestamp,
-              trace_version: 1,
-              event_index: index,
-              evidence_type: event.evidence_type ?? "noise",
-              objective_keys: event.objective_keys ?? [],
-              why_it_matters: event.why_it_matters ?? null,
-              default_priority: event.default_priority ?? "low",
-              citation_label: null,
-              objective_mapping: null,
-              evidence_strength: null,
-              student_note: null,
-              report_section: selectedEventSections[event.id] ?? "unassigned",
-              section_position: null,
-            };
-          })
-          .filter((item) => item !== null),
-      };
-
-      void fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`, {
-        method: "PUT",
-        headers: {
-          Authorization: getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    hasHydratedSelection,
-    orderedEvidence,
-    selectedEventSections,
-    selectedEventIds,
-    sessionId,
     toTraceEventId,
   ]);
 
@@ -379,6 +342,125 @@ export default function SessionReportPage() {
     return grouped;
   }, [orderedEvidence, selectedEventIds, selectedEventSections]);
 
+  const selectedItemsPayload = useMemo(
+    () =>
+      orderedEvidence
+        .filter(
+          (event) =>
+            event.report_selectable === true && selectedEventIds.has(event.id),
+        )
+        .map((event, index) => {
+          const eventId = toTraceEventId(event.id);
+          if (!eventId) return null;
+          return {
+            event_id: eventId,
+            position: index,
+            title: event.title,
+            description: event.description,
+            details: null,
+            occurred_at: event.timestamp,
+            trace_version: 1,
+            event_index: index,
+            evidence_type: event.evidence_type ?? "noise",
+            objective_keys: event.objective_keys ?? [],
+            why_it_matters: event.why_it_matters ?? null,
+            default_priority: event.default_priority ?? "low",
+            citation_label: null,
+            objective_mapping: null,
+            evidence_strength: null,
+            student_note: null,
+            report_section: selectedEventSections[event.id] ?? "unassigned",
+            section_position: null,
+          };
+        })
+        .filter((item) => item !== null),
+    [orderedEvidence, selectedEventIds, selectedEventSections, toTraceEventId],
+  );
+
+  const currentSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        draft,
+        selectedItems: selectedItemsPayload,
+      }),
+    [draft, selectedItemsPayload],
+  );
+
+  useEffect(() => {
+    if (!hasHydratedSelection || !isHydrated) return;
+    if (lastSavedSnapshot) return;
+    setLastSavedSnapshot(currentSnapshot);
+  }, [currentSnapshot, hasHydratedSelection, isHydrated, lastSavedSnapshot]);
+
+  const isDirty =
+    hasHydratedSelection &&
+    isHydrated &&
+    lastSavedSnapshot.length > 0 &&
+    currentSnapshot !== lastSavedSnapshot;
+
+  const handleSave = useCallback(async () => {
+    if (!sessionId) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const requestBody: PutSessionReportEvidenceRequest = {
+        items: selectedItemsPayload,
+      };
+      const response = await fetch(
+        `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: getAuthHeader(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to save evidence (HTTP ${response.status})`);
+      }
+      window.localStorage.setItem(
+        `${DRAFT_LOCAL_STORAGE_PREFIX}${sessionId}`,
+        JSON.stringify(draft),
+      );
+      setLastSavedSnapshot(currentSnapshot);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Unknown error",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [currentSnapshot, draft, selectedItemsPayload, sessionId]);
+
+  useBeforeUnload(
+    useCallback(
+      (event) => {
+        if (!isDirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+      },
+      [isDirty],
+    ),
+  );
+
+  const guardedNavigate = useCallback(
+    (path: string) => {
+      if (!isDirty) {
+        navigate(path);
+        return;
+      }
+      const shouldLeave = window.confirm(
+        "You have unsaved report changes. Leave this page?",
+      );
+      if (shouldLeave) {
+        navigate(path);
+      }
+    },
+    [isDirty, navigate],
+  );
+
   const updateDraftField = <K extends keyof DraftSections>(
     key: K,
     value: DraftSections[K],
@@ -392,7 +474,7 @@ export default function SessionReportPage() {
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => navigate("/reports")}
+            onClick={() => guardedNavigate("/reports")}
             className="inline-flex items-center gap-2 rounded-lg border border-lime-500/35 bg-black/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-lime-200 transition hover:bg-lime-500/10"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -401,12 +483,15 @@ export default function SessionReportPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-900/50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-300 opacity-60"
-              title="Save will be added in the next step."
+              onClick={() => {
+                void handleSave();
+              }}
+              disabled={!isDirty || isSaving}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-900/50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-300 disabled:opacity-60"
+              title={isDirty ? "Save report changes" : "No unsaved changes"}
             >
               <Save className="h-4 w-4" />
-              Save
+              {isSaving ? "Saving..." : "Save"}
             </button>
             <button
               type="button"
