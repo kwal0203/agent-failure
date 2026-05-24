@@ -1,9 +1,12 @@
 import { ArrowLeft, Download, FileText, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { mapPersistedTraceToTimelineEvent } from "./session/timelineEventMapper";
 import type {
   GetSessionReportEvidenceResponse,
-  ReportEvidenceItem,
+  GetSessionTraceResponse,
+  PutSessionReportEvidenceRequest,
+  TimelineEvent,
 } from "./session/types";
 import { API_BASE, getAuthHeader } from "./session/ui";
 
@@ -27,15 +30,140 @@ export default function SessionReportPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<DraftSections>(DEFAULT_DRAFT);
-  const [evidenceItems, setEvidenceItems] = useState<ReportEvidenceItem[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [loadingEvidence, setLoadingEvidence] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
+  const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
+    Set<string>
+  >(() => new Set());
+
+  const toTraceEventId = useCallback(
+    (timelineEventId: string): string | null => {
+      if (!timelineEventId.startsWith("trace-")) return null;
+      const raw = timelineEventId.slice("trace-".length).trim();
+      return raw.length > 0 ? raw : null;
+    },
+    [],
+  );
+
+  const isTokenExposureEvent = (event: TimelineEvent): boolean => {
+    const haystack =
+      `${event.title} ${event.description} ${event.details ?? ""}`.toLowerCase();
+    return (
+      haystack.includes("token exposed") ||
+      haystack.includes("system_token") ||
+      haystack.includes("orch-7429")
+    );
+  };
+
+  const isMaliciousEmailReceivedEvent = (event: TimelineEvent): boolean => {
+    return event.title.toLowerCase() === "malicious email received";
+  };
+
+  const isBenignEmailReceivedEvent = (event: TimelineEvent): boolean => {
+    return event.title.toLowerCase() === "benign email received";
+  };
+
+  const eventTone = (
+    event: TimelineEvent,
+  ): {
+    chipClass: string;
+    titleClass: string;
+  } => {
+    if (isTokenExposureEvent(event)) {
+      return {
+        chipClass: "border border-red-500 bg-red-950/35",
+        titleClass: "text-red-100",
+      };
+    }
+
+    if (isMaliciousEmailReceivedEvent(event)) {
+      return {
+        chipClass: "border border-orange-500 bg-orange-950/35",
+        titleClass: "text-orange-100",
+      };
+    }
+
+    if (isBenignEmailReceivedEvent(event)) {
+      return {
+        chipClass: "border border-emerald-500 bg-emerald-950/35",
+        titleClass: "text-emerald-100",
+      };
+    }
+
+    switch (event.type) {
+      case "important":
+        return {
+          chipClass: "border border-amber-500 bg-amber-950/30",
+          titleClass: "text-amber-100",
+        };
+      case "attacker_action":
+        return {
+          chipClass: "border border-violet-500 bg-violet-950/30",
+          titleClass: "text-violet-100",
+        };
+      case "agent_action":
+        return {
+          chipClass: "border border-emerald-500 bg-emerald-950/30",
+          titleClass: "text-emerald-100",
+        };
+      case "tool_call":
+        return {
+          chipClass: "border border-sky-500 bg-sky-950/30",
+          titleClass: "text-sky-100",
+        };
+      case "system":
+        return {
+          chipClass: "border border-slate-500 bg-slate-800/45",
+          titleClass: "text-slate-100",
+        };
+      case "explanation":
+        return {
+          chipClass: "border border-blue-500 bg-blue-950/30",
+          titleClass: "text-blue-100",
+        };
+      default:
+        return {
+          chipClass: "border border-slate-400 bg-slate-900/25",
+          titleClass: "text-slate-100",
+        };
+    }
+  };
 
   const refreshEvidence = useCallback(async () => {
     if (!sessionId) return;
     setLoadingEvidence(true);
     setError(null);
     try {
+      const traceResponse = await fetch(
+        `${API_BASE}/api/v1/sessions/${sessionId}/trace`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: getAuthHeader(),
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!traceResponse.ok) {
+        throw new Error(
+          `Failed to load session timeline (HTTP ${traceResponse.status})`,
+        );
+      }
+      const tracePayload =
+        (await traceResponse.json()) as GetSessionTraceResponse;
+      const traceEvents = Array.isArray(tracePayload.events)
+        ? tracePayload.events
+        : [];
+      const mappedTimelineEvents = traceEvents
+        .map((event) => mapPersistedTraceToTimelineEvent(event))
+        .filter((event): event is TimelineEvent => event !== null);
+      setTimelineEvents(mappedTimelineEvents);
+
       const response = await fetch(
         `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
         {
@@ -51,11 +179,20 @@ export default function SessionReportPage() {
       }
       const payload =
         (await response.json()) as GetSessionReportEvidenceResponse;
-      setEvidenceItems(Array.isArray(payload.items) ? payload.items : []);
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      setPreselectedTraceEventIds(
+        new Set(
+          items
+            .map((item) => item.event_id)
+            .filter((eventId): eventId is string => !!eventId),
+        ),
+      );
+      setHasHydratedSelection(true);
     } catch (fetchError) {
       setError(
         fetchError instanceof Error ? fetchError.message : "Unknown error",
       );
+      setHasHydratedSelection(true);
     } finally {
       setLoadingEvidence(false);
     }
@@ -66,9 +203,103 @@ export default function SessionReportPage() {
   }, [refreshEvidence]);
 
   const orderedEvidence = useMemo(
-    () => [...evidenceItems].sort((a, b) => a.position - b.position),
-    [evidenceItems],
+    () =>
+      [...timelineEvents].sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      ),
+    [timelineEvents],
   );
+
+  useEffect(() => {
+    if (!hasHydratedSelection) return;
+    if (orderedEvidence.length === 0) return;
+
+    const selectedFromServer = new Set<string>();
+    for (const event of orderedEvidence) {
+      if (event.report_selectable !== true) continue;
+      const traceEventId = toTraceEventId(event.id);
+      if (!traceEventId) continue;
+      if (preselectedTraceEventIds.has(traceEventId)) {
+        selectedFromServer.add(event.id);
+      }
+    }
+    setSelectedEventIds(selectedFromServer);
+  }, [
+    hasHydratedSelection,
+    orderedEvidence,
+    preselectedTraceEventIds,
+    toTraceEventId,
+  ]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (!hasHydratedSelection) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const selectedItems = orderedEvidence.filter(
+        (event) =>
+          event.report_selectable === true && selectedEventIds.has(event.id),
+      );
+      const requestBody: PutSessionReportEvidenceRequest = {
+        items: selectedItems
+          .map((event, index) => {
+            const eventId = toTraceEventId(event.id);
+            if (!eventId) return null;
+            return {
+              event_id: eventId,
+              position: index,
+              title: event.title,
+              description: event.description,
+              details: null,
+              occurred_at: event.timestamp,
+              trace_version: 1,
+              event_index: index,
+              evidence_type: event.evidence_type ?? "noise",
+              objective_keys: event.objective_keys ?? [],
+              why_it_matters: event.why_it_matters ?? null,
+              default_priority: event.default_priority ?? "low",
+              citation_label: null,
+              objective_mapping: null,
+              evidence_strength: null,
+              student_note: null,
+            };
+          })
+          .filter((item) => item !== null),
+      };
+
+      void fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`, {
+        method: "PUT",
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    hasHydratedSelection,
+    orderedEvidence,
+    selectedEventIds,
+    sessionId,
+    toTraceEventId,
+  ]);
+
+  const toggleEventSelection = (eventId: string) => {
+    setSelectedEventIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  };
 
   const updateDraftField = <K extends keyof DraftSections>(
     key: K,
@@ -137,27 +368,57 @@ export default function SessionReportPage() {
                   No evidence found for this session in database.
                 </p>
               ) : (
-                orderedEvidence.map((item) => (
-                  <article
-                    key={item.event_id}
-                    className="rounded-xl border border-lime-500/20 bg-black/35 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="m-0 text-sm font-bold text-slate-100">
-                        {item.citation_label ?? `E${item.position + 1}`} ·{" "}
-                        {item.title}
+                orderedEvidence.map((event) => {
+                  const isSelected = selectedEventIds.has(event.id);
+                  const isSelectable = event.report_selectable === true;
+                  const tone = eventTone(event);
+                  const chipBody = (
+                    <div className="relative flex flex-col items-start gap-0">
+                      {isSelected ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -right-0.5 -top-1 h-4 w-4 rounded-full bg-sky-100 text-center text-[11px] font-bold leading-4 text-sky-800 shadow-[0_0_0_1px_rgba(17,24,39,0.35)]"
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                      <p className={`m-0 font-semibold ${tone.titleClass}`}>
+                        {event.title}
                       </p>
-                      <span className="rounded border border-lime-500/30 bg-lime-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-lime-200">
-                        {item.evidence_type.replace("_", " ")}
-                      </span>
                     </div>
-                    {item.description ? (
-                      <p className="mt-2 text-xs leading-5 text-slate-300">
-                        {item.description}
-                      </p>
-                    ) : null}
-                  </article>
-                ))
+                  );
+
+                  if (isSelectable) {
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          toggleEventSelection(event.id);
+                        }}
+                        className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
+                        style={{
+                          boxShadow: isSelected
+                            ? "0 0 0 1px rgba(255, 255, 255, 0.12)"
+                            : undefined,
+                          filter: isSelected ? "brightness(1.08)" : undefined,
+                        }}
+                      >
+                        {chipBody}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={event.id}
+                      className={`w-full cursor-default rounded-lg px-2.5 py-2.5 ${tone.chipClass}`}
+                    >
+                      {chipBody}
+                    </div>
+                  );
+                })
               )}
             </div>
           </aside>
