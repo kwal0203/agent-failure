@@ -1,7 +1,5 @@
 import {
-  ArrowLeft,
   BarChart3,
-  BookOpen,
   Camera,
   Check,
   CheckSquare,
@@ -9,14 +7,11 @@ import {
   Clock,
   Flag,
   GraduationCap,
-  HelpCircle,
-  Lock,
   Mail,
   MessageCircle,
   Play,
   Radar,
   Search,
-  Shield,
   Tag,
   Target,
   User,
@@ -490,225 +485,162 @@ export default function PreLabPage() {
   const labName = state?.labName ?? lab?.name ?? briefing.title;
 
   return (
-    <div className="min-h-screen overflow-hidden bg-black font-sans text-slate-100 antialiased">
-      <div className="relative min-h-screen">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_5%,rgba(132,204,22,0.12),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#020617_0%,#020617_48%,#000_100%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
-          <div className="h-full w-full bg-[linear-gradient(rgba(132,204,22,0.30)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.20)_1px,transparent_1px)] bg-[size:44px_44px]" />
-        </div>
+    <main className="relative mx-auto w-full max-w-7xl px-5 py-8 md:px-8 lg:px-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_5%,rgba(132,204,22,0.12),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#020617_0%,#020617_48%,#000_100%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
+        <div className="h-full w-full bg-[linear-gradient(rgba(132,204,22,0.30)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.20)_1px,transparent_1px)] bg-[size:44px_44px]" />
+      </div>
+      <section className="relative z-10 grid gap-7 lg:grid-cols-[1fr_500px] lg:items-start">
+        <section className="overflow-hidden rounded-3xl border border-lime-500/20 bg-slate-950/70 backdrop-blur">
+          <div className="border-b border-lime-500/15 px-5 py-5">
+            <h1
+              className="text-3xl font-black tracking-tight text-slate-100 md:text-4xl"
+              style={{ color: "#f8fafc" }}
+            >
+              {labName}
+            </h1>
+            <p className="mt-3 max-w-4xl text-[15px] leading-7 text-slate-300">
+              {briefing.oneLiner}
+            </p>
 
-        <header className="relative z-10 border-b border-lime-500/15 bg-black/40 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8 lg:px-10">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-500/15 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_24px_rgba(132,204,22,0.22)]">
-                <Shield className="h-7 w-7" />
+            <div className="mt-4 flex flex-wrap gap-3">
+              <MetadataPill icon={Tag} label="Difficulty" value={difficulty} />
+              <MetadataPill
+                icon={Clock}
+                label="Estimated"
+                value={briefing.estimatedTime}
+              />
+              <MetadataPill icon={Radar} label="Topic" value={briefing.topic} />
+            </div>
+          </div>
+
+          <div>
+            {briefingSections.map((section) => (
+              <BriefingRow key={section.title} section={section} />
+            ))}
+          </div>
+
+          <div className="border-t border-lime-500/15 p-5">
+            <h3
+              className="mb-3 text-sm font-black uppercase tracking-wide text-lime-300"
+              style={{ color: "#86efac" }}
+            >
+              Available Lab Tools
+            </h3>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <ToolPill icon={MessageCircle} label="Agent Chat" />
+              <ToolPill icon={Mail} label="Email Inbox" />
+              <ToolPill icon={BarChart3} label="Event Timeline" />
+              <ToolPill icon={Wifi} label="Trace Stream" />
+            </div>
+          </div>
+        </section>
+
+        <aside className="relative overflow-hidden rounded-3xl border border-lime-400/50 bg-slate-950/75 p-6 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur lg:sticky lg:top-8 lg:self-start">
+          <div className="pointer-events-none absolute inset-0 opacity-25">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(132,204,22,0.25),transparent_42%)]" />
+            <div className="absolute right-0 top-0 h-full w-full bg-[linear-gradient(rgba(132,204,22,0.13)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.13)_1px,transparent_1px)] bg-[size:32px_32px]" />
+          </div>
+
+          <div className="relative">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-500/10 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_22px_rgba(132,204,22,0.20)]">
+                <Radar className="h-7 w-7" />
+              </div>
+              <h2
+                className="text-2xl font-black uppercase tracking-wide text-lime-300"
+                style={{ color: "#86efac" }}
+              >
+                Mission Summary
+              </h2>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-lime-500/20 bg-black/25">
+              <SummaryRow icon={Target} label="Objective">
+                {briefing.objective}
+              </SummaryRow>
+
+              <SummaryRow icon={User} label="Target">
+                {briefing.target}
+              </SummaryRow>
+
+              <SummaryRow icon={Mail} label="Attack Vector">
+                {briefing.attackVector}
+              </SummaryRow>
+
+              <div className="grid grid-cols-[44px_1fr] gap-4 border-b border-lime-500/15 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
+                  <CheckSquare className="h-6 w-6" />
+                </div>
+
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
+                    Success Criteria
+                  </div>
+
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
+                    {briefing.successCriteria.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
 
-              <div>
-                <div className="text-sm font-black uppercase tracking-[0.22em] text-slate-100">
-                  Agent Failure
+              <div className="grid grid-cols-[44px_1fr] gap-4 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
+                  <Camera className="h-6 w-6" />
                 </div>
-                <div className="text-xs font-medium text-slate-500">
-                  AI Agent Security Labs
+
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
+                    Evidence to Capture
+                  </div>
+
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
+                    {briefing.evidence.map((entry) => (
+                      <li key={entry}>{entry}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
 
-            <nav className="hidden items-center gap-5 text-sm font-semibold text-slate-300 sm:flex">
-              <span className="inline-flex items-center gap-2">
-                <HelpCircle className="h-4 w-4" />
-                Help
+            <label className="mt-6 flex items-center cursor-pointer gap-4 rounded-2xl border border-lime-500/15 bg-black/25 p-4 text-sm leading-6 text-slate-200 transition hover:border-lime-400/40 hover:bg-lime-500/5">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.target.checked)}
+                className="sr-only"
+              />
+              <span
+                className={[
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border transition",
+                  acknowledged
+                    ? "border-lime-300 bg-lime-300 text-black shadow-[0_0_16px_rgba(132,204,22,0.45)]"
+                    : "border-lime-400/70 bg-black/50 text-transparent",
+                ].join(" ")}
+              >
+                <Check className="h-4 w-4" />
               </span>
-              <span className="h-5 w-px bg-lime-500/20" />
-              <span className="inline-flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                Lab Guide
-              </span>
-            </nav>
+              <span>I understand the task</span>
+            </label>
+
+            <button
+              type="button"
+              disabled={starting || !acknowledged}
+              onClick={() => void onStartLab()}
+              className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-lime-300 text-base font-black uppercase tracking-wide text-black shadow-[0_0_30px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_44px_rgba(132,204,22,0.75)] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Play className="h-5 w-5 fill-black" />
+              {starting ? "Starting Lab..." : "Start Lab"}
+            </button>
+
+            {startError ? (
+              <p className="mt-3 text-sm text-rose-300">{startError}</p>
+            ) : null}
           </div>
-        </header>
-
-        <main className="relative z-10 mx-auto max-w-7xl px-5 py-8 md:px-8 lg:px-10">
-          <section className="grid gap-7 lg:grid-cols-[1fr_500px] lg:items-start">
-            <section className="overflow-hidden rounded-3xl border border-lime-500/20 bg-slate-950/70 backdrop-blur">
-              <div className="border-b border-lime-500/15 px-5 py-5">
-                <h1
-                  className="text-3xl font-black tracking-tight text-slate-100 md:text-4xl"
-                  style={{ color: "#f8fafc" }}
-                >
-                  {labName}
-                </h1>
-                <p className="mt-3 max-w-4xl text-[15px] leading-7 text-slate-300">
-                  {briefing.oneLiner}
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <MetadataPill
-                    icon={Tag}
-                    label="Difficulty"
-                    value={difficulty}
-                  />
-                  <MetadataPill
-                    icon={Clock}
-                    label="Estimated"
-                    value={briefing.estimatedTime}
-                  />
-                  <MetadataPill
-                    icon={Radar}
-                    label="Topic"
-                    value={briefing.topic}
-                  />
-                </div>
-              </div>
-
-              <div>
-                {briefingSections.map((section) => (
-                  <BriefingRow key={section.title} section={section} />
-                ))}
-              </div>
-
-              <div className="border-t border-lime-500/15 p-5">
-                <h3
-                  className="mb-3 text-sm font-black uppercase tracking-wide text-lime-300"
-                  style={{ color: "#86efac" }}
-                >
-                  Available Lab Tools
-                </h3>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <ToolPill icon={MessageCircle} label="Agent Chat" />
-                  <ToolPill icon={Mail} label="Email Inbox" />
-                  <ToolPill icon={BarChart3} label="Event Timeline" />
-                  <ToolPill icon={Wifi} label="Trace Stream" />
-                </div>
-              </div>
-            </section>
-
-            <aside className="relative overflow-hidden rounded-3xl border border-lime-400/50 bg-slate-950/75 p-6 shadow-[0_0_46px_rgba(132,204,22,0.18)] backdrop-blur lg:sticky lg:top-8 lg:self-start">
-              <div className="pointer-events-none absolute inset-0 opacity-25">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(132,204,22,0.25),transparent_42%)]" />
-                <div className="absolute right-0 top-0 h-full w-full bg-[linear-gradient(rgba(132,204,22,0.13)_1px,transparent_1px),linear-gradient(90deg,rgba(132,204,22,0.13)_1px,transparent_1px)] bg-[size:32px_32px]" />
-              </div>
-
-              <div className="relative">
-                <div className="mb-6 flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-500/10 text-lime-300 ring-1 ring-lime-400/40 shadow-[0_0_22px_rgba(132,204,22,0.20)]">
-                    <Radar className="h-7 w-7" />
-                  </div>
-                  <h2
-                    className="text-2xl font-black uppercase tracking-wide text-lime-300"
-                    style={{ color: "#86efac" }}
-                  >
-                    Mission Summary
-                  </h2>
-                </div>
-
-                <div className="overflow-hidden rounded-2xl border border-lime-500/20 bg-black/25">
-                  <SummaryRow icon={Target} label="Objective">
-                    {briefing.objective}
-                  </SummaryRow>
-
-                  <SummaryRow icon={User} label="Target">
-                    {briefing.target}
-                  </SummaryRow>
-
-                  <SummaryRow icon={Mail} label="Attack Vector">
-                    {briefing.attackVector}
-                  </SummaryRow>
-
-                  <div className="grid grid-cols-[44px_1fr] gap-4 border-b border-lime-500/15 p-4">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
-                      <CheckSquare className="h-6 w-6" />
-                    </div>
-
-                    <div>
-                      <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
-                        Success Criteria
-                      </div>
-
-                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
-                        {briefing.successCriteria.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-[44px_1fr] gap-4 p-4">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg text-lime-300">
-                      <Camera className="h-6 w-6" />
-                    </div>
-
-                    <div>
-                      <div className="text-xs font-extrabold uppercase tracking-wide text-lime-300">
-                        Evidence to Capture
-                      </div>
-
-                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-200 marker:text-lime-300">
-                        {briefing.evidence.map((entry) => (
-                          <li key={entry}>{entry}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <label className="mt-6 flex items-center cursor-pointer gap-4 rounded-2xl border border-lime-500/15 bg-black/25 p-4 text-sm leading-6 text-slate-200 transition hover:border-lime-400/40 hover:bg-lime-500/5">
-                  <input
-                    type="checkbox"
-                    checked={acknowledged}
-                    onChange={(event) => setAcknowledged(event.target.checked)}
-                    className="sr-only"
-                  />
-                  <span
-                    className={[
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border transition",
-                      acknowledged
-                        ? "border-lime-300 bg-lime-300 text-black shadow-[0_0_16px_rgba(132,204,22,0.45)]"
-                        : "border-lime-400/70 bg-black/50 text-transparent",
-                    ].join(" ")}
-                  >
-                    <Check className="h-4 w-4" />
-                  </span>
-                  <span>I understand the task</span>
-                </label>
-
-                <button
-                  type="button"
-                  disabled={starting || !acknowledged}
-                  onClick={() => void onStartLab()}
-                  className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-lime-300 text-base font-black uppercase tracking-wide text-black shadow-[0_0_30px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_44px_rgba(132,204,22,0.75)] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <Play className="h-5 w-5 fill-black" />
-                  {starting ? "Starting Lab..." : "Start Lab"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/labs")}
-                  className="mt-4 flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-lime-400/50 bg-black/30 text-sm font-extrabold uppercase tracking-wide text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                  Back to Catalog
-                </button>
-
-                {startError ? (
-                  <p className="mt-3 text-sm text-rose-300">{startError}</p>
-                ) : null}
-              </div>
-            </aside>
-          </section>
-        </main>
-
-        <footer className="relative z-10 border-t border-lime-500/15 bg-black/30 py-4">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-5 text-xs text-slate-500 md:px-8 lg:px-10">
-            <span className="inline-flex items-center gap-2">
-              <Lock className="h-3.5 w-3.5" />
-              Controlled educational environment
-            </span>
-            <span>Agent Failure Labs</span>
-          </div>
-        </footer>
-      </div>
-    </div>
+        </aside>
+      </section>
+    </main>
   );
 }

@@ -152,10 +152,12 @@ export default function AppShell() {
     location.pathname === "/admin/pilot-requests";
   const showCatalogShell =
     !isDebug &&
-    (location.pathname === "/labs" || location.pathname === "/reports");
+    (location.pathname === "/labs" ||
+      location.pathname === "/reports" ||
+      isPreLabRoute);
 
   const activeCatalogLabel =
-    location.pathname === "/labs"
+    location.pathname === "/labs" || isPreLabRoute
       ? "Catalog"
       : location.pathname === "/reports"
         ? "Reports"
@@ -338,6 +340,7 @@ export default function AppShell() {
 
   return (
     <div
+      className="font-sans antialiased"
       style={
         isDebug
           ? {
@@ -346,8 +349,6 @@ export default function AppShell() {
               flexDirection: "column",
               background: "#040704",
               color: "#d7ffd7",
-              fontFamily:
-                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
           : {
               minHeight: "100vh",
@@ -356,8 +357,6 @@ export default function AppShell() {
               color: "#d7ffd7",
               background:
                 "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
-              fontFamily:
-                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
       }
     >
