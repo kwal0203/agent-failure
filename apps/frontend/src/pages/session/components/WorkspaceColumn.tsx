@@ -578,7 +578,7 @@ export function WorkspaceColumn({
               rows={isTranscriptCollapsed ? 10 : 4}
               placeholder="Type your prompt..."
               disabled={interactionLocked}
-              className="w-full rounded-xl border border-slate-400/70 bg-black/35 px-3 py-2.5 pr-12 text-slate-100 outline-none placeholder:text-slate-500 focus:border-lime-400/70"
+              className="w-full rounded-xl border border-slate-400/70 bg-black/35 px-3 py-2.5 pr-12 text-slate-100 outline-none placeholder:text-slate-500"
               style={{
                 height: isTranscriptCollapsed ? "100%" : undefined,
                 minHeight: isTranscriptCollapsed ? 220 : undefined,
