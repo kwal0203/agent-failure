@@ -2,14 +2,12 @@ import { formatTime } from "../helpers";
 
 type SessionSuccessModalProps = {
   completedAt: string | null;
-  onClose: () => void;
-  onOpenReport?: () => void;
+  onReturnToCatalog: () => void;
 };
 
 export function SessionSuccessModal({
   completedAt,
-  onClose,
-  onOpenReport,
+  onReturnToCatalog,
 }: SessionSuccessModalProps) {
   return (
     <div
@@ -19,14 +17,6 @@ export function SessionSuccessModal({
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/65 p-4"
     >
       <section className="relative w-full max-w-[560px] rounded-2xl border border-emerald-700 bg-gradient-to-br from-emerald-950/95 to-slate-950/95 px-5 pb-5 pt-4 text-emerald-100 shadow-[0_16px_40px_rgba(0,0,0,0.42)]">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close success popup"
-          className="absolute right-2.5 top-2.5 h-[30px] w-[30px] cursor-pointer rounded-full border border-emerald-600 bg-emerald-950/80 text-lg leading-none text-emerald-100"
-        >
-          ×
-        </button>
         <div
           aria-hidden="true"
           className="mx-auto mb-3 mt-0.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-800/45 text-4xl font-extrabold text-emerald-200"
@@ -44,17 +34,15 @@ export function SessionSuccessModal({
             Completed at {formatTime(completedAt)}
           </p>
         ) : null}
-        {onOpenReport ? (
-          <div className="mt-3.5 flex justify-center">
-            <button
-              type="button"
-              onClick={onOpenReport}
-              className="cursor-pointer rounded-[10px] border border-emerald-300 bg-emerald-800/45 px-3.5 py-2 font-bold text-emerald-100 hover:bg-emerald-700/45"
-            >
-              Open Report Draft
-            </button>
-          </div>
-        ) : null}
+        <div className="mt-3.5 flex justify-center">
+          <button
+            type="button"
+            onClick={onReturnToCatalog}
+            className="cursor-pointer rounded-[10px] border border-emerald-300 bg-emerald-800/45 px-3.5 py-2 font-bold text-emerald-100 hover:bg-emerald-700/45"
+          >
+            Return to Catalog
+          </button>
+        </div>
       </section>
     </div>
   );

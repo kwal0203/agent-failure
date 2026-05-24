@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
@@ -21,7 +21,7 @@ export default function SessionPage() {
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [stoppingSession, setStoppingSession] = useState(false);
-  const [successModalDismissed, setSuccessModalDismissed] = useState(false);
+  const successAutoStopRequestedRef = useRef(false);
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
@@ -66,15 +66,7 @@ export default function SessionPage() {
     !isAwaitingResponse &&
     metadata?.completion_status !== "completed_success" &&
     (metadata?.interactive ?? false);
-  const showSuccessModal =
-    metadata?.completion_status === "completed_success" &&
-    !successModalDismissed;
-
-  useEffect(() => {
-    if (metadata?.completion_status !== "completed_success") {
-      setSuccessModalDismissed(false);
-    }
-  }, [metadata?.completion_status]);
+  const showSuccessModal = metadata?.completion_status === "completed_success";
 
   const sessionActions = useSessionActions({
     sessionId,
@@ -144,41 +136,57 @@ export default function SessionPage() {
     sessionState.toUpperCase(),
   );
 
-  const onStopSession = useCallback(async () => {
-    if (!sessionId || stoppingSession || !canStopSession) {
-      return;
-    }
-
-    setStoppingSession(true);
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: getAuthHeader(),
-            "Content-Type": "application/json",
-            "Idempotency-Key": `stop-session:${sessionId}`,
-          },
-        },
-      );
-      if (!response.ok) {
+  const onStopSession = useCallback(
+    async (navigateAfterStop = true, force = false) => {
+      if (!sessionId || stoppingSession || (!force && !canStopSession)) {
         return;
       }
-      await refreshSessionMetadata();
-      navigate("/labs");
-    } catch {
+
+      setStoppingSession(true);
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: getAuthHeader(),
+              "Content-Type": "application/json",
+              "Idempotency-Key": `stop-session:${sessionId}`,
+            },
+          },
+        );
+        if (!response.ok) {
+          return;
+        }
+        await refreshSessionMetadata();
+        if (navigateAfterStop) {
+          navigate("/labs");
+        }
+      } catch {
+        return;
+      } finally {
+        setStoppingSession(false);
+      }
+    },
+    [
+      canStopSession,
+      navigate,
+      refreshSessionMetadata,
+      sessionId,
+      stoppingSession,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      metadata?.completion_status !== "completed_success" ||
+      successAutoStopRequestedRef.current
+    ) {
       return;
-    } finally {
-      setStoppingSession(false);
     }
-  }, [
-    canStopSession,
-    navigate,
-    refreshSessionMetadata,
-    sessionId,
-    stoppingSession,
-  ]);
+    successAutoStopRequestedRef.current = true;
+    void onStopSession(false, true);
+  }, [metadata?.completion_status, onStopSession]);
 
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2 pt-4">
@@ -371,11 +379,7 @@ export default function SessionPage() {
       {showSuccessModal ? (
         <SessionSuccessModal
           completedAt={metadata?.completed_at ?? null}
-          onClose={() => setSuccessModalDismissed(true)}
-          onOpenReport={() => {
-            if (!sessionId) return;
-            navigate(`/sessions/${sessionId}/report`);
-          }}
+          onReturnToCatalog={() => navigate("/labs")}
         />
       ) : null}
     </main>
