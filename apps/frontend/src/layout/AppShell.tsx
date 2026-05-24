@@ -68,6 +68,70 @@ function canViewPilotRequests(): boolean {
   }
 }
 
+type ViewerProfile = {
+  displayName: string;
+  initials: string;
+  roleLabel: string;
+};
+
+function deriveViewerProfile(): ViewerProfile {
+  const defaultProfile: ViewerProfile = {
+    displayName: "User",
+    initials: "US",
+    roleLabel: "Student",
+  };
+  const rawTokens = window.sessionStorage.getItem("agentfailure.auth.tokens");
+  if (!rawTokens) return defaultProfile;
+
+  try {
+    const parsed = JSON.parse(rawTokens) as { idToken?: string };
+    if (!parsed.idToken) return defaultProfile;
+    const payload = decodeJwtPayload(parsed.idToken);
+    if (!payload) return defaultProfile;
+
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const email = typeof payload.email === "string" ? payload.email.trim() : "";
+    const username =
+      typeof payload["cognito:username"] === "string"
+        ? payload["cognito:username"].trim()
+        : "";
+    const groups = Array.isArray(payload["cognito:groups"])
+      ? payload["cognito:groups"].filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+
+    const displayName =
+      name ||
+      email.split("@")[0]?.trim() ||
+      username ||
+      defaultProfile.displayName;
+    const initials = displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("")
+      .slice(0, 2);
+
+    const normalizedGroups = groups.map((group) => group.toLowerCase());
+    const roleLabel = normalizedGroups.includes("admin")
+      ? "Admin"
+      : normalizedGroups.includes("staff") ||
+          normalizedGroups.includes("instructor")
+        ? "Instructor"
+        : defaultProfile.roleLabel;
+
+    return {
+      displayName,
+      initials: initials || defaultProfile.initials,
+      roleLabel,
+    };
+  } catch {
+    return defaultProfile;
+  }
+}
+
 export default function AppShell() {
   const { logout } = useAuth();
   const currentYear = new Date().getFullYear();
@@ -77,6 +141,7 @@ export default function AppShell() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const showPilotRequestsLink = useMemo(() => canViewPilotRequests(), []);
+  const viewerProfile = useMemo(() => deriveViewerProfile(), []);
 
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
@@ -214,10 +279,13 @@ export default function AppShell() {
                       className="flex items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-lime-500/10"
                     >
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-extrabold text-slate-100 ring-1 ring-lime-500/20">
-                        IN
+                        {viewerProfile.initials}
                       </div>
                       <span className="hidden text-sm font-semibold text-slate-300 sm:inline">
-                        Instructor
+                        {viewerProfile.displayName}
+                      </span>
+                      <span className="hidden rounded-md border border-lime-500/30 bg-lime-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-lime-200 md:inline">
+                        {viewerProfile.roleLabel}
                       </span>
                     </button>
 
