@@ -454,14 +454,6 @@ export default function SessionReportPage() {
                     selectedEventSections[event.id] ?? "unassigned";
                   const chipBody = (
                     <div className="relative flex flex-col items-start gap-0">
-                      {isSelected ? (
-                        <span
-                          aria-hidden="true"
-                          className="absolute -right-0.5 -top-1 h-4 w-4 rounded-full bg-sky-100 text-center text-[11px] font-bold leading-4 text-sky-800 shadow-[0_0_0_1px_rgba(17,24,39,0.35)]"
-                        >
-                          ✓
-                        </span>
-                      ) : null}
                       <p className={`m-0 font-semibold ${tone.titleClass}`}>
                         {event.title}
                       </p>
