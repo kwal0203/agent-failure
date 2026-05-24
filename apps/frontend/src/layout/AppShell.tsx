@@ -151,6 +151,9 @@ export default function AppShell() {
 
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
+  const isSessionReportRoute = /^\/sessions\/[^/]+\/report$/.test(
+    location.pathname,
+  );
   const hideLegacyHeader = isSessionRoute || isPreLabRoute;
   const isWideContentRoute = isSessionRoute || isPreLabRoute;
   const isPilotRequestsRoute =
@@ -160,12 +163,13 @@ export default function AppShell() {
     !isDebug &&
     (location.pathname === "/labs" ||
       location.pathname === "/reports" ||
-      isPreLabRoute);
+      isPreLabRoute ||
+      isSessionReportRoute);
 
   const activeCatalogLabel =
     location.pathname === "/labs" || isPreLabRoute
       ? "Catalog"
-      : location.pathname === "/reports"
+      : location.pathname === "/reports" || isSessionReportRoute
         ? "Reports"
         : null;
 
