@@ -381,6 +381,37 @@ class SessionReportEvidenceModel(Base):
     )
 
 
+class SessionReportDraftModel(Base):
+    __tablename__ = "session_report_drafts"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            name="uq_session_report_drafts_session_id",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    executive_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    threat_model: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    methodology: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence_and_results: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    mitigations: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ClassCodeModel(Base):
     __tablename__ = "class_codes"
     __table_args__ = (

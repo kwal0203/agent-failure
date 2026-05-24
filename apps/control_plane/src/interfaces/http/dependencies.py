@@ -74,6 +74,9 @@ from apps.control_plane.src.infrastructure.persistence.session_feedback_reposito
 from apps.control_plane.src.infrastructure.persistence.session_report_evidence_repository import (
     SQLAlchemySessionReportEvidenceRepository,
 )
+from apps.control_plane.src.infrastructure.persistence.session_report_draft_repository import (
+    SQLAlchemySessionReportDraftRepository,
+)
 from apps.control_plane.src.infrastructure.persistence.enrollment_repository import (
     SQLAlchemyEnrollmentRepository,
 )
@@ -224,6 +227,12 @@ def get_session_report_evidence_repository(
     db: Session = Depends(get_db_session),
 ) -> SQLAlchemySessionReportEvidenceRepository:
     return SQLAlchemySessionReportEvidenceRepository(db=db)
+
+
+def get_session_report_draft_repository(
+    db: Session = Depends(get_db_session),
+) -> SQLAlchemySessionReportDraftRepository:
+    return SQLAlchemySessionReportDraftRepository(db=db)
 
 
 def get_session_hint_seen_repository(

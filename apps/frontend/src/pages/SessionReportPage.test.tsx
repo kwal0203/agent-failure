@@ -81,14 +81,23 @@ describe("SessionReportPage evidence selection", () => {
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "GET"
       ) {
-        return mockJsonResponse({ items: [] });
+        return mockJsonResponse({
+          sections: {
+            executive_summary: "",
+            threat_model: "",
+            methodology: "",
+            evidence_and_results: "",
+            mitigations: "",
+          },
+          items: [],
+        });
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "PUT"
       ) {
         return mockJsonResponse({ items: [] });
@@ -112,7 +121,7 @@ describe("SessionReportPage evidence selection", () => {
     const putCallsBeforeSave = fetchMock.mock.calls.filter(
       ([requestUrl, requestInit]) =>
         String(requestUrl).endsWith(
-          `/api/v1/sessions/${SESSION_ID}/report-evidence`,
+          `/api/v1/sessions/${SESSION_ID}/report-draft`,
         ) && requestInit?.method === "PUT",
     );
     expect(putCallsBeforeSave).toHaveLength(0);
@@ -123,7 +132,7 @@ describe("SessionReportPage evidence selection", () => {
         const putCalls = fetchMock.mock.calls.filter(
           ([requestUrl, requestInit]) =>
             String(requestUrl).endsWith(
-              `/api/v1/sessions/${SESSION_ID}/report-evidence`,
+              `/api/v1/sessions/${SESSION_ID}/report-draft`,
             ) && requestInit?.method === "PUT",
         );
         expect(putCalls.length).toBeGreaterThan(0);
@@ -169,10 +178,17 @@ describe("SessionReportPage evidence selection", () => {
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "GET"
       ) {
         return mockJsonResponse({
+          sections: {
+            executive_summary: "Loaded summary",
+            threat_model: "Loaded threat model",
+            methodology: "Loaded methodology",
+            evidence_and_results: "Loaded evidence",
+            mitigations: "Loaded mitigations",
+          },
           items: [
             {
               event_id: "evt-a",
@@ -199,7 +215,7 @@ describe("SessionReportPage evidence selection", () => {
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "PUT"
       ) {
         return mockJsonResponse({ items: [] });
@@ -263,14 +279,23 @@ describe("SessionReportPage evidence selection", () => {
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "GET"
       ) {
-        return mockJsonResponse({ items: [] });
+        return mockJsonResponse({
+          sections: {
+            executive_summary: "",
+            threat_model: "",
+            methodology: "",
+            evidence_and_results: "",
+            mitigations: "",
+          },
+          items: [],
+        });
       }
 
       if (
-        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-draft`) &&
         init?.method === "PUT"
       ) {
         return mockJsonResponse({ items: [] });

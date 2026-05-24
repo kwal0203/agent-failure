@@ -102,6 +102,24 @@ export type PutSessionReportEvidenceRequest = {
   items: ReportEvidenceItem[];
 };
 
+export type ReportDraftSections = {
+  executive_summary: string;
+  threat_model: string;
+  methodology: string;
+  evidence_and_results: string;
+  mitigations: string;
+};
+
+export type PutSessionReportDraftRequest = {
+  sections: ReportDraftSections;
+  items: ReportEvidenceItem[];
+};
+
+export type GetSessionReportDraftResponse = {
+  sections: ReportDraftSections;
+  items: ReportEvidenceItem[];
+};
+
 export type ImportSelectedEvidenceRequest = {
   event_ids?: string[] | null;
 };

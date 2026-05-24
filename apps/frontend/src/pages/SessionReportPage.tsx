@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBeforeUnload, useNavigate, useParams } from "react-router-dom";
 import { mapPersistedTraceToTimelineEvent } from "./session/timelineEventMapper";
 import type {
-  GetSessionReportEvidenceResponse,
+  GetSessionReportDraftResponse,
   GetSessionTraceResponse,
-  PutSessionReportEvidenceRequest,
+  PutSessionReportDraftRequest,
   TimelineEvent,
 } from "./session/types";
 import { API_BASE, getAuthHeader } from "./session/ui";
@@ -25,7 +25,6 @@ const DEFAULT_DRAFT: DraftSections = {
   evidenceAndResults: "",
   mitigations: "",
 };
-const DRAFT_LOCAL_STORAGE_PREFIX = "session-report-draft:";
 
 type ReportSection =
   | "unassigned"
@@ -196,7 +195,7 @@ export default function SessionReportPage() {
       setTimelineEvents(mappedTimelineEvents);
 
       const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
+        `${API_BASE}/api/v1/sessions/${sessionId}/report-draft`,
         {
           method: "GET",
           headers: {
@@ -206,11 +205,19 @@ export default function SessionReportPage() {
         },
       );
       if (!response.ok) {
-        throw new Error(`Failed to load evidence (HTTP ${response.status})`);
+        throw new Error(
+          `Failed to load report draft (HTTP ${response.status})`,
+        );
       }
-      const payload =
-        (await response.json()) as GetSessionReportEvidenceResponse;
+      const payload = (await response.json()) as GetSessionReportDraftResponse;
       const items = Array.isArray(payload.items) ? payload.items : [];
+      setDraft({
+        executiveSummary: payload.sections?.executive_summary ?? "",
+        threatModel: payload.sections?.threat_model ?? "",
+        methodology: payload.sections?.methodology ?? "",
+        evidenceAndResults: payload.sections?.evidence_and_results ?? "",
+        mitigations: payload.sections?.mitigations ?? "",
+      });
       setPreselectedTraceEventIds(
         new Set(
           items
@@ -231,24 +238,6 @@ export default function SessionReportPage() {
         sectionMap[item.event_id] = section;
       }
       setPreselectedSectionsByTraceEventId(sectionMap);
-      const localDraftRaw =
-        window.localStorage.getItem(
-          `${DRAFT_LOCAL_STORAGE_PREFIX}${sessionId}`,
-        ) ?? "";
-      if (localDraftRaw) {
-        try {
-          const parsed = JSON.parse(localDraftRaw) as Partial<DraftSections>;
-          setDraft({
-            executiveSummary: parsed.executiveSummary ?? "",
-            threatModel: parsed.threatModel ?? "",
-            methodology: parsed.methodology ?? "",
-            evidenceAndResults: parsed.evidenceAndResults ?? "",
-            mitigations: parsed.mitigations ?? "",
-          });
-        } catch {
-          // Ignore malformed local draft payload and keep defaults.
-        }
-      }
       setHasHydratedSelection(true);
     } catch (fetchError) {
       setError(
@@ -403,11 +392,18 @@ export default function SessionReportPage() {
     setIsSaving(true);
     setError(null);
     try {
-      const requestBody: PutSessionReportEvidenceRequest = {
+      const requestBody: PutSessionReportDraftRequest = {
+        sections: {
+          executive_summary: draft.executiveSummary,
+          threat_model: draft.threatModel,
+          methodology: draft.methodology,
+          evidence_and_results: draft.evidenceAndResults,
+          mitigations: draft.mitigations,
+        },
         items: selectedItemsPayload,
       };
       const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
+        `${API_BASE}/api/v1/sessions/${sessionId}/report-draft`,
         {
           method: "PUT",
           headers: {
@@ -418,12 +414,10 @@ export default function SessionReportPage() {
         },
       );
       if (!response.ok) {
-        throw new Error(`Failed to save evidence (HTTP ${response.status})`);
+        throw new Error(
+          `Failed to save report draft (HTTP ${response.status})`,
+        );
       }
-      window.localStorage.setItem(
-        `${DRAFT_LOCAL_STORAGE_PREFIX}${sessionId}`,
-        JSON.stringify(draft),
-      );
       setLastSavedSnapshot(currentSnapshot);
     } catch (saveError) {
       setError(

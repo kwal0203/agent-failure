@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
+    SessionReportDraftModel,
     SessionReportEvidenceModel,
     TraceEventModel,
 )
@@ -983,3 +984,142 @@ def test_import_selected_evidence_survives_missing_trace_event_after_selection(
     imported_items = import_response.json()["items"]
     assert len(imported_items) == 1
     assert imported_items[0]["event_id"] == str(event_id)
+
+
+def test_put_report_draft_saves_sections_and_selected_evidence_atomically(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-report-draft-put"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=4,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/sessions/{session_id}/report-draft",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "sections": {
+                    "executive_summary": "Summary",
+                    "threat_model": "Threat model text",
+                    "methodology": "Methodology text",
+                    "evidence_and_results": "Evidence text",
+                    "mitigations": "Mitigation text",
+                },
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 99,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "citation_label": None,
+                        "objective_mapping": None,
+                        "evidence_strength": None,
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 123,
+                    }
+                ],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sections"]["executive_summary"] == "Summary"
+    assert payload["items"][0]["event_id"] == str(event_id)
+    assert payload["items"][0]["report_section"] == "methodology"
+    assert payload["items"][0]["section_position"] == 0
+
+    draft_row = (
+        db_session.query(SessionReportDraftModel)
+        .filter(SessionReportDraftModel.session_id == session_id)
+        .one()
+    )
+    assert draft_row.methodology == "Methodology text"
+
+    evidence_rows = (
+        db_session.query(SessionReportEvidenceModel)
+        .filter(SessionReportEvidenceModel.session_id == session_id)
+        .all()
+    )
+    assert len(evidence_rows) == 1
+
+
+def test_get_report_draft_rehydrates_sections_and_selected_evidence(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-report-draft-get"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    now = datetime.now(timezone.utc)
+    event_id = uuid4()
+    db_session.add(
+        SessionReportEvidenceModel(
+            id=uuid4(),
+            session_id=session_id,
+            event_id=event_id,
+            position=0,
+            title="Token disclosed",
+            description="desc",
+            details={"raw": "x"},
+            occurred_at=now,
+            trace_version=1,
+            event_index=4,
+            evidence_type="exploit_outcome",
+            objective_keys=["lab1.token_disclosed"],
+            why_it_matters="important",
+            default_priority="high",
+            student_note=None,
+            report_section="methodology",
+            section_position=0,
+        )
+    )
+    db_session.add(
+        SessionReportDraftModel(
+            id=uuid4(),
+            session_id=session_id,
+            executive_summary="Summary text",
+            threat_model="Threat text",
+            methodology="Method text",
+            evidence_and_results="Evidence text",
+            mitigations="Mitigation text",
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}/report-draft",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sections"]["executive_summary"] == "Summary text"
+    assert payload["sections"]["methodology"] == "Method text"
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["event_id"] == str(event_id)
+    assert payload["items"][0]["report_section"] == "methodology"

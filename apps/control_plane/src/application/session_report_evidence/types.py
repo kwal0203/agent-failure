@@ -84,3 +84,12 @@ class ReportEvidenceProjection:
     student_note: str | None
     report_section: str
     section_position: int | None
+
+
+@dataclass(frozen=True)
+class SessionReportDraftSections:
+    executive_summary: str
+    threat_model: str
+    methodology: str
+    evidence_and_results: str
+    mitigations: str

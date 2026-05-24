@@ -10,8 +10,9 @@ from .errors import (
     InvalidSessionReportEvidenceError,
     SessionNotFoundErrorSessionReportEvidence,
 )
-from .ports import SessionReportEvidenceRepositoryPort
+from .ports import SessionReportDraftRepositoryPort, SessionReportEvidenceRepositoryPort
 from .types import (
+    SessionReportDraftSections,
     ReportEvidenceProjection,
     ReportObjectiveMapping,
     SessionReportEvidenceItemInput,
@@ -377,3 +378,55 @@ def import_selected_evidence(
             )
         ordered_rows.append(row)
     return tuple(ordered_rows)
+
+
+def save_session_report_draft(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    sections: SessionReportDraftSections,
+    items: Sequence[SessionReportEvidenceItemInput],
+    evidence_repo: SessionReportEvidenceRepositoryPort,
+    draft_repo: SessionReportDraftRepositoryPort,
+    trace_repo: TraceEventPort,
+) -> tuple[SessionReportEvidenceRow, ...]:
+    replace_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        items=items,
+        repo=evidence_repo,
+        trace_repo=trace_repo,
+    )
+    draft_repo.upsert_report_draft_sections_for_session(
+        session_id=session_id,
+        sections=sections,
+    )
+    return get_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        repo=evidence_repo,
+    )
+
+
+def get_session_report_draft(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    evidence_repo: SessionReportEvidenceRepositoryPort,
+    draft_repo: SessionReportDraftRepositoryPort,
+) -> tuple[SessionReportDraftSections, tuple[SessionReportEvidenceRow, ...]]:
+    sections = draft_repo.get_report_draft_sections_for_session(session_id=session_id)
+    if sections is None:
+        sections = SessionReportDraftSections(
+            executive_summary="",
+            threat_model="",
+            methodology="",
+            evidence_and_results="",
+            mitigations="",
+        )
+    rows = get_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        repo=evidence_repo,
+    )
+    return sections, rows

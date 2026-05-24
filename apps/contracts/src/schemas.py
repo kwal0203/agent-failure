@@ -415,6 +415,24 @@ class PutSessionReportEvidenceRequest(BaseModel):
     items: tuple[ReportEvidenceItem, ...]
 
 
+class ReportDraftSections(BaseModel):
+    executive_summary: str = ""
+    threat_model: str = ""
+    methodology: str = ""
+    evidence_and_results: str = ""
+    mitigations: str = ""
+
+
+class PutSessionReportDraftRequest(BaseModel):
+    sections: ReportDraftSections
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class GetSessionReportDraftResponse(BaseModel):
+    sections: ReportDraftSections
+    items: tuple[ReportEvidenceItem, ...]
+
+
 class ImportSelectedEvidenceRequest(BaseModel):
     event_ids: tuple[UUID, ...] | None = None
 

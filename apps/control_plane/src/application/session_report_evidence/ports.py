@@ -1,7 +1,11 @@
 from typing import Protocol
 from uuid import UUID
 
-from .types import SessionReportEvidenceItemInput, SessionReportEvidenceRow
+from .types import (
+    SessionReportDraftSections,
+    SessionReportEvidenceItemInput,
+    SessionReportEvidenceRow,
+)
 
 
 class SessionReportEvidenceRepositoryPort(Protocol):
@@ -27,5 +31,23 @@ class SessionReportEvidenceRepositoryPort(Protocol):
     ) -> None:
         """
         Full-replace report evidence rows for a session in one transaction.
+        """
+        ...
+
+
+class SessionReportDraftRepositoryPort(Protocol):
+    def get_report_draft_sections_for_session(
+        self, *, session_id: UUID
+    ) -> SessionReportDraftSections | None:
+        """
+        Return stored report draft sections for a session, or None if absent.
+        """
+        ...
+
+    def upsert_report_draft_sections_for_session(
+        self, *, session_id: UUID, sections: SessionReportDraftSections
+    ) -> None:
+        """
+        Create or update report draft sections for a session.
         """
         ...
