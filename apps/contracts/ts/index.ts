@@ -84,6 +84,8 @@ export type ReportEvidenceItem = {
   objective_mapping: ObjectiveMappingItem[] | null;
   evidence_strength: "high" | "medium" | "low" | null;
   student_note: string | null;
+  report_section: string;
+  section_position: number | null;
 };
 
 export type ObjectiveMappingItem = {
@@ -97,6 +99,24 @@ export type GetSessionReportEvidenceResponse = {
 };
 
 export type PutSessionReportEvidenceRequest = {
+  items: ReportEvidenceItem[];
+};
+
+export type ReportDraftSections = {
+  executive_summary: string;
+  threat_model: string;
+  methodology: string;
+  evidence_and_results: string;
+  mitigations: string;
+};
+
+export type PutSessionReportDraftRequest = {
+  sections: ReportDraftSections;
+  items: ReportEvidenceItem[];
+};
+
+export type GetSessionReportDraftResponse = {
+  sections: ReportDraftSections;
   items: ReportEvidenceItem[];
 };
 

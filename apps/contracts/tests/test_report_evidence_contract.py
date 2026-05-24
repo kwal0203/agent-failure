@@ -4,8 +4,10 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from apps.contracts.src.schemas import (
+    GetSessionReportDraftResponse,
     GetSessionReportEvidenceResponse,
     ImportSelectedEvidenceResponse,
+    PutSessionReportDraftRequest,
 )
 
 
@@ -33,6 +35,8 @@ def _item_payload() -> dict[str, object]:
         ],
         "evidence_strength": "high",
         "student_note": None,
+        "report_section": "unassigned",
+        "section_position": None,
     }
 
 
@@ -60,3 +64,37 @@ def test_import_selected_evidence_response_contract_includes_report_ready_fields
     assert first.objective_mapping is not None
     assert first.objective_mapping[0].objective_key == "lab1.token_disclosed"
     assert first.evidence_strength == "high"
+
+
+def test_put_session_report_draft_request_contract() -> None:
+    payload = PutSessionReportDraftRequest.model_validate(
+        {
+            "sections": {
+                "executive_summary": "Summary",
+                "threat_model": "Threats",
+                "methodology": "Method",
+                "evidence_and_results": "Evidence",
+                "mitigations": "Mitigations",
+            },
+            "items": [_item_payload()],
+        }
+    )
+    assert payload.sections.executive_summary == "Summary"
+    assert payload.items[0].event_id is not None
+
+
+def test_get_session_report_draft_response_contract() -> None:
+    payload = GetSessionReportDraftResponse.model_validate(
+        {
+            "sections": {
+                "executive_summary": "Summary",
+                "threat_model": "Threats",
+                "methodology": "Method",
+                "evidence_and_results": "Evidence",
+                "mitigations": "Mitigations",
+            },
+            "items": [_item_payload()],
+        }
+    )
+    assert payload.sections.mitigations == "Mitigations"
+    assert payload.items[0].citation_label == "E1"

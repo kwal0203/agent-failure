@@ -14,8 +14,10 @@ from apps.contracts.src.schemas import (
     LatestLabSessionResponse,
     ImportSelectedEvidenceRequest,
     ImportSelectedEvidenceResponse,
+    GetSessionReportDraftResponse,
     GetSessionReportEvidenceResponse,
     GetSessionTraceResponse,
+    PutSessionReportDraftRequest,
     PutSessionReportEvidenceRequest,
 )
 from apps.control_plane.src.application.common.types import PrincipalContext
@@ -34,12 +36,18 @@ from apps.control_plane.src.application.session_query.service import (
     get_session_metadata,
 )
 from apps.control_plane.src.application.session_report_evidence.ports import (
+    SessionReportDraftRepositoryPort,
     SessionReportEvidenceRepositoryPort,
 )
+from apps.control_plane.src.application.session_report_evidence.types import (
+    SessionReportDraftSections as AppSessionReportDraftSections,
+)
 from apps.control_plane.src.application.session_report_evidence.service import (
+    get_session_report_draft,
     get_session_report_evidence,
     import_selected_evidence,
     replace_session_report_evidence,
+    save_session_report_draft,
 )
 from apps.control_plane.src.application.trace.service import (
     project_learner_visible_events,
@@ -53,6 +61,7 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_session_list_by_lab_repository,
     get_session_metadata_repository,
     get_session_report_evidence_repository,
+    get_session_report_draft_repository,
     get_trace_event_repository,
 )
 from apps.control_plane.src.interfaces.http.error_mapping import (
@@ -64,6 +73,7 @@ from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
     map_report_evidence_items_to_inputs,
     map_evaluator_feedback_response,
     map_sessions_response,
+    map_report_draft_response,
     map_session_report_evidence_response,
     map_session_trace_response,
 )
@@ -336,6 +346,100 @@ def post_import_selected_evidence(
             return mapped
         logger.exception(
             "post import selected evidence endpoint failed for session=%s",
+            str(session_id),
+        )
+        return map_unexpected_exception(session_id=session_id)
+
+
+@router.get(
+    "/api/v1/sessions/{session_id}/report-draft",
+    response_model=GetSessionReportDraftResponse,
+    responses={
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def get_report_draft(
+    session_id: UUID,
+    principal: PrincipalContext = Depends(get_current_principal),
+    evidence_repo: SessionReportEvidenceRepositoryPort = Depends(
+        get_session_report_evidence_repository
+    ),
+    draft_repo: SessionReportDraftRepositoryPort = Depends(
+        get_session_report_draft_repository
+    ),
+) -> GetSessionReportDraftResponse | JSONResponse:
+    try:
+        sections, rows = get_session_report_draft(
+            session_id=session_id,
+            principal=principal,
+            evidence_repo=evidence_repo,
+            draft_repo=draft_repo,
+        )
+        return map_report_draft_response(sections=sections, rows=rows)
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
+        logger.exception(
+            "get session report-draft endpoint failed for session=%s",
+            str(session_id),
+        )
+        return map_unexpected_exception(session_id=session_id)
+
+
+@router.put(
+    "/api/v1/sessions/{session_id}/report-draft",
+    response_model=GetSessionReportDraftResponse,
+    responses={
+        400: {"model": ApiErrorEnvelope},
+        401: {"model": ApiErrorEnvelope},
+        403: {"model": ApiErrorEnvelope},
+        404: {"model": ApiErrorEnvelope},
+        500: {"model": ApiErrorEnvelope},
+    },
+)
+def put_report_draft(
+    session_id: UUID,
+    request: PutSessionReportDraftRequest,
+    db: Session = Depends(get_request_db_session),
+    principal: PrincipalContext = Depends(get_current_principal),
+    evidence_repo: SessionReportEvidenceRepositoryPort = Depends(
+        get_session_report_evidence_repository
+    ),
+    draft_repo: SessionReportDraftRepositoryPort = Depends(
+        get_session_report_draft_repository
+    ),
+    trace_repo: TraceEventPort = Depends(get_trace_event_repository),
+) -> GetSessionReportDraftResponse | JSONResponse:
+    try:
+        items = map_report_evidence_items_to_inputs(request.items)
+        sections = AppSessionReportDraftSections(
+            executive_summary=request.sections.executive_summary,
+            threat_model=request.sections.threat_model,
+            methodology=request.sections.methodology,
+            evidence_and_results=request.sections.evidence_and_results,
+            mitigations=request.sections.mitigations,
+        )
+        rows = save_session_report_draft(
+            session_id=session_id,
+            principal=principal,
+            sections=sections,
+            items=items,
+            evidence_repo=evidence_repo,
+            draft_repo=draft_repo,
+            trace_repo=trace_repo,
+        )
+        db.commit()
+        return map_report_draft_response(sections=sections, rows=rows)
+    except Exception as exc:
+        mapped = map_exception_to_http_response(exc, session_id=session_id)
+        if mapped is not None:
+            return mapped
+        logger.exception(
+            "put session report-draft endpoint failed for session=%s",
             str(session_id),
         )
         return map_unexpected_exception(session_id=session_id)

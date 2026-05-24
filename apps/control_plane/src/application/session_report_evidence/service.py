@@ -10,8 +10,9 @@ from .errors import (
     InvalidSessionReportEvidenceError,
     SessionNotFoundErrorSessionReportEvidence,
 )
-from .ports import SessionReportEvidenceRepositoryPort
+from .ports import SessionReportDraftRepositoryPort, SessionReportEvidenceRepositoryPort
 from .types import (
+    SessionReportDraftSections,
     ReportEvidenceProjection,
     ReportObjectiveMapping,
     SessionReportEvidenceItemInput,
@@ -29,6 +30,17 @@ _REPORT_SELECTABLE_TRACE_EVENT_TYPES: frozenset[str] = frozenset(
         "TOOL_CALL_FAILED",
         "MODEL_TURN_FAILED",
         "RUNTIME_PROVISION_FAILED",
+    }
+)
+_REPORT_SECTION_UNASSIGNED = "unassigned"
+_VALID_REPORT_SECTIONS: frozenset[str] = frozenset(
+    {
+        _REPORT_SECTION_UNASSIGNED,
+        "executive_summary",
+        "threat_model",
+        "methodology",
+        "evidence_and_results",
+        "mitigations",
     }
 )
 
@@ -187,6 +199,8 @@ def project_report_evidence(
                     evidence_type=row.evidence_type,
                 ),
                 student_note=row.student_note,
+                report_section=row.report_section,
+                section_position=row.section_position,
             )
         )
     return tuple(projections)
@@ -234,6 +248,7 @@ def replace_session_report_evidence(
     trace_events_by_id = {event.event_id: event for event in trace_events}
 
     seen_event_ids: set[UUID] = set()
+    section_counts: dict[str, int] = {}
     normalized_items: list[SessionReportEvidenceItemInput] = []
 
     for position, item in enumerate(items):
@@ -278,6 +293,27 @@ def replace_session_report_evidence(
                 },
             )
 
+        normalized_report_section = (
+            item.report_section.strip() or _REPORT_SECTION_UNASSIGNED
+        )
+        if normalized_report_section not in _VALID_REPORT_SECTIONS:
+            raise InvalidSessionReportEvidenceError(
+                message="invalid report_section in report evidence payload",
+                details={
+                    "session_id": str(session_id),
+                    "event_id": str(item.event_id),
+                    "report_section": normalized_report_section,
+                },
+            )
+
+        if normalized_report_section == _REPORT_SECTION_UNASSIGNED:
+            normalized_section_position: int | None = None
+        else:
+            normalized_section_position = section_counts.get(
+                normalized_report_section, 0
+            )
+            section_counts[normalized_report_section] = normalized_section_position + 1
+
         normalized_items.append(
             SessionReportEvidenceItemInput(
                 event_id=item.event_id,
@@ -293,6 +329,8 @@ def replace_session_report_evidence(
                 why_it_matters=why_it_matters,
                 default_priority=default_priority,
                 student_note=item.student_note,
+                report_section=normalized_report_section,
+                section_position=normalized_section_position,
             )
         )
 
@@ -340,3 +378,55 @@ def import_selected_evidence(
             )
         ordered_rows.append(row)
     return tuple(ordered_rows)
+
+
+def save_session_report_draft(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    sections: SessionReportDraftSections,
+    items: Sequence[SessionReportEvidenceItemInput],
+    evidence_repo: SessionReportEvidenceRepositoryPort,
+    draft_repo: SessionReportDraftRepositoryPort,
+    trace_repo: TraceEventPort,
+) -> tuple[SessionReportEvidenceRow, ...]:
+    replace_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        items=items,
+        repo=evidence_repo,
+        trace_repo=trace_repo,
+    )
+    draft_repo.upsert_report_draft_sections_for_session(
+        session_id=session_id,
+        sections=sections,
+    )
+    return get_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        repo=evidence_repo,
+    )
+
+
+def get_session_report_draft(
+    *,
+    session_id: UUID,
+    principal: PrincipalContext,
+    evidence_repo: SessionReportEvidenceRepositoryPort,
+    draft_repo: SessionReportDraftRepositoryPort,
+) -> tuple[SessionReportDraftSections, tuple[SessionReportEvidenceRow, ...]]:
+    sections = draft_repo.get_report_draft_sections_for_session(session_id=session_id)
+    if sections is None:
+        sections = SessionReportDraftSections(
+            executive_summary="",
+            threat_model="",
+            methodology="",
+            evidence_and_results="",
+            mitigations="",
+        )
+    rows = get_session_report_evidence(
+        session_id=session_id,
+        principal=principal,
+        repo=evidence_repo,
+    )
+    return sections, rows

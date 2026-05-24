@@ -334,7 +334,6 @@ export default function SessionPage() {
             }}
           >
             <FeedbackColumn
-              sessionId={sessionId}
               feedbackLoading={feedbackLoading}
               feedbackReady={feedbackReady}
               feedbackError={feedbackError}

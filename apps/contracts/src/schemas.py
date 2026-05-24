@@ -397,6 +397,8 @@ class ReportEvidenceItem(BaseModel):
     objective_mapping: tuple["ObjectiveMappingItem", ...] | None = None
     evidence_strength: TraceEvidencePriority | None = None
     student_note: str | None = None
+    report_section: str = "unassigned"
+    section_position: int | None = None
 
 
 class ObjectiveMappingItem(BaseModel):
@@ -410,6 +412,24 @@ class GetSessionReportEvidenceResponse(BaseModel):
 
 
 class PutSessionReportEvidenceRequest(BaseModel):
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class ReportDraftSections(BaseModel):
+    executive_summary: str = ""
+    threat_model: str = ""
+    methodology: str = ""
+    evidence_and_results: str = ""
+    mitigations: str = ""
+
+
+class PutSessionReportDraftRequest(BaseModel):
+    sections: ReportDraftSections
+    items: tuple[ReportEvidenceItem, ...]
+
+
+class GetSessionReportDraftResponse(BaseModel):
+    sections: ReportDraftSections
     items: tuple[ReportEvidenceItem, ...]
 
 

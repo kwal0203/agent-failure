@@ -12,13 +12,12 @@ import {
   type ElementType,
   type ReactNode,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/context";
-import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "../../auth/redirect";
+import { POST_LOGIN_REDIRECT_KEY } from "../../auth/redirect";
 
 function FeatureChip({ children }: { children: ReactNode }) {
   return (
@@ -86,13 +85,7 @@ function LoginInput({
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const existingAccountRef = useRef<HTMLHeadingElement | null>(null);
-
-  const next = useMemo(
-    () => resolveSafeNext(searchParams.get("next")),
-    [searchParams],
-  );
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -121,9 +114,9 @@ export default function LoginPage() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      window.sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, next);
+      window.sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, "/labs");
       await login(email, password);
-      navigate(next, { replace: true });
+      navigate("/labs", { replace: true });
       window.setTimeout(() => {
         window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
       }, 0);

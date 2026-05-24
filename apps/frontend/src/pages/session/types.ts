@@ -1,10 +1,12 @@
 import type {
   GetFeedbackResponse,
   GetSessionMetadataResponse,
+  GetSessionReportDraftResponse,
   GetSessionReportEvidenceResponse,
   GetSessionTraceResponse,
   ImportSelectedEvidenceRequest,
   ImportSelectedEvidenceResponse,
+  PutSessionReportDraftRequest,
   PutSessionReportEvidenceRequest,
   ReportEvidenceItem,
   SessionCompletionStatus,
@@ -18,10 +20,12 @@ import type {
 
 export type {
   GetSessionMetadataResponse,
+  GetSessionReportDraftResponse,
   GetSessionReportEvidenceResponse,
   GetSessionTraceResponse,
   ImportSelectedEvidenceRequest,
   ImportSelectedEvidenceResponse,
+  PutSessionReportDraftRequest,
   PutSessionReportEvidenceRequest,
   ReportEvidenceItem,
   SessionCompletionStatus,

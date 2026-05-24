@@ -338,18 +338,6 @@ export function LabCatalog({
     void refreshLabs();
   }, [refreshLabs]);
 
-  useEffect(() => {
-    if (mode !== "demo") {
-      return;
-    }
-    const root = document.documentElement;
-    const previousFontSize = root.style.fontSize;
-    root.style.fontSize = "17.5px";
-    return () => {
-      root.style.fontSize = previousFontSize;
-    };
-  }, [mode]);
-
   const launchLab = (labId: string) => {
     const chosenDifficulty =
       mode === "debug"

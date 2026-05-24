@@ -365,7 +365,42 @@ class SessionReportEvidenceModel(Base):
     why_it_matters: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_priority: Mapped[str] = mapped_column(String(16), nullable=False)
     student_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_section: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="unassigned", server_default="unassigned"
+    )
+    section_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class SessionReportDraftModel(Base):
+    __tablename__ = "session_report_drafts"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            name="uq_session_report_drafts_session_id",
+        ),
+    )
+
+    id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    session_id: Mapped[PyUUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    executive_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    threat_model: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    methodology: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence_and_results: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    mitigations: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

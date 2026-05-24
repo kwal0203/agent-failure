@@ -58,6 +58,8 @@ class SQLAlchemySessionReportEvidenceRepository(SessionReportEvidenceRepositoryP
                 why_it_matters=row.why_it_matters,
                 default_priority=cast(TraceEvidencePriority, row.default_priority),
                 student_note=row.student_note,
+                report_section=row.report_section,
+                section_position=row.section_position,
                 created_at=row.created_at,
                 updated_at=row.updated_at,
             )
@@ -92,6 +94,8 @@ class SQLAlchemySessionReportEvidenceRepository(SessionReportEvidenceRepositoryP
                     why_it_matters=item.why_it_matters,
                     default_priority=item.default_priority,
                     student_note=item.student_note,
+                    report_section=item.report_section,
+                    section_position=item.section_position,
                 )
             )
         # Request-scoped sessions use autoflush=False; flush so immediate readbacks

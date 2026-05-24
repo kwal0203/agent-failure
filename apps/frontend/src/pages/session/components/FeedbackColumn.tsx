@@ -1,24 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  GetSessionReportEvidenceResponse,
-  PutSessionReportEvidenceRequest,
-  TimelineEvent,
-} from "../types";
-import { API_BASE, getAuthHeader } from "../ui";
+import { useMemo } from "react";
+import type { TimelineEvent } from "../types";
 
 type FeedbackColumnProps = {
-  sessionId?: string;
   feedbackLoading: boolean;
   feedbackReady: boolean;
   feedbackError: string | null;
   timelineEvents: TimelineEvent[];
 };
-
-function toTraceEventId(timelineEventId: string): string | null {
-  if (!timelineEventId.startsWith("trace-")) return null;
-  const raw = timelineEventId.slice("trace-".length).trim();
-  return raw.length > 0 ? raw : null;
-}
 
 function isTokenExposureEvent(event: TimelineEvent): boolean {
   const haystack =
@@ -103,21 +91,11 @@ function eventTone(event: TimelineEvent): {
 }
 
 export function FeedbackColumn({
-  sessionId,
   feedbackLoading,
   feedbackReady,
   feedbackError,
   timelineEvents,
 }: FeedbackColumnProps) {
-  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const controlsRef = useRef<HTMLDivElement | null>(null);
-  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
-  const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
-    Set<string>
-  >(() => new Set());
-  const preselectionAppliedRef = useRef(false);
   const sortedEvents = useMemo(
     () =>
       [...timelineEvents].sort(
@@ -126,170 +104,6 @@ export function FeedbackColumn({
       ),
     [timelineEvents],
   );
-
-  useEffect(() => {
-    void sessionId;
-    setSelectedEventIds(new Set());
-    setPreselectedTraceEventIds(new Set());
-    setHasHydratedSelection(false);
-    preselectionAppliedRef.current = false;
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!sessionId) {
-      setHasHydratedSelection(true);
-      return;
-    }
-
-    let cancelled = false;
-    const loadSelection = async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: getAuthHeader(),
-              "Content-Type": "application/json",
-            },
-          },
-        );
-        if (!response.ok) {
-          return;
-        }
-        const data =
-          (await response.json()) as GetSessionReportEvidenceResponse;
-        const items = Array.isArray(data.items) ? data.items : [];
-        if (cancelled) return;
-        setPreselectedTraceEventIds(
-          new Set(
-            items
-              .map((item) => item.event_id)
-              .filter((eventId): eventId is string => !!eventId),
-          ),
-        );
-        preselectionAppliedRef.current = false;
-      } finally {
-        if (!cancelled) {
-          setHasHydratedSelection(true);
-        }
-      }
-    };
-    void loadSelection();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!hasHydratedSelection) return;
-    if (preselectionAppliedRef.current) return;
-    if (sortedEvents.length === 0) return;
-
-    const selectedFromServer = new Set<string>();
-    for (const event of sortedEvents) {
-      if (event.report_selectable !== true) continue;
-      const traceEventId = toTraceEventId(event.id);
-      if (!traceEventId) continue;
-      if (preselectedTraceEventIds.has(traceEventId)) {
-        selectedFromServer.add(event.id);
-      }
-    }
-    setSelectedEventIds(selectedFromServer);
-    preselectionAppliedRef.current = true;
-  }, [hasHydratedSelection, preselectedTraceEventIds, sortedEvents]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    if (!hasHydratedSelection) return;
-
-    const timeoutId = window.setTimeout(() => {
-      const selectedItems = sortedEvents.filter(
-        (event) =>
-          event.report_selectable === true && selectedEventIds.has(event.id),
-      );
-      const requestBody: PutSessionReportEvidenceRequest = {
-        items: selectedItems
-          .map((event, index) => {
-            const eventId = toTraceEventId(event.id);
-            if (!eventId) return null;
-            return {
-              event_id: eventId,
-              position: index,
-              title: event.title,
-              description: event.description,
-              details: null,
-              occurred_at: event.timestamp,
-              trace_version: 1,
-              event_index: index,
-              evidence_type: event.evidence_type ?? "noise",
-              objective_keys: event.objective_keys ?? [],
-              why_it_matters: event.why_it_matters ?? null,
-              default_priority: event.default_priority ?? "low",
-              citation_label: null,
-              objective_mapping: null,
-              evidence_strength: null,
-              student_note: null,
-            };
-          })
-          .filter((item) => item !== null),
-      };
-
-      void fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report-evidence`, {
-        method: "PUT",
-        headers: {
-          Authorization: getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [hasHydratedSelection, selectedEventIds, sessionId, sortedEvents]);
-
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (controlsRef.current?.contains(target)) return;
-    };
-
-    window.addEventListener("mousedown", onPointerDown);
-    return () => {
-      window.removeEventListener("mousedown", onPointerDown);
-    };
-  }, []);
-
-  useEffect(() => {
-    const knownIds = new Set(sortedEvents.map((event) => event.id));
-    setSelectedEventIds((prev) => {
-      const next = new Set<string>();
-      for (const id of prev) {
-        if (knownIds.has(id)) {
-          next.add(id);
-        }
-      }
-      return next;
-    });
-  }, [sortedEvents]);
-
-  const selectedCount = selectedEventIds.size;
-
-  const toggleEventSelection = (eventId: string) => {
-    setSelectedEventIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(eventId)) {
-        next.delete(eventId);
-      } else {
-        next.add(eventId);
-      }
-      return next;
-    });
-  };
 
   return (
     <section className="box-border flex h-full min-h-0 max-h-full flex-[1_1_0%] flex-col gap-2.5 overflow-hidden border-b-2 border-slate-400 px-4 py-4 text-left">
@@ -317,8 +131,6 @@ export function FeedbackColumn({
           <div className="flex flex-col gap-2">
             {sortedEvents.map((event, index) => {
               const tone = eventTone(event);
-              const isSelected = selectedEventIds.has(event.id);
-              const isSelectable = event.report_selectable === true;
               const chipStyle = {
                 opacity: 0,
                 transform: "translateY(4px)",
@@ -327,51 +139,18 @@ export function FeedbackColumn({
                 animationTimingFunction: "ease-out",
                 animationFillMode: "forwards",
                 animationDelay: `${Math.min(index, 8) * 36}ms`,
-                boxShadow: isSelected
-                  ? "0 0 0 1px rgba(255, 255, 255, 0.12)"
-                  : undefined,
-                filter: isSelected ? "brightness(1.08)" : undefined,
               } as const;
-              const chipBody = (
-                <div className="relative flex flex-col items-start gap-0">
-                  {isSelected ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -right-0.5 -top-1 h-4 w-4 rounded-full bg-sky-100 text-center text-[11px] font-bold leading-4 text-sky-800 shadow-[0_0_0_1px_rgba(17,24,39,0.35)]"
-                    >
-                      ✓
-                    </span>
-                  ) : null}
-                  <p className={`m-0 font-semibold ${tone.titleClass}`}>
-                    {event.title}
-                  </p>
-                </div>
-              );
-
-              if (isSelectable) {
-                return (
-                  <button
-                    key={event.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => {
-                      toggleEventSelection(event.id);
-                    }}
-                    style={chipStyle}
-                    className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
-                  >
-                    {chipBody}
-                  </button>
-                );
-              }
-
               return (
                 <div
                   key={event.id}
                   style={chipStyle}
                   className={`w-full cursor-default rounded-lg px-2.5 py-2.5 ${tone.chipClass}`}
                 >
-                  {chipBody}
+                  <div className="flex flex-col items-start gap-0">
+                    <p className={`m-0 font-semibold ${tone.titleClass}`}>
+                      {event.title}
+                    </p>
+                  </div>
                 </div>
               );
             })}
@@ -409,15 +188,6 @@ export function FeedbackColumn({
           background-color: #6f8ea8;
         }
       `}</style>
-
-      <div
-        ref={controlsRef}
-        className="relative flex flex-none flex-wrap items-center gap-3"
-      >
-        <span className="text-sm font-semibold text-sky-100">
-          Selected: {selectedCount}
-        </span>
-      </div>
     </section>
   );
 }

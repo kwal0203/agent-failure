@@ -15,8 +15,10 @@ from apps.contracts.src.schemas import (
     GetSessionTraceResponse,
     SessionTraceEvent,
     GetSessionReportEvidenceResponse,
+    GetSessionReportDraftResponse,
     ObjectiveMappingItem,
     ReportEvidenceItem,
+    ReportDraftSections,
 )
 from apps.control_plane.src.application.evaluator_feedback.types import (
     LearnerEvaluatorFeedback,
@@ -28,6 +30,7 @@ from apps.control_plane.src.application.session_query.types import (
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.session_report_evidence.types import (
     ReportEvidenceProjection,
+    SessionReportDraftSections as AppSessionReportDraftSections,
     SessionReportEvidenceItemInput,
     SessionReportEvidenceRow,
 )
@@ -303,6 +306,8 @@ def map_report_evidence_projection_response(
                 ),
                 evidence_strength=item.evidence_strength,
                 student_note=item.student_note,
+                report_section=item.report_section,
+                section_position=item.section_position,
             )
             for item in items
         )
@@ -327,6 +332,30 @@ def map_report_evidence_items_to_inputs(
             why_it_matters=item.why_it_matters,
             default_priority=item.default_priority,
             student_note=item.student_note,
+            report_section=item.report_section,
+            section_position=item.section_position,
         )
         for item in items
+    )
+
+
+def map_report_draft_response(
+    *,
+    sections: AppSessionReportDraftSections | ReportDraftSections,
+    rows: Sequence[SessionReportEvidenceRow],
+) -> GetSessionReportDraftResponse:
+    mapped_sections = (
+        sections
+        if isinstance(sections, ReportDraftSections)
+        else ReportDraftSections(
+            executive_summary=sections.executive_summary,
+            threat_model=sections.threat_model,
+            methodology=sections.methodology,
+            evidence_and_results=sections.evidence_and_results,
+            mitigations=sections.mitigations,
+        )
+    )
+    return GetSessionReportDraftResponse(
+        sections=mapped_sections,
+        items=map_session_report_evidence_response(rows).items,
     )

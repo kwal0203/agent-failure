@@ -26,8 +26,7 @@ export function ProtectedRoute() {
   if (isBootstrapping || isAuthTransitioning) return <AuthTransitionScreen />;
 
   if (!isAuthenticated) {
-    const next = `${location.pathname}${location.search}${location.hash}`;
-    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (isEnrollmentApiEnabled()) {

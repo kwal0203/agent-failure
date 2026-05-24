@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.infrastructure.persistence.models import (
     SessionModel,
+    SessionReportDraftModel,
     SessionReportEvidenceModel,
     TraceEventModel,
 )
@@ -117,6 +118,8 @@ def test_get_report_evidence_returns_rows_ordered_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -134,6 +137,8 @@ def test_get_report_evidence_returns_rows_ordered_by_position(
                 why_it_matters="Delivery event",
                 default_priority="medium",
                 student_note="note",
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -237,6 +242,174 @@ def test_put_report_evidence_full_replace_and_normalized_positions(
     assert [item["event_id"] for item in items] == [str(event_a), str(event_b)]
     assert [item["trace_version"] for item in items] == [1, 1]
     assert [item["event_index"] for item in items] == [1, 2]
+
+
+def test_put_report_evidence_rejects_invalid_report_section(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-invalid-section"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=1,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 0,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "not_a_real_section",
+                        "section_position": 999,
+                    }
+                ]
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REPORT_EVIDENCE"
+
+
+def test_put_get_report_evidence_roundtrip_preserves_sections_and_normalizes_per_section_positions(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-sections-roundtrip"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+
+    event_a = uuid4()
+    event_b = uuid4()
+    event_c = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_a,
+        event_index=1,
+        event_type="TOKEN_DISCLOSED",
+    )
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_b,
+        event_index=2,
+        event_type="ATTACK_EMAIL_SENT",
+    )
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_c,
+        event_index=3,
+        event_type="MALICIOUS_EMAIL_READ",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        put_response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_a),
+                        "position": 50,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 99,
+                    },
+                    {
+                        "event_id": str(event_b),
+                        "position": 51,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_step",
+                        "objective_keys": ["lab1.attack_delivery"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "medium",
+                        "student_note": None,
+                        "report_section": "threat_model",
+                        "section_position": 88,
+                    },
+                    {
+                        "event_id": str(event_c),
+                        "position": 52,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_step",
+                        "objective_keys": ["lab1.malicious_content_in_context"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 77,
+                    },
+                ]
+            },
+        )
+        get_response = client.get(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert put_response.status_code == 200
+    assert get_response.status_code == 200
+
+    items = get_response.json()["items"]
+    assert [item["event_id"] for item in items] == [
+        str(event_a),
+        str(event_b),
+        str(event_c),
+    ]
+    assert [item["report_section"] for item in items] == [
+        "methodology",
+        "threat_model",
+        "methodology",
+    ]
+    assert [item["section_position"] for item in items] == [0, 0, 1]
 
 
 def test_put_report_evidence_rejects_duplicates(db_session: Session) -> None:
@@ -377,6 +550,8 @@ def test_post_import_selected_evidence_uses_persisted_selection_by_default(
                 why_it_matters=None,
                 default_priority="medium",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -394,6 +569,8 @@ def test_post_import_selected_evidence_uses_persisted_selection_by_default(
                 why_it_matters=None,
                 default_priority="high",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -443,6 +620,8 @@ def test_post_import_selected_evidence_supports_subset_order_override(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -460,6 +639,8 @@ def test_post_import_selected_evidence_supports_subset_order_override(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -510,6 +691,8 @@ def test_get_report_evidence_citation_labels_are_deterministic_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -527,6 +710,8 @@ def test_get_report_evidence_citation_labels_are_deterministic_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -573,6 +758,8 @@ def test_post_import_selected_evidence_rejects_override_not_in_selection(
             why_it_matters=None,
             default_priority="low",
             student_note=None,
+            report_section="unassigned",
+            section_position=None,
         )
     )
     db_session.flush()
@@ -797,3 +984,142 @@ def test_import_selected_evidence_survives_missing_trace_event_after_selection(
     imported_items = import_response.json()["items"]
     assert len(imported_items) == 1
     assert imported_items[0]["event_id"] == str(event_id)
+
+
+def test_put_report_draft_saves_sections_and_selected_evidence_atomically(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-report-draft-put"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=4,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/sessions/{session_id}/report-draft",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "sections": {
+                    "executive_summary": "Summary",
+                    "threat_model": "Threat model text",
+                    "methodology": "Methodology text",
+                    "evidence_and_results": "Evidence text",
+                    "mitigations": "Mitigation text",
+                },
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 99,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "citation_label": None,
+                        "objective_mapping": None,
+                        "evidence_strength": None,
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 123,
+                    }
+                ],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sections"]["executive_summary"] == "Summary"
+    assert payload["items"][0]["event_id"] == str(event_id)
+    assert payload["items"][0]["report_section"] == "methodology"
+    assert payload["items"][0]["section_position"] == 0
+
+    draft_row = (
+        db_session.query(SessionReportDraftModel)
+        .filter(SessionReportDraftModel.session_id == session_id)
+        .one()
+    )
+    assert draft_row.methodology == "Methodology text"
+
+    evidence_rows = (
+        db_session.query(SessionReportEvidenceModel)
+        .filter(SessionReportEvidenceModel.session_id == session_id)
+        .all()
+    )
+    assert len(evidence_rows) == 1
+
+
+def test_get_report_draft_rehydrates_sections_and_selected_evidence(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-report-draft-get"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    now = datetime.now(timezone.utc)
+    event_id = uuid4()
+    db_session.add(
+        SessionReportEvidenceModel(
+            id=uuid4(),
+            session_id=session_id,
+            event_id=event_id,
+            position=0,
+            title="Token disclosed",
+            description="desc",
+            details={"raw": "x"},
+            occurred_at=now,
+            trace_version=1,
+            event_index=4,
+            evidence_type="exploit_outcome",
+            objective_keys=["lab1.token_disclosed"],
+            why_it_matters="important",
+            default_priority="high",
+            student_note=None,
+            report_section="methodology",
+            section_position=0,
+        )
+    )
+    db_session.add(
+        SessionReportDraftModel(
+            id=uuid4(),
+            session_id=session_id,
+            executive_summary="Summary text",
+            threat_model="Threat text",
+            methodology="Method text",
+            evidence_and_results="Evidence text",
+            mitigations="Mitigation text",
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}/report-draft",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sections"]["executive_summary"] == "Summary text"
+    assert payload["sections"]["methodology"] == "Method text"
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["event_id"] == str(event_id)
+    assert payload["items"][0]["report_section"] == "methodology"
