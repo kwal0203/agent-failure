@@ -46,6 +46,72 @@ const REPORT_SECTION_OPTIONS: ReadonlyArray<{
   { value: "mitigations", label: "Mitigations" },
 ];
 
+const AUTOSAVE_INTERVAL_MS = 60_000;
+
+const escapePdfText = (value: string): string =>
+  value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+
+const createSimplePdf = (lines: string[]): Blob => {
+  const width = 612;
+  const height = 792;
+  const margin = 48;
+  const lineHeight = 16;
+  const pageLineCapacity = Math.floor((height - margin * 2) / lineHeight);
+  const chunkedPages: string[][] = [];
+  for (let i = 0; i < lines.length; i += pageLineCapacity) {
+    chunkedPages.push(lines.slice(i, i + pageLineCapacity));
+  }
+  if (chunkedPages.length === 0) {
+    chunkedPages.push(["Report export"]);
+  }
+
+  const objects: string[] = [];
+  objects.push("<< /Type /Catalog /Pages 2 0 R >>");
+
+  const pagesKids = chunkedPages
+    .map((_, index) => `${3 + index * 2} 0 R`)
+    .join(" ");
+  objects.push(
+    `<< /Type /Pages /Count ${chunkedPages.length} /Kids [${pagesKids}] >>`,
+  );
+
+  for (const pageLines of chunkedPages) {
+    const contentParts: string[] = ["BT", "/F1 11 Tf"];
+    let y = height - margin;
+    for (const line of pageLines) {
+      contentParts.push(`1 0 0 1 ${margin} ${y} Tm`);
+      contentParts.push(`(${escapePdfText(line)}) Tj`);
+      y -= lineHeight;
+    }
+    contentParts.push("ET");
+    const stream = `${contentParts.join("\n")}\n`;
+
+    const pageObjectIndex = objects.length + 1;
+    const contentObjectIndex = pageObjectIndex + 1;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Contents ${contentObjectIndex} 0 R /Resources << /Font << /F1 ${3 + chunkedPages.length * 2} 0 R >> >> >>`,
+    );
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}endstream`);
+  }
+
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [0];
+  for (let i = 0; i < objects.length; i += 1) {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  for (let i = 1; i < offsets.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+};
+
 export default function SessionReportPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -387,8 +453,8 @@ export default function SessionReportPage() {
     lastSavedSnapshot.length > 0 &&
     currentSnapshot !== lastSavedSnapshot;
 
-  const handleSave = useCallback(async () => {
-    if (!sessionId) return;
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!sessionId) return false;
     setIsSaving(true);
     setError(null);
     try {
@@ -419,14 +485,90 @@ export default function SessionReportPage() {
         );
       }
       setLastSavedSnapshot(currentSnapshot);
+      return true;
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "Unknown error",
       );
+      return false;
     } finally {
       setIsSaving(false);
     }
   }, [currentSnapshot, draft, selectedItemsPayload, sessionId]);
+
+  useEffect(() => {
+    if (!isDirty || isSaving) return;
+    const timer = window.setInterval(() => {
+      if (!isDirty || isSaving) return;
+      void handleSave();
+    }, AUTOSAVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [handleSave, isDirty, isSaving]);
+
+  const exportLines = useMemo((): string[] => {
+    const lines: string[] = [];
+    const addSection = (heading: string, text: string) => {
+      lines.push(heading);
+      lines.push("");
+      if (text.trim().length > 0) {
+        for (const paragraph of text.split("\n")) {
+          const trimmed = paragraph.trim();
+          if (trimmed.length === 0) {
+            lines.push("");
+            continue;
+          }
+          lines.push(trimmed);
+        }
+      } else {
+        lines.push("Not provided.");
+      }
+      lines.push("");
+    };
+
+    lines.push("Agent Failure Lab Report");
+    lines.push(`Session: ${sessionId ?? "unknown"}`);
+    lines.push(`Exported: ${new Date().toISOString()}`);
+    lines.push("");
+
+    addSection("Executive Summary", draft.executiveSummary);
+    addSection("Threat Model", draft.threatModel);
+    addSection("Exploitation Methodology", draft.methodology);
+    addSection("Evidence and Results", draft.evidenceAndResults);
+    addSection("Mitigations", draft.mitigations);
+
+    lines.push("Evidence By Section");
+    lines.push("");
+    for (const section of REPORT_SECTION_OPTIONS) {
+      lines.push(section.label);
+      const events = selectedEvidenceBySection.get(section.value) ?? [];
+      if (events.length === 0) {
+        lines.push("  - none");
+      } else {
+        for (const event of events) {
+          lines.push(`  - ${event.title} (evidence)`);
+        }
+      }
+      lines.push("");
+    }
+
+    return lines;
+  }, [draft, selectedEvidenceBySection, sessionId]);
+
+  const handleExport = useCallback(async () => {
+    const saved = await handleSave();
+    if (!saved) return;
+
+    const pdfBlob = createSimplePdf(exportLines);
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement("a");
+    const datePart = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `session-report-${sessionId ?? "unknown"}-${datePart}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [exportLines, handleSave, sessionId]);
 
   useBeforeUnload(
     useCallback(
@@ -489,9 +631,12 @@ export default function SessionReportPage() {
             </button>
             <button
               type="button"
-              disabled
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-900/50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-300 opacity-60"
-              title="Export will be added in the next step."
+              onClick={() => {
+                void handleExport();
+              }}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-900/50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-300 disabled:opacity-60"
+              title="Auto-saves, then exports PDF."
             >
               <Download className="h-4 w-4" />
               Export
