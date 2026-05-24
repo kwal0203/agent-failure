@@ -1,5 +1,4 @@
 import type { FormEvent } from "react";
-import { objectiveTone, statusChipStyle } from "../helpers";
 
 type EmailToolFormProps = {
   emailFrom: string;
@@ -34,63 +33,59 @@ export function EmailToolForm({
   onEmailSubjectChange,
   onEmailBodyChange,
 }: EmailToolFormProps) {
-  const chipButtonStyle = (active: boolean, disabled: boolean) => ({
-    ...statusChipStyle(objectiveTone(active)),
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.7 : 1,
-  });
-
   return (
-    <form onSubmit={onSubmitEmail}>
-      <label style={{ display: "block", marginBottom: 8 }}>
-        From
+    <form onSubmit={onSubmitEmail} className="space-y-2.5">
+      <label className="block text-sm font-semibold text-slate-200">
+        <span>From</span>
         <input
           type="email"
           required
           value={emailFrom}
           disabled={interactionLocked}
           onChange={(e) => onEmailFromChange(e.target.value)}
-          style={{ width: "100%", marginTop: 4 }}
+          className="mt-1 w-full rounded-md border border-slate-400/70 bg-black/35 px-3 py-2 text-slate-100 outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
         />
         {fromValidationError ? (
-          <span
-            role="alert"
-            style={{ display: "block", color: "red", marginTop: 4 }}
-          >
+          <span role="alert" className="mt-1 block text-sm text-rose-300">
             {fromValidationError}
           </span>
         ) : null}
       </label>
-      <label style={{ display: "block", marginBottom: 8 }}>
-        Subject
+      <label className="block text-sm font-semibold text-slate-200">
+        <span>Subject</span>
         <input
           type="text"
           required
           value={emailSubject}
           disabled={interactionLocked}
           onChange={(e) => onEmailSubjectChange(e.target.value)}
-          style={{ width: "100%", marginTop: 4 }}
+          className="mt-1 w-full rounded-md border border-slate-400/70 bg-black/35 px-3 py-2 text-slate-100 outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
         />
       </label>
-      <label style={{ display: "block", marginBottom: 8 }}>
-        Body
+      <label className="block text-sm font-semibold text-slate-200">
+        <span>Body</span>
         <textarea
           rows={4}
           required
           value={emailBody}
           disabled={interactionLocked}
           onChange={(e) => onEmailBodyChange(e.target.value)}
-          style={{ width: "100%", marginTop: 4 }}
+          className="mt-1 w-full resize-y rounded-md border border-slate-400/70 bg-black/35 px-3 py-2 text-slate-100 outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-70"
         />
       </label>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <button
           type="submit"
           disabled={interactionLocked || injectingEmail || !sessionId}
-          style={chipButtonStyle(
-            Boolean(injectEmailResult),
-            interactionLocked || injectingEmail || !sessionId,
-          )}
+          className={[
+            "rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition",
+            injectEmailResult
+              ? "border-sky-400 bg-sky-900/55 text-sky-100"
+              : "border-slate-400 bg-white text-slate-800",
+            interactionLocked || injectingEmail || !sessionId
+              ? "cursor-not-allowed opacity-70"
+              : "cursor-pointer hover:bg-slate-100",
+          ].join(" ")}
         >
           {injectingEmail ? "Sending..." : "Send Email"}
         </button>
@@ -98,13 +93,18 @@ export function EmailToolForm({
           type="button"
           onClick={onResetEmail}
           disabled={interactionLocked || injectingEmail}
-          style={chipButtonStyle(false, interactionLocked || injectingEmail)}
+          className={[
+            "rounded-lg border border-slate-400 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-800 transition",
+            interactionLocked || injectingEmail
+              ? "cursor-not-allowed opacity-70"
+              : "cursor-pointer hover:bg-slate-100",
+          ].join(" ")}
         >
           Reset
         </button>
       </div>
       {injectEmailError && (
-        <p style={{ color: "red", marginTop: 8 }}>{injectEmailError}</p>
+        <p className="mt-2 text-sm text-rose-300">{injectEmailError}</p>
       )}
     </form>
   );

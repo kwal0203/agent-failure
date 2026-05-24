@@ -4,7 +4,7 @@ import type {
   PutSessionReportEvidenceRequest,
   TimelineEvent,
 } from "../types";
-import { API_BASE, DEMO_H2_STYLE, getAuthHeader } from "../ui";
+import { API_BASE, getAuthHeader } from "../ui";
 
 type FeedbackColumnProps = {
   sessionId?: string;
@@ -39,87 +39,65 @@ function isBenignEmailReceivedEvent(event: TimelineEvent): boolean {
 }
 
 function eventTone(event: TimelineEvent): {
-  border: string;
-  background: string;
-  titleColor: string;
-  bodyColor: string;
+  chipClass: string;
+  titleClass: string;
 } {
   if (isTokenExposureEvent(event)) {
     return {
-      border: "1px solid #d14c4c",
-      background: "rgba(93, 21, 21, 0.35)",
-      titleColor: "#ffd7d7",
-      bodyColor: "#ffe9e9",
+      chipClass: "border border-red-500 bg-red-950/35",
+      titleClass: "text-red-100",
     };
   }
 
   if (isMaliciousEmailReceivedEvent(event)) {
     return {
-      border: "1px solid #cf513f",
-      background: "rgba(98, 31, 22, 0.36)",
-      titleColor: "#ffe0da",
-      bodyColor: "#ffece7",
+      chipClass: "border border-orange-500 bg-orange-950/35",
+      titleClass: "text-orange-100",
     };
   }
 
   if (isBenignEmailReceivedEvent(event)) {
     return {
-      border: "1px solid #4e9d74",
-      background: "rgba(25, 75, 52, 0.34)",
-      titleColor: "#dbffe9",
-      bodyColor: "#ebfff3",
+      chipClass: "border border-emerald-500 bg-emerald-950/35",
+      titleClass: "text-emerald-100",
     };
   }
 
   switch (event.type) {
     case "important":
       return {
-        border: "1px solid #d18a3e",
-        background: "rgba(94, 60, 20, 0.3)",
-        titleColor: "#ffe4c0",
-        bodyColor: "#ffefda",
+        chipClass: "border border-amber-500 bg-amber-950/30",
+        titleClass: "text-amber-100",
       };
     case "attacker_action":
       return {
-        border: "1px solid #8a4fd1",
-        background: "rgba(63, 32, 96, 0.28)",
-        titleColor: "#eadbff",
-        bodyColor: "#f2e9ff",
+        chipClass: "border border-violet-500 bg-violet-950/30",
+        titleClass: "text-violet-100",
       };
     case "agent_action":
       return {
-        border: "1px solid #3e9a72",
-        background: "rgba(24, 70, 52, 0.3)",
-        titleColor: "#d8ffe8",
-        bodyColor: "#e9fff2",
+        chipClass: "border border-emerald-500 bg-emerald-950/30",
+        titleClass: "text-emerald-100",
       };
     case "tool_call":
       return {
-        border: "1px solid #3a8ec2",
-        background: "rgba(22, 56, 82, 0.3)",
-        titleColor: "#d6efff",
-        bodyColor: "#e8f6ff",
+        chipClass: "border border-sky-500 bg-sky-950/30",
+        titleClass: "text-sky-100",
       };
     case "system":
       return {
-        border: "1px solid #8a95a1",
-        background: "rgba(41, 49, 56, 0.3)",
-        titleColor: "#e5ebf2",
-        bodyColor: "#f1f5f9",
+        chipClass: "border border-slate-500 bg-slate-800/45",
+        titleClass: "text-slate-100",
       };
     case "explanation":
       return {
-        border: "1px solid #4a86c6",
-        background: "rgba(20, 50, 78, 0.3)",
-        titleColor: "#d6ecff",
-        bodyColor: "#e9f4ff",
+        chipClass: "border border-blue-500 bg-blue-950/30",
+        titleClass: "text-blue-100",
       };
     default:
       return {
-        border: "1px solid #8ea1b4",
-        background: "rgba(26, 38, 49, 0.18)",
-        titleColor: "#e6edf3",
-        bodyColor: "#f2f5f7",
+        chipClass: "border border-slate-400 bg-slate-900/25",
+        titleClass: "text-slate-100",
       };
   }
 }
@@ -314,61 +292,34 @@ export function FeedbackColumn({
   };
 
   return (
-    <section
-      style={{
-        borderBottom: "2px solid #8ea5b8",
-        borderRadius: 0,
-        padding: 16,
-        textAlign: "left",
-        display: "flex",
-        flexDirection: "column",
-        flex: "1 1 0%",
-        gap: 10,
-        height: "100%",
-        minHeight: 0,
-        maxHeight: "100%",
-        boxSizing: "border-box",
-        overflow: "hidden",
-      }}
-    >
-      <div style={{ flex: "0 0 auto" }}>
-        <h2 style={{ ...DEMO_H2_STYLE, textAlign: "right" }}>Event Timeline</h2>
+    <section className="box-border flex h-full min-h-0 max-h-full flex-[1_1_0%] flex-col gap-2.5 overflow-hidden border-b-2 border-slate-400 px-4 py-4 text-left">
+      <div className="flex-none">
+        <h2 className="m-0 text-right text-lg font-semibold tracking-wide text-slate-100">
+          Event Timeline
+        </h2>
         {feedbackLoading ? (
-          <p style={{ margin: "8px 0 0 0" }}>Loading learner feedback...</p>
+          <p className="mb-0 mt-2">Loading learner feedback...</p>
         ) : null}
         {feedbackError ? (
-          <p style={{ color: "red", margin: "8px 0 0 0" }}>
-            Error: {feedbackError}
-          </p>
+          <p className="mb-0 mt-2 text-red-400">Error: {feedbackError}</p>
         ) : null}
       </div>
 
       <div
         className="timeline-scroll-region"
-        style={{
-          flex: "1 1 auto",
-          height: 0,
-          minHeight: 0,
-          overflowY: "auto",
-          paddingRight: 6,
-          scrollbarGutter: "stable",
-        }}
+        style={{ scrollbarGutter: "stable" }}
       >
         {!feedbackReady ? (
-          <p style={{ margin: 0, opacity: 0.85 }} />
+          <p className="m-0 opacity-85" />
         ) : sortedEvents.length === 0 ? (
-          <p style={{ margin: 0, opacity: 0.85 }}>No events to display.</p>
+          <p className="m-0 opacity-85">No events to display.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {sortedEvents.map((event, index) => {
               const tone = eventTone(event);
               const isSelected = selectedEventIds.has(event.id);
               const isSelectable = event.report_selectable === true;
               const chipStyle = {
-                border: tone.border,
-                background: tone.background,
-                borderRadius: 8,
-                padding: 10,
                 opacity: 0,
                 transform: "translateY(4px)",
                 animationName: "timelineEventIn",
@@ -380,47 +331,18 @@ export function FeedbackColumn({
                   ? "0 0 0 1px rgba(255, 255, 255, 0.12)"
                   : undefined,
                 filter: isSelected ? "brightness(1.08)" : undefined,
-                cursor: isSelectable ? "pointer" : "default",
               } as const;
               const chipBody = (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 0,
-                    alignItems: "flex-start",
-                    position: "relative",
-                  }}
-                >
+                <div className="relative flex flex-col items-start gap-0">
                   {isSelected ? (
                     <span
                       aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        top: -4,
-                        right: -2,
-                        width: 16,
-                        height: 16,
-                        borderRadius: "999px",
-                        background: "rgba(210, 235, 255, 0.95)",
-                        color: "#1f5f85",
-                        fontSize: 11,
-                        lineHeight: "16px",
-                        textAlign: "center",
-                        fontWeight: 700,
-                        boxShadow: "0 0 0 1px rgba(17, 24, 39, 0.35)",
-                      }}
+                      className="absolute -right-0.5 -top-1 h-4 w-4 rounded-full bg-sky-100 text-center text-[11px] font-bold leading-4 text-sky-800 shadow-[0_0_0_1px_rgba(17,24,39,0.35)]"
                     >
                       ✓
                     </span>
                   ) : null}
-                  <p
-                    style={{
-                      margin: 0,
-                      fontWeight: 600,
-                      color: tone.titleColor,
-                    }}
-                  >
+                  <p className={`m-0 font-semibold ${tone.titleClass}`}>
                     {event.title}
                   </p>
                 </div>
@@ -435,13 +357,8 @@ export function FeedbackColumn({
                     onClick={() => {
                       toggleEventSelection(event.id);
                     }}
-                    style={{
-                      ...chipStyle,
-                      borderWidth: 1,
-                      borderStyle: "solid",
-                      textAlign: "left",
-                      width: "100%",
-                    }}
+                    style={chipStyle}
+                    className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
                   >
                     {chipBody}
                   </button>
@@ -449,7 +366,11 @@ export function FeedbackColumn({
               }
 
               return (
-                <div key={event.id} style={chipStyle}>
+                <div
+                  key={event.id}
+                  style={chipStyle}
+                  className={`w-full cursor-default rounded-lg px-2.5 py-2.5 ${tone.chipClass}`}
+                >
                   {chipBody}
                 </div>
               );
@@ -464,6 +385,11 @@ export function FeedbackColumn({
           to { opacity: 1; transform: translateY(0); }
         }
         .timeline-scroll-region {
+          flex: 1 1 auto;
+          height: 0;
+          min-height: 0;
+          overflow-y: auto;
+          padding-right: 6px;
           scrollbar-width: thin;
           scrollbar-color: #88a2b8 transparent;
         }
@@ -486,16 +412,9 @@ export function FeedbackColumn({
 
       <div
         ref={controlsRef}
-        style={{
-          flex: "0 0 auto",
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-          position: "relative",
-        }}
+        className="relative flex flex-none flex-wrap items-center gap-3"
       >
-        <span style={{ fontWeight: 600, fontSize: 13, color: "#d6f1ff" }}>
+        <span className="text-sm font-semibold text-sky-100">
           Selected: {selectedCount}
         </span>
       </div>

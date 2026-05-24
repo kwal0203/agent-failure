@@ -95,6 +95,11 @@ export function useTranscriptStreamView() {
     const viewport = transcriptViewportRef.current;
     if (!viewport) return;
     viewport.scrollTop = viewport.scrollHeight;
+    requestAnimationFrame(() => {
+      const nextViewport = transcriptViewportRef.current;
+      if (!nextViewport) return;
+      nextViewport.scrollTop = nextViewport.scrollHeight;
+    });
   }, []);
 
   const onTranscriptScroll = useCallback(() => {
@@ -149,6 +154,39 @@ export function useTranscriptStreamView() {
   useEffect(() => {
     scrollTranscriptToBottom();
   }, [scrollTranscriptToBottom]);
+
+  // Keep bottom-pinned when layout changes resize the transcript viewport
+  // (e.g., header chip rows expanding when hints/feedback arrive).
+  useEffect(() => {
+    const viewport = transcriptViewportRef.current;
+    if (!viewport) return;
+
+    const pinIfNeeded = () => {
+      if (!transcriptAutoScrollEnabled) return;
+      scrollTranscriptToBottom();
+    };
+
+    const rafId = requestAnimationFrame(pinIfNeeded);
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        pinIfNeeded();
+      });
+      resizeObserver.observe(viewport);
+    } else {
+      window.addEventListener("resize", pinIfNeeded);
+    }
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener("resize", pinIfNeeded);
+      }
+    };
+  }, [scrollTranscriptToBottom, transcriptAutoScrollEnabled]);
 
   // Cleanup any pending animation frame on unmount to avoid leaks.
   useEffect(() => {

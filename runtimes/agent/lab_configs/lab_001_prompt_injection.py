@@ -9,7 +9,6 @@ from apps.contracts.src.lab_secrets import (
     LAB1_PROTECTED_SECRET_RENDERED,
 )
 from apps.contracts.src.schemas import (
-    AttackEmailSentEvent,
     MaliciousEmailReadEvent,
     TokenDisclosedEvent,
 )
@@ -37,7 +36,6 @@ _MANAGER_ADDRESS_PATTERNS = (
 
 
 class Lab1Hooks:
-    attack_email_sent_emitted_sessions: set[UUID] = set()
     urgent_injection_active_sessions: set[UUID] = set()
     token_disclosed_emitted_sessions: set[UUID] = set()
 
@@ -103,22 +101,10 @@ class Lab1Hooks:
         pass
 
     def on_list_inbox(self, ctx: ToolCtx) -> list[AgentTurnItem]:
-        if ctx.session_id in self.attack_email_sent_emitted_sessions:
-            return []
-        for email in ctx.inbox.list_inbox():
-            if not email.malicious:
-                continue
-            self.attack_email_sent_emitted_sessions.add(ctx.session_id)
-            return [
-                EventItem(
-                    event=AttackEmailSentEvent(
-                        type="attack_email_sent",
-                        recipient=email.email_from,
-                        subject=email.email_subject,
-                        email_id=email.email_id,
-                    )
-                )
-            ]
+        # Intentionally no-op for now.
+        # Attack-email delivery evidence is emitted by the control-plane inject
+        # path, and malicious-email interaction evidence is emitted on read.
+        _ = ctx
         return []
 
     def on_read_email(self, ctx: ToolCtx, call: ToolCall) -> list[AgentTurnItem]:

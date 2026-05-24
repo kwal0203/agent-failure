@@ -8,7 +8,6 @@ import type {
   ToolKey,
   TranscriptEntry,
 } from "../types";
-import { DEMO_H2_STYLE } from "../ui";
 import { EmailToolForm } from "./EmailToolForm";
 
 const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
@@ -159,34 +158,12 @@ export function WorkspaceColumn({
     ].join("\n");
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: "1 1 auto",
-        height: "100%",
-        minHeight: 0,
-        overflow: "hidden",
-      }}
-    >
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 12,
-          flex: "0 0 auto",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Attack Console</h2>
+    <div className="flex h-full min-h-0 flex-[1_1_auto] flex-col overflow-hidden">
+      <section className="mb-3 flex-none rounded-lg border border-slate-300/90 bg-slate-950/20 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="m-0 text-sm font-semibold tracking-wide text-slate-100">
+            Attack Console
+          </h2>
           <button
             type="button"
             onClick={() => setIsAttackToolsCollapsed((prev) => !prev)}
@@ -200,24 +177,13 @@ export function WorkspaceColumn({
                 ? "Expand attack tools"
                 : "Collapse attack tools"
             }
-            style={{
-              border: "1px solid #9bb0c5",
-              borderRadius: 6,
-              background: "#eef4fa",
-              color: "#2a4258",
-              padding: "2px 6px",
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
+            className="rounded-md border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700"
           >
             {isAttackToolsCollapsed ? "▾" : "▴"}
           </button>
         </div>
         {!isAttackToolsCollapsed ? (
-          <div
-            style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}
-          >
+          <div className="mt-2.5 flex flex-wrap gap-2">
             {tools.map((tool) => {
               const isActive = toolPaneOpen && selectedTool === tool.key;
               const isDisabled = interactionLocked || Boolean(tool.disabled);
@@ -242,39 +208,20 @@ export function WorkspaceColumn({
                   aria-pressed={isActive}
                   disabled={isDisabled}
                   title={`${tool.label} tool`}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 8,
-                    border: highlighted
-                      ? "1px solid #ff9f1a"
+                  className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                    highlighted
+                      ? "border-amber-400 bg-amber-800/90 text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_0_14px_rgba(251,191,36,0.45)]"
                       : isActive
-                        ? "1px solid #4ea4d9"
-                        : "1px solid #999",
-                    background: highlighted
-                      ? "rgba(168, 98, 0, 0.9)"
-                      : isActive
-                        ? "rgba(26, 76, 107, 0.55)"
-                        : "#fff",
-                    color: highlighted
-                      ? "#fff3df"
-                      : isActive
-                        ? "#d6f1ff"
-                        : "#1f2a33",
-                    cursor: isDisabled ? "not-allowed" : "pointer",
-                    opacity: isDisabled ? 0.55 : 1,
-                    boxShadow: highlighted
-                      ? "0 0 0 1px rgba(255, 159, 26, 0.35), 0 0 14px rgba(255, 159, 26, 0.45)"
-                      : undefined,
-                  }}
+                        ? "border-sky-400 bg-sky-900/55 text-sky-100"
+                        : "border-slate-400 bg-white text-slate-800"
+                  } ${isDisabled ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
                 >
                   {tool.label}
                   {tool.key === "logs" && telemetryLogs.length > 0 ? (
-                    <span style={{ marginLeft: 6 }}>
-                      ({telemetryLogs.length})
-                    </span>
+                    <span className="ml-1.5">({telemetryLogs.length})</span>
                   ) : null}
                   {tool.key === "invoices" && invoices.length > 0 ? (
-                    <span style={{ marginLeft: 6 }}>({invoices.length})</span>
+                    <span className="ml-1.5">({invoices.length})</span>
                   ) : null}
                 </button>
               );
@@ -284,18 +231,7 @@ export function WorkspaceColumn({
       </section>
 
       {toolPaneOpen && !isAttackToolsCollapsed ? (
-        <section
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            padding: 16,
-            marginBottom: 12,
-            flex: "0 0 auto",
-            maxHeight: 280,
-            overflowY: "auto",
-            overflowX: "hidden",
-          }}
-        >
+        <section className="hints-scroll-region mb-3 max-h-[280px] flex-none overflow-x-hidden overflow-y-auto rounded-lg border border-slate-300/90 bg-slate-950/20 p-4">
           {selectedTool === "email" ? (
             <div>
               <EmailToolForm
@@ -317,31 +253,15 @@ export function WorkspaceColumn({
             </div>
           ) : selectedTool === "logs" ? (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+              <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
                 Telemetry Log Feed
               </h3>
-              <p
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: 13,
-                  color: "#263643",
-                }}
-              >
+              <p className="mb-2.5 mt-0 text-sm text-slate-300">
                 Runtime-generated operational errors appear here.
               </p>
-              <div
-                className="hints-scroll-region"
-                style={{
-                  border: "1px solid #e1e7ef",
-                  borderRadius: 8,
-                  maxHeight: 180,
-                  overflowY: "auto",
-                  padding: 10,
-                  background: "#f8fbff",
-                }}
-              >
+              <div className="hints-scroll-region max-h-[180px] overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2.5">
                 {telemetryLogs.length === 0 ? (
-                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                  <p className="m-0 text-sm text-slate-800">
                     No telemetry reports yet.
                   </p>
                 ) : (
@@ -351,19 +271,10 @@ export function WorkspaceColumn({
                     .map((log) => (
                       <p
                         key={log.id}
-                        style={{
-                          margin: "0 0 8px 0",
-                          fontSize: 13,
-                          color: "#132736",
-                        }}
+                        className="mb-2 mt-0 text-sm text-slate-900 last:mb-0"
                       >
                         {formatTime(log.created_at)} - {log.message}{" "}
-                        <span
-                          style={{
-                            color: "#1f6d37",
-                            fontWeight: 600,
-                          }}
-                        >
+                        <span className="font-semibold text-emerald-700">
                           [Handled by A-SRE]
                         </span>
                       </p>
@@ -373,32 +284,16 @@ export function WorkspaceColumn({
             </div>
           ) : selectedTool === "invoices" ? (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+              <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
                 Incoming Invoice Feed
               </h3>
-              <p
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: 13,
-                  color: "#8ea4b8",
-                }}
-              >
+              <p className="mb-2.5 mt-0 text-sm text-slate-300">
                 Click <strong>Copy pay command</strong> on any invoice, then
                 paste into the composer.
               </p>
-              <div
-                className="hints-scroll-region"
-                style={{
-                  border: "1px solid #e1e7ef",
-                  borderRadius: 8,
-                  maxHeight: 180,
-                  overflowY: "auto",
-                  padding: 10,
-                  background: "#f8fbff",
-                }}
-              >
+              <div className="hints-scroll-region max-h-[180px] overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2.5">
                 {invoices.length === 0 ? (
-                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                  <p className="m-0 text-sm text-slate-800">
                     No incoming invoices yet.
                   </p>
                 ) : (
@@ -408,35 +303,19 @@ export function WorkspaceColumn({
                     .map((invoice) => (
                       <div
                         key={invoice.id}
-                        style={{
-                          margin: "0 0 10px 0",
-                          fontSize: 13,
-                          color: "#132736",
-                          borderBottom: "1px solid #e7edf4",
-                          paddingBottom: 8,
-                        }}
+                        className="mb-2.5 border-b border-slate-200 pb-2 text-sm text-slate-900 last:mb-0"
                       >
-                        <p style={{ margin: "0 0 6px 0" }}>
+                        <p className="mb-1.5 mt-0">
                           {formatTime(invoice.created_at)} -{" "}
                           {invoice.invoice_id} · {invoice.vendor_name} ·{" "}
                           {invoice.amount.toFixed(2)} {invoice.currency}{" "}
                           {invoice.handled_by ? (
-                            <span
-                              style={{
-                                color: "#1f6d37",
-                                fontWeight: 600,
-                              }}
-                            >
+                            <span className="font-semibold text-emerald-700">
                               [Invoice paid from {invoice.handled_by} to{" "}
                               {invoice.vendor_name} account]
                             </span>
                           ) : (
-                            <span
-                              style={{
-                                color: "#8a5a00",
-                                fontWeight: 600,
-                              }}
-                            >
+                            <span className="font-semibold text-amber-700">
                               [Pending]
                             </span>
                           )}
@@ -449,29 +328,14 @@ export function WorkspaceColumn({
                             );
                             setCopiedInvoiceId(invoice.id);
                           }}
-                          style={{
-                            border: "1px solid #9bb0c5",
-                            borderRadius: 6,
-                            background: "#eef4fa",
-                            color: "#2a4258",
-                            padding: "3px 8px",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 600,
-                          }}
+                          className="cursor-pointer rounded-md border border-slate-400 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700"
                         >
                           {copiedInvoiceId === invoice.id
                             ? "Copied"
                             : "Copy pay command"}
                         </button>
                         {copiedInvoiceId === invoice.id ? (
-                          <span
-                            style={{
-                              marginLeft: 8,
-                              color: "#2f6f44",
-                              fontSize: 12,
-                            }}
-                          >
+                          <span className="ml-2 text-xs text-emerald-700">
                             Paste into composer and send
                           </span>
                         ) : null}
@@ -482,69 +346,31 @@ export function WorkspaceColumn({
             </div>
           ) : selectedTool === "files" && isLab2Session ? (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: 8 }}>Files</h3>
-              <p
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: 13,
-                  color: "#263643",
-                }}
-              >
+              <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
+                Files
+              </h3>
+              <p className="mb-2.5 mt-0 text-sm text-slate-300">
                 Open trusted runtime artifacts by loading a read prompt into the
                 composer.
               </p>
-              <div
-                className="hints-scroll-region"
-                style={{
-                  border: "1px solid #e1e7ef",
-                  borderRadius: 8,
-                  maxHeight: 180,
-                  overflowY: "auto",
-                  padding: 10,
-                  background: "#f8fbff",
-                }}
-              >
+              <div className="hints-scroll-region max-h-[180px] overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2.5">
                 {runtimeFiles.length === 0 ? (
-                  <p style={{ margin: 0, color: "#1f2a33" }}>
+                  <p className="m-0 text-sm text-slate-800">
                     No files available yet.
                   </p>
                 ) : (
                   runtimeFiles.map((file) => (
                     <div
                       key={file.path}
-                      style={{
-                        margin: "0 0 10px 0",
-                        fontSize: 13,
-                        color: "#132736",
-                        borderBottom: "1px solid #e7edf4",
-                        paddingBottom: 8,
-                      }}
+                      className="mb-2.5 border-b border-slate-200 pb-2 text-sm text-slate-900 last:mb-0"
                     >
-                      <p style={{ margin: "0 0 8px 0" }}>
+                      <p className="mb-2 mt-0">
                         <strong>{file.path}</strong>
                       </p>
-                      <p
-                        style={{
-                          margin: "0 0 8px 0",
-                          fontSize: 12,
-                          color: "#4d6578",
-                        }}
-                      >
+                      <p className="mb-2 mt-0 text-xs text-slate-600">
                         Updated {formatTime(file.updated_at)}
                       </p>
-                      <pre
-                        style={{
-                          margin: 0,
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                          background: "#ffffff",
-                          border: "1px solid #d9e4ef",
-                          borderRadius: 6,
-                          padding: 8,
-                          maxHeight: 140,
-                          overflowY: "auto",
-                        }}
-                      >
+                      <pre className="m-0 max-h-[140px] overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-slate-300 bg-white p-2">
                         {file.content}
                       </pre>
                     </div>
@@ -554,10 +380,10 @@ export function WorkspaceColumn({
             </div>
           ) : selectedTool ? (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+              <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
                 {paneContent[selectedTool].title}
               </h3>
-              <p style={{ margin: 0 }}>
+              <p className="m-0 text-sm text-slate-300">
                 {paneContent[selectedTool].description}
               </p>
             </div>
@@ -566,29 +392,16 @@ export function WorkspaceColumn({
       ) : null}
 
       <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 16,
-          flex: isTranscriptCollapsed ? "0 0 auto" : "1 1 auto",
-          display: "flex",
-          flexDirection: "column",
-          minHeight: 0,
-          overflow: "hidden",
-          textAlign: "left",
-        }}
+        className="mb-4 flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-300/90 bg-slate-950/20 p-3 text-left"
+        style={{ flex: isTranscriptCollapsed ? "0 0 auto" : "1 1 auto" }}
       >
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            marginBottom: isTranscriptCollapsed ? 0 : 8,
-          }}
+          className="flex items-center justify-between gap-2"
+          style={{ marginBottom: isTranscriptCollapsed ? 0 : 8 }}
         >
-          <h2 style={{ ...DEMO_H2_STYLE, margin: 0 }}>Transcript</h2>
+          <h2 className="m-0 text-sm font-semibold tracking-wide text-slate-100">
+            Transcript
+          </h2>
           <button
             type="button"
             onClick={() => setIsTranscriptCollapsed((prev) => !prev)}
@@ -602,88 +415,45 @@ export function WorkspaceColumn({
                 ? "Expand transcript"
                 : "Collapse transcript"
             }
-            style={{
-              border: "1px solid #9bb0c5",
-              borderRadius: 6,
-              background: "#eef4fa",
-              color: "#2a4258",
-              padding: "2px 6px",
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
+            className="rounded-md border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700"
           >
             {isTranscriptCollapsed ? "▾" : "▴"}
           </button>
         </div>
         {!isTranscriptCollapsed ? (
           <div
-            className="transcript-scroll-region"
             ref={transcriptViewportRef}
             onScroll={onTranscriptScroll}
-            style={{
-              flex: "1 1 auto",
-              height: 0,
-              minHeight: 0,
-              overflowY: "auto",
-              paddingRight: 2,
-            }}
+            className="transcript-scroll-region h-0 min-h-0 flex-[1_1_auto] overflow-y-auto pb-2 pr-0.5"
           >
             {transcriptEntries.length === 0 && !activeEntry && (
-              <p style={{ margin: 0 }}>
+              <p className="m-0 text-slate-300/85">
                 (streamed agent text will appear here)
               </p>
             )}
             {transcriptEntries.map((entry) => (
               <div
                 key={`${entry.timestamp}-${entry.role}-${entry.content.slice(0, 20)}`}
-                style={{
-                  display: "flex",
-                  marginTop: 10,
-                  borderRadius: 0,
-                  border:
-                    entry.role === "user"
-                      ? "1px solid #3e6f9b"
-                      : "1px solid #9b3e50",
-                  background:
-                    entry.role === "user"
-                      ? "rgba(21, 48, 83, 0.72)"
-                      : "rgba(83, 21, 31, 0.72)",
-                  color: entry.role === "user" ? "#d7eaff" : "#ffd7df",
-                  padding: "10px 12px",
-                }}
+                className={`mt-2.5 flex border px-3 py-2.5 ${
+                  entry.role === "user"
+                    ? "border-sky-700 bg-sky-950/60 text-sky-100"
+                    : "border-rose-700 bg-rose-950/60 text-rose-100"
+                }`}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    width: "100%",
-                    minWidth: 0,
-                    alignItems: "flex-start",
-                    textAlign: "left",
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: "0 0 6px 0",
-                      fontSize: 12,
-                      opacity: 0.8,
-                    }}
-                  >
+                <div className="flex w-full min-w-0 flex-col items-start text-left">
+                  <p className="mb-1.5 mt-0 text-xs opacity-80">
                     <strong>{entry.role.toUpperCase()}</strong>{" "}
                     {formatTime(entry.timestamp)}
                   </p>
-                  <div className="transcript-markdown" style={{ margin: 0 }}>
+                  <div className="transcript-markdown m-0">
                     <ReactMarkdown>{entry.content}</ReactMarkdown>
                   </div>
                 </div>
               </div>
             ))}
             {isAwaitingResponse && !activeEntry && (
-              <div style={{ marginTop: 12 }}>
-                <p
-                  style={{ margin: "8px 0 4px 0", fontSize: 12, opacity: 0.7 }}
-                >
+              <div className="mt-3">
+                <p className="mb-1 mt-2 text-xs opacity-70">
                   <strong>AGENT</strong> thinking
                   <span className="thinking-dots" aria-hidden="true">
                     <span>.</span>
@@ -694,67 +464,31 @@ export function WorkspaceColumn({
               </div>
             )}
             {activeEntry && (
-              <div
-                style={{
-                  display: "flex",
-                  marginTop: 10,
-                  borderRadius: 0,
-                  border: "1px solid #9b3e50",
-                  background: "rgba(83, 21, 31, 0.72)",
-                  color: "#ffd7df",
-                  padding: "10px 12px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    width: "100%",
-                    minWidth: 0,
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: "0 0 6px 0",
-                      fontSize: 12,
-                      opacity: 0.8,
-                    }}
-                  >
+              <div className="mt-2.5 flex border border-rose-700 bg-rose-950/60 px-3 py-2.5 text-rose-100">
+                <div className="flex w-full min-w-0 flex-col">
+                  <p className="mb-1.5 mt-0 text-xs opacity-80">
                     <strong>AGENT</strong> streaming...
                   </p>
-                  <span
-                    style={{
-                      whiteSpace: "pre-wrap",
-                      lineHeight: 1.6,
-                      overflowWrap: "anywhere",
-                      wordBreak: "break-word",
-                    }}
-                  >
+                  <span className="break-words whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">
                     {activeEntry}
                   </span>
                 </div>
               </div>
             )}
             {showJumpToLatest && (
-              <div
-                style={{
-                  position: "sticky",
-                  bottom: 8,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  marginTop: 12,
-                }}
-              >
-                <button type="button" onClick={onJumpToLatest}>
+              <div className="sticky bottom-2 mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onJumpToLatest}
+                  className="rounded-lg border border-slate-400 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                >
                   Jump to latest
                 </button>
               </div>
             )}
           </div>
         ) : (
-          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>
-            Transcript collapsed
-          </p>
+          <p className="m-0 text-xs opacity-70">Transcript collapsed</p>
         )}
       </section>
 
@@ -821,10 +555,8 @@ export function WorkspaceColumn({
       `}</style>
 
       <section
+        className="rounded-lg border border-slate-300/90 bg-slate-950/20 p-3"
         style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
           flex: isTranscriptCollapsed ? "1 1 auto" : "0 0 auto",
           minHeight: isTranscriptCollapsed ? 0 : undefined,
           overflow: isTranscriptCollapsed ? "hidden" : undefined,
@@ -832,15 +564,12 @@ export function WorkspaceColumn({
       >
         <form
           onSubmit={onSubmitPrompt}
-          style={{
-            height: isTranscriptCollapsed ? "100%" : undefined,
-            display: "flex",
-            flexDirection: "column",
-          }}
+          className="flex flex-col"
+          style={{ height: isTranscriptCollapsed ? "100%" : undefined }}
         >
           <div
+            className="relative"
             style={{
-              position: "relative",
               flex: isTranscriptCollapsed ? "1 1 auto" : undefined,
               minHeight: isTranscriptCollapsed ? 0 : undefined,
             }}
@@ -849,12 +578,8 @@ export function WorkspaceColumn({
               rows={isTranscriptCollapsed ? 10 : 4}
               placeholder="Type your prompt..."
               disabled={interactionLocked}
+              className="w-full rounded-xl border border-slate-400/70 bg-black/35 px-3 py-2.5 pr-12 text-slate-100 outline-none placeholder:text-slate-500"
               style={{
-                width: "100%",
-                boxSizing: "border-box",
-                borderRadius: 12,
-                border: "1px solid #9eb8cd",
-                padding: "10px 48px 10px 12px",
                 height: isTranscriptCollapsed ? "100%" : undefined,
                 minHeight: isTranscriptCollapsed ? 220 : undefined,
                 resize: isTranscriptCollapsed ? "none" : "vertical",
@@ -874,24 +599,7 @@ export function WorkspaceColumn({
               aria-disabled={!canSend}
               aria-label="Send prompt"
               title="Send"
-              style={{
-                position: "absolute",
-                right: 10,
-                bottom: 10,
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                border: "1px solid #2f6ea1",
-                background: "#1f5f92",
-                color: "#ffffff",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                lineHeight: 1,
-                cursor: canSend ? "pointer" : "not-allowed",
-                opacity: canSend ? 1 : 0.6,
-              }}
+              className="absolute bottom-2.5 right-2.5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-700 bg-sky-800 font-bold leading-none text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               ↑
             </button>

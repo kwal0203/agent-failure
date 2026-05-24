@@ -8,7 +8,13 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useAuth } from "../auth/context";
 import type { ShellBootstrap } from "../shell/context";
 
@@ -145,17 +151,25 @@ export default function AppShell() {
 
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
+  const isSessionReportRoute = /^\/sessions\/[^/]+\/report$/.test(
+    location.pathname,
+  );
+  const hideLegacyHeader = isSessionRoute || isPreLabRoute;
+  const isWideContentRoute = isSessionRoute || isPreLabRoute;
   const isPilotRequestsRoute =
     location.pathname === "/pilot-requests" ||
     location.pathname === "/admin/pilot-requests";
   const showCatalogShell =
     !isDebug &&
-    (location.pathname === "/labs" || location.pathname === "/reports");
+    (location.pathname === "/labs" ||
+      location.pathname === "/reports" ||
+      isPreLabRoute ||
+      isSessionReportRoute);
 
   const activeCatalogLabel =
-    location.pathname === "/labs"
+    location.pathname === "/labs" || isPreLabRoute
       ? "Catalog"
-      : location.pathname === "/reports"
+      : location.pathname === "/reports" || isSessionReportRoute
         ? "Reports"
         : null;
 
@@ -328,6 +342,31 @@ export default function AppShell() {
             <div className="flex-1 overflow-y-auto">
               <Outlet context={bootstrap} />
             </div>
+            <footer className="border-t border-lime-500/20 bg-black/55 px-5 py-3 text-xs text-slate-400 backdrop-blur md:px-8 lg:px-10">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span>© {currentYear} Agent Failure</span>
+                <nav
+                  aria-label="Footer links"
+                  className="flex flex-wrap items-center gap-3"
+                >
+                  <Link
+                    to="/privacy"
+                    className="transition hover:text-lime-200"
+                  >
+                    Privacy
+                  </Link>
+                  <Link to="/terms" className="transition hover:text-lime-200">
+                    Terms
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="transition hover:text-lime-200"
+                  >
+                    Contact
+                  </Link>
+                </nav>
+              </div>
+            </footer>
           </main>
         </div>
       </div>
@@ -336,6 +375,7 @@ export default function AppShell() {
 
   return (
     <div
+      className="font-sans antialiased"
       style={
         isDebug
           ? {
@@ -344,8 +384,6 @@ export default function AppShell() {
               flexDirection: "column",
               background: "#040704",
               color: "#d7ffd7",
-              fontFamily:
-                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
           : {
               minHeight: "100vh",
@@ -354,183 +392,153 @@ export default function AppShell() {
               color: "#d7ffd7",
               background:
                 "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
-              fontFamily:
-                '"Share Tech Mono", "Fira Code", "Courier New", monospace',
             }
       }
     >
-      <header
-        style={{
-          borderBottom: "1px solid #1b5e20",
-          background: isDebug
-            ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
-            : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
-          backdropFilter: isDebug ? undefined : "blur(6px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 3,
-        }}
-      >
-        <div
+      {!hideLegacyHeader ? (
+        <header
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
-            padding: isSessionRoute ? "14px 16px" : "14px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            borderBottom: "1px solid #1b5e20",
+            background: isDebug
+              ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
+              : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
+            backdropFilter: isDebug ? undefined : "blur(6px)",
+            position: "sticky",
+            top: 0,
+            zIndex: 3,
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                color: "#8bff8f",
-                fontFamily:
-                  '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
-                textTransform: isDebug ? undefined : "uppercase",
-              }}
-            >
-              Agent Failure
+          <div
+            style={{
+              maxWidth: isWideContentRoute ? undefined : 1240,
+              margin: isWideContentRoute ? 0 : "0 auto",
+              padding: isWideContentRoute ? "14px 16px" : "14px 24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  color: "#8bff8f",
+                  fontFamily:
+                    '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
+                  textTransform: isDebug ? undefined : "uppercase",
+                }}
+              >
+                Agent Failure
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: isDebug ? 0.7 : 1,
+                  color: "#7ea683",
+                  letterSpacing: isDebug ? undefined : 0.3,
+                }}
+              >
+                {isDebug
+                  ? "Demo mode: auth deferred for P1 usability sprint"
+                  : "Cyberrange Demo Surface"}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: 12,
-                opacity: isDebug ? 0.7 : 1,
-                color: "#7ea683",
-                letterSpacing: isDebug ? undefined : 0.3,
-              }}
-            >
-              {isDebug
-                ? "Demo mode: auth deferred for P1 usability sprint"
-                : "Cyberrange Demo Surface"}
-            </div>
-          </div>
-          {isSessionRoute ? (
-            <div />
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {isPreLabRoute || isPilotRequestsRoute ? (
+            {isWideContentRoute ? (
+              <div />
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {isPreLabRoute || isPilotRequestsRoute ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/labs")}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      border: "1px solid #2e7d32",
+                      background: "#102810",
+                      color: "#b6ffb9",
+                    }}
+                  >
+                    Back to Labs
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => navigate("/labs")}
+                  onClick={logout}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
                     padding: "7px 10px",
                     borderRadius: 8,
                     cursor: "pointer",
-                    border: "1px solid #2e7d32",
-                    background: "#102810",
-                    color: "#b6ffb9",
+                    border: "1px solid #7a2f3a",
+                    background: "#3a1118",
+                    color: "#ffd7de",
                   }}
                 >
-                  Back to Labs
+                  Log Out
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={logout}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "7px 10px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  border: "1px solid #7a2f3a",
-                  background: "#3a1118",
-                  color: "#ffd7de",
-                }}
-              >
-                Log Out
-              </button>
-            </div>
+              </div>
+            )}
+          </div>
+          {bootstrap.mode === "debug" && (
+            <nav
+              style={{
+                maxWidth: isWideContentRoute ? undefined : 1120,
+                margin: isWideContentRoute ? 0 : "0 auto",
+                padding: isWideContentRoute ? "0 16px 10px" : "0 20px 10px",
+                display: "flex",
+                gap: 16,
+              }}
+            >
+              <NavLink to="/labs" style={navLinkStyle}>
+                Labs
+              </NavLink>
+              <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
+                Pilot Requests
+              </NavLink>
+            </nav>
           )}
-        </div>
-        {bootstrap.mode === "debug" && (
-          <nav
-            style={{
-              maxWidth: isSessionRoute ? undefined : 1120,
-              margin: isSessionRoute ? 0 : "0 auto",
-              padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
-              display: "flex",
-              gap: 16,
-            }}
-          >
-            <NavLink to="/labs" style={navLinkStyle}>
-              Labs
-            </NavLink>
-            <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
-              Pilot Requests
-            </NavLink>
-          </nav>
-        )}
-      </header>
+        </header>
+      ) : null}
       <main
         style={{
-          maxWidth: isSessionRoute ? undefined : 1240,
-          margin: isSessionRoute ? 0 : "0 auto",
-          padding: isSessionRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
+          maxWidth: isWideContentRoute ? undefined : 1240,
+          margin: isWideContentRoute ? 0 : "0 auto",
+          padding: isWideContentRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
           flex: "1 1 auto",
           minHeight: 0,
           width: "100%",
-          display: isSessionRoute ? "flex" : undefined,
-          flexDirection: isSessionRoute ? "column" : undefined,
+          display: isWideContentRoute ? "flex" : undefined,
+          flexDirection: isWideContentRoute ? "column" : undefined,
         }}
       >
         <Outlet context={bootstrap} />
       </main>
-      <footer
-        style={{
-          borderTop: "1px solid #1b5e20",
-          padding: isSessionRoute ? "10px 16px" : "10px 24px",
-          color: "#7ea683",
-          fontSize: 12,
-          background: "rgba(6, 12, 6, 0.9)",
-        }}
-      >
+      <footer className="border-t border-lime-800/70 bg-[rgba(6,12,6,0.9)] px-6 py-2.5 text-xs text-lime-200/70">
         <div
+          className="flex flex-wrap items-center justify-between gap-3"
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
+            maxWidth: isWideContentRoute ? undefined : 1240,
+            margin: isWideContentRoute ? 0 : "0 auto",
           }}
         >
           <span>© {currentYear} Agent Failure</span>
-          <nav
-            aria-label="Footer links"
-            style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
-          >
-            <a
-              href="https://agent-failure.local/docs"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Docs
-            </a>
-            <a
-              href="https://agent-failure.local/privacy"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+          <nav aria-label="Footer links" className="flex flex-wrap gap-3">
+            <Link to="/privacy" className="transition hover:text-lime-200">
               Privacy
-            </a>
-            <a
-              href="https://agent-failure.local/terms"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+            </Link>
+            <Link to="/terms" className="transition hover:text-lime-200">
               Terms
-            </a>
-            <a
-              href="https://agent-failure.local/support"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Report issue
-            </a>
+            </Link>
+            <Link to="/contact" className="transition hover:text-lime-200">
+              Contact
+            </Link>
           </nav>
         </div>
       </footer>

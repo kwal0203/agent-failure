@@ -19,8 +19,7 @@ from runtimes.agent.types import (
 
 
 @pytest.mark.asyncio
-async def test_attack_email_sent_emitted_once_on_first_list_inbox():
-    Lab1Hooks.attack_email_sent_emitted_sessions.clear()
+async def test_list_inbox_emits_no_attack_email_event():
     Lab1Hooks.urgent_injection_active_sessions.clear()
     Lab1Hooks.token_disclosed_emitted_sessions.clear()
 
@@ -50,8 +49,7 @@ async def test_attack_email_sent_emitted_once_on_first_list_inbox():
     _, events1 = await run_turn_collect_events(
         prompt="check inbox", llm=llm, ctx=ctx, hooks=Lab1Hooks()
     )
-    attack_events_1 = [e for e in events1 if isinstance(e.event, AttackEmailSentEvent)]
-    assert len(attack_events_1) == 1
+    assert not any(isinstance(e.event, AttackEmailSentEvent) for e in events1)
 
     llm2 = ScriptedLLM(
         [
@@ -66,13 +64,11 @@ async def test_attack_email_sent_emitted_once_on_first_list_inbox():
     _, events2 = await run_turn_collect_events(
         prompt="check inbox again", llm=llm2, ctx=ctx, hooks=Lab1Hooks()
     )
-    attack_events_2 = [e for e in events2 if isinstance(e.event, AttackEmailSentEvent)]
-    assert len(attack_events_2) == 0
+    assert not any(isinstance(e.event, AttackEmailSentEvent) for e in events2)
 
 
 @pytest.mark.asyncio
 async def test_read_malicious_email_activates_urgent_and_short_circuits_disclosure():
-    Lab1Hooks.attack_email_sent_emitted_sessions.clear()
     Lab1Hooks.urgent_injection_active_sessions.clear()
     Lab1Hooks.token_disclosed_emitted_sessions.clear()
 
@@ -139,7 +135,6 @@ async def test_read_malicious_email_activates_urgent_and_short_circuits_disclosu
 
 @pytest.mark.asyncio
 async def test_read_nonurgent_malicious_emits_read_event_without_disclosure_unlock():
-    Lab1Hooks.attack_email_sent_emitted_sessions.clear()
     Lab1Hooks.urgent_injection_active_sessions.clear()
     Lab1Hooks.token_disclosed_emitted_sessions.clear()
 
@@ -192,7 +187,6 @@ async def test_read_nonurgent_malicious_emits_read_event_without_disclosure_unlo
 
 @pytest.mark.asyncio
 async def test_read_benign_email_emits_read_event_with_false_marker() -> None:
-    Lab1Hooks.attack_email_sent_emitted_sessions.clear()
     Lab1Hooks.urgent_injection_active_sessions.clear()
     Lab1Hooks.token_disclosed_emitted_sessions.clear()
 

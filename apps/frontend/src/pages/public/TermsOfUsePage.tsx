@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 export default function TermsOfUsePage() {
+  const currentYear = new Date().getFullYear();
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b1220] via-[#111827] to-[#0b1220] px-6 py-12 text-slate-200">
       <main className="mx-auto max-w-3xl rounded-2xl border border-slate-700/60 bg-slate-900/70 p-8 shadow-xl md:p-10 [&_h2]:pt-2 [&_p]:leading-8">
@@ -75,12 +76,28 @@ export default function TermsOfUsePage() {
         <div className="mt-8">
           <Link
             to="/login"
-            className="text-sm font-semibold text-lime-300 transition hover:text-lime-200"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-lime-400/50 bg-black/30 px-4 text-sm font-extrabold uppercase tracking-wide text-lime-300 transition hover:bg-lime-500/10 hover:text-lime-200"
           >
-            Back to Login
+            Back
           </Link>
         </div>
       </main>
+      <footer className="mx-auto mt-8 max-w-3xl border-t border-lime-800/70 px-1 py-3 text-xs text-lime-200/70">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>© {currentYear} Agent Failure</span>
+          <nav aria-label="Footer links" className="flex flex-wrap gap-3">
+            <Link to="/privacy" className="transition hover:text-lime-200">
+              Privacy
+            </Link>
+            <Link to="/terms" className="transition hover:text-lime-200">
+              Terms
+            </Link>
+            <Link to="/contact" className="transition hover:text-lime-200">
+              Contact
+            </Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
@@ -125,47 +125,48 @@ describe("SessionPage completion indicator", () => {
     expect(screen.getByLabelText("Send prompt")).toBeDisabled();
   });
 
-  it("closes success modal when the close button is clicked", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.endsWith("/evaluator-feedback")) {
-          return mockJsonResponse({ feedback: [] });
-        }
-        return mockJsonResponse({
-          session: {
-            id: "11111111-1111-1111-1111-111111111111",
-            lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-            state: "COMPLETED",
-            runtime_substate: null,
-            resume_mode: "fresh",
-            interactive: false,
-            created_at: "2026-01-01T00:00:00Z",
-            started_at: "2026-01-01T00:00:05Z",
-            ended_at: "2026-01-01T00:05:00Z",
-            completion_status: "completed_success",
-            completed_at: "2026-01-01T00:05:00Z",
-            completion_reason_code: "ALL_REQUIRED_OBJECTIVES_COMPLETED",
-            progress_chips: [],
-            hints: [],
-            unread_hint_count: 0,
-          },
-        });
-      }),
-    );
+  it("auto-sends stop signal on completed_success and keeps success modal open", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/evaluator-feedback")) {
+        return mockJsonResponse({ feedback: [] });
+      }
+      return mockJsonResponse({
+        session: {
+          id: "11111111-1111-1111-1111-111111111111",
+          lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          state: "COMPLETED",
+          runtime_substate: null,
+          resume_mode: "fresh",
+          interactive: false,
+          created_at: "2026-01-01T00:00:00Z",
+          started_at: "2026-01-01T00:00:05Z",
+          ended_at: "2026-01-01T00:05:00Z",
+          completion_status: "completed_success",
+          completed_at: "2026-01-01T00:05:00Z",
+          completion_reason_code: "ALL_REQUIRED_OBJECTIVES_COMPLETED",
+          progress_chips: [],
+          hints: [],
+          unread_hint_count: 0,
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     renderSessionPage();
     expect(
       await screen.findByRole("dialog", { name: "Session completion success" }),
     ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Close success popup" }),
-    );
     expect(
-      screen.queryByRole("dialog", { name: "Session completion success" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Return to Catalog" }),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some((call) => {
+        const input = call[0];
+        return String(input).endsWith("/stop");
+      }),
+    ).toBe(true);
   });
 
   it("renders completed_failure from metadata", async () => {

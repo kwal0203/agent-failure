@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
@@ -21,7 +21,7 @@ export default function SessionPage() {
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [stoppingSession, setStoppingSession] = useState(false);
-  const [successModalDismissed, setSuccessModalDismissed] = useState(false);
+  const successAutoStopRequestedRef = useRef(false);
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
@@ -66,15 +66,7 @@ export default function SessionPage() {
     !isAwaitingResponse &&
     metadata?.completion_status !== "completed_success" &&
     (metadata?.interactive ?? false);
-  const showSuccessModal =
-    metadata?.completion_status === "completed_success" &&
-    !successModalDismissed;
-
-  useEffect(() => {
-    if (metadata?.completion_status !== "completed_success") {
-      setSuccessModalDismissed(false);
-    }
-  }, [metadata?.completion_status]);
+  const showSuccessModal = metadata?.completion_status === "completed_success";
 
   const sessionActions = useSessionActions({
     sessionId,
@@ -144,73 +136,63 @@ export default function SessionPage() {
     sessionState.toUpperCase(),
   );
 
-  const onStopSession = useCallback(async () => {
-    if (!sessionId || stoppingSession || !canStopSession) {
-      return;
-    }
-
-    setStoppingSession(true);
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: getAuthHeader(),
-            "Content-Type": "application/json",
-            "Idempotency-Key": `stop-session:${sessionId}`,
-          },
-        },
-      );
-      if (!response.ok) {
+  const onStopSession = useCallback(
+    async (navigateAfterStop = true, force = false) => {
+      if (!sessionId || stoppingSession || (!force && !canStopSession)) {
         return;
       }
-      await refreshSessionMetadata();
-      navigate("/labs");
-    } catch {
+
+      setStoppingSession(true);
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: getAuthHeader(),
+              "Content-Type": "application/json",
+              "Idempotency-Key": `stop-session:${sessionId}`,
+            },
+          },
+        );
+        if (!response.ok) {
+          return;
+        }
+        await refreshSessionMetadata();
+        if (navigateAfterStop) {
+          navigate("/labs");
+        }
+      } catch {
+        return;
+      } finally {
+        setStoppingSession(false);
+      }
+    },
+    [
+      canStopSession,
+      navigate,
+      refreshSessionMetadata,
+      sessionId,
+      stoppingSession,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      metadata?.completion_status !== "completed_success" ||
+      successAutoStopRequestedRef.current
+    ) {
       return;
-    } finally {
-      setStoppingSession(false);
     }
-  }, [
-    canStopSession,
-    navigate,
-    refreshSessionMetadata,
-    sessionId,
-    stoppingSession,
-  ]);
+    successAutoStopRequestedRef.current = true;
+    void onStopSession(false, true);
+  }, [metadata?.completion_status, onStopSession]);
 
   return (
-    <main
-      style={{
-        flex: "1 1 auto",
-        minHeight: 0,
-        padding: "16px 16px 8px",
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <header
-        style={{
-          flex: "0 0 auto",
-          marginBottom: 16,
-          position: "relative",
-          display: "flex",
-          minHeight: 40,
-          alignItems: "center",
-          zIndex: 20,
-          overflow: "visible",
-        }}
-      >
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2 pt-4">
+      <header className="relative z-20 mb-4 flex min-h-10 flex-none items-center overflow-visible">
         {progressReady && metadata ? (
-          <div
-            style={{
-              width: "100%",
-              animation: "headerChipsIn 220ms ease-out both",
-            }}
-          >
+          <div className="w-full animate-[headerChipsIn_220ms_ease-out_both]">
             <SessionHeaderStatus
               progressReady={progressReady}
               progressChips={progressChips}
@@ -234,15 +216,7 @@ export default function SessionPage() {
             />
           </div>
         ) : (
-          <div
-            style={{
-              width: "100%",
-              height: 32,
-              borderRadius: 8,
-              background: "rgba(36, 43, 52, 0.28)",
-              border: "1px solid rgba(74, 85, 98, 0.35)",
-            }}
-          />
+          <div className="h-8 w-full rounded-lg border border-slate-600/35 bg-slate-700/25" />
         )}
         <style>{`
           @keyframes headerChipsIn {
@@ -253,40 +227,23 @@ export default function SessionPage() {
       </header>
 
       <div
+        className="grid min-h-0 flex-[1_1_0%] items-stretch gap-4 overflow-hidden transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.22,0.61,0.36,1)]"
         style={{
-          display: "grid",
           gridTemplateColumns: `${leftColumnTemplate} minmax(520px, 1fr) ${rightColumnTemplate}`,
           gridTemplateRows: "minmax(0, 1fr)",
-          gap: 16,
-          flex: "1 1 0%",
-          minHeight: 0,
-          overflow: "hidden",
-          alignItems: "stretch",
-          transition:
-            "grid-template-columns 500ms cubic-bezier(0.22, 0.61, 0.36, 1)",
         }}
       >
         <aside
-          style={{
-            minHeight: 0,
-            minWidth: 0,
-            overflow: "hidden",
-            position: "relative",
-            border: "1px solid",
-            borderColor: isLeftCollapsed ? "#d3dce5" : "transparent",
-            borderRadius: 8,
-            background: isLeftCollapsed ? "#f6f9fc" : "transparent",
-            transition:
-              "border-color 360ms ease, background-color 360ms ease, border-radius 360ms ease",
-          }}
+          className={`relative min-h-0 min-w-0 overflow-hidden rounded-lg border transition-[border-color,background-color,border-radius] duration-300 ${
+            isLeftCollapsed
+              ? "border-slate-300 bg-slate-100/90"
+              : "border-transparent bg-transparent"
+          }`}
         >
           <div
+            className="absolute inset-0 overflow-hidden transition-opacity duration-[420ms]"
             style={{
-              position: "absolute",
-              inset: 0,
-              overflow: "hidden",
               opacity: isLeftCollapsed ? 0 : 1,
-              transition: "opacity 420ms ease",
               pointerEvents: isLeftCollapsed ? "none" : "auto",
             }}
           >
@@ -298,23 +255,9 @@ export default function SessionPage() {
             onClick={() => setIsLeftCollapsed(true)}
             aria-label="Collapse lab guide"
             title="Collapse lab guide"
+            className="absolute right-6 top-2 z-[2] appearance-none rounded-md border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700 transition-opacity duration-300 [webkit-tap-highlight-color:transparent]"
             style={{
-              position: "absolute",
-              top: 8,
-              right: 24,
-              zIndex: 2,
-              appearance: "none",
-              WebkitTapHighlightColor: "transparent",
-              border: "1px solid #9bb0c5",
-              borderRadius: 6,
-              background: "#eef4fa",
-              color: "#2a4258",
-              padding: "2px 6px",
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 700,
               opacity: isLeftCollapsed ? 0 : 1,
-              transition: "opacity 360ms ease",
               pointerEvents: isLeftCollapsed ? "none" : "auto",
             }}
           >
@@ -326,26 +269,9 @@ export default function SessionPage() {
             onClick={() => setIsLeftCollapsed(false)}
             aria-label="Expand lab guide"
             title="Expand lab guide"
+            className="absolute inset-0 flex appearance-none items-center justify-center bg-transparent p-0 text-xs font-bold tracking-[0.4px] text-slate-700 transition-opacity duration-[420ms] [text-orientation:mixed] [webkit-tap-highlight-color:transparent] [writing-mode:vertical-rl]"
             style={{
-              position: "absolute",
-              inset: 0,
-              appearance: "none",
-              WebkitTapHighlightColor: "transparent",
-              border: "none",
-              background: "transparent",
-              color: "#2a4258",
-              cursor: "pointer",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              writingMode: "vertical-rl",
-              textOrientation: "mixed",
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: 0.4,
               opacity: isLeftCollapsed ? 1 : 0,
-              transition: "opacity 420ms ease",
               pointerEvents: isLeftCollapsed ? "auto" : "none",
             }}
           >
@@ -353,14 +279,7 @@ export default function SessionPage() {
           </button>
         </aside>
 
-        <section
-          style={{
-            display: "flex",
-            minHeight: 0,
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
+        <section className="flex min-h-0 min-w-0 overflow-hidden">
           <WorkspaceColumn
             labId={metadata?.lab_id}
             transcriptViewportRef={transcriptViewportRef}
@@ -401,30 +320,16 @@ export default function SessionPage() {
         </section>
 
         <aside
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            position: "relative",
-            minWidth: 0,
-            height: "100%",
-            minHeight: 0,
-            maxHeight: "100%",
-            overflow: "hidden",
-            border: "1px solid",
-            borderColor: "#d3dce5",
-            borderRadius: 8,
-            background: isRightCollapsed ? "#f6f9fc" : "transparent",
-            transition:
-              "border-color 360ms ease, background-color 360ms ease, border-radius 360ms ease",
-          }}
+          className={`relative flex h-full min-h-0 min-w-0 max-h-full flex-col overflow-hidden rounded-lg border transition-[border-color,background-color,border-radius] duration-300 ${
+            isRightCollapsed
+              ? "border-slate-300 bg-slate-100/90"
+              : "border-slate-300/90 bg-transparent"
+          }`}
         >
           <div
+            className="absolute inset-0 overflow-hidden transition-opacity duration-[420ms]"
             style={{
-              position: "absolute",
-              inset: 0,
-              overflow: "hidden",
               opacity: isRightCollapsed ? 0 : 1,
-              transition: "opacity 420ms ease",
               pointerEvents: isRightCollapsed ? "none" : "auto",
             }}
           >
@@ -442,23 +347,9 @@ export default function SessionPage() {
             onClick={() => setIsRightCollapsed(true)}
             aria-label="Collapse event timeline"
             title="Collapse event timeline"
+            className="absolute left-2 top-2 z-[2] appearance-none rounded-md border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700 transition-opacity duration-300 [webkit-tap-highlight-color:transparent]"
             style={{
-              position: "absolute",
-              top: 8,
-              left: 8,
-              zIndex: 2,
-              appearance: "none",
-              WebkitTapHighlightColor: "transparent",
-              border: "1px solid #9bb0c5",
-              borderRadius: 6,
-              background: "#eef4fa",
-              color: "#2a4258",
-              padding: "2px 6px",
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: 700,
               opacity: isRightCollapsed ? 0 : 1,
-              transition: "opacity 360ms ease",
               pointerEvents: isRightCollapsed ? "none" : "auto",
             }}
           >
@@ -470,26 +361,9 @@ export default function SessionPage() {
             onClick={() => setIsRightCollapsed(false)}
             aria-label="Expand event timeline"
             title="Expand event timeline"
+            className="absolute inset-0 flex appearance-none items-center justify-center bg-transparent p-0 text-xs font-bold tracking-[0.4px] text-slate-700 transition-opacity duration-[420ms] [text-orientation:mixed] [webkit-tap-highlight-color:transparent] [writing-mode:vertical-lr]"
             style={{
-              position: "absolute",
-              inset: 0,
-              appearance: "none",
-              WebkitTapHighlightColor: "transparent",
-              border: "none",
-              background: "transparent",
-              color: "#2a4258",
-              cursor: "pointer",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              writingMode: "vertical-lr",
-              textOrientation: "mixed",
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: 0.4,
               opacity: isRightCollapsed ? 1 : 0,
-              transition: "opacity 420ms ease",
               pointerEvents: isRightCollapsed ? "auto" : "none",
             }}
           >
@@ -498,27 +372,14 @@ export default function SessionPage() {
 
           <div
             aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 1,
-              background: "#9bb0c5",
-              pointerEvents: "none",
-              zIndex: 4,
-            }}
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-[4] h-px bg-slate-400"
           />
         </aside>
       </div>
       {showSuccessModal ? (
         <SessionSuccessModal
           completedAt={metadata?.completed_at ?? null}
-          onClose={() => setSuccessModalDismissed(true)}
-          onOpenReport={() => {
-            if (!sessionId) return;
-            navigate(`/sessions/${sessionId}/report`);
-          }}
+          onReturnToCatalog={() => navigate("/labs")}
         />
       ) : null}
     </main>
