@@ -359,115 +359,117 @@ export default function AppShell() {
             }
       }
     >
-      <header
-        style={{
-          borderBottom: "1px solid #1b5e20",
-          background: isDebug
-            ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
-            : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
-          backdropFilter: isDebug ? undefined : "blur(6px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 3,
-        }}
-      >
-        <div
+      {!isSessionRoute ? (
+        <header
           style={{
-            maxWidth: isSessionRoute ? undefined : 1240,
-            margin: isSessionRoute ? 0 : "0 auto",
-            padding: isSessionRoute ? "14px 16px" : "14px 24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            borderBottom: "1px solid #1b5e20",
+            background: isDebug
+              ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
+              : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
+            backdropFilter: isDebug ? undefined : "blur(6px)",
+            position: "sticky",
+            top: 0,
+            zIndex: 3,
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                color: "#8bff8f",
-                fontFamily:
-                  '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
-                textTransform: isDebug ? undefined : "uppercase",
-              }}
-            >
-              Agent Failure
+          <div
+            style={{
+              maxWidth: isSessionRoute ? undefined : 1240,
+              margin: isSessionRoute ? 0 : "0 auto",
+              padding: isSessionRoute ? "14px 16px" : "14px 24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  color: "#8bff8f",
+                  fontFamily:
+                    '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
+                  textTransform: isDebug ? undefined : "uppercase",
+                }}
+              >
+                Agent Failure
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: isDebug ? 0.7 : 1,
+                  color: "#7ea683",
+                  letterSpacing: isDebug ? undefined : 0.3,
+                }}
+              >
+                {isDebug
+                  ? "Demo mode: auth deferred for P1 usability sprint"
+                  : "Cyberrange Demo Surface"}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: 12,
-                opacity: isDebug ? 0.7 : 1,
-                color: "#7ea683",
-                letterSpacing: isDebug ? undefined : 0.3,
-              }}
-            >
-              {isDebug
-                ? "Demo mode: auth deferred for P1 usability sprint"
-                : "Cyberrange Demo Surface"}
-            </div>
-          </div>
-          {isSessionRoute ? (
-            <div />
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {isPreLabRoute || isPilotRequestsRoute ? (
+            {isSessionRoute ? (
+              <div />
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {isPreLabRoute || isPilotRequestsRoute ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/labs")}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      border: "1px solid #2e7d32",
+                      background: "#102810",
+                      color: "#b6ffb9",
+                    }}
+                  >
+                    Back to Labs
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => navigate("/labs")}
+                  onClick={logout}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
                     padding: "7px 10px",
                     borderRadius: 8,
                     cursor: "pointer",
-                    border: "1px solid #2e7d32",
-                    background: "#102810",
-                    color: "#b6ffb9",
+                    border: "1px solid #7a2f3a",
+                    background: "#3a1118",
+                    color: "#ffd7de",
                   }}
                 >
-                  Back to Labs
+                  Log Out
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={logout}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "7px 10px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  border: "1px solid #7a2f3a",
-                  background: "#3a1118",
-                  color: "#ffd7de",
-                }}
-              >
-                Log Out
-              </button>
-            </div>
+              </div>
+            )}
+          </div>
+          {bootstrap.mode === "debug" && (
+            <nav
+              style={{
+                maxWidth: isSessionRoute ? undefined : 1120,
+                margin: isSessionRoute ? 0 : "0 auto",
+                padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
+                display: "flex",
+                gap: 16,
+              }}
+            >
+              <NavLink to="/labs" style={navLinkStyle}>
+                Labs
+              </NavLink>
+              <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
+                Pilot Requests
+              </NavLink>
+            </nav>
           )}
-        </div>
-        {bootstrap.mode === "debug" && (
-          <nav
-            style={{
-              maxWidth: isSessionRoute ? undefined : 1120,
-              margin: isSessionRoute ? 0 : "0 auto",
-              padding: isSessionRoute ? "0 16px 10px" : "0 20px 10px",
-              display: "flex",
-              gap: 16,
-            }}
-          >
-            <NavLink to="/labs" style={navLinkStyle}>
-              Labs
-            </NavLink>
-            <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
-              Pilot Requests
-            </NavLink>
-          </nav>
-        )}
-      </header>
+        </header>
+      ) : null}
       <main
         style={{
           maxWidth: isSessionRoute ? undefined : 1240,
