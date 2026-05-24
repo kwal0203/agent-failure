@@ -243,6 +243,174 @@ def test_put_report_evidence_full_replace_and_normalized_positions(
     assert [item["event_index"] for item in items] == [1, 2]
 
 
+def test_put_report_evidence_rejects_invalid_report_section(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-invalid-section"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    event_id = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_id,
+        event_index=1,
+        event_type="TOKEN_DISCLOSED",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_id),
+                        "position": 0,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "not_a_real_section",
+                        "section_position": 999,
+                    }
+                ]
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REPORT_EVIDENCE"
+
+
+def test_put_get_report_evidence_roundtrip_preserves_sections_and_normalizes_per_section_positions(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "owner-sections-roundtrip"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+
+    event_a = uuid4()
+    event_b = uuid4()
+    event_c = uuid4()
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_a,
+        event_index=1,
+        event_type="TOKEN_DISCLOSED",
+    )
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_b,
+        event_index=2,
+        event_type="ATTACK_EMAIL_SENT",
+    )
+    _seed_trace_event(
+        db_session,
+        session_id=session_id,
+        event_id=event_c,
+        event_index=3,
+        event_type="MALICIOUS_EMAIL_READ",
+    )
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        put_response = client.put(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+            json={
+                "items": [
+                    {
+                        "event_id": str(event_a),
+                        "position": 50,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_outcome",
+                        "objective_keys": ["lab1.token_disclosed"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 99,
+                    },
+                    {
+                        "event_id": str(event_b),
+                        "position": 51,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_step",
+                        "objective_keys": ["lab1.attack_delivery"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "medium",
+                        "student_note": None,
+                        "report_section": "threat_model",
+                        "section_position": 88,
+                    },
+                    {
+                        "event_id": str(event_c),
+                        "position": 52,
+                        "title": "ignored",
+                        "description": "ignored",
+                        "details": None,
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "trace_version": 1,
+                        "event_index": 0,
+                        "evidence_type": "exploit_step",
+                        "objective_keys": ["lab1.malicious_content_in_context"],
+                        "why_it_matters": "ignored",
+                        "default_priority": "high",
+                        "student_note": None,
+                        "report_section": "methodology",
+                        "section_position": 77,
+                    },
+                ]
+            },
+        )
+        get_response = client.get(
+            f"/api/v1/sessions/{session_id}/report-evidence",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert put_response.status_code == 200
+    assert get_response.status_code == 200
+
+    items = get_response.json()["items"]
+    assert [item["event_id"] for item in items] == [
+        str(event_a),
+        str(event_b),
+        str(event_c),
+    ]
+    assert [item["report_section"] for item in items] == [
+        "methodology",
+        "threat_model",
+        "methodology",
+    ]
+    assert [item["section_position"] for item in items] == [0, 0, 1]
+
+
 def test_put_report_evidence_rejects_duplicates(db_session: Session) -> None:
     session_id = uuid4()
     owner_username = "owner-dup"

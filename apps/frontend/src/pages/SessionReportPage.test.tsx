@@ -102,27 +102,34 @@ describe("SessionReportPage evidence selection", () => {
       name: /benign email received/i,
     });
     fireEvent.click(maliciousEmailChip);
+    const sectionSelectors = await screen.findAllByRole("combobox");
+    fireEvent.change(sectionSelectors[0], {
+      target: { value: "mitigations" },
+    });
 
     await waitFor(
       () => {
-        const putCall = fetchMock.mock.calls.find(
+        const putCalls = fetchMock.mock.calls.filter(
           ([requestUrl, requestInit]) =>
             String(requestUrl).endsWith(
               `/api/v1/sessions/${SESSION_ID}/report-evidence`,
             ) && requestInit?.method === "PUT",
         );
-        expect(putCall).toBeDefined();
+        expect(putCalls.length).toBeGreaterThan(0);
 
-        const body = JSON.parse(String(putCall?.[1]?.body));
+        const body = JSON.parse(
+          String(putCalls[putCalls.length - 1]?.[1]?.body),
+        );
         expect(Array.isArray(body.items)).toBe(true);
         expect(body.items).toHaveLength(1);
         expect(body.items[0].event_id).toBe("evt-a");
+        expect(body.items[0].report_section).toBe("mitigations");
       },
       { timeout: 2500 },
     );
   });
 
-  it("rehydrates selected state from persisted evidence on page load", async () => {
+  it("rehydrates selected state and section assignment from persisted evidence on page load", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
@@ -173,8 +180,8 @@ describe("SessionReportPage evidence selection", () => {
               objective_mapping: null,
               evidence_strength: null,
               student_note: null,
-              report_section: "unassigned",
-              section_position: null,
+              report_section: "threat_model",
+              section_position: 0,
             },
           ],
         });
@@ -200,6 +207,98 @@ describe("SessionReportPage evidence selection", () => {
 
     await waitFor(() => {
       expect(selectedChip).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(screen.getByDisplayValue("Threat Model")).toBeInTheDocument();
+  });
+
+  it("renders grouped evidence by assigned section", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith(`/api/v1/sessions/${SESSION_ID}/trace`)) {
+        return mockJsonResponse({
+          events: [
+            {
+              id: "evt-a",
+              occurred_at: "2026-05-24T00:00:00Z",
+              family: "learner",
+              event_type: "ATTACK_EMAIL_SENT",
+              payload: {
+                email_from: "attacker@example.com",
+                subject: "Hello",
+                malicious_marker: true,
+              },
+              report_selectable: true,
+              evidence_type: "exploit_step",
+              objective_keys: ["lab1.attack_delivery"],
+              why_it_matters: "Delivery happened",
+              default_priority: "medium",
+            },
+            {
+              id: "evt-b",
+              occurred_at: "2026-05-24T00:01:00Z",
+              family: "learner",
+              event_type: "TOKEN_DISCLOSED",
+              payload: {},
+              report_selectable: true,
+              evidence_type: "exploit_outcome",
+              objective_keys: ["lab1.token_disclosed"],
+              why_it_matters: "Disclosure happened",
+              default_priority: "high",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+
+      if (
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        init?.method === "GET"
+      ) {
+        return mockJsonResponse({ items: [] });
+      }
+
+      if (
+        url.endsWith(`/api/v1/sessions/${SESSION_ID}/report-evidence`) &&
+        init?.method === "PUT"
+      ) {
+        return mockJsonResponse({ items: [] });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    renderReportPage(SESSION_ID);
+
+    const firstChip = await screen.findByRole("button", {
+      name: /malicious email received/i,
+    });
+    fireEvent.click(firstChip);
+
+    const secondChip = await screen.findByRole("button", {
+      name: /token disclosed/i,
+    });
+    fireEvent.click(secondChip);
+
+    const selectors = await screen.findAllByRole("combobox");
+    fireEvent.change(selectors[0], { target: { value: "methodology" } });
+    fireEvent.change(selectors[1], { target: { value: "mitigations" } });
+
+    await waitFor(() => {
+      const methodologyHeader = screen.getByText("Methodology", {
+        selector: "p",
+      });
+      const methodologyCard = methodologyHeader.closest("div");
+      expect(methodologyCard?.textContent).toContain("Token disclosed");
+
+      const mitigationsHeader = screen.getByText("Mitigations", {
+        selector: "p",
+      });
+      const mitigationsCard = mitigationsHeader.closest("div");
+      expect(mitigationsCard?.textContent).toContain(
+        "Malicious email received",
+      );
     });
   });
 });
