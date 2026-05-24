@@ -1,4 +1,5 @@
-import { ArrowLeft, Download, FileText, Save } from "lucide-react";
+import { ArrowLeft, Download, FileText, Save, X } from "lucide-react";
+import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBeforeUnload, useNavigate, useParams } from "react-router-dom";
 import { mapPersistedTraceToTimelineEvent } from "./session/timelineEventMapper";
@@ -355,26 +356,42 @@ export default function SessionReportPage() {
     toTraceEventId,
   ]);
 
-  const toggleEventSelection = (eventId: string) => {
-    const wasSelected = selectedEventIds.has(eventId);
+  const selectEvent = (eventId: string) => {
     setSelectedEventIds((prev) => {
       const next = new Set(prev);
-      if (wasSelected) {
-        next.delete(eventId);
-      } else {
-        next.add(eventId);
-      }
+      next.add(eventId);
       return next;
     });
     setSelectedEventSections((prevSections) => {
       const nextSections = { ...prevSections };
-      if (wasSelected) {
-        delete nextSections[eventId];
-      } else if (!nextSections[eventId]) {
+      if (!nextSections[eventId]) {
         nextSections[eventId] = "unassigned";
       }
       return nextSections;
     });
+  };
+
+  const removeEventSelection = (eventId: string) => {
+    setSelectedEventIds((prev) => {
+      const next = new Set(prev);
+      next.delete(eventId);
+      return next;
+    });
+  };
+
+  const handleSelectableChipClick = (
+    eventId: string,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "select, option, label, input, textarea, [data-no-chip-toggle='true']",
+      )
+    ) {
+      return;
+    }
+    selectEvent(eventId);
   };
 
   const setEventSection = (eventId: string, section: ReportSection) => {
@@ -606,7 +623,7 @@ export default function SessionReportPage() {
 
   return (
     <div className="min-h-full bg-black font-sans text-slate-100">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 py-6 md:px-8 lg:px-10">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 pt-5 pb-8 text-[17px] md:px-8 lg:px-10">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
@@ -674,59 +691,42 @@ export default function SessionReportPage() {
                   const isSelected = selectedEventIds.has(event.id);
                   const isSelectable = event.report_selectable === true;
                   const tone = eventTone(event);
-                  const selectedSection =
-                    selectedEventSections[event.id] ?? "unassigned";
                   const chipBody = (
                     <div className="relative flex flex-col items-start gap-0">
                       <p className={`m-0 font-semibold ${tone.titleClass}`}>
                         {event.title}
                       </p>
-                      {isSelected ? (
-                        <label className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-500/35 bg-black/40 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
-                          Section
-                          <select
-                            value={selectedSection}
-                            onChange={(selectEvent) => {
-                              setEventSection(
-                                event.id,
-                                selectEvent.target.value as ReportSection,
-                              );
-                            }}
-                            onClick={(selectEvent) =>
-                              selectEvent.stopPropagation()
-                            }
-                            className="rounded-full border border-slate-500/40 bg-slate-900/90 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 outline-none"
-                          >
-                            {REPORT_SECTION_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
                     </div>
                   );
 
-                  if (isSelectable) {
+                  if (isSelectable && !isSelected) {
                     return (
                       <button
                         key={event.id}
                         type="button"
                         aria-pressed={isSelected}
-                        onClick={() => {
-                          toggleEventSelection(event.id);
+                        onClick={(clickEvent) => {
+                          handleSelectableChipClick(event.id, clickEvent);
                         }}
                         className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
-                        style={{
-                          boxShadow: isSelected
-                            ? "0 0 0 1px rgba(255, 255, 255, 0.12)"
-                            : undefined,
-                          filter: isSelected ? "brightness(1.08)" : undefined,
-                        }}
                       >
                         {chipBody}
                       </button>
+                    );
+                  }
+
+                  if (isSelectable) {
+                    return (
+                      <div
+                        key={event.id}
+                        className={`w-full cursor-default rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
+                        style={{
+                          boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.12)",
+                          filter: "brightness(1.08)",
+                        }}
+                      >
+                        {chipBody}
+                      </div>
                     );
                   }
 
@@ -773,9 +773,43 @@ export default function SessionReportPage() {
                           {eventsForSection.map((event) => (
                             <div
                               key={event.id}
-                              className="rounded border border-slate-500/30 bg-black/35 px-2 py-1 text-xs text-slate-200"
+                              className="flex items-center gap-2 rounded border border-slate-500/30 bg-black/35 px-2 py-1 text-xs text-slate-200"
                             >
-                              {event.title}
+                              <span className="min-w-0 flex-1 truncate">
+                                {event.title}
+                              </span>
+                              <select
+                                value={
+                                  selectedEventSections[event.id] ??
+                                  "unassigned"
+                                }
+                                onChange={(selectEvent) => {
+                                  setEventSection(
+                                    event.id,
+                                    selectEvent.target.value as ReportSection,
+                                  );
+                                }}
+                                aria-label={`Assign section for ${event.title}`}
+                                className="max-w-[8.5rem] rounded border border-slate-500/40 bg-slate-900/90 px-1.5 py-0.5 text-[11px] font-semibold text-slate-100 outline-none"
+                              >
+                                {REPORT_SECTION_OPTIONS.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => removeEventSelection(event.id)}
+                                aria-label={`Remove ${event.title} from evidence`}
+                                title="Remove evidence"
+                                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-500/40 bg-rose-950/30 text-rose-200 hover:bg-rose-900/40"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </div>
                           ))}
                         </div>

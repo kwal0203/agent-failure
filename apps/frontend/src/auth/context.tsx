@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { tryRedeemPendingEnrollmentToken } from "./enrollment";
+import { POST_LOGIN_REDIRECT_KEY } from "./redirect";
 
 export type AuthUser = {
   id: string;
@@ -329,6 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentAccessToken = "";
     window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
     window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {

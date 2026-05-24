@@ -8,29 +8,12 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Link,
-  NavLink,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/context";
 import type { ShellBootstrap } from "../shell/context";
 
-const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
-  textDecoration: "none",
-  color: isActive ? "#8bff8f" : "#9dc6a2",
-  borderBottom: isActive ? "2px solid #2e7d32" : "2px solid transparent",
-  padding: "8px 4px",
-  fontWeight: isActive ? 700 : 500,
-});
-
-const rawUiMode = (import.meta.env.VITE_UI_MODE ?? "demo").toLowerCase();
-const uiMode: ShellBootstrap["mode"] = rawUiMode === "debug" ? "debug" : "demo";
-
 const bootstrap: ShellBootstrap = {
-  mode: uiMode,
+  mode: "demo",
   learnerLabel: "Demo Learner",
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
 };
@@ -141,7 +124,6 @@ function deriveViewerProfile(): ViewerProfile {
 export default function AppShell() {
   const { logout } = useAuth();
   const currentYear = new Date().getFullYear();
-  const isDebug = bootstrap.mode === "debug";
   const navigate = useNavigate();
   const location = useLocation();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -160,11 +142,10 @@ export default function AppShell() {
     location.pathname === "/pilot-requests" ||
     location.pathname === "/admin/pilot-requests";
   const showCatalogShell =
-    !isDebug &&
-    (location.pathname === "/labs" ||
-      location.pathname === "/reports" ||
-      isPreLabRoute ||
-      isSessionReportRoute);
+    location.pathname === "/labs" ||
+    location.pathname === "/reports" ||
+    isPreLabRoute ||
+    isSessionReportRoute;
 
   const activeCatalogLabel =
     location.pathname === "/labs" || isPreLabRoute
@@ -376,33 +357,22 @@ export default function AppShell() {
   return (
     <div
       className="font-sans antialiased"
-      style={
-        isDebug
-          ? {
-              minHeight: "100vh",
-              display: "flex",
-              flexDirection: "column",
-              background: "#040704",
-              color: "#d7ffd7",
-            }
-          : {
-              minHeight: "100vh",
-              display: "flex",
-              flexDirection: "column",
-              color: "#d7ffd7",
-              background:
-                "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
-            }
-      }
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        color: "#d7ffd7",
+        background:
+          "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
+      }}
     >
       {!hideLegacyHeader ? (
         <header
           style={{
             borderBottom: "1px solid #1b5e20",
-            background: isDebug
-              ? "linear-gradient(180deg, rgba(10, 18, 10, 0.98), rgba(6, 12, 6, 0.95))"
-              : "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
-            backdropFilter: isDebug ? undefined : "blur(6px)",
+            background:
+              "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
+            backdropFilter: "blur(6px)",
             position: "sticky",
             top: 0,
             zIndex: 3,
@@ -427,7 +397,7 @@ export default function AppShell() {
                   color: "#8bff8f",
                   fontFamily:
                     '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
-                  textTransform: isDebug ? undefined : "uppercase",
+                  textTransform: "uppercase",
                 }}
               >
                 Agent Failure
@@ -435,14 +405,12 @@ export default function AppShell() {
               <div
                 style={{
                   fontSize: 12,
-                  opacity: isDebug ? 0.7 : 1,
+                  opacity: 1,
                   color: "#7ea683",
-                  letterSpacing: isDebug ? undefined : 0.3,
+                  letterSpacing: 0.3,
                 }}
               >
-                {isDebug
-                  ? "Demo mode: auth deferred for P1 usability sprint"
-                  : "Cyberrange Demo Surface"}
+                Cyberrange Demo Surface
               </div>
             </div>
             {isWideContentRoute ? (
@@ -486,31 +454,13 @@ export default function AppShell() {
               </div>
             )}
           </div>
-          {bootstrap.mode === "debug" && (
-            <nav
-              style={{
-                maxWidth: isWideContentRoute ? undefined : 1120,
-                margin: isWideContentRoute ? 0 : "0 auto",
-                padding: isWideContentRoute ? "0 16px 10px" : "0 20px 10px",
-                display: "flex",
-                gap: 16,
-              }}
-            >
-              <NavLink to="/labs" style={navLinkStyle}>
-                Labs
-              </NavLink>
-              <NavLink to="/admin/pilot-requests" style={navLinkStyle}>
-                Pilot Requests
-              </NavLink>
-            </nav>
-          )}
         </header>
       ) : null}
       <main
         style={{
           maxWidth: isWideContentRoute ? undefined : 1240,
           margin: isWideContentRoute ? 0 : "0 auto",
-          padding: isWideContentRoute ? 0 : isDebug ? "20px" : "28px 24px 34px",
+          padding: isWideContentRoute ? 0 : "28px 24px 34px",
           flex: "1 1 auto",
           minHeight: 0,
           width: "100%",

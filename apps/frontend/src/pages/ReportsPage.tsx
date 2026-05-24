@@ -241,18 +241,6 @@ export default function ReportsPage() {
     };
   }, [bootstrap.apiBaseUrl, labs]);
 
-  useEffect(() => {
-    if (bootstrap.mode !== "demo") {
-      return;
-    }
-    const root = document.documentElement;
-    const previousFontSize = root.style.fontSize;
-    root.style.fontSize = "17.5px";
-    return () => {
-      root.style.fontSize = previousFontSize;
-    };
-  }, [bootstrap.mode]);
-
   return (
     <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 text-[17px] md:px-8 lg:px-10">
       {isLoading ? (
