@@ -1,0 +1,11 @@
+{
+  "workflow": "cd-staging",
+  "environment": "staging",
+  "commit_short_sha": "a68b335",
+  "commit_full_sha": "a68b3351e7d0882808125cb887aecc39e8fbb885",
+  "control_plane_image": "ghcr.io/kwal0203/agent-failure-control-plane@sha256:aba38074d11091d8fffc14c87bd6f8c3aa0f876a19b3299d651cdc613cdcac39",
+  "runtime_image": "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:2c9f15eae434fca66d442728df48d3d9341b0ddbf04b1c18a8f52f3475df4248",
+  "built_at_utc": "2026-05-24T15:19:04Z",
+  "run_id": "26365035164",
+  "run_attempt": "1"
+}
