@@ -8,7 +8,13 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useAuth } from "../auth/context";
 import type { ShellBootstrap } from "../shell/context";
 
@@ -332,6 +338,31 @@ export default function AppShell() {
             <div className="flex-1 overflow-y-auto">
               <Outlet context={bootstrap} />
             </div>
+            <footer className="border-t border-lime-500/20 bg-black/55 px-5 py-3 text-xs text-slate-400 backdrop-blur md:px-8 lg:px-10">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span>© {currentYear} Agent Failure</span>
+                <nav
+                  aria-label="Footer links"
+                  className="flex flex-wrap items-center gap-3"
+                >
+                  <Link
+                    to="/privacy"
+                    className="transition hover:text-lime-200"
+                  >
+                    Privacy
+                  </Link>
+                  <Link to="/terms" className="transition hover:text-lime-200">
+                    Terms
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="transition hover:text-lime-200"
+                  >
+                    Contact
+                  </Link>
+                </nav>
+              </div>
+            </footer>
           </main>
         </div>
       </div>
@@ -485,55 +516,25 @@ export default function AppShell() {
       >
         <Outlet context={bootstrap} />
       </main>
-      <footer
-        style={{
-          borderTop: "1px solid #1b5e20",
-          padding: isWideContentRoute ? "10px 16px" : "10px 24px",
-          color: "#7ea683",
-          fontSize: 12,
-          background: "rgba(6, 12, 6, 0.9)",
-        }}
-      >
+      <footer className="border-t border-lime-800/70 bg-[rgba(6,12,6,0.9)] px-6 py-2.5 text-xs text-lime-200/70">
         <div
+          className="flex flex-wrap items-center justify-between gap-3"
           style={{
             maxWidth: isWideContentRoute ? undefined : 1240,
             margin: isWideContentRoute ? 0 : "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
           }}
         >
           <span>© {currentYear} Agent Failure</span>
-          <nav
-            aria-label="Footer links"
-            style={{ display: "flex", gap: 12, flexWrap: "wrap" }}
-          >
-            <a
-              href="https://agent-failure.local/docs"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Docs
-            </a>
-            <a
-              href="https://agent-failure.local/privacy"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+          <nav aria-label="Footer links" className="flex flex-wrap gap-3">
+            <Link to="/privacy" className="transition hover:text-lime-200">
               Privacy
-            </a>
-            <a
-              href="https://agent-failure.local/terms"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
+            </Link>
+            <Link to="/terms" className="transition hover:text-lime-200">
               Terms
-            </a>
-            <a
-              href="https://agent-failure.local/support"
-              style={{ color: "inherit", textDecoration: "none" }}
-            >
-              Report issue
-            </a>
+            </Link>
+            <Link to="/contact" className="transition hover:text-lime-200">
+              Contact
+            </Link>
           </nav>
         </div>
       </footer>
