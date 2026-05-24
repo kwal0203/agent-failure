@@ -3,49 +3,71 @@ import { Link } from "react-router-dom";
 export default function TermsOfUsePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b1220] via-[#111827] to-[#0b1220] px-6 py-12 text-slate-200">
-      <main className="mx-auto max-w-3xl rounded-2xl border border-slate-700/60 bg-slate-900/70 p-8 shadow-xl">
+      <main className="mx-auto max-w-3xl rounded-2xl border border-slate-700/60 bg-slate-900/70 p-8 shadow-xl md:p-10 [&_h2]:pt-2 [&_p]:leading-8">
         <h1 className="text-3xl font-bold text-lime-300">Terms of Use</h1>
+        <p className="mt-3 text-sm text-slate-400">
+          Effective date: May 24, 2026. Last updated: May 24, 2026.
+        </p>
+
         <p className="mt-6 leading-7 text-slate-200">
-          Agent Failure is an educational AI security lab platform only
-          available to university students enrolled in verified educational
-          courses.
+          These Terms of Use govern access to and use of Agent Failure. By using
+          the platform, you agree to these terms.
         </p>
-        <br />
-        <p className="mt-4 leading-7 text-slate-200">
-          Users may only use the platform for authorized educational and
-          training purposes.
+
+        <h2 className="mt-8 text-xl font-bold text-white">Platform Purpose</h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          Agent Failure is an educational AI security lab platform intended for
+          authorized learning and training use.
         </p>
-        <br />
-        <p className="mt-4 leading-7 text-slate-200">
-          Users must not attack real systems, misuse the platform, attempt
-          unauthorized access, or use the platform for unlawful activity.
+
+        <h2 className="mt-8 text-xl font-bold text-white">Acceptable Use</h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          You may use the platform only for authorized educational activities
+          and in compliance with applicable laws and institutional policies.
         </p>
-        <br />
-        <p className="mt-4 leading-7 text-slate-200">
-          Lab environments are sandboxed for security and all tools are
-          simulated. The sandboxes are provided only for controlled learning.
+
+        <h2 className="mt-8 text-xl font-bold text-white">
+          Prohibited Conduct
+        </h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          You must not use the platform to attack real systems, attempt
+          unauthorized access, misuse platform resources, or engage in unlawful
+          activity.
         </p>
-        <br />
-        <p className="mt-4 leading-7 text-slate-200">
-          We may suspend access for misuse.
+
+        <h2 className="mt-8 text-xl font-bold text-white">
+          Lab Environment Notice
+        </h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          Lab environments are intentionally vulnerable and provided only for
+          controlled learning within the platform context.
         </p>
-        <br />
-        <p className="mt-4 leading-7 text-slate-200">
-          Questions can be sent to{" "}
+
+        <h2 className="mt-8 text-xl font-bold text-white">
+          Suspension and Termination
+        </h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          We may suspend or terminate access for policy violations, misuse, or
+          security risk.
+        </p>
+
+        <h2 className="mt-8 text-xl font-bold text-white">
+          Disclaimers and Liability
+        </h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          The platform is provided on an "as is" basis for educational use. To
+          the maximum extent permitted by law, we disclaim warranties and limit
+          liability for indirect or consequential damages.
+        </p>
+
+        <h2 className="mt-8 text-xl font-bold text-white">Contact</h2>
+        <p className="mt-3 leading-7 text-slate-200">
+          Questions about these terms can be sent to{" "}
           <a
             className="font-semibold text-lime-300 hover:text-lime-200"
-            href="https://www.linkedin.com/in/kanewalter/"
-            target="_blank"
-            rel="noreferrer"
+            href="mailto:support@agentfailure.com"
           >
-            Kane Walter
-          </a>{" "}
-          at{" "}
-          <a
-            className="font-semibold text-lime-300 hover:text-lime-200"
-            href="mailto:kwal0203@gmail.com"
-          >
-            kwal0203@gmail.com
+            support@agentfailure.com
           </a>
           .
         </p>
