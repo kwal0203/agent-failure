@@ -397,6 +397,8 @@ class ReportEvidenceItem(BaseModel):
     objective_mapping: tuple["ObjectiveMappingItem", ...] | None = None
     evidence_strength: TraceEvidencePriority | None = None
     student_note: str | None = None
+    report_section: str = "unassigned"
+    section_position: int | None = None
 
 
 class ObjectiveMappingItem(BaseModel):

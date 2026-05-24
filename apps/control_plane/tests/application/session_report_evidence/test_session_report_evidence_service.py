@@ -100,6 +100,8 @@ def _item(*, event_id: UUID, position: int) -> SessionReportEvidenceItemInput:
         why_it_matters="Useful exploit evidence",
         default_priority="high",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
     )
 
 
@@ -122,6 +124,8 @@ def test_get_session_report_evidence_owner_allowed() -> None:
         why_it_matters=None,
         default_priority="high",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
     )
@@ -296,6 +300,8 @@ def test_import_selected_evidence_defaults_to_persisted_order() -> None:
         why_it_matters=None,
         default_priority="low",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
     )
@@ -315,6 +321,8 @@ def test_import_selected_evidence_defaults_to_persisted_order() -> None:
         why_it_matters=None,
         default_priority="low",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
     )
@@ -349,6 +357,8 @@ def test_import_selected_evidence_supports_subset_and_order_override() -> None:
         why_it_matters=None,
         default_priority="low",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
     )
@@ -368,6 +378,8 @@ def test_import_selected_evidence_supports_subset_and_order_override() -> None:
         why_it_matters=None,
         default_priority="low",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 1, tzinfo=timezone.utc),
     )
@@ -401,6 +413,8 @@ def test_project_report_evidence_adds_mapping_and_strength_rules() -> None:
         why_it_matters=None,
         default_priority="medium",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
     )
@@ -430,6 +444,8 @@ def test_project_report_evidence_preserves_stored_snapshot_content() -> None:
         why_it_matters="stored rationale",
         default_priority="high",
         student_note="stored note",
+        report_section="unassigned",
+        section_position=None,
         created_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 17, 20, 1, 0, tzinfo=timezone.utc),
     )

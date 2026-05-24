@@ -173,6 +173,8 @@ describe("SessionReportPage evidence selection", () => {
               objective_mapping: null,
               evidence_strength: null,
               student_note: null,
+              report_section: "unassigned",
+              section_position: null,
             },
           ],
         });

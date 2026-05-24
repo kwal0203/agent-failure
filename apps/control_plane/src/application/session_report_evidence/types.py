@@ -30,6 +30,8 @@ class SessionReportEvidenceItemInput:
     why_it_matters: str | None
     default_priority: TraceEvidencePriority
     student_note: str | None
+    report_section: str
+    section_position: int | None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,8 @@ class SessionReportEvidenceRow:
     why_it_matters: str | None
     default_priority: TraceEvidencePriority
     student_note: str | None
+    report_section: str
+    section_position: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -78,3 +82,5 @@ class ReportEvidenceProjection:
     objective_mapping: tuple[ReportObjectiveMapping, ...]
     evidence_strength: TraceEvidencePriority
     student_note: str | None
+    report_section: str
+    section_position: int | None

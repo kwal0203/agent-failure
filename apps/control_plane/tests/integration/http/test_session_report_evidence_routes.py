@@ -117,6 +117,8 @@ def test_get_report_evidence_returns_rows_ordered_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -134,6 +136,8 @@ def test_get_report_evidence_returns_rows_ordered_by_position(
                 why_it_matters="Delivery event",
                 default_priority="medium",
                 student_note="note",
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -377,6 +381,8 @@ def test_post_import_selected_evidence_uses_persisted_selection_by_default(
                 why_it_matters=None,
                 default_priority="medium",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -394,6 +400,8 @@ def test_post_import_selected_evidence_uses_persisted_selection_by_default(
                 why_it_matters=None,
                 default_priority="high",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -443,6 +451,8 @@ def test_post_import_selected_evidence_supports_subset_order_override(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -460,6 +470,8 @@ def test_post_import_selected_evidence_supports_subset_order_override(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -510,6 +522,8 @@ def test_get_report_evidence_citation_labels_are_deterministic_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
             SessionReportEvidenceModel(
                 id=uuid4(),
@@ -527,6 +541,8 @@ def test_get_report_evidence_citation_labels_are_deterministic_by_position(
                 why_it_matters=None,
                 default_priority="low",
                 student_note=None,
+                report_section="unassigned",
+                section_position=None,
             ),
         ]
     )
@@ -573,6 +589,8 @@ def test_post_import_selected_evidence_rejects_override_not_in_selection(
             why_it_matters=None,
             default_priority="low",
             student_note=None,
+            report_section="unassigned",
+            section_position=None,
         )
     )
     db_session.flush()

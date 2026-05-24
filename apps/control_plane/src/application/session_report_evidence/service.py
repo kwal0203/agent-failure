@@ -187,6 +187,8 @@ def project_report_evidence(
                     evidence_type=row.evidence_type,
                 ),
                 student_note=row.student_note,
+                report_section=row.report_section,
+                section_position=row.section_position,
             )
         )
     return tuple(projections)
@@ -293,6 +295,8 @@ def replace_session_report_evidence(
                 why_it_matters=why_it_matters,
                 default_priority=default_priority,
                 student_note=item.student_note,
+                report_section=item.report_section.strip() or "unassigned",
+                section_position=item.section_position,
             )
         )
 

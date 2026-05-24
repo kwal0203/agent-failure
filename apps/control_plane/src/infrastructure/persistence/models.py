@@ -365,6 +365,10 @@ class SessionReportEvidenceModel(Base):
     why_it_matters: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_priority: Mapped[str] = mapped_column(String(16), nullable=False)
     student_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_section: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="unassigned", server_default="unassigned"
+    )
+    section_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

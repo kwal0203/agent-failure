@@ -263,6 +263,8 @@ export default function SessionReportPage() {
               objective_mapping: null,
               evidence_strength: null,
               student_note: null,
+              report_section: "unassigned",
+              section_position: null,
             };
           })
           .filter((item) => item !== null),

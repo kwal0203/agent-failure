@@ -33,6 +33,8 @@ def _item_payload() -> dict[str, object]:
         ],
         "evidence_strength": "high",
         "student_note": None,
+        "report_section": "unassigned",
+        "section_position": None,
     }
 
 

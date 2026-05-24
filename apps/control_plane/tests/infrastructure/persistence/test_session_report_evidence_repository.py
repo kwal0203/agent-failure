@@ -47,6 +47,8 @@ def _item(*, position: int) -> SessionReportEvidenceItemInput:
         why_it_matters="Shows exploit progression.",
         default_priority="high",
         student_note=None,
+        report_section="unassigned",
+        section_position=None,
     )
 
 

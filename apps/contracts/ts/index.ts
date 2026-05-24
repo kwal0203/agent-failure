@@ -84,6 +84,8 @@ export type ReportEvidenceItem = {
   objective_mapping: ObjectiveMappingItem[] | null;
   evidence_strength: "high" | "medium" | "low" | null;
   student_note: string | null;
+  report_section: string;
+  section_position: number | null;
 };
 
 export type ObjectiveMappingItem = {

@@ -303,6 +303,8 @@ def map_report_evidence_projection_response(
                 ),
                 evidence_strength=item.evidence_strength,
                 student_note=item.student_note,
+                report_section=item.report_section,
+                section_position=item.section_position,
             )
             for item in items
         )
@@ -327,6 +329,8 @@ def map_report_evidence_items_to_inputs(
             why_it_matters=item.why_it_matters,
             default_priority=item.default_priority,
             student_note=item.student_note,
+            report_section=item.report_section,
+            section_position=item.section_position,
         )
         for item in items
     )
