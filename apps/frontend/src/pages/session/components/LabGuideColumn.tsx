@@ -1,5 +1,4 @@
 import { getLabGuideContent } from "../labGuideContent";
-import { DEMO_H2_STYLE } from "../ui";
 
 type LabGuideColumnProps = {
   labId?: string | null;
@@ -9,56 +8,46 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
   const content = getLabGuideContent(labId);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        height: "100%",
-        minHeight: 0,
-      }}
-    >
-      <section
-        className="lab-guide-scroll-region"
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 16,
-          flex: "1 1 auto",
-          minHeight: 0,
-          overflowY: "auto",
-        }}
-      >
-        <h2 style={DEMO_H2_STYLE}>Lab Guide</h2>
-        <p style={{ margin: "8px 0 4px 0", fontWeight: 600 }}>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <section className="lab-guide-scroll-region min-h-0 flex-[1_1_auto] overflow-y-auto rounded-lg border border-slate-300/90 bg-slate-950/20 p-4">
+        <h2 className="m-0 text-lg font-semibold tracking-wide text-slate-100">
+          Lab Guide
+        </h2>
+        <p className="mb-1 mt-2 font-semibold text-slate-100">
           {content.title}
         </p>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
+        <p className="m-0 text-sm text-slate-300">
           {`Difficulty: ${content.difficulty}`}
         </p>
-        <div style={{ marginTop: 20 }}>
-          <h3 style={DEMO_H2_STYLE}>Mission Summary</h3>
-          <p style={{ margin: "0 0 8px 0" }}>
+        <div className="mt-5">
+          <h3 className="m-0 text-lg font-semibold tracking-wide text-slate-100">
+            Mission Summary
+          </h3>
+          <p className="mb-2 mt-0 text-slate-100">
             <strong>Objective:</strong> {content.objective}
           </p>
-          <p style={{ margin: "0 0 8px 0" }}>
+          <p className="mb-2 mt-0 text-slate-100">
             <strong>Target:</strong> {content.target}
           </p>
-          <p style={{ margin: 0 }}>
+          <p className="m-0 text-slate-100">
             <strong>Attack Vector:</strong> {content.attackVector}
           </p>
         </div>
-        <div style={{ marginTop: 20 }}>
-          <h3 style={{ margin: "0 0 8px" }}>Success Criteria</h3>
-          <ul style={{ margin: 0, paddingLeft: 20 }}>
+        <div className="mt-5">
+          <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
+            Success Criteria
+          </h3>
+          <ul className="m-0 list-disc pl-5 text-slate-200">
             {content.successCriteria.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
         </div>
-        <div style={{ marginTop: 20 }}>
-          <h3 style={{ margin: "0 0 8px" }}>Evidence to Capture</h3>
-          <ul style={{ margin: 0, paddingLeft: 20 }}>
+        <div className="mt-5">
+          <h3 className="mb-2 mt-0 text-base font-semibold text-slate-100">
+            Evidence to Capture
+          </h3>
+          <ul className="m-0 list-disc pl-5 text-slate-200">
             {content.evidence.map((item) => (
               <li key={item}>{item}</li>
             ))}
