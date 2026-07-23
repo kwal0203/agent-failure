@@ -46,6 +46,7 @@ export default function PilotRequestPage() {
   const [university, setUniversity] = useState("");
   const [courseName, setCourseName] = useState("");
   const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState("");
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +69,7 @@ export default function PilotRequestPage() {
         role: undefined,
         courseName: courseName.trim() || undefined,
         notes: message.trim() || undefined,
+        website,
       });
       setSuccess(
         "Request captured. We will follow up to set up your university pilot.",
@@ -119,6 +121,22 @@ export default function PilotRequestPage() {
                 void onSubmit();
               }}
             >
+              <label
+                className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"
+                htmlFor="pilot-website"
+                aria-hidden="true"
+              >
+                Website
+                <input
+                  id="pilot-website"
+                  name="website"
+                  type="text"
+                  value={website}
+                  onChange={(event) => setWebsite(event.target.value)}
+                  autoComplete="off"
+                  tabIndex={-1}
+                />
+              </label>
               <PilotInput
                 id="pilot-name"
                 label="Full Name"

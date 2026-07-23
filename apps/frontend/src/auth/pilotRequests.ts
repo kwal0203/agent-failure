@@ -12,38 +12,28 @@ type CreatePilotRequestPayload = {
   courseName?: string;
   cohortSize?: number;
   notes?: string;
-};
-
-type CreatePilotRequestResponse = {
-  requestId: string;
-  status: string;
-  createdAt: string;
+  website?: string;
 };
 
 export async function createPilotRequest(
   payload: CreatePilotRequestPayload,
-): Promise<CreatePilotRequestResponse> {
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/pilot-requests`, {
+): Promise<void> {
+  const response = await fetch("/api/pilot-request", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify(payload),
   });
 
-  const body = (await response.json()) as
-    | CreatePilotRequestResponse
-    | { detail?: string };
+  const body = (await response.json().catch(() => null)) as {
+    detail?: string;
+  } | null;
 
   if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : null;
-    throw new Error(detail ?? "Pilot request submission failed.");
+    throw new Error(body?.detail ?? "Pilot request submission failed.");
   }
-
-  return body as CreatePilotRequestResponse;
 }
 
 export type PilotRequestItem = {
