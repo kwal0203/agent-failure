@@ -3,21 +3,44 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-const AUTH_USER_STORAGE_KEY = "agentfailure.auth.user";
-const AUTH_TOKEN_STORAGE_KEY = "agentfailure.auth.tokens";
 const PENDING_ENROLLMENT_TOKEN_KEY = "agentfailure.auth.pendingEnrollmentToken";
 const ENROLLMENT_REDEEM_ERROR_KEY = "agentfailure.auth.enrollmentRedeemError";
 
-function makeIdToken(email: string) {
-  const header = btoa(JSON.stringify({ alg: "none", typ: "JWT" }));
-  const payload = btoa(
-    JSON.stringify({
-      sub: "user-123",
-      email,
-      preferred_username: email.split("@")[0],
-    }),
-  );
-  return `${header}.${payload}.signature`;
+const amplifyAuthMocks = vi.hoisted(() => ({
+  getAmplifySession: vi.fn(),
+  getAmplifyUser: vi.fn(),
+  signInWithAmplify: vi.fn(),
+  signOutWithAmplify: vi.fn(),
+  signUpWithAmplify: vi.fn(),
+  confirmSignUpWithAmplify: vi.fn(),
+  requestPasswordResetWithAmplify: vi.fn(),
+  confirmPasswordResetWithAmplify: vi.fn(),
+}));
+
+vi.mock("./auth/amplifyAuth", () => amplifyAuthMocks);
+
+function mockAuthenticatedUser(email = "kane@example.com") {
+  amplifyAuthMocks.getAmplifyUser.mockResolvedValue({
+    userId: "user-123",
+    username: email,
+    signInDetails: { loginId: email },
+  });
+  amplifyAuthMocks.getAmplifySession.mockResolvedValue({
+    tokens: {
+      accessToken: {
+        toString: () => "access-token",
+        payload: {},
+      },
+      idToken: {
+        toString: () => "id-token",
+        payload: {
+          sub: "user-123",
+          email,
+          preferred_username: email.split("@")[0],
+        },
+      },
+    },
+  });
 }
 
 function renderAt(path: string) {
@@ -30,11 +53,19 @@ function renderAt(path: string) {
 
 describe("App routing with auth guards", () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.unstubAllGlobals();
     window.sessionStorage.clear();
     vi.stubEnv("VITE_COGNITO_CLIENT_ID", "test-client-id");
     vi.stubEnv("VITE_COGNITO_USER_POOL_ID", "us-east-2_testpool");
     vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "false");
+    amplifyAuthMocks.getAmplifyUser.mockRejectedValue(
+      new Error("User is not authenticated"),
+    );
+    amplifyAuthMocks.getAmplifySession.mockRejectedValue(
+      new Error("User is not authenticated"),
+    );
+    amplifyAuthMocks.signOutWithAmplify.mockResolvedValue(undefined);
   });
 
   it("redirects root to login", async () => {
@@ -56,19 +87,7 @@ describe("App routing with auth guards", () => {
   });
 
   it("redirects authenticated user away from login to app", async () => {
-    window.sessionStorage.setItem(
-      AUTH_USER_STORAGE_KEY,
-      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
-    );
-    window.sessionStorage.setItem(
-      AUTH_TOKEN_STORAGE_KEY,
-      JSON.stringify({
-        accessToken: "access-token",
-        idToken: makeIdToken("kane@example.com"),
-        refreshToken: null,
-        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    );
+    mockAuthenticatedUser();
 
     renderAt("/login");
 
@@ -80,19 +99,7 @@ describe("App routing with auth guards", () => {
   });
 
   it("renders protected labs route when signed in", async () => {
-    window.sessionStorage.setItem(
-      AUTH_USER_STORAGE_KEY,
-      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
-    );
-    window.sessionStorage.setItem(
-      AUTH_TOKEN_STORAGE_KEY,
-      JSON.stringify({
-        accessToken: "access-token",
-        idToken: makeIdToken("kane@example.com"),
-        refreshToken: null,
-        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    );
+    mockAuthenticatedUser();
 
     renderAt("/labs");
 
@@ -105,19 +112,7 @@ describe("App routing with auth guards", () => {
 
   it("redirects authenticated users to enrollment when pending token exists", async () => {
     vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "true");
-    window.sessionStorage.setItem(
-      AUTH_USER_STORAGE_KEY,
-      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
-    );
-    window.sessionStorage.setItem(
-      AUTH_TOKEN_STORAGE_KEY,
-      JSON.stringify({
-        accessToken: "access-token",
-        idToken: makeIdToken("kane@example.com"),
-        refreshToken: null,
-        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    );
+    mockAuthenticatedUser();
     window.sessionStorage.setItem(
       PENDING_ENROLLMENT_TOKEN_KEY,
       "pending-token",
@@ -134,19 +129,7 @@ describe("App routing with auth guards", () => {
 
   it("redirects authenticated users to enrollment when redemption error exists", async () => {
     vi.stubEnv("VITE_ENROLLMENT_API_ENABLED", "true");
-    window.sessionStorage.setItem(
-      AUTH_USER_STORAGE_KEY,
-      JSON.stringify({ id: "kane", email: "kane@example.com", label: "kane" }),
-    );
-    window.sessionStorage.setItem(
-      AUTH_TOKEN_STORAGE_KEY,
-      JSON.stringify({
-        accessToken: "access-token",
-        idToken: makeIdToken("kane@example.com"),
-        refreshToken: null,
-        expiresAtEpochSec: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    );
+    mockAuthenticatedUser();
     window.sessionStorage.setItem(
       ENROLLMENT_REDEEM_ERROR_KEY,
       "Token expired or already redeemed",
@@ -175,20 +158,13 @@ describe("App routing with auth guards", () => {
   });
 
   it("logs in and redirects to next path when provided", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        text: async () =>
-          JSON.stringify({
-            AuthenticationResult: {
-              AccessToken: "access-token",
-              IdToken: makeIdToken("kane@example.com"),
-              ExpiresIn: 3600,
-            },
-          }),
-      })),
-    );
+    amplifyAuthMocks.signInWithAmplify.mockImplementation(async () => {
+      mockAuthenticatedUser();
+      return {
+        isSignedIn: true,
+        nextStep: { signInStep: "DONE" },
+      };
+    });
 
     renderAt("/login?next=%2Flabs");
 
@@ -205,15 +181,15 @@ describe("App routing with auth guards", () => {
         name: /Foundations of AI Agent Security/i,
       }),
     ).toBeInTheDocument();
+    expect(amplifyAuthMocks.signInWithAmplify).toHaveBeenCalledWith(
+      "kane@example.com",
+      "password123",
+    );
   });
 
   it("rejects unknown login credentials", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        text: async () => JSON.stringify({ message: "Invalid credentials" }),
-      })),
+    amplifyAuthMocks.signInWithAmplify.mockRejectedValue(
+      new Error("Invalid credentials"),
     );
 
     renderAt("/login");

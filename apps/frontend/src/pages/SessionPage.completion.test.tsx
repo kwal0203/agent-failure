@@ -32,7 +32,7 @@ function renderSessionPage() {
 describe("SessionPage completion indicator", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.spyOn(sessionUi, "getAuthHeader").mockReturnValue("Bearer test-token");
+    vi.spyOn(sessionUi, "getAuthHeader").mockResolvedValue("Bearer test-token");
     vi.mocked(useSessionStream).mockReturnValue({
       connectionState: "open",
       messages: [],

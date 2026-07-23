@@ -178,7 +178,7 @@ export default function SessionReportPage() {
         {
           method: "GET",
           headers: {
-            Authorization: getAuthHeader(),
+            Authorization: await getAuthHeader(),
             "Content-Type": "application/json",
           },
         },
@@ -203,7 +203,7 @@ export default function SessionReportPage() {
         {
           method: "GET",
           headers: {
-            Authorization: getAuthHeader(),
+            Authorization: await getAuthHeader(),
             "Content-Type": "application/json",
           },
         },
@@ -427,7 +427,7 @@ export default function SessionReportPage() {
         {
           method: "PUT",
           headers: {
-            Authorization: getAuthHeader(),
+            Authorization: await getAuthHeader(),
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),

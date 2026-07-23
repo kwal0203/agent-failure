@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServerMessage } from "../../../contracts/ts/index";
-import { getCurrentAccessToken } from "../auth/tokenStore";
+import { getCurrentAccessToken } from "../auth/session";
 
 export type { ServerMessage } from "../../../contracts/ts/index";
 
@@ -24,49 +24,65 @@ export function useSessionStream(sessionId?: string) {
       setMessages([]);
     }, 0);
 
-    const token = encodeURIComponent(getCurrentAccessToken());
-    const ws = new WebSocket(
-      `${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSeq}`,
-    );
+    let cancelled = false;
+    let activeSocket: WebSocket | null = null;
 
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      // In React StrictMode dev remounts, ignore stale sockets.
-      if (wsRef.current !== ws) {
-        ws.close();
-        return;
-      }
-      setConnectionState("open");
-    };
-
-    ws.onmessage = (event) => {
-      if (wsRef.current !== ws) return;
+    const connect = async () => {
       try {
-        const parsed = JSON.parse(event.data) as ServerMessage;
-        setMessages((prev) => [...prev, parsed]);
+        const token = encodeURIComponent(await getCurrentAccessToken());
+        if (cancelled) return;
+
+        const ws = new WebSocket(
+          `${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSeq}`,
+        );
+        activeSocket = ws;
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          // In React StrictMode dev remounts, ignore stale sockets.
+          if (wsRef.current !== ws) {
+            ws.close();
+            return;
+          }
+          setConnectionState("open");
+        };
+
+        ws.onmessage = (event) => {
+          if (wsRef.current !== ws) return;
+          try {
+            const parsed = JSON.parse(event.data) as ServerMessage;
+            setMessages((prev) => [...prev, parsed]);
+          } catch {
+            // ignore malformed messages for now
+          }
+        };
+
+        ws.onerror = () => {
+          if (wsRef.current !== ws) return;
+          setConnectionState("error");
+        };
+        ws.onclose = () => {
+          if (wsRef.current !== ws) return;
+          setConnectionState("closed");
+        };
       } catch {
-        // ignore malformed messages for now
+        if (!cancelled) {
+          setConnectionState("error");
+        }
       }
     };
 
-    ws.onerror = () => {
-      if (wsRef.current !== ws) return;
-      setConnectionState("error");
-    };
-    ws.onclose = () => {
-      if (wsRef.current !== ws) return;
-      setConnectionState("closed");
-    };
+    void connect();
 
     return () => {
       window.clearTimeout(resetTimer);
-      if (wsRef.current === ws) {
+      cancelled = true;
+      if (wsRef.current === activeSocket) {
         wsRef.current = null;
       }
       // Avoid closing while CONNECTING to prevent noisy dev-console warning.
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
+      if (activeSocket?.readyState === WebSocket.OPEN) {
+        activeSocket.close();
       }
     };
   }, [reconnectSeq, sessionId, wsBase]);

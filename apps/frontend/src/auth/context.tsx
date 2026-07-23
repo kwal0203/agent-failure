@@ -6,271 +6,127 @@ import {
   useState,
 } from "react";
 import {
+  confirmPasswordResetWithAmplify,
+  confirmSignUpWithAmplify,
+  getAmplifySession,
+  getAmplifyUser,
+  requestPasswordResetWithAmplify,
+  signInWithAmplify,
+  signOutWithAmplify,
+  signUpWithAmplify,
+} from "./amplifyAuth";
+import {
   AuthContext,
   type AuthContextValue,
   type AuthUser,
 } from "./authContext";
 import { tryRedeemPendingEnrollmentToken } from "./enrollment";
 import { POST_LOGIN_REDIRECT_KEY } from "./redirect";
-import { setCurrentAccessToken } from "./tokenStore";
 
-type CognitoTokens = {
-  accessToken: string;
-  idToken: string;
-  refreshToken: string | null;
-  expiresAtEpochSec: number;
-};
+function stringClaim(payload: Record<string, unknown>, key: string): string {
+  const value = payload[key];
+  return typeof value === "string" ? value.trim() : "";
+}
 
-const AUTH_USER_STORAGE_KEY = "agentfailure.auth.user";
-const AUTH_TOKEN_STORAGE_KEY = "agentfailure.auth.tokens";
-
-const cognitoClientId = (import.meta.env.VITE_COGNITO_CLIENT_ID ?? "").trim();
-const cognitoUserPoolId = (
-  import.meta.env.VITE_COGNITO_USER_POOL_ID ?? ""
-).trim();
-
-function ensureCognitoConfigured(): void {
-  if (!cognitoClientId || !cognitoUserPoolId) {
-    throw new Error(
-      "Cognito is not configured. Missing VITE_COGNITO_CLIENT_ID or VITE_COGNITO_USER_POOL_ID.",
-    );
+function stringArrayClaim(
+  payload: Record<string, unknown>,
+  key: string,
+): string[] {
+  const value = payload[key];
+  if (!Array.isArray(value)) {
+    return [];
   }
+  return value.filter(
+    (item): item is string =>
+      typeof item === "string" && item.trim().length > 0,
+  );
 }
 
-function getCognitoRegion(): string {
-  const region = cognitoUserPoolId.split("_")[0]?.trim();
-  if (!region) {
-    throw new Error(
-      "VITE_COGNITO_USER_POOL_ID must be in '<region>_<poolId>' format.",
-    );
-  }
-  return region;
-}
+async function loadAuthenticatedUser(): Promise<AuthUser> {
+  const amplifyUser = await getAmplifyUser();
+  const session = await getAmplifySession();
+  const payload = (session.tokens?.idToken?.payload ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const email =
+    stringClaim(payload, "email") ||
+    amplifyUser.signInDetails?.loginId?.trim() ||
+    "";
+  const username =
+    stringClaim(payload, "cognito:username") || amplifyUser.username.trim();
+  const name = stringClaim(payload, "name");
+  const preferredUsername = stringClaim(payload, "preferred_username");
+  const label =
+    name || preferredUsername || email.split("@")[0]?.trim() || username;
 
-function getCognitoIdpEndpoint(): string {
-  return `https://cognito-idp.${getCognitoRegion()}.amazonaws.com/`;
-}
-
-function readStoredUser(): AuthUser | null {
-  const raw = window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as AuthUser;
-    if (!parsed?.email || !parsed?.id || !parsed?.label) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function readStoredTokens(): CognitoTokens | null {
-  const raw = window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as CognitoTokens;
-    if (
-      !parsed?.accessToken ||
-      !parsed?.idToken ||
-      !parsed?.expiresAtEpochSec
-    ) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  const parts = token.split(".");
-  if (parts.length < 2) {
-    throw new Error("Invalid token format");
-  }
-  const payloadBase64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-  const payloadJson = atob(payloadBase64);
-  return JSON.parse(payloadJson) as Record<string, unknown>;
-}
-
-function toAuthUserFromIdToken(idToken: string): AuthUser {
-  const payload = decodeJwtPayload(idToken);
-  const sub = typeof payload.sub === "string" ? payload.sub : "";
-  const email = typeof payload.email === "string" ? payload.email : "";
-  const preferredUsername =
-    typeof payload.preferred_username === "string"
-      ? payload.preferred_username
-      : "";
-
-  if (!sub || !email) {
-    throw new Error("Missing required user claims in token");
-  }
-
-  const label = preferredUsername || email.split("@")[0] || email;
-  return { id: sub, email, label };
-}
-
-function isTokenExpired(expiresAtEpochSec: number): boolean {
-  const nowEpochSec = Math.floor(Date.now() / 1000);
-  return expiresAtEpochSec <= nowEpochSec + 30;
-}
-
-type CognitoAuthResult = {
-  AccessToken?: string;
-  IdToken?: string;
-  RefreshToken?: string;
-  ExpiresIn?: number;
-};
-
-async function cognitoJsonRequest<T>(target: string, body: object): Promise<T> {
-  ensureCognitoConfigured();
-
-  const response = await fetch(getCognitoIdpEndpoint(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-amz-json-1.1",
-      "X-Amz-Target": target,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const text = await response.text();
-  const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-
-  if (!response.ok) {
-    const message =
-      typeof parsed.message === "string"
-        ? parsed.message
-        : "Cognito request failed";
-    throw new Error(message);
-  }
-
-  return parsed as T;
-}
-
-async function cognitoLogin(
-  email: string,
-  password: string,
-): Promise<CognitoTokens> {
-  const payload = await cognitoJsonRequest<{
-    AuthenticationResult?: CognitoAuthResult;
-  }>("AWSCognitoIdentityProviderService.InitiateAuth", {
-    AuthFlow: "USER_PASSWORD_AUTH",
-    ClientId: cognitoClientId,
-    AuthParameters: {
-      USERNAME: email,
-      PASSWORD: password,
-    },
-  });
-
-  const auth = payload.AuthenticationResult;
-  if (!auth?.AccessToken || !auth?.IdToken || !auth.ExpiresIn) {
-    throw new Error("Authentication result is missing required tokens.");
+  if (!amplifyUser.userId.trim() || !email || !label) {
+    throw new Error("Authenticated user is missing required identity claims.");
   }
 
   return {
-    accessToken: auth.AccessToken,
-    idToken: auth.IdToken,
-    refreshToken: auth.RefreshToken ?? null,
-    expiresAtEpochSec: Math.floor(Date.now() / 1000) + auth.ExpiresIn,
+    id: amplifyUser.userId.trim(),
+    email,
+    label,
+    name: name || undefined,
+    username: username || undefined,
+    groups: stringArrayClaim(payload, "cognito:groups"),
   };
 }
 
-async function cognitoSignup(email: string, password: string): Promise<void> {
-  await cognitoJsonRequest("AWSCognitoIdentityProviderService.SignUp", {
-    ClientId: cognitoClientId,
-    Username: email,
-    Password: password,
-    UserAttributes: [{ Name: "email", Value: email }],
-  });
-}
-
-async function cognitoConfirmSignup(
-  email: string,
-  code: string,
-): Promise<void> {
-  await cognitoJsonRequest("AWSCognitoIdentityProviderService.ConfirmSignUp", {
-    ClientId: cognitoClientId,
-    Username: email,
-    ConfirmationCode: code,
-  });
-}
-
-async function cognitoRequestPasswordReset(email: string): Promise<void> {
-  await cognitoJsonRequest("AWSCognitoIdentityProviderService.ForgotPassword", {
-    ClientId: cognitoClientId,
-    Username: email,
-  });
-}
-
-async function cognitoConfirmPasswordReset(
-  email: string,
-  code: string,
-  newPassword: string,
-): Promise<void> {
-  await cognitoJsonRequest(
-    "AWSCognitoIdentityProviderService.ConfirmForgotPassword",
-    {
-      ClientId: cognitoClientId,
-      Username: email,
-      ConfirmationCode: code,
-      Password: newPassword,
-    },
-  );
+function unsupportedSignInStepMessage(signInStep: string): string {
+  switch (signInStep) {
+    case "CONFIRM_SIGN_UP":
+      return "Confirm your email address before signing in.";
+    case "RESET_PASSWORD":
+      return "Your password must be reset before signing in.";
+    default:
+      return `Additional authentication is required (${signInStep}).`;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [tokens, setTokens] = useState<CognitoTokens | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const bootstrap = async () => {
       setIsAuthTransitioning(true);
       try {
-        ensureCognitoConfigured();
-        const storedTokens = readStoredTokens();
-        const storedUser = readStoredUser();
-
-        if (
-          storedTokens &&
-          storedUser &&
-          !isTokenExpired(storedTokens.expiresAtEpochSec)
-        ) {
-          setTokens(storedTokens);
-          setUser(storedUser);
-          setCurrentAccessToken(storedTokens.accessToken);
-          await tryRedeemPendingEnrollmentToken();
-        } else {
-          setCurrentAccessToken("");
-          window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-          window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        const authenticatedUser = await loadAuthenticatedUser();
+        if (cancelled) return;
+        setUser(authenticatedUser);
+        await tryRedeemPendingEnrollmentToken();
+      } catch {
+        if (!cancelled) {
+          setUser(null);
         }
       } finally {
-        setIsAuthTransitioning(false);
-        setIsBootstrapping(false);
+        if (!cancelled) {
+          setIsAuthTransitioning(false);
+          setIsBootstrapping(false);
+        }
       }
     };
 
     void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
-    const authTokens = await cognitoLogin(normalizedEmail, password);
-    const nextUser = toAuthUserFromIdToken(authTokens.idToken);
+    const result = await signInWithAmplify(normalizedEmail, password);
+    if (!result.isSignedIn) {
+      throw new Error(unsupportedSignInStepMessage(result.nextStep.signInStep));
+    }
 
-    setTokens(authTokens);
-    setUser(nextUser);
-    setCurrentAccessToken(authTokens.accessToken);
-
-    window.sessionStorage.setItem(
-      AUTH_TOKEN_STORAGE_KEY,
-      JSON.stringify(authTokens),
-    );
-    window.sessionStorage.setItem(
-      AUTH_USER_STORAGE_KEY,
-      JSON.stringify(nextUser),
-    );
+    const authenticatedUser = await loadAuthenticatedUser();
+    setUser(authenticatedUser);
 
     setIsAuthTransitioning(true);
     try {
@@ -282,32 +138,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
-    await cognitoSignup(normalizedEmail, password);
+    await signUpWithAmplify(normalizedEmail, password);
   }, []);
 
   const confirmSignup = useCallback(async (email: string, code: string) => {
     const normalizedEmail = email.trim().toLowerCase();
-    await cognitoConfirmSignup(normalizedEmail, code.trim());
+    const result = await confirmSignUpWithAmplify(normalizedEmail, code.trim());
+    if (!result.isSignUpComplete) {
+      throw new Error(
+        `Additional signup verification is required (${result.nextStep.signUpStep}).`,
+      );
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    setTokens(null);
-    setCurrentAccessToken("");
-    window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
-    window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-    window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+  const logout = useCallback(async () => {
+    try {
+      await signOutWithAmplify();
+    } finally {
+      setUser(null);
+      window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+    }
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const normalizedEmail = email.trim().toLowerCase();
-    await cognitoRequestPasswordReset(normalizedEmail);
+    await requestPasswordResetWithAmplify(normalizedEmail);
   }, []);
 
   const confirmPasswordReset = useCallback(
     async (email: string, code: string, newPassword: string) => {
       const normalizedEmail = email.trim().toLowerCase();
-      await cognitoConfirmPasswordReset(
+      await confirmPasswordResetWithAmplify(
         normalizedEmail,
         code.trim(),
         newPassword,
@@ -319,9 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      isAuthenticated: Boolean(
-        user && tokens && !isTokenExpired(tokens.expiresAtEpochSec),
-      ),
+      isAuthenticated: user !== null,
       isBootstrapping,
       isAuthTransitioning,
       login,
@@ -340,7 +199,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       requestPasswordReset,
       signup,
-      tokens,
       user,
     ],
   );

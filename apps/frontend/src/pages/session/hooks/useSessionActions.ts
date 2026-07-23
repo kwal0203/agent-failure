@@ -95,7 +95,7 @@ export function useSessionActions(params: UseSessionActionsParams) {
         {
           method: "POST",
           headers: {
-            Authorization: getAuthHeader(),
+            Authorization: await getAuthHeader(),
             "Content-Type": "application/json",
           },
           body: JSON.stringify({

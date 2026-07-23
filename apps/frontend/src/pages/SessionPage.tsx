@@ -148,7 +148,7 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
           {
             method: "POST",
             headers: {
-              Authorization: getAuthHeader(),
+              Authorization: await getAuthHeader(),
               "Content-Type": "application/json",
               "Idempotency-Key": `stop-session:${sessionId}`,
             },

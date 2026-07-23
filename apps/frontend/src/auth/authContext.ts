@@ -4,6 +4,9 @@ export type AuthUser = {
   id: string;
   email: string;
   label: string;
+  name?: string;
+  username?: string;
+  groups?: string[];
 };
 
 export type AuthContextValue = {
@@ -20,7 +23,7 @@ export type AuthContextValue = {
     code: string,
     newPassword: string,
   ) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

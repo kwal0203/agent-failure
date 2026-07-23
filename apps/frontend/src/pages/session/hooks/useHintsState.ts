@@ -48,7 +48,7 @@ export function useHintsState({
               {
                 method: "POST",
                 headers: {
-                  Authorization: getAuthHeader(),
+                  Authorization: await getAuthHeader(),
                   "Content-Type": "application/json",
                 },
               },

@@ -30,7 +30,7 @@ export function useFeedbackState({
               {
                 method: "POST",
                 headers: {
-                  Authorization: getAuthHeader(),
+                  Authorization: await getAuthHeader(),
                   "Content-Type": "application/json",
                 },
               },

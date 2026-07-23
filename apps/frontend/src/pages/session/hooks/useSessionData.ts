@@ -189,7 +189,7 @@ export function useSessionData({
         {
           method: "GET",
           headers: {
-            Authorization: getAuthHeader(),
+            Authorization: await getAuthHeader(),
             "Content-Type": "application/json",
           },
         },
@@ -294,7 +294,7 @@ export function useSessionData({
       const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
         method: "GET",
         headers: {
-          Authorization: getAuthHeader(),
+          Authorization: await getAuthHeader(),
           "Content-Type": "application/json",
         },
       });

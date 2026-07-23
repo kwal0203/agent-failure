@@ -32,7 +32,7 @@ function renderReportPage(sessionId = SESSION_ID) {
 describe("SessionReportPage evidence selection", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.spyOn(sessionUi, "getAuthHeader").mockReturnValue("Bearer test-token");
+    vi.spyOn(sessionUi, "getAuthHeader").mockResolvedValue("Bearer test-token");
     window.localStorage.clear();
   });
 

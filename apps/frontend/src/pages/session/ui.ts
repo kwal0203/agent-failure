@@ -1,10 +1,10 @@
 import type { CSSProperties } from "react";
-import { getCurrentAuthHeader } from "../../auth/tokenStore";
+import { getCurrentAuthHeader } from "../../auth/session";
 import type { LearnerFeedbackStatus } from "./types";
 
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-export function getAuthHeader(): string {
+export function getAuthHeader(): Promise<string> {
   return getCurrentAuthHeader();
 }
 

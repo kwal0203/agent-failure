@@ -1,4 +1,4 @@
-import { getCurrentAuthHeader } from "./tokenStore";
+import { getCurrentAuthHeader } from "./session";
 
 function getApiBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -80,7 +80,7 @@ export async function listPilotRequests(params?: {
     `${getApiBaseUrl()}/api/v1/pilot-requests${suffix}`,
     {
       headers: {
-        Authorization: getCurrentAuthHeader(),
+        Authorization: await getCurrentAuthHeader(),
       },
     },
   );
@@ -111,7 +111,7 @@ export async function updatePilotRequestStatus(
     {
       method: "PATCH",
       headers: {
-        Authorization: getCurrentAuthHeader(),
+        Authorization: await getCurrentAuthHeader(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ status }),
@@ -209,7 +209,7 @@ export async function approveAndProvisionPilotRequest(
     {
       method: "POST",
       headers: {
-        Authorization: getCurrentAuthHeader(),
+        Authorization: await getCurrentAuthHeader(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
@@ -237,7 +237,7 @@ export async function provisionPilotRequest(
     {
       method: "POST",
       headers: {
-        Authorization: getCurrentAuthHeader(),
+        Authorization: await getCurrentAuthHeader(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),

@@ -1,4 +1,4 @@
-import { getCurrentAuthHeader } from "./tokenStore";
+import { getCurrentAuthHeader } from "./session";
 
 function getApiBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -60,7 +60,7 @@ export async function redeemEnrollmentToken(
   const response = await fetch(`${getApiBaseUrl()}/api/v1/enrollment/redeem`, {
     method: "POST",
     headers: {
-      Authorization: getCurrentAuthHeader(),
+      Authorization: await getCurrentAuthHeader(),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

@@ -3,7 +3,7 @@ import type {
   GetSessionsResponse,
   LabCatalogItemResponse,
 } from "../../../contracts/ts/index";
-import { getCurrentAuthHeader } from "../auth/tokenStore";
+import { getCurrentAuthHeader } from "../auth/session";
 
 export type LabDifficulty = "easy" | "medium";
 export type LabCatalogItem = LabCatalogItemResponse;
@@ -53,7 +53,7 @@ async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
   const response = await fetch(`${apiBaseUrl}/api/v1/labs`, {
     method: "GET",
     headers: {
-      Authorization: getCurrentAuthHeader(),
+      Authorization: await getCurrentAuthHeader(),
       "Content-Type": "application/json",
     },
   });
@@ -167,7 +167,7 @@ export async function createSessionForLab(
   const response = await fetch(`${apiBaseUrl}/api/v1/sessions`, {
     method: "POST",
     headers: {
-      Authorization: getCurrentAuthHeader(),
+      Authorization: await getCurrentAuthHeader(),
       "Idempotency-Key": `frontend-create-session-${crypto.randomUUID()}`,
       "Content-Type": "application/json",
     },
@@ -204,7 +204,7 @@ export async function getLatestSessionIdForLab(
   const response = await fetch(`${apiBaseUrl}/api/v1/sessions?${params}`, {
     method: "GET",
     headers: {
-      Authorization: getCurrentAuthHeader(),
+      Authorization: await getCurrentAuthHeader(),
       "Content-Type": "application/json",
     },
   });
