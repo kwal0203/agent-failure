@@ -83,6 +83,32 @@ describe("pilot request Vercel Function", () => {
     expect(resendFetch).not.toHaveBeenCalled();
   });
 
+  it("normalizes lead details before sending them to Resend", async () => {
+    const resendFetch = vi
+      .fn()
+      .mockResolvedValue(Response.json({ id: "email-123" }));
+    vi.stubGlobal("fetch", resendFetch);
+
+    const response = await handleRequest(
+      makeRequest({
+        ...validLead,
+        fullName: "  Jane Smith  ",
+        workEmail: "  JANE@EXAMPLE.EDU  ",
+        courseName: "   ",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const [, init] = resendFetch.mock.calls[0] as [string, RequestInit];
+    const email = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(email).toMatchObject({
+      reply_to: "jane@example.edu",
+      subject: "New Agent Failure pilot request — Example University",
+    });
+    expect(email.text).toContain("Name: Jane Smith");
+    expect(email.text).toContain("Course: Not provided");
+  });
+
   it("silently accepts honeypot submissions without sending email", async () => {
     const resendFetch = vi.fn();
     vi.stubGlobal("fetch", resendFetch);

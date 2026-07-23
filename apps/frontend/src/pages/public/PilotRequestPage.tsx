@@ -1,14 +1,25 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, ArrowRight, Shield, User } from "lucide-react";
 import { useState } from "react";
+import {
+  type FieldError,
+  type UseFormRegisterReturn,
+  useForm,
+} from "react-hook-form";
 import { Link } from "react-router-dom";
 import { createPilotRequest } from "../../auth/pilotRequests";
+import {
+  type PilotLead,
+  type PilotLeadFormValues,
+  pilotLeadSchema,
+} from "../../schemas/pilotRequest";
 
 type PilotInputProps = {
   id: string;
   label: string;
   placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
+  registration: UseFormRegisterReturn;
+  error?: FieldError;
   type?: "text" | "email";
 };
 
@@ -16,8 +27,8 @@ function PilotInput({
   id,
   label,
   placeholder,
-  value,
-  onChange,
+  registration,
+  error,
   type = "text",
 }: PilotInputProps) {
   return (
@@ -29,61 +40,58 @@ function PilotInput({
         <input
           id={id}
           type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          {...registration}
           placeholder={placeholder}
+          aria-invalid={error ? "true" : "false"}
+          aria-describedby={error ? `${id}-error` : undefined}
           className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         <User className="h-5 w-5 text-slate-300" />
       </div>
+      {error ? (
+        <span id={`${id}-error`} className="mt-2 block text-sm text-rose-300">
+          {error.message}
+        </span>
+      ) : null}
     </label>
   );
 }
 
 export default function PilotRequestPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [university, setUniversity] = useState("");
-  const [courseName, setCourseName] = useState("");
-  const [message, setMessage] = useState("");
-  const [website, setWebsite] = useState("");
   const [success, setSuccess] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<PilotLeadFormValues, unknown, PilotLead>({
+    resolver: zodResolver(pilotLeadSchema),
+    defaultValues: {
+      fullName: "",
+      workEmail: "",
+      university: "",
+      courseName: "",
+      notes: "",
+      website: "",
+    },
+  });
 
-  const onSubmit = async () => {
-    if (!name.trim() || !email.trim() || !university.trim()) {
-      setError("Name, work email, and university are required.");
-      setSuccess(null);
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
+  const onSubmit = handleSubmit(async (lead) => {
     setSuccess(null);
     try {
-      await createPilotRequest({
-        fullName: name.trim(),
-        workEmail: email.trim().toLowerCase(),
-        university: university.trim(),
-        role: undefined,
-        courseName: courseName.trim() || undefined,
-        notes: message.trim() || undefined,
-        website,
-      });
+      await createPilotRequest(lead);
       setSuccess(
         "Request captured. We will follow up to set up your university pilot.",
       );
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Pilot request submission failed.",
-      );
-    } finally {
-      setSubmitting(false);
+      setError("root.server", {
+        message:
+          submitError instanceof Error
+            ? submitError.message
+            : "Pilot request submission failed.",
+      });
     }
-  };
+  });
 
   return (
     <div className="min-h-screen overflow-hidden bg-black text-slate-100">
@@ -114,13 +122,7 @@ export default function PilotRequestPage() {
               Request university pilot
             </h2>
 
-            <form
-              className="space-y-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void onSubmit();
-              }}
-            >
+            <form className="space-y-6" onSubmit={onSubmit}>
               <label
                 className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"
                 htmlFor="pilot-website"
@@ -129,10 +131,8 @@ export default function PilotRequestPage() {
                 Website
                 <input
                   id="pilot-website"
-                  name="website"
                   type="text"
-                  value={website}
-                  onChange={(event) => setWebsite(event.target.value)}
+                  {...register("website")}
                   autoComplete="off"
                   tabIndex={-1}
                 />
@@ -141,30 +141,30 @@ export default function PilotRequestPage() {
                 id="pilot-name"
                 label="Full Name"
                 placeholder="Your full name"
-                value={name}
-                onChange={setName}
+                registration={register("fullName")}
+                error={errors.fullName}
               />
               <PilotInput
                 id="pilot-email"
                 label="Work Email"
                 placeholder="you@university.edu"
-                value={email}
-                onChange={setEmail}
+                registration={register("workEmail")}
+                error={errors.workEmail}
                 type="email"
               />
               <PilotInput
                 id="pilot-university"
                 label="University"
                 placeholder="University name"
-                value={university}
-                onChange={setUniversity}
+                registration={register("university")}
+                error={errors.university}
               />
               <PilotInput
                 id="pilot-course"
                 label="Course (Optional)"
                 placeholder="Course title or code"
-                value={courseName}
-                onChange={setCourseName}
+                registration={register("courseName")}
+                error={errors.courseName}
               />
 
               <label className="block" htmlFor="pilot-message">
@@ -173,25 +173,40 @@ export default function PilotRequestPage() {
                 </span>
                 <textarea
                   id="pilot-message"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
+                  {...register("notes")}
                   placeholder="Tell us about your planned cohort and timeline"
                   rows={4}
+                  aria-invalid={errors.notes ? "true" : "false"}
+                  aria-describedby={
+                    errors.notes ? "pilot-message-error" : undefined
+                  }
                   className="w-full rounded-lg border border-lime-400/80 bg-black/40 px-4 py-3 text-sm text-slate-100 shadow-[0_0_18px_rgba(132,204,22,0.25)] outline-none placeholder:text-slate-500"
                 />
+                {errors.notes ? (
+                  <span
+                    id="pilot-message-error"
+                    className="mt-2 block text-sm text-rose-300"
+                  >
+                    {errors.notes.message}
+                  </span>
+                ) : null}
               </label>
 
               {success ? (
                 <p className="text-sm text-emerald-300">{success}</p>
               ) : null}
-              {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+              {errors.root?.server ? (
+                <p className="text-sm text-rose-300">
+                  {errors.root.server.message}
+                </p>
+              ) : null}
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={isSubmitting}
                 className="group flex h-16 w-full items-center justify-center gap-3 rounded-lg bg-lime-300 text-base font-black text-black shadow-[0_0_28px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_42px_rgba(132,204,22,0.75)]"
               >
-                {submitting ? "Submitting..." : "Submit pilot request"}
+                {isSubmitting ? "Submitting..." : "Submit pilot request"}
                 <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
               </button>
             </form>

@@ -1,23 +1,11 @@
+import type { PilotLead } from "../schemas/pilotRequest";
 import { getCurrentAuthHeader } from "./session";
 
 function getApiBaseUrl(): string {
   return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 }
 
-type CreatePilotRequestPayload = {
-  fullName: string;
-  workEmail: string;
-  university: string;
-  role?: string;
-  courseName?: string;
-  cohortSize?: number;
-  notes?: string;
-  website?: string;
-};
-
-export async function createPilotRequest(
-  payload: CreatePilotRequestPayload,
-): Promise<void> {
+export async function createPilotRequest(payload: PilotLead): Promise<void> {
   const response = await fetch("/api/pilot-request", {
     method: "POST",
     headers: {
