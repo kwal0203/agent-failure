@@ -224,7 +224,7 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const validation = validateLead(requestBody);
-  if (!validation.ok) {
+  if (validation.ok === false) {
     return jsonResponse({ detail: validation.detail }, 400);
   }
 

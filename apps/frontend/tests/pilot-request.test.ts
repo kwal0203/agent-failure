@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleRequest } from "./pilot-request";
+import { handleRequest } from "../api/pilot-request";
 
 const validLead = {
   fullName: "Jane Smith",
