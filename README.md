@@ -1,8 +1,12 @@
 # Agent Failure
 
-A public AI agent security lab platform where learners practice realistic attacks and defenses against LLM-powered agents in controlled, instrumented sandbox environments. Live at **agentfailure.com**.
+An open-source AI agent security lab platform where learners practice realistic attacks and defenses against LLM-powered agents in controlled, instrumented sandbox environments.
 
 Learners interact with deliberately vulnerable AI agent configurations — prompt injection, tool misuse, memory poisoning — while a control plane records every action as structured trace events and an asynchronous evaluator produces instructional feedback.
+
+Project updates and early-access registration are available at [www.agentfailure.com](https://www.agentfailure.com/).
+
+The original hosted application is no longer running. This repository is provided for local use, research, teaching, and community development.
 
 ## Architecture
 
@@ -52,9 +56,8 @@ packages/
   trace-schema/      (planned) Trace schema extraction
 runtimes/
   agent/             Per-session agent runtime — LLM loop, tool dispatch, lab configs
-infra/               Kubernetes staging/prod manifests
-deploy/              VPS (Docker Compose + Caddy) and K8s deployment configs
-scripts/             Build, push, release, and staging automation
+deploy/              Environment examples and Kubernetes deployment manifests
+scripts/             Local smoke tests and operational utilities
 docs/                PRD, specs, TDD, lab designs
 ```
 
@@ -113,7 +116,8 @@ docs/                PRD, specs, TDD, lab designs
 ## Testing
 
 ```bash
-uv run pytest -m "not integration"    # Unit tests
+uv run pytest -m "not integration"    # Unit tests (no database required)
+uv run pytest -m "integration"        # PostgreSQL integration tests
 cd apps/frontend && npm test           # Frontend tests
 ```
 
@@ -122,17 +126,19 @@ cd apps/frontend && npm test           # Frontend tests
 The CI pipeline (`.github/workflows/ci.yml`) runs on push to `main` and all PRs:
 
 - PostgreSQL 17 service container
-- Frontend: Biome lint, TypeScript type check
-- Backend: mypy, Pyright, pytest
+- Dependency audits: `pip-audit`, `npm audit`
+- Frontend: Biome, TypeScript, ESLint, Vitest
+- Backend: Ruff, mypy, Pyright, pytest
+- Kubernetes manifest rendering for all included overlays
 
 ## License
 
-This project is proprietary and **not open source**.
+Licensed under the [Apache License 2.0](./LICENSE).
 
-All rights reserved. No permission is granted to use, copy, modify, or distribute this code.
-
-See [LICENSE](./LICENSE) for full terms.
+The license covers the software and documentation, but it does not grant rights to use the Agent Failure name or branding except as described in [TRADEMARKS.md](./TRADEMARKS.md).
 
 ## Contributing
 
-Contributions are not accepted without prior written approval from the project owner.
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or pull request. Participation is governed by the [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+Please report security vulnerabilities privately as described in [SECURITY.md](./SECURITY.md).

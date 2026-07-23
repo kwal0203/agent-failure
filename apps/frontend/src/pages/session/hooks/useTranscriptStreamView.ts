@@ -32,58 +32,62 @@ export function useTranscriptStreamView() {
     }
   }, []);
 
-  const drainRevealFrame = useCallback(() => {
-    const revealIntervalMs = 60;
-    const now = performance.now();
-    if (now - lastRevealAtMsRef.current < revealIntervalMs) {
-      animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
-      return;
-    }
-
-    if (pendingBufferRef.current.length > 0) {
-      const buffer = pendingBufferRef.current;
-      const match = buffer.match(/^(\s*\S+\s*)/);
-      const reveal = match ? match[1] : buffer;
-      pendingBufferRef.current = buffer.slice(reveal.length);
-      displayedEntryRef.current += reveal;
-      lastRevealAtMsRef.current = now;
-      setActiveEntry(displayedEntryRef.current);
-      animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
-      return;
-    }
-
-    if (finalizePendingRef.current) {
-      const finalized = displayedEntryRef.current.trim();
-      if (finalized) {
-        setTranscriptEntries((entries) => {
-          const last = entries.length > 0 ? entries[entries.length - 1] : null;
-          if (
-            last &&
-            last.role === "agent" &&
-            last.content === finalized &&
-            last.timestamp ===
-              (activeEntryTsRef.current ?? new Date().toISOString())
-          ) {
-            return entries;
-          }
-          return [
-            ...entries,
-            {
-              role: "agent",
-              content: finalized,
-              timestamp: activeEntryTsRef.current ?? new Date().toISOString(),
-            },
-          ];
-        });
+  const drainRevealFrame = useCallback(
+    function drainRevealFrame() {
+      const revealIntervalMs = 60;
+      const now = performance.now();
+      if (now - lastRevealAtMsRef.current < revealIntervalMs) {
+        animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
+        return;
       }
 
-      resetActiveStream();
-      setIsAwaitingResponse(false);
-      return;
-    }
+      if (pendingBufferRef.current.length > 0) {
+        const buffer = pendingBufferRef.current;
+        const match = buffer.match(/^(\s*\S+\s*)/);
+        const reveal = match ? match[1] : buffer;
+        pendingBufferRef.current = buffer.slice(reveal.length);
+        displayedEntryRef.current += reveal;
+        lastRevealAtMsRef.current = now;
+        setActiveEntry(displayedEntryRef.current);
+        animationFrameRef.current = requestAnimationFrame(drainRevealFrame);
+        return;
+      }
 
-    animationFrameRef.current = null;
-  }, [resetActiveStream]);
+      if (finalizePendingRef.current) {
+        const finalized = displayedEntryRef.current.trim();
+        if (finalized) {
+          setTranscriptEntries((entries) => {
+            const last =
+              entries.length > 0 ? entries[entries.length - 1] : null;
+            if (
+              last &&
+              last.role === "agent" &&
+              last.content === finalized &&
+              last.timestamp ===
+                (activeEntryTsRef.current ?? new Date().toISOString())
+            ) {
+              return entries;
+            }
+            return [
+              ...entries,
+              {
+                role: "agent",
+                content: finalized,
+                timestamp: activeEntryTsRef.current ?? new Date().toISOString(),
+              },
+            ];
+          });
+        }
+
+        resetActiveStream();
+        setIsAwaitingResponse(false);
+        return;
+      }
+
+      animationFrameRef.current = null;
+    },
+    [resetActiveStream],
+  );
 
   const ensureRevealLoop = useCallback(() => {
     if (animationFrameRef.current === null) {

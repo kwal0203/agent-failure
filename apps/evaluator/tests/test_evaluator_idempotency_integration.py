@@ -31,6 +31,8 @@ from apps.evaluator.src.infrastructure.evaluator_repository import (
     SQLAlchemyEvaluatorRepository,
 )
 
+pytestmark = pytest.mark.integration
+
 DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
 
 

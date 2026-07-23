@@ -22,12 +22,12 @@ def parse_hint_status(value: str) -> HintStatus:
 
 
 def parse_completion_status(value: str) -> CompletionStatus:
-    if (
-        value == COMPLETION_STATUS_IN_PROGRESS
-        or value == COMPLETION_STATUS_COMPLETED_SUCCESS
-        or value == COMPLETION_STATUS_COMPLETED_FAILURE
-    ):
-        return cast(CompletionStatus, value)
+    if value == COMPLETION_STATUS_IN_PROGRESS:
+        return COMPLETION_STATUS_IN_PROGRESS
+    if value == COMPLETION_STATUS_COMPLETED_SUCCESS:
+        return COMPLETION_STATUS_COMPLETED_SUCCESS
+    if value == COMPLETION_STATUS_COMPLETED_FAILURE:
+        return COMPLETION_STATUS_COMPLETED_FAILURE
     raise ValueError(f"Invalid completion status in DB: {value}")
 
 

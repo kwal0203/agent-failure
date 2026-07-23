@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { getCurrentAuthHeader } from "../../auth/context";
+import { getCurrentAuthHeader } from "../../auth/tokenStore";
 import type { LearnerFeedbackStatus } from "./types";
 
 export const API_BASE =

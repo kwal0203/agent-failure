@@ -705,20 +705,19 @@ def process_cleanup_pending_once(
                             retried_count += 1
                             continue
 
-                        pod_still_exists = False
-                        if hasattr(teardown, "pod_exists"):
-                            try:
-                                pod_still_exists = bool(
-                                    getattr(teardown, "pod_exists")(pod_name)
-                                )
-                            except Exception:
-                                pod_still_exists = True
+                        resources_still_exist = False
+                        try:
+                            resources_still_exist = teardown.resources_exist(
+                                str(session_id)
+                            )
+                        except Exception:
+                            resources_still_exist = True
 
-                        if pod_still_exists:
+                        if resources_still_exist:
                             if attempt_count < MAX_CLEANUP_ATTEMPTS:
                                 uow.outbox.mark_retryable_failure(
                                     outbox_event_id=outbox_event_id,
-                                    error_message="CLEANUP_POD_STILL_EXISTS",
+                                    error_message="CLEANUP_RESOURCES_STILL_EXIST",
                                     backoff_seconds=CLEANUP_BACKOFF_SECONDS,
                                     failed_at=ts,
                                 )
@@ -726,7 +725,7 @@ def process_cleanup_pending_once(
                             else:
                                 uow.outbox.mark_terminal_failure(
                                     outbox_event_id=outbox_event_id,
-                                    error_message="CLEANUP_POD_STILL_EXISTS",
+                                    error_message="CLEANUP_RESOURCES_STILL_EXIST",
                                     failed_at=ts,
                                 )
                                 failed_count += 1
@@ -736,7 +735,7 @@ def process_cleanup_pending_once(
                                 str(outbox_event_id),
                                 pod_name,
                                 attempt_count,
-                                "CLEANUP_POD_STILL_EXISTS",
+                                "CLEANUP_RESOURCES_STILL_EXIST",
                             )
                             continue
                         uow.outbox.mark_processed(

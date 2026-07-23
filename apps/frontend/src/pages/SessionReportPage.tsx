@@ -699,34 +699,33 @@ export default function SessionReportPage() {
                     </div>
                   );
 
-                  if (isSelectable && !isSelected) {
+                  if (isSelectable) {
                     return (
                       <button
                         key={event.id}
                         type="button"
                         aria-pressed={isSelected}
                         onClick={(clickEvent) => {
-                          handleSelectableChipClick(event.id, clickEvent);
+                          if (isSelected) {
+                            removeEventSelection(event.id);
+                          } else {
+                            handleSelectableChipClick(event.id, clickEvent);
+                          }
                         }}
-                        className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
+                        className={`w-full cursor-pointer rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass} ${
+                          isSelected ? "brightness-[1.08]" : ""
+                        }`}
+                        style={
+                          isSelected
+                            ? {
+                                boxShadow:
+                                  "0 0 0 1px rgba(255, 255, 255, 0.12)",
+                              }
+                            : undefined
+                        }
                       >
                         {chipBody}
                       </button>
-                    );
-                  }
-
-                  if (isSelectable) {
-                    return (
-                      <div
-                        key={event.id}
-                        className={`w-full cursor-default rounded-lg px-2.5 py-2.5 text-left ${tone.chipClass}`}
-                        style={{
-                          boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.12)",
-                          filter: "brightness(1.08)",
-                        }}
-                      >
-                        {chipBody}
-                      </div>
                     );
                   }
 

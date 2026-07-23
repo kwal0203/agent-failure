@@ -1,12 +1,12 @@
+import subprocess
+
 from apps.control_plane.src.application.orchestrator.ports import RuntimeTeardownPort
 from apps.control_plane.src.application.orchestrator.types import (
     RuntimeTeardownRequest,
     RuntimeTeardownResult,
 )
 
-from .types import K8sCleanupConfig
-
-import subprocess
+from .types import K8sCleanupConfig, SESSION_LABEL
 
 
 class K8sRuntimeTeardown(RuntimeTeardownPort):
@@ -15,36 +15,42 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
 
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult:
         session_id = request.session_id
-        runtime_id = request.runtime_id
-        pod_name = runtime_id if runtime_id else f"session-{str(session_id)[:8]}"
+        pod_name = (
+            request.runtime_id
+            if request.runtime_id
+            else f"session-{str(session_id)[:8]}"
+        )
         try:
-            self._kubectl_delete(pod_name=pod_name)
-            verify = self._kubectl_get_pod(pod_name=pod_name)
-            if verify.returncode == 0:
+            before = self._kubectl_get_resources(session_id=str(session_id))
+            self._kubectl_delete(session_id=str(session_id))
+            verify = self._kubectl_get_resources(session_id=str(session_id))
+            remaining = self._resource_names(verify)
+            if verify.returncode != 0:
                 return RuntimeTeardownResult(
                     status="failed",
-                    reason_code="K8S_DELETE_VERIFICATION_FAILED",
+                    reason_code="K8S_RESOURCE_DELETE_VERIFICATION_FAILED",
                     details={
                         "pod_name": pod_name,
                         "stdout": str(verify.stdout or ""),
                         "stderr": str(verify.stderr or ""),
                     },
                 )
-            verify_combined = f"{verify.stdout or ''}\n{verify.stderr or ''}".lower()
-            if "notfound" in verify_combined or "not found" in verify_combined:
+            if remaining:
                 return RuntimeTeardownResult(
-                    status="deleted",
-                    reason_code=None,
-                    details={"pod_name": pod_name},
+                    status="failed",
+                    reason_code="K8S_RESOURCES_STILL_EXIST",
+                    details={
+                        "pod_name": pod_name,
+                        "remaining_resources": remaining,
+                    },
                 )
+            existed = (
+                bool(self._resource_names(before)) if before.returncode == 0 else True
+            )
             return RuntimeTeardownResult(
-                status="failed",
-                reason_code="K8S_DELETE_VERIFICATION_UNKNOWN",
-                details={
-                    "pod_name": pod_name,
-                    "stdout": str(verify.stdout or ""),
-                    "stderr": str(verify.stderr or ""),
-                },
+                status="deleted" if existed else "already_gone",
+                reason_code=None if existed else "K8S_RESOURCES_NOT_FOUND",
+                details={"pod_name": pod_name, "session_id": str(session_id)},
             )
         except subprocess.CalledProcessError as exc:
             stderr_text = str(exc.stderr or "")
@@ -53,12 +59,12 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
             if "notfound" in combined or "not found" in combined:
                 return RuntimeTeardownResult(
                     status="already_gone",
-                    reason_code="K8S_POD_NOT_FOUND",
+                    reason_code="K8S_RESOURCES_NOT_FOUND",
                     details={"pod_name": pod_name},
                 )
             return RuntimeTeardownResult(
                 status="failed",
-                reason_code="K8S_DELETE_FAILED",
+                reason_code="K8S_RESOURCE_DELETE_FAILED",
                 details={
                     "returncode": exc.returncode,
                     "stderr": stderr_text,
@@ -71,15 +77,17 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
                 details={"error": str(exc)},
             )
 
-    def _kubectl_delete(self, pod_name: str) -> None:
+    def _kubectl_delete(self, session_id: str) -> None:
         subprocess.run(
             [
                 self._config.kubectl_bin,
                 "-n",
                 self._config.namespace,
                 "delete",
-                "pod",
-                pod_name,
+                "pod,service",
+                "-l",
+                f"{SESSION_LABEL}={session_id}",
+                "--ignore-not-found=true",
                 "--wait=true",
                 "--timeout=30s",
             ],
@@ -88,21 +96,34 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
             text=True,
         )
 
-    def _kubectl_get_pod(self, pod_name: str) -> subprocess.CompletedProcess[str]:
+    def _kubectl_get_resources(
+        self, session_id: str
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 self._config.kubectl_bin,
                 "-n",
                 self._config.namespace,
                 "get",
-                "pod",
-                pod_name,
+                "pod,service",
+                "-l",
+                f"{SESSION_LABEL}={session_id}",
+                "-o",
+                "name",
             ],
             check=False,
             capture_output=True,
             text=True,
         )
 
-    def pod_exists(self, pod_name: str) -> bool:
-        result = self._kubectl_get_pod(pod_name=pod_name)
-        return result.returncode == 0
+    @staticmethod
+    def _resource_names(result: subprocess.CompletedProcess[str]) -> list[str]:
+        return [
+            line.strip() for line in (result.stdout or "").splitlines() if line.strip()
+        ]
+
+    def resources_exist(self, session_id: str) -> bool:
+        result = self._kubectl_get_resources(session_id=session_id)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr or "kubectl resource verification failed")
+        return bool(self._resource_names(result))

@@ -21,6 +21,7 @@ from apps.control_plane.src.application.auth.errors import AuthTokenInvalidError
 from apps.control_plane.src.application.auth.types import AuthClaims
 
 load_dotenv()
+os.environ.setdefault("APP_ENV", "dev")
 
 
 def _get_test_database_url() -> str:
@@ -42,7 +43,18 @@ def _get_test_database_url() -> str:
     return db_url
 
 
-os.environ["DATABASE_URL"] = _get_test_database_url()
+if os.getenv("TEST_DATABASE_URL"):
+    # Some integration-test modules build session factories during collection,
+    # before fixtures run. Force those factories onto the validated test
+    # database and never allow the developer DATABASE_URL as a fallback.
+    os.environ["DATABASE_URL"] = _get_test_database_url()
+else:
+    # Keep later load_dotenv() calls from restoring a developer/production URL.
+    # Unit tests must not connect; this intentionally unreachable test URL
+    # makes an accidental connection fail locally and immediately.
+    os.environ["DATABASE_URL"] = (
+        "postgresql+psycopg://invalid:invalid@127.0.0.1:1/agent_failure_test"
+    )
 
 
 class _LocalTestTokenVerifier:
@@ -75,7 +87,13 @@ class _LocalTestTokenVerifier:
 
 
 @pytest.fixture(autouse=True)
-def _install_test_token_verifier() -> Generator[None, None, None]:
+def _install_test_token_verifier(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
+    if request.node.get_closest_marker("integration") is not None:
+        monkeypatch.setenv("DATABASE_URL", _get_test_database_url())
+
     from apps.control_plane.src.interfaces.http.main import app
 
     previous = getattr(app.state, "token_verifier", None)

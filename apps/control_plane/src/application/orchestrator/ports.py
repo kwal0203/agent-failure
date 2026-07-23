@@ -144,6 +144,8 @@ class ProcessCleanupOnceUnitOfWork(Protocol):
 class RuntimeTeardownPort(Protocol):
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult: ...
 
+    def resources_exist(self, session_id: str) -> bool: ...
+
 
 class ReconciliationSessionQueryPort(Protocol):
     def get_reconciliation_candidates(

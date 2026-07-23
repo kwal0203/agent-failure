@@ -322,7 +322,7 @@ def get_instructor_identity_provider() -> InstructorIdentityProviderPort:
 @lru_cache(maxsize=1)
 def get_token_verifier() -> TokenVerifierPort:
     config = get_auth_verifier_config()
-    if config.issuer and config.audience and config.jwks_uri:
+    if config.issuer:
         return CognitoJwtVerifier(config=config)
     return LocalTokenVerifier(config=config)
 

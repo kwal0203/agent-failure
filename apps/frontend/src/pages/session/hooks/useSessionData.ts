@@ -312,34 +312,17 @@ export function useSessionData({
     }
   }, [sessionId]);
 
-  const registerLearnerFeedbackEvents = useCallback(
-    (_feedback: LearnerFeedbackItem[], _timestamp: string) => {
-      // Persisted session metadata is the source of truth for rendered feedback.
-      // When websocket feedback arrives, refresh immediately so UI updates even
-      // if background polling is paused (for example outside ACTIVE/PROVISIONING).
-      void refreshSessionMetadata();
-      void refreshTraceTimeline();
-    },
-    [refreshSessionMetadata, refreshTraceTimeline],
-  );
+  const registerLearnerFeedbackEvents = useCallback(() => {
+    // Persisted session metadata is the source of truth for rendered feedback.
+    // When websocket feedback arrives, refresh immediately so UI updates even
+    // if background polling is paused (for example outside ACTIVE/PROVISIONING).
+    void refreshSessionMetadata();
+    void refreshTraceTimeline();
+  }, [refreshSessionMetadata, refreshTraceTimeline]);
 
   const progressChips = metadata?.progress_chips ?? [];
   const progressReady = metadataReady;
   const sessionState = metadata?.state ?? "UNKNOWN";
-
-  // Initial metadata fetch when the page/session context is ready.
-  useEffect(() => {
-    setTimelineEvents([]);
-    setTelemetryLogs([]);
-    setInvoices([]);
-    seenTimelineEventIdsRef.current.clear();
-    seenTelemetryLogIdsRef.current.clear();
-    seenInvoiceIdsRef.current.clear();
-    lab2TelemetryCursorRef.current = 0;
-    setMetadataReady(false);
-    void refreshSessionMetadata();
-    void refreshTraceTimeline();
-  }, [refreshSessionMetadata, refreshTraceTimeline]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -385,7 +368,12 @@ export function useSessionData({
   useEffect(() => {
     if (!sessionId) return;
     const state = (metadata?.state ?? "").toUpperCase();
-    if (!["CREATED", "PROVISIONING", "ACTIVE", "IDLE"].includes(state)) return;
+    if (
+      state &&
+      !["CREATED", "PROVISIONING", "ACTIVE", "IDLE"].includes(state)
+    ) {
+      return;
+    }
 
     let cancelled = false;
     let timeoutId: number | null = null;

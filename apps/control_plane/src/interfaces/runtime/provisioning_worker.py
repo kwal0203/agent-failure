@@ -49,15 +49,11 @@ def _validate_required_env() -> None:
     model_mode = settings.model_client_mode
 
     missing: list[str] = []
-    if not settings.runtime_shared_token.strip():
-        missing.append("RUNTIME_SHARED_TOKEN")
     if not settings.model_name.strip():
         missing.append("MODEL_NAME")
     if model_mode == "gateway":
         if not settings.provider_endpoint.strip():
             missing.append("PROVIDER_ENDPOINT")
-        if not settings.openrouter_api_key.strip():
-            missing.append("OPENROUTER_API_KEY")
 
     if missing:
         joined = ", ".join(sorted(missing))

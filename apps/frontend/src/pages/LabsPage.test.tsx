@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { LabCatalog, type LabCatalogItem } from "./LabsPage";
 
-vi.mock("../auth/context", () => ({
+vi.mock("../auth/useAuth", () => ({
   useAuth: () => ({
     logout: vi.fn(),
   }),

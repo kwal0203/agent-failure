@@ -258,10 +258,13 @@ The following are explicitly deferred:
 
 #### E4-T1 Implementation Notes (Local Staging-Equivalent Baseline)
 
-Implemented baseline staging provisioning with local Kubernetes (`k3s`) to satisfy P0-E4-T1 acceptance intent before cloud-managed rollout.
+Historical implementation notes for the original hosted environment follow. The
+retired Taskfile and its deployment commands are no longer part of the
+open-source repository. Current manifests can be rendered locally with
+`kubectl kustomize deploy/k8s/staging` and adapted for a new cluster.
 
 - Staging environment bootstrap path:
-  - `task bootstrap -- --env-file deploy/k8s/staging/.env.local`
+  - retired with the original hosted deployment automation
 - Runtime/control-plane separation:
   - dedicated namespaces: `control-plane` and `runtime-pool`
   - manifests in `deploy/k8s/staging/namespaces.yaml`
@@ -276,7 +279,8 @@ Implemented baseline staging provisioning with local Kubernetes (`k3s`) to satis
     - `kubectl -n runtime-pool logs runtime-smoke`
   - observed proof: pod reached `Completed`; logs contained `runtime-scheduling-ok`
 - Reproducibility:
-  - `task bootstrap` applies namespaces, waits for default service accounts, applies config/secrets, and deploys smoke pod
+  - use the manifests as deployment examples; provide secrets and
+    environment-specific configuration through your own deployment system
 - Current limitations:
   - local `kind` is a staging-equivalent baseline, not managed cloud staging
   - no runtime hardening/egress policy yet (covered by E4-T4/E4-T5)
@@ -284,27 +288,18 @@ Implemented baseline staging provisioning with local Kubernetes (`k3s`) to satis
 
 #### E4-T2 Implementation Notes (Runtime Image Build/Publish Baseline)
 
-Implemented a scriptable runtime image pipeline for the initial supported V1 lab path with digest pinning and staging lock/selection files.
+This section records the retired hosted release process. Its Taskfile commands,
+registry publishing, image-scanning script, and generated release artifacts are
+not part of the open-source repository.
 
-- Runtime image build automation:
-  - `task build:runtime`
-  - builds `archive/runtimes/baseline/Dockerfile`
-  - tags image with both release and source tags:
-    - `v1-baseline-<lab_version>`
-    - `sha-<git_sha>`
-  - writes build metadata artifact:
-    - `.artifacts/runtime-image-build.env`
-- Image scan before promotion:
-  - `scripts/scan_runtime_image.sh`
-  - gate configured for severity threshold (baseline: `CRITICAL`)
-  - writes scan output artifact:
-    - `.artifacts/runtime-image-scan.txt`
-- Publish path and digest capture:
-  - `task push:runtime`
-  - pushes runtime tags to registry
-  - resolves canonical digest reference (`repo@sha256:...`)
-  - writes release artifact:
-    - `.artifacts/runtime-image-release.env`
+The current runtime image can be built locally without publishing it:
+
+```bash
+docker build -f runtimes/agent/Dockerfile -t agent-failure-runtime:local .
+```
+
+Historical implementation details:
+
 - Digest lock for staging consumption:
   - `deploy/k8s/staging/runtime-image.lock`
   - includes digest-pinned image records for `baseline` lab versions
@@ -314,15 +309,10 @@ Implemented a scriptable runtime image pipeline for the initial supported V1 lab
   - default points to active lock entry (`baseline` / `0.1.0`)
   - revoked entry is retained in lock but not selected by default
 
-Suggested command sequence:
-
-- `task build:runtime`
-- `task push:runtime` (includes lock update + validation)
-
 Current limitations:
 
-- baseline pipeline is script-first and local-operator driven (full CI/CD promotion wiring follows later)
-- vulnerability gating is currently minimal baseline and can be tightened
+- the historical digest locks are examples and are not automatically promoted
+- publishing and vulnerability scanning must be configured by downstream operators
 - orchestrator consumption of lock selection is implemented in follow-on ticket E4-T3
 
 #### E4-T3 Implementation Notes (Orchestrator Provisioning Path Baseline)

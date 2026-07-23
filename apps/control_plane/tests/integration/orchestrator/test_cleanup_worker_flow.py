@@ -37,6 +37,10 @@ class _TeardownDeleted:
         _ = request
         return RuntimeTeardownResult(status="deleted")
 
+    def resources_exist(self, session_id: str) -> bool:
+        _ = session_id
+        return False
+
 
 @pytest.mark.usefixtures("engine")
 def test_cleanup_worker_consumes_cleanup_outbox_after_terminal_transition() -> None:

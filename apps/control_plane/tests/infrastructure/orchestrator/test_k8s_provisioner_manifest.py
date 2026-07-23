@@ -67,9 +67,69 @@ def test_build_pod_manifest_applies_security_profile_and_resources() -> None:
         "ephemeral-storage": "1Gi",
     }
     assert {"name": "LAB_DIFFICULTY", "value": "medium"} in container["env"]
+    env_by_name = {item["name"]: item for item in container["env"]}
+    assert env_by_name["RUNTIME_SHARED_TOKEN"] == {
+        "name": "RUNTIME_SHARED_TOKEN",
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": "runtime-secrets",
+                "key": "RUNTIME_SHARED_TOKEN",
+                "optional": False,
+            }
+        },
+    }
+    assert env_by_name["OPENROUTER_API_KEY"] == {
+        "name": "OPENROUTER_API_KEY",
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": "runtime-secrets",
+                "key": "OPENROUTER_API_KEY",
+                "optional": False,
+            }
+        },
+    }
+    assert "value" not in env_by_name["RUNTIME_SHARED_TOKEN"]
+    assert "value" not in env_by_name["OPENROUTER_API_KEY"]
 
     for volume in _as_list(spec.get("volumes", [])):
         assert "hostPath" not in volume
+
+
+def test_pod_and_service_share_labels_and_service_is_owned_by_pod() -> None:
+    provisioner = K8sRuntimeProvisioner(config=K8sProvisionerConfig())
+    request = _request()
+    pod_name = f"session-{str(request.session_id)[:8]}"
+
+    pod = provisioner._build_pod_manifest(
+        pod_name=pod_name,
+        image_ref=request.image_ref,
+        metadata=request.metadata,
+        request=request,
+    )
+    service = provisioner._build_service_manifest(
+        service_name=pod_name,
+        pod_name=pod_name,
+        pod_uid="pod-uid-123",
+        request=request,
+    )
+
+    pod_metadata = _as_dict(pod["metadata"])
+    service_metadata = _as_dict(service["metadata"])
+    service_spec = _as_dict(service["spec"])
+    assert pod_metadata["labels"] == service_metadata["labels"]
+    assert service_spec["selector"] == {
+        "agent-failure/session-id": str(request.session_id)
+    }
+    assert service_metadata["ownerReferences"] == [
+        {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "name": pod_name,
+            "uid": "pod-uid-123",
+            "controller": True,
+            "blockOwnerDeletion": False,
+        }
+    ]
 
 
 def test_build_pod_manifest_adds_tmp_mount_only_when_read_only_rootfs_enabled() -> None:

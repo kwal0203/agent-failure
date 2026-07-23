@@ -1,37 +1,18 @@
 import {
-  createContext,
   type ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthUser,
+} from "./authContext";
 import { tryRedeemPendingEnrollmentToken } from "./enrollment";
 import { POST_LOGIN_REDIRECT_KEY } from "./redirect";
-
-export type AuthUser = {
-  id: string;
-  email: string;
-  label: string;
-};
-
-type AuthContextValue = {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  isBootstrapping: boolean;
-  isAuthTransitioning: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  confirmSignup: (email: string, code: string) => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<void>;
-  confirmPasswordReset: (
-    email: string,
-    code: string,
-    newPassword: string,
-  ) => Promise<void>;
-  logout: () => void;
-};
+import { setCurrentAccessToken } from "./tokenStore";
 
 type CognitoTokens = {
   accessToken: string;
@@ -40,8 +21,6 @@ type CognitoTokens = {
   expiresAtEpochSec: number;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
-
 const AUTH_USER_STORAGE_KEY = "agentfailure.auth.user";
 const AUTH_TOKEN_STORAGE_KEY = "agentfailure.auth.tokens";
 
@@ -49,8 +28,6 @@ const cognitoClientId = (import.meta.env.VITE_COGNITO_CLIENT_ID ?? "").trim();
 const cognitoUserPoolId = (
   import.meta.env.VITE_COGNITO_USER_POOL_ID ?? ""
 ).trim();
-
-let currentAccessToken = "";
 
 function ensureCognitoConfigured(): void {
   if (!cognitoClientId || !cognitoUserPoolId) {
@@ -240,17 +217,6 @@ async function cognitoConfirmPasswordReset(
   );
 }
 
-export function getCurrentAccessToken(): string {
-  return currentAccessToken;
-}
-
-export function getCurrentAuthHeader(): string {
-  if (!currentAccessToken) {
-    throw new Error("No active access token. User must be authenticated.");
-  }
-  return `Bearer ${currentAccessToken}`;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tokens, setTokens] = useState<CognitoTokens | null>(null);
@@ -272,10 +238,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ) {
           setTokens(storedTokens);
           setUser(storedUser);
-          currentAccessToken = storedTokens.accessToken;
+          setCurrentAccessToken(storedTokens.accessToken);
           await tryRedeemPendingEnrollmentToken();
         } else {
-          currentAccessToken = "";
+          setCurrentAccessToken("");
           window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
           window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
         }
@@ -295,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTokens(authTokens);
     setUser(nextUser);
-    currentAccessToken = authTokens.accessToken;
+    setCurrentAccessToken(authTokens.accessToken);
 
     window.sessionStorage.setItem(
       AUTH_TOKEN_STORAGE_KEY,
@@ -327,7 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null);
     setTokens(null);
-    currentAccessToken = "";
+    setCurrentAccessToken("");
     window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
     window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
@@ -380,12 +346,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
 }
