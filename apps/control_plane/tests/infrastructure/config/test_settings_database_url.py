@@ -1,3 +1,4 @@
+from pydantic import ValidationError
 import pytest
 
 from apps.control_plane.src.infrastructure.config.settings import get_database_url
@@ -5,7 +6,7 @@ from apps.control_plane.src.infrastructure.config.settings import get_database_u
 
 def test_get_database_url_requires_value(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    with pytest.raises(ValueError, match="DATABASE_URL environment variable not set"):
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
         get_database_url()
 
 

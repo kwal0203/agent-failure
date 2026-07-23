@@ -1,6 +1,7 @@
 from collections.abc import Callable, Generator
 import asyncio
 
+from pydantic import ValidationError
 import pytest
 
 from apps.control_plane.src.infrastructure.auth.cognito_jwt_verifier import (
@@ -78,7 +79,7 @@ def test_get_app_env_rejects_unknown_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("APP_ENV", "preview")
-    with pytest.raises(RuntimeError, match="Invalid APP_ENV"):
+    with pytest.raises(ValidationError, match="APP_ENV"):
         get_app_env()
 
 
@@ -90,7 +91,7 @@ def test_auth_is_required_outside_local_development(
     monkeypatch.setenv("APP_ENV", app_env)
     _clear_auth_settings(monkeypatch)
 
-    with pytest.raises(RuntimeError, match="Cognito authentication settings"):
+    with pytest.raises(ValidationError, match="Cognito authentication settings"):
         get_auth_verifier_config()
 
 
@@ -102,7 +103,7 @@ def test_partial_auth_configuration_is_always_rejected(
     monkeypatch.setenv("AUTH_ISSUER", "https://issuer.example.test/pool")
 
     with pytest.raises(
-        RuntimeError,
+        ValidationError,
         match="AUTH_AUDIENCE, AUTH_JWKS_URI",
     ):
         get_auth_verifier_config()
@@ -130,7 +131,7 @@ def test_enrollment_secret_is_required_outside_dev(
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.delenv("ENROLLMENT_TOKEN_SECRET", raising=False)
 
-    with pytest.raises(RuntimeError, match="ENROLLMENT_TOKEN_SECRET"):
+    with pytest.raises(ValidationError, match="ENROLLMENT_TOKEN_SECRET"):
         get_enrollment_settings()
 
 
@@ -147,10 +148,12 @@ def test_enrollment_secret_must_be_at_least_32_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("ENROLLMENT_TOKEN_SECRET", "too-short")
+    configured_secret = "visibly-too-short-secret"
+    monkeypatch.setenv("ENROLLMENT_TOKEN_SECRET", configured_secret)
 
-    with pytest.raises(RuntimeError, match="at least 32 bytes"):
+    with pytest.raises(ValidationError, match="at least 32 bytes") as exc_info:
         get_enrollment_settings()
+    assert configured_secret not in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -194,7 +197,7 @@ def test_invalid_numeric_settings_are_rejected(
     monkeypatch.delenv("ENROLLMENT_TOKEN_SECRET", raising=False)
     monkeypatch.setenv(name, value)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValidationError):
         getter()
 
 
@@ -203,7 +206,7 @@ def test_invalid_boolean_setting_is_rejected(
 ) -> None:
     monkeypatch.setenv("INSTRUCTOR_PROVISIONING_ENABLED", "sometimes")
 
-    with pytest.raises(RuntimeError, match="Invalid boolean"):
+    with pytest.raises(ValidationError, match="INSTRUCTOR_PROVISIONING_ENABLED"):
         get_instructor_provisioning_settings()
 
 
@@ -212,7 +215,7 @@ def test_invalid_model_client_mode_is_rejected(
 ) -> None:
     monkeypatch.setenv("MODEL_CLIENT_MODE", "gateawy")
 
-    with pytest.raises(RuntimeError, match="Invalid MODEL_CLIENT_MODE"):
+    with pytest.raises(ValidationError, match="MODEL_CLIENT_MODE"):
         get_runtime_pod_env_settings()
 
 
@@ -223,7 +226,7 @@ def test_enabled_instructor_provisioning_requires_cognito_settings(
     monkeypatch.delenv("COGNITO_USER_POOL_ID", raising=False)
     monkeypatch.delenv("COGNITO_REGION", raising=False)
 
-    with pytest.raises(RuntimeError, match="COGNITO_USER_POOL_ID, COGNITO_REGION"):
+    with pytest.raises(ValidationError, match="COGNITO_USER_POOL_ID, COGNITO_REGION"):
         get_instructor_provisioning_settings()
 
 
@@ -238,5 +241,5 @@ def test_http_lifespan_rejects_insecure_production_configuration(
         async with main_module.app.router.lifespan_context(main_module.app):
             pytest.fail("Application started with insecure production configuration")
 
-    with pytest.raises(RuntimeError, match="Cognito authentication settings"):
+    with pytest.raises(ValidationError, match="Cognito authentication settings"):
         asyncio.run(_start_app())
