@@ -291,3 +291,26 @@ def test_process_cleanup_pending_once_deleted_but_resources_still_exist_retries(
     assert len(outbox.processed_calls) == 0
     assert len(outbox.retryable_calls) == 1
     assert outbox.retryable_calls[0].error_message == "CLEANUP_RESOURCES_STILL_EXIST"
+
+
+def test_process_cleanup_pending_once_teardown_resources_still_exist_retries() -> None:
+    ev = _make_cleanup_event(payload={"runtime_id": "pod-1"}, attempt_count=0)
+    outbox = _FakeCleanupOutbox(events=[ev])
+    uow = _FakeCleanupUoW(outbox=outbox)
+    teardown = _FakeTeardown(
+        result=RuntimeTeardownResult(
+            status="failed",
+            reason_code="K8S_RESOURCES_STILL_EXIST",
+        )
+    )
+
+    result = process_cleanup_pending_once(uow=uow, teardown=teardown)
+
+    assert result.claimed_count == 1
+    assert result.succeeded_count == 0
+    assert result.failed_count == 0
+    assert result.retried_count == 1
+    assert len(outbox.processed_calls) == 0
+    assert len(outbox.retryable_calls) == 1
+    assert outbox.retryable_calls[0].error_message == "K8S_RESOURCES_STILL_EXIST"
+    assert len(outbox.terminal_calls) == 0

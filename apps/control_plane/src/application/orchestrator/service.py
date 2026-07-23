@@ -746,6 +746,7 @@ def process_cleanup_pending_once(
                         reason = teardown_result.reason_code or "TEARDOWN_FAILED"
                         retryable_reasons = {
                             "K8S_API_UNAVAILABLE",
+                            "K8S_RESOURCES_STILL_EXIST",
                             "K8S_TIMEOUT",
                             "ORCHESTRATOR_UNAVAILABLE",
                         }
