@@ -9,10 +9,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - api.agentfailure.com
+        - api.example.com
       secretName: api-production-tls
   rules:
-    - host: api.agentfailure.com
+    - host: api.example.com
       http:
         paths:
           - path: /

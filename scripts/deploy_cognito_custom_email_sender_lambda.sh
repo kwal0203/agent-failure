@@ -9,11 +9,11 @@ set -euo pipefail
 #   LAMBDA_FUNCTION_NAME
 #   LAMBDA_ROLE_ARN
 #   RESEND_API_KEY
-#   MAIL_FROM                      (e.g. "Agent Failure <no-reply@auth.agentfailure.com>")
+#   MAIL_FROM                      (e.g. "Agent Failure <no-reply@example.com>")
 #   KMS_KEY_ARN                    (used to decrypt Cognito custom sender code)
 #
 # Optional env vars:
-#   REPLY_TO                       (default: support@agentfailure.com)
+#   REPLY_TO                       (default: support@example.com)
 #   LAMBDA_TIMEOUT                 (default: 15)
 #   LAMBDA_MEMORY_MB               (default: 256)
 #   PYTHON_BIN                     (default: python3)
@@ -23,8 +23,8 @@ set -euo pipefail
 #   LAMBDA_FUNCTION_NAME=agentfailure-cognito-custom-email-sender \
 #   LAMBDA_ROLE_ARN=arn:aws:iam::123456789012:role/lambda-exec-role \
 #   RESEND_API_KEY=... \
-#   MAIL_FROM='Agent Failure <no-reply@auth.agentfailure.com>' \
-#   REPLY_TO='support@agentfailure.com' \
+#   MAIL_FROM='Agent Failure <no-reply@example.com>' \
+#   REPLY_TO='support@example.com' \
 #   ./scripts/deploy_cognito_custom_email_sender_lambda.sh
 
 require_var() {
@@ -42,7 +42,7 @@ require_var RESEND_API_KEY
 require_var MAIL_FROM
 require_var KMS_KEY_ARN
 
-REPLY_TO="${REPLY_TO:-support@agentfailure.com}"
+REPLY_TO="${REPLY_TO:-support@example.com}"
 LAMBDA_TIMEOUT="${LAMBDA_TIMEOUT:-15}"
 LAMBDA_MEMORY_MB="${LAMBDA_MEMORY_MB:-256}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"

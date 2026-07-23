@@ -36,7 +36,7 @@ class _FakeVerifier:
 def test_get_current_principal_returns_principal_from_verifier_claims() -> None:
     claims = AuthClaims(
         sub=str(uuid4()),
-        email="kane@gatech.edu",
+        email="learner@example.com",
         roles=("admin",),
         scopes=("sessions:read",),
         issued_at=datetime.now(timezone.utc),

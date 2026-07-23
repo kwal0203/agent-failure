@@ -9,5 +9,6 @@ patches:
   - path: control-plane-config-patch.yaml
 
 images:
-  - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:c73ae49d0139ad74b1dc0bee38cb0680c7af4cc22e4312f99c81647a3429e56a
+  # Example only: replace the repository and digest before deployment.
+  - name: ghcr.io/example/agent-failure-control-plane
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

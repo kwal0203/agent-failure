@@ -23,7 +23,7 @@ spec:
       serviceAccountName: control-plane-worker
       containers:
         - name: provisioning-worker
-          image: ghcr.io/kwal0203/agent-failure-control-plane
+          image: ghcr.io/example/agent-failure-control-plane
           imagePullPolicy: IfNotPresent
           command:
             - uv
