@@ -40,16 +40,6 @@ spec:
                 secretKeyRef:
                   name: runtime-secrets
                   key: DATABASE_URL
-            - name: RUNTIME_SHARED_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: runtime-secrets
-                  key: RUNTIME_SHARED_TOKEN
-            - name: OPENROUTER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: runtime-secrets
-                  key: OPENROUTER_API_KEY
           resources:
             requests:
               cpu: "50m"

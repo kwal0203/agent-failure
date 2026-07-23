@@ -16,8 +16,8 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../auth/context";
 import { POST_LOGIN_REDIRECT_KEY } from "../../auth/redirect";
+import { useAuth } from "../../auth/useAuth";
 
 function FeatureChip({ children }: { children: ReactNode }) {
   return (
@@ -366,7 +366,7 @@ export default function LoginPage() {
         </main>
 
         <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 px-6 pb-8 text-sm text-slate-500">
-          <span>© 2026 Agent Failure. All rights reserved.</span>
+          <span>Agent Failure is open-source software.</span>
           <span className="hidden h-4 w-px bg-lime-500/20 sm:block" />
           <Link to="/privacy" className="transition hover:text-lime-300">
             Privacy Policy

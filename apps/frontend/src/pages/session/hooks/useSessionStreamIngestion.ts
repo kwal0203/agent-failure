@@ -28,19 +28,32 @@ type UseSessionStreamIngestionParams = {
 export function useSessionStreamIngestion(
   params: UseSessionStreamIngestionParams,
 ) {
+  const {
+    messages,
+    ensureRevealLoop,
+    registerLearnerFeedbackEvents,
+    activeEntryTsRef,
+    pendingBufferRef,
+    finalizePendingRef,
+    setIsAwaitingResponse,
+    setTranscriptEntries,
+    setMetadata,
+    setAgentStatus,
+    refreshSessionMetadata,
+  } = params;
   const processedMessageCount = useRef(0);
 
   useEffect(() => {
-    if (processedMessageCount.current > params.messages.length) {
+    if (processedMessageCount.current > messages.length) {
       processedMessageCount.current = 0;
     }
 
-    const newMessages = params.messages.slice(processedMessageCount.current);
+    const newMessages = messages.slice(processedMessageCount.current);
     if (newMessages.length === 0) return;
 
     for (const message of newMessages) {
       if (message.type === "SESSION_STATUS") {
-        params.setMetadata((prev) =>
+        setMetadata((prev) =>
           prev
             ? {
                 ...prev,
@@ -51,28 +64,28 @@ export function useSessionStreamIngestion(
             : prev,
         );
         if (message.payload.state !== "ACTIVE") {
-          params.setAgentStatus("idle");
+          setAgentStatus("idle");
         }
         continue;
       }
 
       if (message.type === "AGENT_TEXT_CHUNK") {
-        params.setAgentStatus("active");
-        if (!params.activeEntryTsRef.current) {
-          params.activeEntryTsRef.current = message.timestamp;
+        setAgentStatus("active");
+        if (!activeEntryTsRef.current) {
+          activeEntryTsRef.current = message.timestamp;
         }
-        params.pendingBufferRef.current += message.payload.content;
+        pendingBufferRef.current += message.payload.content;
         if (message.payload.final) {
-          params.setAgentStatus("idle");
-          params.finalizePendingRef.current = true;
-          void params.refreshSessionMetadata();
+          setAgentStatus("idle");
+          finalizePendingRef.current = true;
+          void refreshSessionMetadata();
         }
-        params.ensureRevealLoop();
+        ensureRevealLoop();
         continue;
       }
 
       if (message.type === "POLICY_DENIAL") {
-        params.setTranscriptEntries((entries) => [
+        setTranscriptEntries((entries) => [
           ...entries,
           {
             role: "policy",
@@ -80,8 +93,8 @@ export function useSessionStreamIngestion(
             timestamp: message.timestamp,
           },
         ]);
-        params.setIsAwaitingResponse(false);
-        params.setAgentStatus("idle");
+        setIsAwaitingResponse(false);
+        setAgentStatus("idle");
         continue;
       }
 
@@ -90,13 +103,13 @@ export function useSessionStreamIngestion(
           message.payload.event_code === "TURN_STARTED" ||
           message.payload.event_code === "MODEL_REQUEST_STARTED"
         ) {
-          params.setAgentStatus("active");
+          setAgentStatus("active");
           continue;
         }
         if (message.payload.event_code === "MODEL_TURN_COMPLETED") {
-          void params.refreshSessionMetadata();
+          void refreshSessionMetadata();
         }
-        params.setTranscriptEntries((entries) => [
+        setTranscriptEntries((entries) => [
           ...entries,
           {
             role: "system",
@@ -108,7 +121,7 @@ export function useSessionStreamIngestion(
       }
 
       if (message.type === "SYSTEM_ERROR") {
-        params.setTranscriptEntries((entries) => [
+        setTranscriptEntries((entries) => [
           ...entries,
           {
             role: "system",
@@ -116,31 +129,31 @@ export function useSessionStreamIngestion(
             timestamp: message.timestamp,
           },
         ]);
-        params.setIsAwaitingResponse(false);
-        params.setAgentStatus("idle");
+        setIsAwaitingResponse(false);
+        setAgentStatus("idle");
         continue;
       }
 
       if (message.type === "LEARNER_FEEDBACK") {
-        params.registerLearnerFeedbackEvents(
+        registerLearnerFeedbackEvents(
           message.payload.feedback,
           message.timestamp,
         );
       }
     }
 
-    processedMessageCount.current = params.messages.length;
+    processedMessageCount.current = messages.length;
   }, [
-    params.messages,
-    params.ensureRevealLoop,
-    params.registerLearnerFeedbackEvents,
-    params.activeEntryTsRef,
-    params.finalizePendingRef,
-    params.pendingBufferRef,
-    params.setIsAwaitingResponse,
-    params.setTranscriptEntries,
-    params.setMetadata,
-    params.setAgentStatus,
-    params.refreshSessionMetadata,
+    messages,
+    ensureRevealLoop,
+    registerLearnerFeedbackEvents,
+    activeEntryTsRef,
+    finalizePendingRef,
+    pendingBufferRef,
+    setIsAwaitingResponse,
+    setTranscriptEntries,
+    setMetadata,
+    setAgentStatus,
+    refreshSessionMetadata,
   ]);
 }

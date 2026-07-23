@@ -16,13 +16,12 @@ import { useTranscriptStreamView } from "./session/hooks/useTranscriptStreamView
 import type { AgentStatus } from "./session/types";
 import { API_BASE, getAuthHeader } from "./session/ui";
 
-export default function SessionPage() {
+function SessionPageContent({ sessionId }: { sessionId?: string }) {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [stoppingSession, setStoppingSession] = useState(false);
   const successAutoStopRequestedRef = useRef(false);
-  const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
 
@@ -382,5 +381,15 @@ export default function SessionPage() {
         />
       ) : null}
     </main>
+  );
+}
+
+export default function SessionPage() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  return (
+    <SessionPageContent
+      key={sessionId ?? "missing-session"}
+      sessionId={sessionId}
+    />
   );
 }

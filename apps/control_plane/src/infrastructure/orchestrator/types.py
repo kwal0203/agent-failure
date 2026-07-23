@@ -1,10 +1,16 @@
 from dataclasses import dataclass
 
 
+SESSION_LABEL = "agent-failure/session-id"
+
+
 @dataclass(frozen=True)
 class K8sProvisionerConfig:
     namespace: str = "runtime-pool"
     kubectl_bin: str = "kubectl"
+    runtime_secret_name: str = "runtime-secrets"
+    runtime_shared_token_secret_key: str = "RUNTIME_SHARED_TOKEN"
+    openrouter_api_key_secret_key: str = "OPENROUTER_API_KEY"
 
     run_as_non_root: bool = True
     allow_privilege_escalation: bool = False

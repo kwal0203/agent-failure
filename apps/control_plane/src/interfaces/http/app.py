@@ -12,6 +12,9 @@ from starlette.responses import Response
 from fastapi.responses import JSONResponse
 
 from apps.control_plane.src.interfaces.http.auth import UnauthenticatedError
+from apps.control_plane.src.infrastructure.config.settings import (
+    validate_control_plane_settings,
+)
 from apps.control_plane.src.interfaces.http.dependencies import (
     get_auth_verifier_config,
     get_token_verifier,
@@ -61,6 +64,7 @@ from apps.control_plane.src.application.common.observability import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    validate_control_plane_settings()
     app.state.auth_verifier_config = get_auth_verifier_config()
     app.state.token_verifier = get_token_verifier()
 

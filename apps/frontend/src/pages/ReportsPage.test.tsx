@@ -7,7 +7,7 @@ import ReportsPage from "./ReportsPage";
 const loadLabCatalogMock = vi.fn();
 const getLatestSessionIdForLabMock = vi.fn();
 
-vi.mock("../auth/context", () => ({
+vi.mock("../auth/useAuth", () => ({
   useAuth: () => ({
     logout: vi.fn(),
   }),

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/context";
+import { useAuth } from "../auth/useAuth";
 import type { ShellBootstrap } from "../shell/context";
 
 const bootstrap: ShellBootstrap = {

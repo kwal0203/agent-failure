@@ -39,7 +39,7 @@ __pypackages__/
 .env
 .envrc
 .venv
-env/
+/env/
 venv/
 ENV/
 env.bak/

@@ -1,11 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "./context";
 import {
   getEnrollmentRedeemError,
   isEnrollmentApiEnabled,
   PENDING_ENROLLMENT_TOKEN_KEY,
 } from "./enrollment";
 import { POST_LOGIN_REDIRECT_KEY, resolveSafeNext } from "./redirect";
+import { useAuth } from "./useAuth";
 
 function AuthTransitionScreen() {
   return (

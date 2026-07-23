@@ -3,7 +3,7 @@ import type {
   GetSessionsResponse,
   LabCatalogItemResponse,
 } from "../../../contracts/ts/index";
-import { getCurrentAuthHeader } from "../auth/context";
+import { getCurrentAuthHeader } from "../auth/tokenStore";
 
 export type LabDifficulty = "easy" | "medium";
 export type LabCatalogItem = LabCatalogItemResponse;

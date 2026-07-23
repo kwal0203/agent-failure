@@ -9,7 +9,7 @@ describe("loadLabCatalog API mode", () => {
 
   it("returns labs from /api/v1/labs when VITE_LAB_CATALOG_SOURCE=api", async () => {
     vi.stubEnv("VITE_LAB_CATALOG_SOURCE", "api");
-    vi.doMock("../auth/context", () => ({
+    vi.doMock("../auth/tokenStore", () => ({
       getCurrentAuthHeader: () => "Bearer test-token",
     }));
     const fetchMock = vi.fn(async () => ({
@@ -50,7 +50,7 @@ describe("loadLabCatalog API mode", () => {
 
   it("returns explicit empty list when API responds with empty labs[]", async () => {
     vi.stubEnv("VITE_LAB_CATALOG_SOURCE", "api");
-    vi.doMock("../auth/context", () => ({
+    vi.doMock("../auth/tokenStore", () => ({
       getCurrentAuthHeader: () => "Bearer test-token",
     }));
     const fetchMock = vi.fn(async () => ({

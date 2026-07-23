@@ -1,18 +1,21 @@
+import json
+import logging
+import subprocess
+from typing import Any, Mapping, cast
+
 from apps.control_plane.src.application.orchestrator.ports import RuntimeProvisionerPort
 from apps.control_plane.src.application.orchestrator.types import (
     ProvisionResult,
     RuntimeProvisionRequest,
 )
-from typing import Mapping, cast, Any
-
-from .types import K8sProvisionerConfig
-
-import subprocess
-import json
 from apps.control_plane.src.infrastructure.config.settings import (
     RuntimePodEnvSettings,
     get_runtime_pod_env_settings,
 )
+
+from .types import K8sProvisionerConfig, SESSION_LABEL
+
+logger = logging.getLogger(__name__)
 
 
 class K8sRuntimeProvisioner(RuntimeProvisionerPort):
@@ -36,12 +39,15 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             request=request,
         )
 
-        service_manifest = self._build_service_manifest(
-            service_name=pod_name, request=request
-        )
-
         try:
             self._kubectl_apply(manifest)
+            pod_uid = self._kubectl_get_pod_uid(pod_name)
+            service_manifest = self._build_service_manifest(
+                service_name=pod_name,
+                pod_name=pod_name,
+                pod_uid=pod_uid,
+                request=request,
+            )
             self._kubectl_apply(service_manifest)
             return ProvisionResult(
                 status="accepted",
@@ -53,6 +59,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             )
 
         except subprocess.CalledProcessError as exc:
+            self._best_effort_cleanup(session_id=str(request.session_id))
             stderr = (exc.stderr or "").strip()
             excerpt = " | ".join(stderr.splitlines()[:3])[:512]
             return ProvisionResult(
@@ -70,6 +77,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             )
 
         except Exception as exc:
+            self._best_effort_cleanup(session_id=str(request.session_id))
             error_text = str(exc).strip() or exc.__class__.__name__
             return ProvisionResult(
                 status="failed",
@@ -92,6 +100,63 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             capture_output=True,
         )
 
+    def _kubectl_get_pod_uid(self, pod_name: str) -> str:
+        result = subprocess.run(
+            [
+                self._config.kubectl_bin,
+                "-n",
+                self._config.namespace,
+                "get",
+                "pod",
+                pod_name,
+                "-o",
+                "jsonpath={.metadata.uid}",
+            ],
+            text=True,
+            check=True,
+            capture_output=True,
+        )
+        pod_uid = result.stdout.strip()
+        if not pod_uid:
+            raise RuntimeError(f"Kubernetes Pod {pod_name!r} has no UID")
+        return pod_uid
+
+    def _best_effort_cleanup(self, session_id: str) -> None:
+        try:
+            subprocess.run(
+                [
+                    self._config.kubectl_bin,
+                    "-n",
+                    self._config.namespace,
+                    "delete",
+                    "pod,service",
+                    "-l",
+                    f"{SESSION_LABEL}={session_id}",
+                    "--ignore-not-found=true",
+                    "--wait=true",
+                    "--timeout=30s",
+                ],
+                text=True,
+                check=True,
+                capture_output=True,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to clean up Kubernetes resources after provisioning error",
+                extra={"session_id": session_id},
+            )
+
+    @staticmethod
+    def _resource_labels(request: RuntimeProvisionRequest) -> dict[str, str]:
+        return {
+            "app.kubernetes.io/name": "lab-runtime",
+            "app.kubernetes.io/managed-by": "agent-failure-control-plane",
+            "app.kubernetes.io/instance": f"session-{str(request.session_id)[:8]}",
+            SESSION_LABEL: str(request.session_id),
+            "agent-failure/lab-id": str(request.lab_id),
+            "agent-failure/lab-version-id": str(request.lab_version_id),
+        }
+
     def _build_pod_manifest(
         self,
         *,
@@ -100,12 +165,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
         metadata: Mapping[str, object],
         request: RuntimeProvisionRequest,
     ) -> dict[str, object]:
-        labels = {
-            "app.kubernetes.io/name": "lab-runtime",
-            "agent-failure/session-id": str(request.session_id),
-            "agent-failure/lab-id": str(request.lab_id),
-            "agent-failure/lab-version-id": str(request.lab_version_id),
-        }
+        labels = self._resource_labels(request)
 
         _ = metadata
 
@@ -118,7 +178,13 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
         runtime_env: list[dict[str, object]] = [
             {
                 "name": "RUNTIME_SHARED_TOKEN",
-                "value": self._runtime_env.runtime_shared_token,
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": self._config.runtime_secret_name,
+                        "key": self._config.runtime_shared_token_secret_key,
+                        "optional": False,
+                    }
+                },
             },
             {
                 "name": "MODEL_CLIENT_MODE",
@@ -132,18 +198,21 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
                 "name": "MODEL_NAME",
                 "value": self._runtime_env.model_name,
             },
-            {
-                "name": "OPENROUTER_API_KEY",
-                "value": self._runtime_env.openrouter_api_key,
-            },
             {"name": "LAB_DIFFICULTY", "value": request.lab_difficulty},
         ]
-        # TODO(runtime-provisioning): Validate required env values before apply
-        # (e.g. RUNTIME_SHARED_TOKEN, and OPENROUTER_API_KEY when gateway mode
-        # is enabled) to avoid provisioning pods that are guaranteed to fail.
-        # TODO(runtime-provisioning): For non-local/staging-hardening, replace
-        # sensitive raw env injection with valueFrom.secretKeyRef.
-
+        if self._runtime_env.model_client_mode == "gateway":
+            runtime_env.append(
+                {
+                    "name": "OPENROUTER_API_KEY",
+                    "valueFrom": {
+                        "secretKeyRef": {
+                            "name": self._config.runtime_secret_name,
+                            "key": self._config.openrouter_api_key_secret_key,
+                            "optional": False,
+                        }
+                    },
+                }
+            )
         if self._config.drop_all_capabilities:
             container_security_context["capabilities"] = {"drop": ["ALL"]}
 
@@ -201,21 +270,34 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
         }
 
     def _build_service_manifest(
-        self, *, service_name: str, request: RuntimeProvisionRequest
+        self,
+        *,
+        service_name: str,
+        pod_name: str,
+        pod_uid: str,
+        request: RuntimeProvisionRequest,
     ) -> dict[str, object]:
+        labels = self._resource_labels(request)
         return {
             "apiVersion": "v1",
             "kind": "Service",
             "metadata": {
                 "name": service_name,
                 "namespace": self._config.namespace,
-                "labels": {
-                    "app.kubernetes.io/name": "lab-runtime",
-                    "agent-failure/session-id": str(request.session_id),
-                },
+                "labels": labels,
+                "ownerReferences": [
+                    {
+                        "apiVersion": "v1",
+                        "kind": "Pod",
+                        "name": pod_name,
+                        "uid": pod_uid,
+                        "controller": True,
+                        "blockOwnerDeletion": False,
+                    }
+                ],
             },
             "spec": {
-                "selector": {"agent-failure/session-id": str(request.session_id)},
+                "selector": {SESSION_LABEL: str(request.session_id)},
                 "ports": [{"name": "http", "port": 8000, "targetPort": 8000}],
                 "type": "ClusterIP",
             },

@@ -4,13 +4,18 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths-ignore:
-      - "deploy/k8s/**"
-      - "deploy/releases/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -28,6 +33,7 @@ jobs:
           --health-retries 20
 
     env:
+      APP_ENV: dev
       TEST_DATABASE_URL: postgresql+psycopg://postgres:localdev@localhost/agent_failure_test
       DATABASE_URL: postgresql+psycopg://postgres:localdev@localhost/agent_failure_test
 
@@ -57,6 +63,17 @@ jobs:
         run: npm ci
         working-directory: apps/frontend
 
+      - name: Audit Python production dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project \
+            --output-file /tmp/agent-failure-requirements.txt
+          uv run pip-audit --progress-spinner off --require-hashes \
+            --requirement /tmp/agent-failure-requirements.txt
+
+      - name: Audit frontend dependencies
+        run: npm audit
+        working-directory: apps/frontend
+
       - name: Run migrations
         run: uv run alembic upgrade head
 
@@ -64,9 +81,20 @@ jobs:
         run: npm run biome:check
         working-directory: apps/frontend
 
-      - name: Run webcheck
+      - name: Run frontend typecheck
         run: npm run typecheck
         working-directory: apps/frontend
+
+      - name: Run frontend lint
+        run: npm run lint
+        working-directory: apps/frontend
+
+      - name: Run frontend tests
+        run: npm test
+        working-directory: apps/frontend
+
+      - name: Run Ruff
+        run: uv run ruff check .
 
       - name: Run mypy
         run: uv run mypy .
@@ -74,5 +102,12 @@ jobs:
       - name: Run Pyright
         run: uv run pyright
 
-      - name: Unit tests
-        run: uv run python -m pytest -q -m "not integration"
+      - name: Backend tests
+        run: uv run python -m pytest -q
+
+      - name: Render Kubernetes manifests
+        run: |
+          kubectl kustomize deploy/k8s/base >/dev/null
+          kubectl kustomize deploy/k8s/dev >/dev/null
+          kubectl kustomize deploy/k8s/staging >/dev/null
+          kubectl kustomize deploy/k8s/production >/dev/null

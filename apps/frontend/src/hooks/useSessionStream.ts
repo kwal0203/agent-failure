@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServerMessage } from "../../../contracts/ts/index";
-import { getCurrentAccessToken } from "../auth/context";
+import { getCurrentAccessToken } from "../auth/tokenStore";
 
 export type { ServerMessage } from "../../../contracts/ts/index";
 

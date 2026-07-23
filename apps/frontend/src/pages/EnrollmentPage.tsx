@@ -1,7 +1,6 @@
 import { ArrowRight, KeyRound, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/context";
 import {
   clearEnrollmentRedeemError,
   clearPendingEnrollmentToken,
@@ -10,6 +9,7 @@ import {
   redeemEnrollmentToken,
   validateClassCode,
 } from "../auth/enrollment";
+import { useAuth } from "../auth/useAuth";
 
 export default function EnrollmentPage() {
   const { user } = useAuth();

@@ -1,12 +1,12 @@
 import { ArrowRight, Eye, EyeOff, Shield, User } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../auth/context";
 import {
   isEnrollmentApiEnabled,
   PENDING_ENROLLMENT_TOKEN_KEY,
   validateClassCode,
 } from "../../auth/enrollment";
+import { useAuth } from "../../auth/useAuth";
 
 type SignupInputProps = {
   id: string;

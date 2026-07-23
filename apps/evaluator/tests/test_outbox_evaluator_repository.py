@@ -19,6 +19,8 @@ from apps.evaluator.src.infrastructure.outbox_evaluator_repository import (
     SQLAlchemyOutboxEvaluatorRepository,
 )
 
+pytestmark = pytest.mark.integration
+
 
 def _get_test_database_url() -> str:
     db_url = os.getenv("TEST_DATABASE_URL")

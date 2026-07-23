@@ -1,11 +1,20 @@
 import asyncio
 import pytest
 import apps.control_plane.src.interfaces.http.main as main_module
+from apps.control_plane.src.interfaces.http import dependencies
 
 
 def test_main_lifespan_starts_and_cancels_learner_feedback_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.delenv("AUTH_ISSUER", raising=False)
+    monkeypatch.delenv("AUTH_AUDIENCE", raising=False)
+    monkeypatch.delenv("AUTH_JWKS_URI", raising=False)
+    monkeypatch.delenv("ENROLLMENT_TOKEN_SECRET", raising=False)
+    dependencies.get_auth_verifier_config.cache_clear()
+    dependencies.get_token_verifier.cache_clear()
+
     started = False
     cancelled = False
 
