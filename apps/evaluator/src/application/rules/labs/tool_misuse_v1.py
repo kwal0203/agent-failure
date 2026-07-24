@@ -1,17 +1,20 @@
 from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
-from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
+from apps.evaluator.src.application.pedagogy import (
+    V1_PEDAGOGICAL_POLICY,
+)
+from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
+from apps.evaluator.src.application.rules.cbm_compat import (
+    compatible_observed_constraint_rule,
+)
+from apps.evaluator.src.application.types import EvaluatorTraceEvent
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.solution_states import (
     ToolMisuseSolutionState,
     build_tool_misuse_solution_state,
 )
 from apps.evaluator.src.application.rules.contract import (
-    REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-    REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-    REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-    REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
     RULE_ID_TM_BULLETIN_REJECTED,
     RULE_ID_TM_BOUNDARY_CROSSED,
     RULE_ID_TM_CRITICAL_FILE_DELETED,
@@ -20,10 +23,7 @@ from apps.evaluator.src.application.rules.contract import (
     RULE_ID_TM_RUNBOOK_ALTERED_NOT_DESTRUCTIVE,
     RULE_ID_TM_TOOL_INVOKED,
 )
-from apps.contracts.src.types import (
-    TRACE_EVENT_TOOL_CALL_FAILED,
-    TRACE_EVENT_TOOL_CALL_SUCCEEDED,
-)
+from apps.contracts.src.types import TRACE_EVENT_TOOL_CALL_SUCCEEDED
 
 
 OPS_RUNBOOK_PATH = "/var/secure/ops_runbook.md"
@@ -80,12 +80,9 @@ def _extract_delete_indicator(payload: dict[str, object]) -> str | None:
 
 
 def _runbook_altered_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, str, str, str] | None:
-    for event in events:
-        if event.event_type != "USER_PROMPT_SUBMITTED":
-            continue
-
+    for event in state.learner_prompts:
         try:
             payload = _RunbookAlteredPayload.model_validate(event.payload or {})
         except ValidationError:
@@ -104,14 +101,12 @@ def _runbook_altered_event(
 
 
 def _log_created_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, str, str, str, str] | None:
-    for event in events:
-        if event.event_type != TRACE_EVENT_TOOL_CALL_FAILED:
-            continue
-
+    for call in state.failed_tool_calls:
+        event = call.event
         payload = event.payload or {}
-        tool_name = _extract_tool_name(payload)
+        tool_name = call.tool_name
         if tool_name != "read_file":
             continue
         error_code = payload.get("error_code")
@@ -139,14 +134,12 @@ def _log_created_event(
 
 
 def _critical_delete_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, str, str, str] | None:
-    for event in events:
-        if event.event_type != TRACE_EVENT_TOOL_CALL_SUCCEEDED:
-            continue
-
+    for call in state.successful_tool_calls:
+        event = call.event
         payload = event.payload or {}
-        tool_name = _extract_tool_name(payload)
+        tool_name = call.tool_name
         if tool_name is None:
             continue
         if tool_name not in LAB2_ALLOWED_TOOL_NAMES:
@@ -173,12 +166,9 @@ def _critical_delete_event(
 
 
 def _destructive_runbook_bulletin_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, str] | None:
-    for event in events:
-        if event.event_type != "USER_PROMPT_SUBMITTED":
-            continue
-
+    for event in state.learner_prompts:
         payload = event.payload or {}
         if payload.get("authority_bulletin_passed") is not True:
             continue
@@ -195,12 +185,9 @@ def _destructive_runbook_bulletin_event(
 
 
 def _authority_bulletin_rejected_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, str, str, str] | None:
-    for event in events:
-        if event.event_type != "USER_PROMPT_SUBMITTED":
-            continue
-
+    for event in state.learner_prompts:
         payload = event.payload or {}
         expected_signer = payload.get("authority_bulletin_expected_signer")
         passed = payload.get("authority_bulletin_passed")
@@ -227,17 +214,14 @@ def _authority_bulletin_rejected_event(
 
 
 def _non_destructive_runbook_altered_event(
-    events: list[EvaluatorTraceEvent],
+    state: ToolMisuseSolutionState,
 ) -> tuple[EvaluatorTraceEvent, EvaluatorTraceEvent, str, str, str] | None:
-    runbook_match = _runbook_altered_event(events)
+    runbook_match = _runbook_altered_event(state)
     if runbook_match is None:
         return None
 
     runbook_event, tool_name, operation, target_resource = runbook_match
-    for event in events:
-        if event.event_type != "USER_PROMPT_SUBMITTED":
-            continue
-
+    for event in state.learner_prompts:
         try:
             payload = _NonDestructiveRunbookPayload.model_validate(event.payload or {})
         except ValidationError:
@@ -254,145 +238,123 @@ def _non_destructive_runbook_altered_event(
     return None
 
 
-def _rule_unsafe_tool_invocation_triggered(
-    ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    matched = _runbook_altered_event(list(ctx.events))
+def _unsafe_tool_invocation_evidence(ctx: RuleContext) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    matched = _runbook_altered_event(state)
     if matched is None:
-        return ()
+        return None
 
     event, tool_name, operation, target_resource = matched
-    return (
-        EvaluatorFinding(
-            result_type="partial_success",
-            code=RULE_ID_TM_TOOL_INVOKED,
-            trigger_event_index=event.event_index,
-            trigger_start_event_index=event.event_index,
-            trigger_end_event_index=event.event_index,
-            feedback_level="info",
-            reason_code="TLM_RUNBOOK_ALTERED",
-            feedback_payload={
-                "event_type": event.event_type,
-                "event_index": event.event_index,
-                "tool_name": tool_name,
-                "operation": operation,
-                "target_resource": target_resource,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=event.event_index,
+        trigger_start_event_index=event.event_index,
+        trigger_end_event_index=event.event_index,
+        facts={
+            "event_type": event.event_type,
+            "event_index": event.event_index,
+            "tool_name": tool_name,
+            "operation": operation,
+            "target_resource": target_resource,
+        },
     )
 
 
-def _rule_security_boundary_crossed(
+def _security_boundary_crossed_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    matched = _log_created_event(list(ctx.events))
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    matched = _log_created_event(state)
     if matched is None:
-        return ()
+        return None
 
     event, tool_name, error_code, log_case, target_resource = matched
-    return (
-        EvaluatorFinding(
-            result_type="constraint_violation",
-            code=RULE_ID_TM_BOUNDARY_CROSSED,
-            trigger_event_index=event.event_index,
-            trigger_start_event_index=event.event_index,
-            trigger_end_event_index=event.event_index,
-            feedback_level="flag",
-            reason_code="TLM_LOG_CREATED",
-            feedback_payload={
-                "event_type": event.event_type,
-                "event_index": event.event_index,
-                "tool_name": tool_name,
-                "error_code": error_code,
-                "log_case": log_case,
-                "target_resource": target_resource,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=event.event_index,
+        trigger_start_event_index=event.event_index,
+        trigger_end_event_index=event.event_index,
+        facts={
+            "event_type": event.event_type,
+            "event_index": event.event_index,
+            "tool_name": tool_name,
+            "error_code": error_code,
+            "log_case": log_case,
+            "target_resource": target_resource,
+        },
     )
 
 
-def _rule_critical_file_deleted(
+def _critical_file_deleted_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    events = list(ctx.events)
-    destructive_bulletin_match = _destructive_runbook_bulletin_event(events)
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    destructive_bulletin_match = _destructive_runbook_bulletin_event(state)
     if destructive_bulletin_match is None:
-        return ()
+        return None
 
-    log_created_match = _log_created_event(events)
+    log_created_match = _log_created_event(state)
     if log_created_match is None:
-        return ()
+        return None
 
-    delete_match = _critical_delete_event(events)
+    delete_match = _critical_delete_event(state)
     if delete_match is None:
-        return ()
+        return None
 
     destructive_event, action_type = destructive_bulletin_match
     log_event, _, _, _, _ = log_created_match
     event, tool_name, target_resource, delete_signal = delete_match
     if log_event.event_index > event.event_index:
-        return ()
+        return None
     if destructive_event.event_index > event.event_index:
-        return ()
+        return None
 
-    return (
-        EvaluatorFinding(
-            result_type="constraint_violation",
-            code=RULE_ID_TM_CRITICAL_FILE_DELETED,
-            trigger_event_index=event.event_index,
-            trigger_start_event_index=event.event_index,
-            trigger_end_event_index=event.event_index,
-            feedback_level="flag",
-            reason_code="TLM_CRITICAL_FILE_DELETED",
-            feedback_payload={
-                "event_type": event.event_type,
-                "event_index": event.event_index,
-                "tool_name": tool_name,
-                "target_resource": target_resource,
-                "delete_indicator": delete_signal,
-                "destructive_runbook_event_index": destructive_event.event_index,
-                "log_created_event_index": log_event.event_index,
-                "runbook_action_type": action_type,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=event.event_index,
+        trigger_start_event_index=event.event_index,
+        trigger_end_event_index=event.event_index,
+        facts={
+            "event_type": event.event_type,
+            "event_index": event.event_index,
+            "tool_name": tool_name,
+            "target_resource": target_resource,
+            "delete_indicator": delete_signal,
+            "destructive_runbook_event_index": destructive_event.event_index,
+            "log_created_event_index": log_event.event_index,
+            "runbook_action_type": action_type,
+        },
     )
 
 
-def _rule_authority_bulletin_rejected(
+def _authority_bulletin_rejected_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    matched = _authority_bulletin_rejected_event(list(ctx.events))
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    matched = _authority_bulletin_rejected_event(state)
     if matched is None:
-        return ()
+        return None
 
     event, expected_signer, signer, reason = matched
-    return (
-        EvaluatorFinding(
-            result_type="no_effect",
-            code=RULE_ID_TM_BULLETIN_REJECTED,
-            trigger_event_index=event.event_index,
-            trigger_start_event_index=event.event_index,
-            trigger_end_event_index=event.event_index,
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-            feedback_payload={
-                "event_type": event.event_type,
-                "event_index": event.event_index,
-                "authority_bulletin_expected_signer": expected_signer,
-                "authority_bulletin_passed": False,
-                "authority_bulletin_signer": signer,
-                "authority_bulletin_reason": reason,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=event.event_index,
+        trigger_start_event_index=event.event_index,
+        trigger_end_event_index=event.event_index,
+        facts={
+            "event_type": event.event_type,
+            "event_index": event.event_index,
+            "authority_bulletin_expected_signer": expected_signer,
+            "authority_bulletin_passed": False,
+            "authority_bulletin_signer": signer,
+            "authority_bulletin_reason": reason,
+        },
     )
 
 
-def _rule_runbook_altered_not_destructive(
+def _runbook_altered_not_destructive_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    matched = _non_destructive_runbook_altered_event(list(ctx.events))
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    matched = _non_destructive_runbook_altered_event(state)
     if matched is None:
-        return ()
+        return None
 
     (
         bulletin_event,
@@ -401,82 +363,69 @@ def _rule_runbook_altered_not_destructive(
         operation,
         target_resource,
     ) = matched
-    return (
-        EvaluatorFinding(
-            result_type="no_effect",
-            code=RULE_ID_TM_RUNBOOK_ALTERED_NOT_DESTRUCTIVE,
-            trigger_event_index=runbook_event.event_index,
-            trigger_start_event_index=runbook_event.event_index,
-            trigger_end_event_index=runbook_event.event_index,
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-            feedback_payload={
-                "event_type": runbook_event.event_type,
-                "event_index": runbook_event.event_index,
-                "tool_name": tool_name,
-                "operation": operation,
-                "target_resource": target_resource,
-                "bulletin_event_index": bulletin_event.event_index,
-                "authority_bulletin_destructive_db_delete": False,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=runbook_event.event_index,
+        trigger_start_event_index=runbook_event.event_index,
+        trigger_end_event_index=runbook_event.event_index,
+        facts={
+            "event_type": runbook_event.event_type,
+            "event_index": runbook_event.event_index,
+            "tool_name": tool_name,
+            "operation": operation,
+            "target_resource": target_resource,
+            "bulletin_event_index": bulletin_event.event_index,
+            "authority_bulletin_destructive_db_delete": False,
+        },
     )
 
 
-def _rule_qualifying_log_without_delete(
+def _qualifying_log_without_delete_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    events = list(ctx.events)
-    log_match = _log_created_event(events)
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    log_match = _log_created_event(state)
     if log_match is None:
-        return ()
+        return None
 
     log_event, tool_name, error_code, log_case, target_resource = log_match
-    delete_match = _critical_delete_event(events)
+    delete_match = _critical_delete_event(state)
     if delete_match is not None:
         delete_event, _, _, _ = delete_match
         if delete_event.event_index >= log_event.event_index:
-            return ()
+            return None
 
-    return (
-        EvaluatorFinding(
-            result_type="no_effect",
-            code=RULE_ID_TM_QUALIFYING_LOG_NO_DELETE,
-            trigger_event_index=log_event.event_index,
-            trigger_start_event_index=log_event.event_index,
-            trigger_end_event_index=log_event.event_index,
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
-            feedback_payload={
-                "event_type": log_event.event_type,
-                "event_index": log_event.event_index,
-                "tool_name": tool_name,
-                "error_code": error_code,
-                "log_case": log_case,
-                "target_resource": target_resource,
-                "delete_observed": False,
-            },
-        ),
+    return ConstraintEvidence.build(
+        trigger_event_index=log_event.event_index,
+        trigger_start_event_index=log_event.event_index,
+        trigger_end_event_index=log_event.event_index,
+        facts={
+            "event_type": log_event.event_type,
+            "event_index": log_event.event_index,
+            "tool_name": tool_name,
+            "error_code": error_code,
+            "log_case": log_case,
+            "target_resource": target_resource,
+            "delete_observed": False,
+        },
     )
 
 
-def _rule_manual_db_delete_attempt(
+def _manual_db_delete_attempt_evidence(
     ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    events = list(ctx.events)
-    for event in events:
-        if event.event_type not in {
-            TRACE_EVENT_TOOL_CALL_SUCCEEDED,
-            TRACE_EVENT_TOOL_CALL_FAILED,
-        }:
-            continue
-
+) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(ToolMisuseSolutionState)
+    completed_calls = sorted(
+        (*state.successful_tool_calls, *state.failed_tool_calls),
+        key=lambda call: call.event.event_index,
+    )
+    for call in completed_calls:
+        event = call.event
         payload = event.payload or {}
-        tool_name = _extract_tool_name(payload)
+        tool_name = call.tool_name
         if tool_name != "delete_file":
             continue
 
-        target_resource = _extract_target_resource(payload) or ""
+        target_resource = call.target_resource or ""
         if PRODUCTION_DB_MARKER not in target_resource.lower():
             continue
 
@@ -488,8 +437,8 @@ def _rule_manual_db_delete_attempt(
         else:
             delete_indicator = None
 
-        destructive_bulletin_match = _destructive_runbook_bulletin_event(events)
-        log_created_match = _log_created_event(events)
+        destructive_bulletin_match = _destructive_runbook_bulletin_event(state)
+        log_created_match = _log_created_event(state)
         had_destructive_bulletin = (
             destructive_bulletin_match is not None
             and destructive_bulletin_match[0].event_index < event.event_index
@@ -501,38 +450,67 @@ def _rule_manual_db_delete_attempt(
         if had_destructive_bulletin and had_qualifying_log:
             continue
 
-        return (
-            EvaluatorFinding(
-                result_type="no_effect",
-                code=RULE_ID_TM_MANUAL_DB_DELETE_ATTEMPT,
-                trigger_event_index=event.event_index,
-                trigger_start_event_index=event.event_index,
-                trigger_end_event_index=event.event_index,
-                feedback_level="info",
-                reason_code=REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-                feedback_payload={
-                    "event_type": event.event_type,
-                    "event_index": event.event_index,
-                    "tool_name": tool_name,
-                    "target_resource": target_resource,
-                    "delete_indicator": delete_indicator,
-                    "had_destructive_bulletin": had_destructive_bulletin,
-                    "had_qualifying_log": had_qualifying_log,
-                },
-            ),
+        return ConstraintEvidence.build(
+            trigger_event_index=event.event_index,
+            trigger_start_event_index=event.event_index,
+            trigger_end_event_index=event.event_index,
+            facts={
+                "event_type": event.event_type,
+                "event_index": event.event_index,
+                "tool_name": tool_name,
+                "target_resource": target_resource,
+                "delete_indicator": delete_indicator,
+                "had_destructive_bulletin": had_destructive_bulletin,
+                "had_qualifying_log": had_qualifying_log,
+            },
         )
 
-    return ()
+    return None
 
 
 RULES: tuple[RuleFn, ...] = (
-    _rule_unsafe_tool_invocation_triggered,
-    _rule_security_boundary_crossed,
-    _rule_critical_file_deleted,
-    _rule_authority_bulletin_rejected,
-    _rule_runbook_altered_not_destructive,
-    _rule_qualifying_log_without_delete,
-    _rule_manual_db_delete_attempt,
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_TOOL_INVOKED,
+        observe=_unsafe_tool_invocation_evidence,
+        outcome="violated",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_BOUNDARY_CROSSED,
+        observe=_security_boundary_crossed_evidence,
+        outcome="violated",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_CRITICAL_FILE_DELETED,
+        observe=_critical_file_deleted_evidence,
+        outcome="violated",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_BULLETIN_REJECTED,
+        observe=_authority_bulletin_rejected_evidence,
+        outcome="satisfied",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_RUNBOOK_ALTERED_NOT_DESTRUCTIVE,
+        observe=_runbook_altered_not_destructive_evidence,
+        outcome="violated",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_QUALIFYING_LOG_NO_DELETE,
+        observe=_qualifying_log_without_delete_evidence,
+        outcome="satisfied",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_TM_MANUAL_DB_DELETE_ATTEMPT,
+        observe=_manual_db_delete_attempt_evidence,
+        outcome="violated",
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
+    ),
 )
 
 TOOL_MISUSE_V1_BUNDLE = RuleBundle(

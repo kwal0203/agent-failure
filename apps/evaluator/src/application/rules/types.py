@@ -50,6 +50,7 @@ class RuleBundle:
     solution_state_type: type[LabSolutionState]
     build_solution_state: SolutionStateBuilder
     rules: tuple[RuleFn, ...]
+    annotate_disclosure_attempts: bool = False
 
     def run(
         self,
@@ -73,6 +74,6 @@ class RuleBundle:
         for rule in self.rules:
             findings.extend(rule(ctx))
 
-        # TODO(lab1-outcomes): Apply outcome normalization/precedence so evaluator
-        # can emit one dominant learner outcome when multiple findings coexist.
+        # Findings intentionally remain independent observations. Completion and
+        # learner-facing precedence are separate pedagogical policies.
         return tuple(findings)

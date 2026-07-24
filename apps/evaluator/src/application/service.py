@@ -242,9 +242,7 @@ def evaluate_trace_window_once(
     )
 
     constraint_bundle = resolve_bundle(binding=lab_binding, task=task)
-    # TODO(architecture): Replace this lab-name gate with an explicit bundle capability
-    # hook (and avoid mutating event payloads inline) once evaluator preprocessing is formalized.
-    if getattr(constraint_bundle, "name", None) == "prompt_injection_v1":
+    if getattr(constraint_bundle, "annotate_disclosure_attempts", False):
         _annotate_disclosure_attempt_events(events=events, classifier=classifier)
 
     findings: tuple[EvaluatorFinding, ...] = constraint_bundle.run(

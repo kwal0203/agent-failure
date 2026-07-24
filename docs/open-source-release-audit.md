@@ -13,7 +13,7 @@ maintainability project is the evaluator-rule cleanup described below.
 | Orchestrator lifecycle service | Completed |
 | Runtime state isolation | Completed |
 | Database-backed lab catalog | Completed |
-| Evaluator-rule organization | Remaining |
+| Evaluator-rule organization | Completed |
 | General-purpose library replacements | Completed |
 | Repository presentation cleanup | Completed |
 
@@ -146,8 +146,34 @@ derives its state from the trace. Existing rule output remains unchanged through
 an ordered-event compatibility view; the typed states are the input foundation
 for the subsequent CBM-kernel and incremental rule-migration phases.
 
-The evaluator files remain large—Prompt Injection is roughly 900 lines—and
-contain many regex heuristics and repeated event-search logic.
+The third cleanup phase introduced a small constraint-based modeling kernel.
+Constraints now have separate, explicit relevance and satisfaction conditions;
+irrelevant constraints do not evaluate satisfaction, and inconsistent result
+states fail closed. Constraint evidence records trace positions and normalized
+facts without containing feedback policy. A temporary compatibility adapter can
+project satisfied or violated constraints into the existing evaluator finding
+contract, preserving current persistence and API behavior while individual lab
+rules migrate.
+
+The fourth cleanup phase migrated Code Execution, Tool Misuse, and Memory
+Poisoning onto that kernel. Their constraints consume typed solution states,
+emit normalized evidence, and explicitly classify observed safe behavior as
+satisfied and unsafe behavior as violated. The compatibility adapter preserves
+the established finding order, codes, reason codes, feedback levels, evidence
+indexes, and payloads. Structural tests prevent these bundles from drifting back
+to handwritten finding functions.
+
+The fifth cleanup phase separated assessment from pedagogical presentation.
+The migrated lab modules now contain only constraint semantics and evidence
+extraction. A versioned pedagogical-policy catalog independently decides which
+satisfied or violated outcomes are learner-visible and maps them to the current
+result type, feedback level, and reason code. The existing feedback catalog then
+selects learner-facing text from that reason code. Policy coverage tests fail
+closed if a migrated constraint has no mapping and ensure the catalog covers
+exactly the migrated rule set.
+
+The original evaluator files were large—Prompt Injection was roughly 900
+lines—and contained many regex heuristics and repeated event-search logic.
 
 This is custom domain logic, so replacing it wholesale with a framework would
 probably make the code worse. Keep the evaluator, but:
@@ -160,9 +186,14 @@ probably make the code worse. Keep the evaluator, but:
 - Mark incomplete rules explicitly rather than leaving multiple "need endpoint
   before completed" TODOs inside a supposedly V1 bundle.
 
-The remaining work is to introduce explicit constraint relevance/satisfaction
-results, then migrate the existing rules onto that CBM kernel and split the
-large lab rule modules incrementally.
+The sixth cleanup phase migrated Prompt Injection onto the same CBM kernel and
+split its implementation into focused pattern, evidence, and bundle modules.
+All registered lab bundles now use typed solution states and CBM constraints.
+The versioned pedagogical policy covers the complete constraint catalog, while
+the compatibility import preserves existing module consumers. The evaluator's
+deterministic assessment model, rule-bundle versioning, fail-closed boundaries,
+and deliberately limited use of LLM classification are documented in
+[`evaluator-model.md`](evaluator-model.md).
 
 This is specialized, not embarrassing.
 

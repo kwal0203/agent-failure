@@ -42,6 +42,14 @@ and report data belongs to the control plane and PostgreSQL. When using the
 single local runtime command below, restart that process before starting a
 different lab session.
 
+### Evaluator
+
+The evaluator uses deterministic, trace-backed constraints inspired by
+constraint-based modeling. Assessment, evidence, pedagogical presentation, and
+learner-facing feedback are separate layers. See
+[Evaluator Model](docs/evaluator-model.md) for the design, versioning rules, and
+the limited role of LLM classification.
+
 ## Labs
 
 | # | Name | Attack Vector | Scenario |
@@ -72,7 +80,7 @@ runtimes/
   agent/             Per-session agent runtime — LLM loop, tool dispatch, lab configs
 deploy/              Environment examples and Kubernetes deployment manifests
 scripts/             Local smoke tests and operational utilities
-docs/                Open-source audit and retained instructor materials
+docs/                Evaluator design, open-source audit, and instructor materials
 ```
 
 Files under `deploy/` are operator examples. Replace reserved example domains,
