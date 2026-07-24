@@ -535,6 +535,6 @@ TOOL_MISUSE_V1_BUNDLE = RuleBundle(
     name="tool_misuse_v1",
     lab_id=UUID("22222222-2222-2222-2222-222222222222"),
     lab_version_id=UUID("22222222-2222-2222-2222-aaaaaaaaaaa2"),
-    evaluator_version=1,
+    rule_bundle_version=1,
     rules=RULES,
 )

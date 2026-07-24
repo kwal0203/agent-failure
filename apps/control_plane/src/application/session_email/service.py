@@ -184,7 +184,6 @@ async def inject_session_email_for_session(
             session_id=command.session_id,
             lab_id=session_metadata.lab_id,
             lab_version_id=session_metadata.lab_version_id,
-            evaluator_version=1,
             start_event_index=trace_event.event_index,
             end_event_index=trace_event.event_index,
         )
@@ -211,7 +210,7 @@ async def inject_session_email_for_session(
                 trigger_event_index=trace_event.event_index,
                 idempotency_key=objective_idempotency_key,
                 source="control_plane",
-                evaluator_version=None,
+                rule_bundle_version=None,
                 occurred_at=trace_event.occurred_at,
             )
 

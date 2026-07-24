@@ -117,7 +117,7 @@ def _make_result(
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
+        rule_bundle_version=1,
     )
 
 

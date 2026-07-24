@@ -53,7 +53,6 @@ def test_build_result_idempotency_key_prefers_single_trigger_event_index() -> No
         session_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
         lab_id=UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
         lab_version_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-        evaluator_version=7,
         start_event_index=10,
         end_event_index=20,
     )
@@ -68,7 +67,9 @@ def test_build_result_idempotency_key_prefers_single_trigger_event_index() -> No
         feedback_payload={},
     )
 
-    key = build_result_idempotency_key(task=task, finding=finding)
+    key = build_result_idempotency_key(
+        task=task, rule_bundle_version=7, finding=finding
+    )
 
     assert (
         key == "eval:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:"
@@ -81,7 +82,6 @@ def test_build_result_idempotency_key_falls_back_to_event_range() -> None:
         session_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
         lab_id=UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
         lab_version_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
-        evaluator_version=8,
         start_event_index=0,
         end_event_index=100,
     )
@@ -96,7 +96,9 @@ def test_build_result_idempotency_key_falls_back_to_event_range() -> None:
         feedback_payload={"x": 1},
     )
 
-    key = build_result_idempotency_key(task=task, finding=finding)
+    key = build_result_idempotency_key(
+        task=task, rule_bundle_version=8, finding=finding
+    )
 
     assert (
         key == "eval:dddddddd-dddd-dddd-dddd-dddddddddddd:"

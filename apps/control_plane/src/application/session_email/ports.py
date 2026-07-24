@@ -36,7 +36,7 @@ class SessionEmailOutboxPort(TraceOutboxPort, Protocol):
         trigger_event_index: int,
         idempotency_key: str,
         source: str,
-        evaluator_version: int | None,
+        rule_bundle_version: int | None,
         occurred_at: datetime,
     ) -> None: ...
 

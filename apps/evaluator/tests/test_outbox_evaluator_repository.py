@@ -62,7 +62,6 @@ def test_claim_pending_evaluate_accepts_canonical_payload(
                 payload={
                     "lab_id": str(uuid4()),
                     "lab_version_id": str(uuid4()),
-                    "evaluator_version": 1,
                     "start_event_index": 10,
                     "end_event_index": 10,
                 },
@@ -91,9 +90,35 @@ def test_claim_pending_evaluate_rejects_obsolete_difficulty_field(
                     "lab_id": str(uuid4()),
                     "lab_version_id": str(uuid4()),
                     "lab_difficulty": "easy",
-                    "evaluator_version": 1,
                     "start_event_index": 11,
                     "end_event_index": 11,
+                },
+                status="pending",
+                available_at=datetime.now(timezone.utc) - timedelta(seconds=1),
+            )
+        )
+        db.commit()
+
+        repo = SQLAlchemyOutboxEvaluatorRepository(db=db)
+        claimed = repo.claim_pending_evaluate(limit=10)
+
+    assert claimed == []
+
+
+def test_claim_pending_evaluate_rejects_caller_selected_rule_bundle_version(
+    engine: Engine,
+) -> None:
+    with Session(bind=engine, future=True) as db:
+        db.add(
+            OutboxEventModel(
+                event_type="session.evaluate.requested.v1",
+                aggregate_id=uuid4(),
+                payload={
+                    "lab_id": str(uuid4()),
+                    "lab_version_id": str(uuid4()),
+                    "rule_bundle_version": 999,
+                    "start_event_index": 12,
+                    "end_event_index": 12,
                 },
                 status="pending",
                 available_at=datetime.now(timezone.utc) - timedelta(seconds=1),

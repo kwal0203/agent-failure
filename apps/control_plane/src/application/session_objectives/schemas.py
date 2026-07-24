@@ -17,7 +17,7 @@ class ObjectiveCompletedEventPayload(BaseModel):
     occurred_at: datetime
     idempotency_key: str
     source: str = "evaluator"
-    evaluator_version: int | None = None
+    rule_bundle_version: int | None = None
 
     @field_validator("objective_key")
     @classmethod

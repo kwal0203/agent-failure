@@ -183,7 +183,7 @@ def test_session_hint_unlock_worker_lab3_objective_completion_flow_unlocks_expec
                         f"objective:{session_id}:malicious_vendor_memory_written:101"
                     ),
                     "source": "evaluator",
-                    "evaluator_version": 1,
+                    "rule_bundle_version": 1,
                 },
             )
         )

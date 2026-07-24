@@ -68,7 +68,7 @@ class _FakeRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
+        rule_bundle_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
         self.persisted_calls.append(
@@ -77,7 +77,7 @@ class _FakeRepo:
                 session_id,
                 lab_id,
                 lab_version_id,
-                evaluator_version,
+                rule_bundle_version,
                 finding,
             )
         )
@@ -107,7 +107,7 @@ class _RaisingRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
+        rule_bundle_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
         _ = (
@@ -115,7 +115,7 @@ class _RaisingRepo:
             session_id,
             lab_id,
             lab_version_id,
-            evaluator_version,
+            rule_bundle_version,
             finding,
         )
         return True
@@ -168,7 +168,6 @@ def _make_task() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=3,
     )
@@ -295,7 +294,7 @@ def _make_persisted_result(
         session_id=task.session_id,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        evaluator_version=task.evaluator_version,
+        rule_bundle_version=1,
     )
 
 
@@ -328,6 +327,8 @@ def test_process_evaluate_pending_once_returns_stats_success(
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -377,6 +378,8 @@ def test_process_evaluate_pending_once_does_not_enqueue_feedback_publish_when_no
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -910,6 +913,8 @@ def test_process_evaluate_pending_once_explanation_signals_influence_rules(
             )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -991,6 +996,8 @@ def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1038,6 +1045,8 @@ def test_evaluate_trace_window_once_maps_malicious_vendor_memory_written_to_obje
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1088,6 +1097,8 @@ def test_evaluate_trace_window_once_enqueues_session_feedback_created_event(
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1315,6 +1326,8 @@ def test_evaluate_trace_window_once_maps_poisoned_memory_retrieved_to_objective_
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1365,6 +1378,8 @@ def test_evaluate_trace_window_once_maps_payment_routed_to_attacker_to_objective
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1415,6 +1430,8 @@ def test_evaluate_trace_window_once_dedupes_objective_enqueue_by_idempotency_key
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1474,6 +1491,8 @@ def test_evaluate_trace_window_once_dedupes_feedback_enqueue_by_idempotency_key(
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],
@@ -1532,6 +1551,8 @@ def test_evaluate_trace_window_once_does_not_enqueue_feedback_for_unmapped_findi
     )
 
     class _FakeBundle:
+        rule_bundle_version = 1
+
         def run(
             self,
             events: list[EvaluatorTraceEvent],

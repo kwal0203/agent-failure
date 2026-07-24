@@ -106,7 +106,6 @@ def append_trace_event(
         session_id=trace.session_id,
         lab_id=trace.lab_id,
         lab_version_id=trace.lab_version_id,
-        evaluator_version=1,
         start_event_index=trace.event_index,
         end_event_index=trace.event_index,
     )

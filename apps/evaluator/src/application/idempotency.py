@@ -32,7 +32,10 @@ def build_feedback_event_idempotency_key(
 
 
 def build_result_idempotency_key(
-    *, task: EvaluatorTaskInput, finding: EvaluatorFinding
+    *,
+    task: EvaluatorTaskInput,
+    rule_bundle_version: int,
+    finding: EvaluatorFinding,
 ) -> str:
     trigger_ref = (
         str(finding.trigger_event_index)
@@ -40,6 +43,6 @@ def build_result_idempotency_key(
         else f"{finding.trigger_start_event_index}:{finding.trigger_end_event_index}"
     )
     return (
-        f"eval:{task.session_id}:{task.lab_version_id}:{task.evaluator_version}:"
+        f"eval:{task.session_id}:{task.lab_version_id}:{rule_bundle_version}:"
         f"{finding.code}:{trigger_ref}"
     )

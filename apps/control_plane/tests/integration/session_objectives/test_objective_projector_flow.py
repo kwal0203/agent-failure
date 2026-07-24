@@ -106,7 +106,7 @@ def _seed_objective_completed_event(
                 "occurred_at": occurred_at.isoformat(),
                 "idempotency_key": idempotency_key,
                 "source": "evaluator",
-                "evaluator_version": 1,
+                "rule_bundle_version": 1,
             },
         )
     )

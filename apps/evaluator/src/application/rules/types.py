@@ -22,7 +22,7 @@ class RuleBundle:
     name: str
     lab_id: UUID
     lab_version_id: UUID
-    evaluator_version: int
+    rule_bundle_version: int
     rules: tuple[RuleFn, ...]
 
     def run(

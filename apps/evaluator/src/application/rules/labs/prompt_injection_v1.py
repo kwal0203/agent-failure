@@ -877,7 +877,7 @@ PROMPT_INJECTION_V1_BUNDLE = RuleBundle(
     name="prompt_injection_v1",
     lab_id=UUID("11111111-1111-1111-1111-111111111111"),
     lab_version_id=UUID("55555555-5555-5555-5555-555555555555"),
-    evaluator_version=1,
+    rule_bundle_version=1,
     rules=BASE_RULES
     + (
         _compliance_authority_spoofed,

@@ -88,7 +88,6 @@ def inject_learner_explanation(
         session_id=normalized.session_id,
         lab_id=normalized.lab_id,
         lab_version_id=normalized.lab_version_id,
-        evaluator_version=1,
         start_event_index=event_index,
         end_event_index=event_index,
         requested_at=ts,

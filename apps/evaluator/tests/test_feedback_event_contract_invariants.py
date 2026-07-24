@@ -32,7 +32,6 @@ def _task() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
         start_event_index=0,
         end_event_index=0,
     )

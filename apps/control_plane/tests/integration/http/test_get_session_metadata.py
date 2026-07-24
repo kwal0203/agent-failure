@@ -167,7 +167,7 @@ def _add_lab3_objectives(
                         f"objective:{session_id}:{objective_key}:{trigger_event_offset + sort_order}"
                     ),
                     "source": "evaluator",
-                    "evaluator_version": 1,
+                    "rule_bundle_version": 1,
                 },
             )
         )
@@ -979,7 +979,7 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
                     f"objective:{session_id}:payment_routed_to_attacker_account:1310"
                 ),
                 "source": "evaluator",
-                "evaluator_version": 1,
+                "rule_bundle_version": 1,
             },
         )
     )

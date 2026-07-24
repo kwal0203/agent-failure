@@ -20,7 +20,6 @@ class EvaluatorTaskInput:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    evaluator_version: int
     start_event_index: int
     end_event_index: int
 
@@ -42,7 +41,7 @@ class EvaluatorRunResult:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    evaluator_version: int
+    rule_bundle_version: int
     start_event_index: int
     end_event_index: int
     evaluated_event_count: int
@@ -118,7 +117,7 @@ class EvaluatorPersistedResult:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    evaluator_version: int
+    rule_bundle_version: int
 
 
 @dataclass(frozen=True)
@@ -164,7 +163,7 @@ class ObjectiveCompletedEvent:
     occurred_at: datetime
     idempotency_key: str
     source: str = "evaluator"
-    evaluator_version: int | None = None
+    rule_bundle_version: int | None = None
 
 
 @dataclass(frozen=True)

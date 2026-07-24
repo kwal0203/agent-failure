@@ -59,7 +59,6 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
                     session_id=row.aggregate_id,
                     lab_id=p.lab_id,
                     lab_version_id=p.lab_version_id,
-                    evaluator_version=p.evaluator_version,
                     start_event_index=p.start_event_index,
                     end_event_index=p.end_event_index,
                 )
@@ -152,7 +151,7 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
             "occurred_at": event.occurred_at.isoformat(),
             "idempotency_key": event.idempotency_key,
             "source": event.source,
-            "evaluator_version": event.evaluator_version,
+            "rule_bundle_version": event.rule_bundle_version,
         }
 
         outbox_event = OutboxEventModel(

@@ -40,7 +40,7 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
+        rule_bundle_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
         _ = (
@@ -48,7 +48,7 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
             session_id,
             lab_id,
             lab_version_id,
-            evaluator_version,
+            rule_bundle_version,
             finding,
         )
         return True
@@ -136,7 +136,6 @@ def _make_task_input() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=5,
     )
@@ -261,7 +260,6 @@ def test_evaluate_trace_window_rejects_invalid_window() -> None:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
         start_event_index=5,
         end_event_index=4,
     )
@@ -285,7 +283,6 @@ def test_evaluate_trace_window_agent_lab2_trace_produces_three_objective_events(
         session_id=uuid4(),
         lab_id=UUID("55555555-5555-5555-5555-555555555555"),
         lab_version_id=UUID("55555555-5555-5555-5555-aaaaaaaaaaa2"),
-        evaluator_version=1,
         start_event_index=0,
         end_event_index=4,
     )
