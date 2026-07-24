@@ -1,6 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
 import {
-  BarChart3,
   Boxes,
   Brain,
   ClipboardCheck,
@@ -14,7 +13,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { useLabCatalogQuery } from "../query/labCatalog";
 import { latestSessionQueryOptions } from "../query/sessionQueries";
 import { useShellBootstrap } from "../shell/context";
@@ -26,7 +25,6 @@ type CatalogModule = {
   title: string;
   status: "Pilot Ready" | "Available" | "In Development" | "Planned";
   description: string;
-  difficulty: "Beginner" | "Intermediate" | "Advanced";
   exerciseCount: number;
   primaryType: "Full Lab" | "Micro-Lab" | "Trace" | "Assessment";
   icon: React.ElementType;
@@ -44,7 +42,6 @@ const modules: CatalogModule[] = [
     title: "Foundations of AI Agent Security",
     status: "Planned",
     description: "Agent architecture primer, threat modeling, trace reading",
-    difficulty: "Beginner",
     exerciseCount: 4,
     primaryType: "Full Lab",
     icon: Shield,
@@ -58,7 +55,6 @@ const modules: CatalogModule[] = [
     title: "Indirect Prompt Injection",
     status: "Available",
     description: "OpsMail Assistant",
-    difficulty: "Intermediate",
     exerciseCount: 4,
     primaryType: "Full Lab",
     icon: MessageSquareWarning,
@@ -72,7 +68,6 @@ const modules: CatalogModule[] = [
     title: "Tool Misuse & Excessive Agency",
     status: "Available",
     description: "SRE Runbook Agent",
-    difficulty: "Intermediate",
     exerciseCount: 4,
     primaryType: "Full Lab",
     icon: Wrench,
@@ -86,7 +81,6 @@ const modules: CatalogModule[] = [
     title: "Memory & Context Poisoning",
     status: "Available",
     description: "Invoice Payment Agent",
-    difficulty: "Intermediate",
     exerciseCount: 4,
     primaryType: "Full Lab",
     icon: Brain,
@@ -100,7 +94,6 @@ const modules: CatalogModule[] = [
     title: "Multi-Agent & Delegated Authority",
     status: "Planned",
     description: "Cross-agent trust and confused deputy behavior",
-    difficulty: "Advanced",
     exerciseCount: 4,
     primaryType: "Full Lab",
     icon: Network,
@@ -114,7 +107,6 @@ const modules: CatalogModule[] = [
     title: "Observability & Accountability",
     status: "Planned",
     description: "Trace review and incident reconstruction",
-    difficulty: "Intermediate",
     exerciseCount: 3,
     primaryType: "Trace",
     icon: Search,
@@ -128,7 +120,6 @@ const modules: CatalogModule[] = [
     title: "Agent Supply Chain & Tool Manifests",
     status: "Planned",
     description: "Tool manifest and MCP server review",
-    difficulty: "Advanced",
     exerciseCount: 3,
     primaryType: "Trace",
     icon: Boxes,
@@ -142,7 +133,6 @@ const modules: CatalogModule[] = [
     title: "Capstone: Multi-Stage Agent Compromise",
     status: "Planned",
     description: "Final incident and report",
-    difficulty: "Advanced",
     exerciseCount: 5,
     primaryType: "Full Lab",
     icon: Target,
@@ -246,10 +236,6 @@ export default function ReportsPage() {
                   {module.description}
                 </p>
                 <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-5 text-xs font-medium text-slate-400">
-                  <span className="inline-flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4 text-lime-300/80" />
-                    {module.difficulty}
-                  </span>
                   <span className="inline-flex items-center gap-1.5">
                     <ListChecks className="h-4 w-4 text-lime-300/80" />
                     {module.exerciseCount} Exercises

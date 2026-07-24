@@ -210,10 +210,6 @@ def _validate_event_scope(event: EvaluatorTraceEvent, task: EvaluatorTaskInput) 
         raise ValueError(
             "Trace event lab_version_id does not match evaluator task lab_version_id"
         )
-    if event.lab_difficulty is not None and event.lab_difficulty != task.lab_difficulty:
-        raise ValueError(
-            "Trace event lab_difficulty does not match evaluator task lab_difficulty"
-        )
     if event.session_id != task.session_id:
         raise ValueError(
             "Trace event session_id does not match evaluator task session_id"
@@ -240,9 +236,7 @@ def evaluate_trace_window_once(
         _validate_event_scope(event=event, task=task)
 
     explanations = repo.list_explanations_for_session(session_id=task.session_id)
-    signals = classifier.classify(
-        explanations=explanations, lab_difficulty=task.lab_difficulty
-    )
+    signals = classifier.classify(explanations=explanations)
     lab_binding = lab_lookup_repo.get_runtime_binding(
         lab_id=task.lab_id, lab_version_id=task.lab_version_id
     )
@@ -263,7 +257,6 @@ def evaluate_trace_window_once(
             session_id=task.session_id,
             lab_id=task.lab_id,
             lab_version_id=task.lab_version_id,
-            lab_difficulty=task.lab_difficulty,
             evaluator_version=task.evaluator_version,
             finding=finding,
         )
@@ -306,7 +299,6 @@ def evaluate_trace_window_once(
             "session_id": str(task.session_id),
             "lab_id": str(task.lab_id),
             "lab_version_id": str(task.lab_version_id),
-            "lab_difficulty": task.lab_difficulty,
             "evaluator_version": task.evaluator_version,
             "findings_count": len(findings),
             "inserted_count": inserted_count,
@@ -321,7 +313,6 @@ def evaluate_trace_window_once(
             "session_id": str(task.session_id),
             "lab_id": str(task.lab_id),
             "lab_version_id": str(task.lab_version_id),
-            "lab_difficulty": task.lab_difficulty,
             "evaluator_version": task.evaluator_version,
             "start_event_index": task.start_event_index,
             "end_event_index": task.end_event_index,
@@ -395,7 +386,6 @@ def process_evaluate_pending_once(
                     "session_id": str(task.session_id),
                     "lab_id": str(task.lab_id),
                     "lab_version_id": str(task.lab_version_id),
-                    "lab_difficulty": task.lab_difficulty,
                     "evaluator_version": task.evaluator_version,
                     "start_event_index": task.start_event_index,
                     "end_event_index": task.end_event_index,

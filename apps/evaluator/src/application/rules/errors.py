@@ -6,14 +6,12 @@ class UnsupportedLabBundleError(Exception):
         self,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         message: str,
         details: dict[str, object] | None = None,
     ) -> None:
         self.lab_id = lab_id
         self.lab_version_id = lab_version_id
-        self.lab_difficulty = lab_difficulty
         self.evaluator_version = evaluator_version
         self.message = message
         self.details = details or {

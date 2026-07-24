@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 import os
-from typing import Literal
-from typing import cast
+from typing import Literal, cast
 
 
 ModelClientMode = Literal["fake", "gateway"]
-LabDifficulty = Literal["easy", "medium", "hard"]
 
 
 @dataclass(frozen=True)
@@ -48,10 +46,3 @@ def get_gateway_settings() -> GatewaySettings:
         model=_required_env("MODEL_NAME"),
         timeout_seconds=timeout,
     )
-
-
-def get_lab_difficulty() -> LabDifficulty:
-    raw = os.getenv("LAB_DIFFICULTY", "").strip().lower()
-    if raw in {"easy", "medium", "hard"}:
-        return cast(LabDifficulty, raw)
-    return "medium"

@@ -22,7 +22,6 @@ def _request() -> RuntimeProvisionRequest:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         image_ref="ghcr.io/test/runtime@sha256:abc123",
         metadata={},
     )

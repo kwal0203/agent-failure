@@ -314,7 +314,6 @@ class SessionEvaluateRequestedPayload(BaseModel):
 
     lab_id: UUID
     lab_version_id: UUID
-    lab_difficulty: str = "medium"
     evaluator_version: int
     start_event_index: int
     end_event_index: int
@@ -480,7 +479,6 @@ class SessionMetadataResponse(BaseModel):
     id: UUID
     lab_id: UUID | None
     lab_version_id: UUID | None
-    lab_difficulty: str = "medium"
     state: str
     runtime_substate: str | None
     resume_mode: str

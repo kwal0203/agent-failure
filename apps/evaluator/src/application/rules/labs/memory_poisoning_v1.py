@@ -541,7 +541,6 @@ MEMORY_POISONING_V1_BUNDLE = RuleBundle(
     name="memory_poisoning_v1",
     lab_id=LAB_3_ID,
     lab_version_id=LAB_3_VERSION_ID,
-    lab_difficulty="medium",
     evaluator_version=1,
     rules=RULES,
 )

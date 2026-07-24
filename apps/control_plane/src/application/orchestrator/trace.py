@@ -15,7 +15,6 @@ def append_runtime_trace(
     payload: dict[str, object],
     lab_id: UUID | None = None,
     lab_version_id: UUID | None = None,
-    lab_difficulty: str | None = None,
 ) -> None:
     with uow.transaction():
         trace_event = TraceEvent(
@@ -33,6 +32,5 @@ def append_runtime_trace(
             actor_user_id=None,
             lab_id=lab_id,
             lab_version_id=lab_version_id,
-            lab_difficulty=lab_difficulty,
         )
         append_trace_event(trace=trace_event, repo=uow.trace, outbox_repo=uow.outbox)

@@ -1,10 +1,5 @@
 from dataclasses import dataclass
 from uuid import UUID
-from typing import Literal
-
-
-LabDifficulty = Literal["easy", "medium"]
-ALLOWED_LAB_DIFFICULTIES: frozenset[str] = frozenset({"easy", "medium"})
 
 
 @dataclass(frozen=True)

@@ -20,26 +20,22 @@ export const DEMO_H2_STYLE: CSSProperties = {
 };
 
 const FEEDBACK_REASON_LABELS: Record<string, string> = {
-  PI_GLOBAL_ATTACK_ARTIFACT_CREATED: "Attack artifact created",
-  PI_GLOBAL_INBOX_INTERACTION_TRIGGERED: "Inbox tool usage detected",
-  PI_GLOBAL_INBOX_INTERACTION_WITHOUT_DISCLOSURE:
+  PI_ATTACK_ARTIFACT_CREATED: "Attack artifact created",
+  PI_INBOX_INTERACTION_TRIGGERED: "Inbox tool usage detected",
+  PI_INBOX_INTERACTION_WITHOUT_DISCLOSURE:
     "Inbox reviewed, no secret disclosure yet",
-  PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT:
+  PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT:
     "Malicious content entered model context",
-  PI_GLOBAL_POLICY_VIOLATION_ATTEMPTED: "Policy-violation attempt detected",
-  PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE: "Learner explained root cause",
-  PI_GLOBAL_EXPLANATION_MENTIONED_MITIGATION: "Learner proposed mitigation",
-  PI_EASY_DIRECT_OVERRIDE_LANGUAGE_USED: "Direct override language used",
-  PI_EASY_EXPLANATION_IDENTIFIED_AGENT_TRUSTS_EXERNAL_CONTENT:
-    "Learner identified trust-boundary issue",
-  PI_EASY_TOKEN_EXPOSED: "Private information revealed",
-  PI_MEDIUM_COMPLIANCE_AUTHORITY_SPOOFED: "Compliance authority spoofed",
-  PI_MEDIUM_AUDIT_URGENCY_INVOKED: "Audit urgency invoked",
-  PI_MEDIUM_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT:
+  PI_POLICY_VIOLATION_ATTEMPTED: "Policy-violation attempt detected",
+  PI_EXPLANATION_MENTIONED_ROOT_CAUSE: "Learner explained root cause",
+  PI_EXPLANATION_MENTIONED_MITIGATION: "Learner proposed mitigation",
+  PI_COMPLIANCE_AUTHORITY_SPOOFED: "Compliance authority spoofed",
+  PI_AUDIT_URGENCY_INVOKED: "Audit urgency invoked",
+  PI_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT:
     "Disclosure framed as business requirement",
-  PI_MEDIUM_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH:
+  PI_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH:
     "Learner identified rule-priority clash",
-  PI_MEDIUM_TOKEN_EXPOSED: "Private information revealed",
+  PI_TOKEN_EXPOSED: "Private information revealed",
 };
 
 const FEEDBACK_KEY_LABELS: Record<string, string> = {

@@ -13,7 +13,6 @@ class RuntimeProvisionRequest:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    lab_difficulty: str
     image_ref: str
     metadata: Mapping[str, object]
 

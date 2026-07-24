@@ -1,13 +1,10 @@
 from apps.control_plane.src.application.common.errors import (
     DuplicateIdempotencyKeyError,
 )
-from apps.control_plane.src.application.common.schemas import LabDifficultyParser
 from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.application.trace.types import TraceEvent
 from apps.control_plane.src.application.trace.service import append_trace_event
 from apps.control_plane.src.application.session_lifecycle.ports import Outbox
-
-from pydantic import ValidationError
 
 from .ports import LearnerExplanationPort
 from .types import LearnerExplanationInput, LearnerExplanationOutput
@@ -27,17 +24,6 @@ def inject_learner_explanation(
     if not explanation:
         raise InvalidLearnerExplanationError(code="INVALID_EXPLANATION")
 
-    try:
-        parsed = LabDifficultyParser.model_validate(
-            {"lab_difficulty": learner_input.lab_difficulty}
-        )
-        lab_difficulty = parsed.lab_difficulty
-    except ValidationError as exc:
-        raise InvalidLearnerExplanationError(
-            code="INVALID_LAB_DIFFICULTY",
-            details={"lab_difficulty": learner_input.lab_difficulty},
-        ) from exc
-
     source = learner_input.source.strip()
     if source != "learner":
         raise InvalidLearnerExplanationError(code="INVALID_SOURCE")
@@ -51,7 +37,6 @@ def inject_learner_explanation(
         session_id=learner_input.session_id,
         lab_id=learner_input.lab_id,
         lab_version_id=learner_input.lab_version_id,
-        lab_difficulty=lab_difficulty,
         actor_user_id=learner_input.actor_user_id,
         idempotency_key=idempotency_key,
         source=source,
@@ -96,7 +81,6 @@ def inject_learner_explanation(
         actor_user_id=normalized.actor_user_id,
         lab_id=normalized.lab_id,
         lab_version_id=normalized.lab_version_id,
-        lab_difficulty=normalized.lab_difficulty,
     )
     append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox)
 
@@ -104,7 +88,6 @@ def inject_learner_explanation(
         session_id=normalized.session_id,
         lab_id=normalized.lab_id,
         lab_version_id=normalized.lab_version_id,
-        lab_difficulty=normalized.lab_difficulty,
         evaluator_version=1,
         start_event_index=event_index,
         end_event_index=event_index,

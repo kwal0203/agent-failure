@@ -16,9 +16,6 @@ export function LabGuideColumn({ labId }: LabGuideColumnProps) {
         <p className="mb-1 mt-2 font-semibold text-slate-100">
           {content.title}
         </p>
-        <p className="m-0 text-sm text-slate-300">
-          {`Difficulty: ${content.difficulty}`}
-        </p>
         <div className="mt-5">
           <h3 className="m-0 text-lg font-semibold tracking-wide text-slate-100">
             Mission Summary

@@ -1,5 +1,5 @@
 import { act, fireEvent, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import PreLabPage from "./PreLabPage";
@@ -41,7 +41,6 @@ function renderPreLabPage() {
           pathname: `/labs/${lab.id}/pre-lab`,
           state: {
             labName: lab.name,
-            labDifficulty: "medium",
           },
         },
       ]}
@@ -82,7 +81,6 @@ describe("PreLabPage session creation", () => {
     expect(apiMocks.createSessionForLab).toHaveBeenCalledWith(
       "http://localhost:8000",
       lab.id,
-      "medium",
     );
 
     await act(async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { useStopSessionMutation } from "../query/sessionMutations";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";

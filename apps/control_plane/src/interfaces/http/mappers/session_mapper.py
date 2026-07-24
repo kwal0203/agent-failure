@@ -174,7 +174,6 @@ def map_session_metadata_response(
         id=session_metadata.id,
         lab_id=session_metadata.lab_id,
         lab_version_id=session_metadata.lab_version_id,
-        lab_difficulty=session_metadata.lab_difficulty,
         state=session_metadata.state,
         runtime_substate=session_metadata.runtime_substate,
         resume_mode=session_metadata.resume_mode,

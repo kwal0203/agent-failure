@@ -49,9 +49,9 @@ class _StubLabLookupRepo:
 
 class _StubClassifier:
     def classify(
-        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        self, explanations: tuple[LearnerExplanation, ...]
     ) -> tuple[ExplanationSignal, ...]:
-        _ = (explanations, lab_difficulty)
+        _ = explanations
         return ()
 
 
@@ -180,7 +180,6 @@ def test_repeated_evaluation_of_same_input_does_not_duplicate_results(
         session_id=session_id,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty="medium",
         evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=1,

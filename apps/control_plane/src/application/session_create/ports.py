@@ -21,7 +21,6 @@ class CreateSessionRepository(Protocol):
         self,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         actor_id: UUID,
         actor_role: str,
     ) -> CreateSessionResult: ...
@@ -35,7 +34,6 @@ class OutboxCreateSession(Protocol):
         lab_version_id: UUID | None,
         lab_slug: str,
         lab_version: str,
-        lab_difficulty: str,
         resume_mode: str,
         requester_user_id: UUID,
         idempotency_key: str,

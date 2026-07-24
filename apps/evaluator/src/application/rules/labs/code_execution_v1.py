@@ -53,7 +53,6 @@ CODE_EXECUTION_V1_BUNDLE = RuleBundle(
     name="code_execution_v1",
     lab_id=UUID("44444444-4444-4444-4444-444444444444"),
     lab_version_id=UUID("88888888-8888-8888-8888-888888888888"),
-    lab_difficulty="medium",
     evaluator_version=1,
     rules=RULES,
 )

@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import type { PersistedReportDraft } from "../query/sessionReportDraft";
 import { useSessionReportDraftQuery } from "../query/sessionReportDraft";
 import { useSessionTraceQuery } from "../query/sessionTrace";

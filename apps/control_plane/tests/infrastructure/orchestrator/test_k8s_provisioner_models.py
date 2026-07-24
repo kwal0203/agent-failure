@@ -18,7 +18,6 @@ def _request() -> RuntimeProvisionRequest:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         image_ref="ghcr.io/test/runtime@sha256:abc123",
         metadata={},
     )
@@ -58,7 +57,7 @@ def test_build_pod_applies_security_profile_and_resources() -> None:
         "ephemeral-storage": "1Gi",
     }
     env_by_name = {item.name: item for item in container.env}
-    assert env_by_name["LAB_DIFFICULTY"].value == "medium"
+    assert "LAB_DIFFICULTY" not in env_by_name
     assert env_by_name["RUNTIME_SESSION_ID"].value == str(request.session_id)
 
     shared_token_ref = env_by_name["RUNTIME_SHARED_TOKEN"].value_from.secret_key_ref

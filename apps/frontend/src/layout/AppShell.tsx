@@ -8,7 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import type { AuthUser } from "../auth/authContext";
 import { useAuth } from "../auth/useAuth";
 import type { ShellBootstrap } from "../shell/context";

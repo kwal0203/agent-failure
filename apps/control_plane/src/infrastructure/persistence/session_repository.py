@@ -255,7 +255,6 @@ class SQLAlchemySessionMetadataRepository(SessionMetadataRepository):
             id=session_model.id,
             lab_id=session_model.lab_id,
             lab_version_id=session_model.lab_version_id,
-            lab_difficulty=session_model.lab_difficulty,
             owner_user_id=session_model.owner_user_id,
             state=session_model.state,
             runtime_substate=session_model.runtime_substate,
@@ -360,7 +359,6 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
         self,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         actor_id: UUID,
         actor_role: str,
     ) -> CreateSessionResult:
@@ -371,7 +369,6 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             state=SessionState.PROVISIONING.value,
             last_transition_actor=actor_role,
             last_transition_reason=None,
-            lab_difficulty=lab_difficulty,
             completion_status="in_progress",
             completed_at=None,
             completion_reason_code=None,
@@ -388,7 +385,6 @@ class SQLAlchemyCreateSessionRepository(CreateSessionRepository):
             resume_mode=session.resume_mode,
             created_at=session.created_at,
             requester_user_id=actor_id,
-            lab_difficulty=lab_difficulty,
         )
 
 
@@ -493,7 +489,6 @@ class SQLAlchemyTraceEventRepository(TraceEventPort):
             actor_user_id=trace.actor_user_id,
             lab_id=trace.lab_id,
             lab_version_id=trace.lab_version_id,
-            lab_difficulty=trace.lab_difficulty,
         )
 
         self._db.add(event)

@@ -32,7 +32,7 @@ class ExplanationClassifierRepository(ExplanationClassifierPort):
         )
 
     def classify(
-        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        self, explanations: tuple[LearnerExplanation, ...]
     ) -> tuple[ExplanationSignal, ...]:
         signals: list[ExplanationSignal] = []
         for explanation in explanations:
@@ -51,10 +51,7 @@ class ExplanationClassifierRepository(ExplanationClassifierPort):
                         },
                         {
                             "role": "user",
-                            "content": (
-                                f"tier={lab_difficulty}\n"
-                                f"explanation={explanation.explanation}"
-                            ),
+                            "content": f"explanation={explanation.explanation}",
                         },
                     ],
                 )
@@ -69,7 +66,6 @@ class ExplanationClassifierRepository(ExplanationClassifierPort):
                         "explanation_id": str(explanation.explanation_id),
                         "session_id": str(explanation.session_id),
                         "lab_id": str(explanation.lab_id),
-                        "lab_difficulty": lab_difficulty,
                         "error_type": type(exc).__name__,
                     },
                 )

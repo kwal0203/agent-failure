@@ -11,7 +11,6 @@ function metadataWithState(state: string): SessionMetadata {
     id: "11111111-1111-1111-1111-111111111111",
     lab_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     lab_version_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-    lab_difficulty: "medium",
     state,
     runtime_substate: null,
     resume_mode: "fresh",

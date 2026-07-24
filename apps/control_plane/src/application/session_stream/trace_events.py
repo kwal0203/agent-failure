@@ -72,7 +72,6 @@ def append_learner_prompt_trace(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
-        lab_difficulty=metadata.lab_difficulty,
     )
     append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)
     return trace_repo
@@ -101,7 +100,6 @@ def append_model_turn_started(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
-        lab_difficulty=metadata.lab_difficulty,
     )
     append_trace_event(
         trace=trace_event_model_started, repo=trace_repo, outbox_repo=outbox_repo
@@ -136,7 +134,6 @@ def append_model_turn_failed(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
-        lab_difficulty=metadata.lab_difficulty,
     )
     append_trace_event(
         trace=trace_event_model_failed, repo=trace_repo, outbox_repo=outbox_repo
@@ -173,7 +170,6 @@ def append_model_turn_completed(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
-        lab_difficulty=metadata.lab_difficulty,
     )
     append_trace_event(
         trace=trace_event_model_completed, repo=trace_repo, outbox_repo=outbox_repo
@@ -201,6 +197,5 @@ def append_runtime_event(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
-        lab_difficulty=metadata.lab_difficulty,
     )
     append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)

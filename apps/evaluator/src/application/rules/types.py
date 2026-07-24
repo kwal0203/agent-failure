@@ -22,7 +22,6 @@ class RuleBundle:
     name: str
     lab_id: UUID
     lab_version_id: UUID
-    lab_difficulty: str
     evaluator_version: int
     rules: tuple[RuleFn, ...]
 

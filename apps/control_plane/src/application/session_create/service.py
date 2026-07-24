@@ -1,8 +1,5 @@
 from uuid import UUID
-from apps.control_plane.src.application.common.types import (
-    PrincipalContext,
-    ALLOWED_LAB_DIFFICULTIES,
-)
+from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.common.errors import (
     ForbiddenError,
     DuplicateIdempotencyKeyError,
@@ -16,7 +13,6 @@ from .errors import (
     InvalidIdempotencyKeyError,
     RateLimitedError,
     AdmissionDecisionError,
-    InvalidLabDifficulty,
 )
 from .schemas import CreateSessionResult, DecisionDetails
 
@@ -47,18 +43,7 @@ def create_session(
     lab_id: UUID,
     idempotency_key: str,
     uow: CreateSessionUnitOfWork,
-    lab_difficulty: str = "medium",
 ) -> CreateSessionResult:
-    normalized_difficulty = lab_difficulty.strip().lower()
-    if normalized_difficulty not in ALLOWED_LAB_DIFFICULTIES:
-        raise InvalidLabDifficulty(
-            code="INVALID_LAB_DIFFICULTY",
-            details={
-                "lab_difficulty": lab_difficulty,
-                "allowed": sorted(ALLOWED_LAB_DIFFICULTIES),
-            },
-        )
-
     try:
         with uow.transaction():
             # - authenticated learner or admin acting as a learner
@@ -122,7 +107,6 @@ def create_session(
             session = uow.sessions.create_provision_session(
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                lab_difficulty=normalized_difficulty,
                 actor_id=principal.user_id,
                 actor_role=principal.role,
             )
@@ -145,7 +129,6 @@ def create_session(
                 lab_version_id=lab_version_id,
                 lab_slug=binding.lab_slug,
                 lab_version=binding.lab_version,
-                lab_difficulty=normalized_difficulty,
                 resume_mode=session.resume_mode,
                 requester_user_id=principal.user_id,
                 idempotency_key=idempotency_key,
@@ -160,7 +143,6 @@ def create_session(
                     "lab_id": str(lab_id),
                     "lab_slug": binding.lab_slug,
                     "lab_version": binding.lab_version,
-                    "lab_difficulty": normalized_difficulty,
                     "requester_user_id": str(principal.user_id),
                 },
             )

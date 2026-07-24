@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
 import { renderWithQueryClient } from "../test/renderWithQueryClient";
@@ -255,7 +255,7 @@ describe("SessionPage completion indicator", () => {
             feedback: [
               {
                 status: "progress",
-                reason_code: "PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
+                reason_code: "PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
                 evidence_snippet: "artifact entered context",
               },
             ],

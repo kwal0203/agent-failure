@@ -23,7 +23,6 @@ def build_trace_event(
     actor_user_id: UUID | None = None,
     lab_id: UUID | None = None,
     lab_version_id: UUID | None = None,
-    lab_difficulty: str | None = None,
 ) -> TraceEvent:
     resolved_correlation_id = correlation_id
     if resolved_correlation_id is None:
@@ -43,7 +42,6 @@ def build_trace_event(
         actor_user_id=actor_user_id,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty=lab_difficulty,
     )
 
 

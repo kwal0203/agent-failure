@@ -13,7 +13,7 @@ from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
     REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
-    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+    REASON_CODE_PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
@@ -53,8 +53,8 @@ DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
 @dataclass
 class _FakeRepo:
     events: list[EvaluatorTraceEvent]
-    persisted_calls: list[tuple[str, UUID, UUID, UUID, str, int, EvaluatorFinding]] = (
-        field(default_factory=list)
+    persisted_calls: list[tuple[str, UUID, UUID, UUID, int, EvaluatorFinding]] = field(
+        default_factory=list
     )
     persisted_results: list[EvaluatorPersistedResult] = field(default_factory=list)
 
@@ -68,7 +68,6 @@ class _FakeRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -78,7 +77,6 @@ class _FakeRepo:
                 session_id,
                 lab_id,
                 lab_version_id,
-                lab_difficulty,
                 evaluator_version,
                 finding,
             )
@@ -109,7 +107,6 @@ class _RaisingRepo:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -118,7 +115,6 @@ class _RaisingRepo:
             session_id,
             lab_id,
             lab_version_id,
-            lab_difficulty,
             evaluator_version,
             finding,
         )
@@ -161,9 +157,9 @@ class _StubLab1LookupRepo:
 
 class _FakeClassifier:
     def classify(
-        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        self, explanations: tuple[LearnerExplanation, ...]
     ) -> tuple[ExplanationSignal, ...]:
-        _ = (explanations, lab_difficulty)
+        _ = explanations
         return ()
 
 
@@ -172,7 +168,6 @@ def _make_task() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=3,
@@ -197,7 +192,6 @@ def _make_trace_event(
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        lab_difficulty=None,
     )
 
 
@@ -610,12 +604,12 @@ def test_map_finding_to_feedback_maps_malicious_artifact_entered_context_reason_
 ):
     finding = EvaluatorFinding(
         result_type="partial_success",
-        code="pi.global.malicious_artifact_entered_context",
+        code="pi.malicious_artifact_entered_context",
         trigger_event_index=4,
         trigger_start_event_index=None,
         trigger_end_event_index=None,
         feedback_level="info",
-        reason_code=REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+        reason_code=REASON_CODE_PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
         feedback_payload={},
     )
 
@@ -624,9 +618,7 @@ def test_map_finding_to_feedback_maps_malicious_artifact_entered_context_reason_
     assert mapped is not None
     assert mapped.feedback_key == "lab1_malicious_email_read_injects_context"
     assert mapped.severity == "info"
-    assert (
-        mapped.reason_code == REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT
-    )
+    assert mapped.reason_code == REASON_CODE_PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT
 
 
 def test_map_finding_to_feedback_maps_benign_email_read_injected_context_reason_code() -> (
@@ -908,9 +900,9 @@ def test_process_evaluate_pending_once_explanation_signals_influence_rules(
 
     class _SignalClassifier:
         def classify(
-            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+            self, explanations: tuple[LearnerExplanation, ...]
         ) -> tuple[ExplanationSignal, ...]:
-            _ = (explanations, lab_difficulty)
+            _ = explanations
             return (
                 ExplanationSignal(
                     explanation_id=uuid4(), confidence=1.0, mentions_root_cause=True
@@ -932,12 +924,12 @@ def test_process_evaluate_pending_once_explanation_signals_influence_rules(
             return (
                 EvaluatorFinding(
                     result_type="partial_success",
-                    code="pi.global.explanation.mentioned_root_cause",
+                    code="pi.explanation.mentioned_root_cause",
                     trigger_event_index=None,
                     trigger_start_event_index=None,
                     trigger_end_event_index=None,
                     feedback_level="info",
-                    reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                    reason_code="PI_EXPLANATION_MENTIONED_ROOT_CAUSE",
                     feedback_payload={"confidence": explanation_signals[0].confidence},
                 ),
             )
@@ -956,7 +948,7 @@ def test_process_evaluate_pending_once_explanation_signals_influence_rules(
     assert result.succeeded_count == 1
     assert len(repo.persisted_calls) == 1
     persisted_finding = repo.persisted_calls[0][-1]
-    assert persisted_finding.code == "pi.global.explanation.mentioned_root_cause"
+    assert persisted_finding.code == "pi.explanation.mentioned_root_cause"
 
 
 def test_evaluate_trace_window_once_maps_lab2_findings_to_objective_events(
@@ -1155,7 +1147,6 @@ def test_evaluate_trace_window_once_lab1_benign_email_emits_feedback_once() -> N
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        lab_difficulty=None,
     )
     repo = _FakeRepo(events=[benign_event])
     outbox_repo = _FakeOutboxRepo(pending=[])
@@ -1200,7 +1191,6 @@ def test_evaluate_trace_window_once_lab1_malicious_email_emits_not_read_yet_feed
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        lab_difficulty=None,
     )
     repo = _FakeRepo(events=[malicious_event])
     outbox_repo = _FakeOutboxRepo(pending=[])
@@ -1240,7 +1230,6 @@ def test_evaluate_trace_window_once_lab1_direct_disclosure_uses_classifier_fallb
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        lab_difficulty=None,
     )
     repo = _FakeRepo(events=[learner_prompt_event])
     outbox_repo = _FakeOutboxRepo(pending=[])
@@ -1285,7 +1274,6 @@ def test_evaluate_trace_window_once_lab1_direct_disclosure_classifier_below_thre
         actor_user_id=None,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        lab_difficulty=None,
     )
     repo = _FakeRepo(events=[learner_prompt_event])
     outbox_repo = _FakeOutboxRepo(pending=[])

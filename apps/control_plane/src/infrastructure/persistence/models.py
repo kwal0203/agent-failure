@@ -91,10 +91,6 @@ class SessionModel(Base):
     __tablename__ = "sessions"
     __table_args__ = (
         CheckConstraint(
-            "lab_difficulty in ('easy', 'medium', 'hard')",
-            name="ck_sessions_lab_difficulty",
-        ),
-        CheckConstraint(
             "completion_status in ('in_progress', 'completed_success', 'completed_failure')",
             name="ck_sessions_completion_status",
         ),
@@ -142,9 +138,6 @@ class SessionModel(Base):
     )
     # Add updated_at later on (can use it during reconciliation)
     # Add last_activity_at later on (cas use it during expiry)
-    lab_difficulty: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="medium"
-    )
 
 
 class SessionTransitionEventModel(Base):
@@ -274,10 +267,6 @@ class TraceEventModel(Base):
             "family IN ('lifecycle', 'learner', 'runtime', 'tool', 'model')",
             name="ck_trace_family",
         ),
-        CheckConstraint(
-            "lab_difficulty IN ('easy', 'medium')",
-            name="ck_trace_events_lab_difficulty",
-        ),
     )
 
     event_id: Mapped[PyUUID] = mapped_column(
@@ -306,9 +295,6 @@ class TraceEventModel(Base):
     lab_id: Mapped[PyUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     lab_version_id: Mapped[PyUUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
-    )
-    lab_difficulty: Mapped[str] = mapped_column(
-        String(32), nullable=True, default="medium"
     )
 
 
@@ -643,10 +629,6 @@ class EvaluatorResultModel(Base):
     __tablename__ = "evaluation_results"
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_evaluation_results_idempo"),
-        CheckConstraint(
-            "lab_difficulty IN ('easy', 'medium')",
-            name="ck_evaluation_results_lab_difficulty",
-        ),
     )
 
     id: Mapped[PyUUID] = mapped_column(
@@ -675,9 +657,6 @@ class EvaluatorResultModel(Base):
     lab_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     lab_version_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, index=True
-    )
-    lab_difficulty: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="medium"
     )
     evaluator_version: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -719,10 +698,6 @@ class LearnerExplanationModel(Base):
     __tablename__ = "learner_explanations"
     __table_args__ = (
         CheckConstraint("source IN ('learner')", name="ck_learner_explanations_source"),
-        CheckConstraint(
-            "lab_difficulty IN ('easy', 'medium')",
-            name="ck_learner_explanations_lab_difficulty",
-        ),
         UniqueConstraint(
             "session_id", "idempotency_key", name="uq_learner_explanations_idempo"
         ),
@@ -737,9 +712,6 @@ class LearnerExplanationModel(Base):
     )
     lab_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     lab_version_id: Mapped[PyUUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    lab_difficulty: Mapped[str] = mapped_column(
-        String(32), nullable=False, server_default="medium"
-    )
     source: Mapped[str] = mapped_column(
         String(64), nullable=False, server_default="learner"
     )

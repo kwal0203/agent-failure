@@ -50,7 +50,7 @@ def engine() -> Generator[Engine, None, None]:
         engine.dispose()
 
 
-def test_claim_pending_evaluate_defaults_lab_difficulty_to_medium_when_absent(
+def test_claim_pending_evaluate_accepts_canonical_payload(
     engine: Engine,
 ) -> None:
     session_id = uuid4()
@@ -62,7 +62,6 @@ def test_claim_pending_evaluate_defaults_lab_difficulty_to_medium_when_absent(
                 payload={
                     "lab_id": str(uuid4()),
                     "lab_version_id": str(uuid4()),
-                    # intentionally missing lab_difficulty for backward compatibility
                     "evaluator_version": 1,
                     "start_event_index": 10,
                     "end_event_index": 10,
@@ -78,10 +77,9 @@ def test_claim_pending_evaluate_defaults_lab_difficulty_to_medium_when_absent(
 
     assert len(claimed) == 1
     assert claimed[0].task.session_id == session_id
-    assert claimed[0].task.lab_difficulty == "medium"
 
 
-def test_claim_pending_evaluate_preserves_lab_difficulty_when_present(
+def test_claim_pending_evaluate_rejects_obsolete_difficulty_field(
     engine: Engine,
 ) -> None:
     with Session(bind=engine, future=True) as db:
@@ -106,5 +104,4 @@ def test_claim_pending_evaluate_preserves_lab_difficulty_when_present(
         repo = SQLAlchemyOutboxEvaluatorRepository(db=db)
         claimed = repo.claim_pending_evaluate(limit=10)
 
-    assert len(claimed) == 1
-    assert claimed[0].task.lab_difficulty == "easy"
+    assert claimed == []

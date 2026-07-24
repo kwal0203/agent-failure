@@ -77,16 +77,3 @@ class AdmissionDecisionError(Exception):
         self.message = message
         self.details = details or {}
         super().__init__(f"Unhandled admission denial code: {code}")
-
-
-class InvalidLabDifficulty(Exception):
-    def __init__(
-        self,
-        code: str | None,
-        message: str = "Invalid lab difficulty",
-        details: dict[str, object] | None = None,
-    ) -> None:
-        self.code = code
-        self.message = message
-        self.details = details or {}
-        super().__init__(self.message)

@@ -23,7 +23,6 @@ class EvaluatorPort(Protocol):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool: ...
@@ -80,5 +79,5 @@ class EvaluatorOutboxPort(Protocol):
 
 class ExplanationClassifierPort(Protocol):
     def classify(
-        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        self, explanations: tuple[LearnerExplanation, ...]
     ) -> tuple[ExplanationSignal, ...]: ...

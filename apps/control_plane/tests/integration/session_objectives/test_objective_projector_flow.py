@@ -50,7 +50,6 @@ def _seed_session(
         state="ACTIVE",
         last_transition_actor="test",
         last_transition_reason="test_seed",
-        lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()

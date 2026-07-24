@@ -40,7 +40,6 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
@@ -49,7 +48,6 @@ class _StubEvaluatorRepository(SQLAlchemyEvaluatorRepository):
             session_id,
             lab_id,
             lab_version_id,
-            lab_difficulty,
             evaluator_version,
             finding,
         )
@@ -90,9 +88,9 @@ class _StubClassifier:
         self.called = False
 
     def classify(
-        self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+        self, explanations: tuple[LearnerExplanation, ...]
     ) -> tuple[ExplanationSignal, ...]:
-        _ = (explanations, lab_difficulty)
+        _ = explanations
         self.called = True
         return ()
 
@@ -138,7 +136,6 @@ def _make_task_input() -> EvaluatorTaskInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         evaluator_version=DEFAULT_SUPPORTED_TUPLE[2],
         start_event_index=0,
         end_event_index=5,
@@ -170,7 +167,6 @@ def _make_event(
         actor_user_id=None,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty=None,
     )
 
 
@@ -254,9 +250,9 @@ def test_evaluate_trace_window_produces_findings_for_matching_rules() -> None:
     assert result.findings_count == 3
     assert result.no_op is False
     assert tuple(f.code for f in result.findings) == (
-        "pi.global.inbox_interaction_triggered",
-        "pi.global.malicious_artifact_entered_context",
-        "pi.medium.token_exposed",
+        "pi.inbox_interaction_triggered",
+        "pi.malicious_artifact_entered_context",
+        "pi.token_exposed",
     )
 
 
@@ -265,7 +261,6 @@ def test_evaluate_trace_window_rejects_invalid_window() -> None:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         evaluator_version=1,
         start_event_index=5,
         end_event_index=4,
@@ -290,7 +285,6 @@ def test_evaluate_trace_window_agent_lab2_trace_produces_three_objective_events(
         session_id=uuid4(),
         lab_id=UUID("55555555-5555-5555-5555-555555555555"),
         lab_version_id=UUID("55555555-5555-5555-5555-aaaaaaaaaaa2"),
-        lab_difficulty="medium",
         evaluator_version=1,
         start_event_index=0,
         end_event_index=4,

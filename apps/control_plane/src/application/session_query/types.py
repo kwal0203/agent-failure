@@ -59,7 +59,6 @@ class SessionMetadataRow:
     completion_status: CompletionStatus = "in_progress"
     completed_at: datetime | None = None
     completion_reason_code: str | None = None
-    lab_difficulty: str = "medium"
 
 
 @dataclass(frozen=True)
@@ -111,7 +110,6 @@ class SessionMetadataDTO:
     completion_status: CompletionStatus = "in_progress"
     completed_at: datetime | None = None
     completion_reason_code: str | None = None
-    lab_difficulty: str = "medium"
     progress_chips: list[SessionObjectiveDTO] = field(
         default_factory=lambda: cast(list[SessionObjectiveDTO], [])
     )
