@@ -1,8 +1,10 @@
 from uuid import UUID
 
+from apps.evaluator.src.application.pedagogy import (
+    V1_PEDAGOGICAL_POLICY,
+)
 from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
 from apps.evaluator.src.application.rules.cbm_compat import (
-    LegacyFindingSpec,
     compatible_observed_constraint_rule,
 )
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
@@ -36,11 +38,7 @@ RULES: tuple[RuleFn, ...] = (
         constraint_id=RULE_ID_CE_CODE_EXECUTE_VIOLATION,
         observe=_execution_tool_call_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="constraint_violation",
-            feedback_level="flag",
-            reason_code="CODE_EXECUTION_TOOL_USED",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
 )
 

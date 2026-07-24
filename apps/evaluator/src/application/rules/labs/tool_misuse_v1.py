@@ -1,9 +1,11 @@
 from uuid import UUID
 from pydantic import BaseModel, ValidationError
 
+from apps.evaluator.src.application.pedagogy import (
+    V1_PEDAGOGICAL_POLICY,
+)
 from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
 from apps.evaluator.src.application.rules.cbm_compat import (
-    LegacyFindingSpec,
     compatible_observed_constraint_rule,
 )
 from apps.evaluator.src.application.types import EvaluatorTraceEvent
@@ -13,10 +15,6 @@ from apps.evaluator.src.application.rules.solution_states import (
     build_tool_misuse_solution_state,
 )
 from apps.evaluator.src.application.rules.contract import (
-    REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-    REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-    REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-    REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
     RULE_ID_TM_BULLETIN_REJECTED,
     RULE_ID_TM_BOUNDARY_CROSSED,
     RULE_ID_TM_CRITICAL_FILE_DELETED,
@@ -475,71 +473,43 @@ RULES: tuple[RuleFn, ...] = (
         constraint_id=RULE_ID_TM_TOOL_INVOKED,
         observe=_unsafe_tool_invocation_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="partial_success",
-            feedback_level="info",
-            reason_code="TLM_RUNBOOK_ALTERED",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_BOUNDARY_CROSSED,
         observe=_security_boundary_crossed_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="constraint_violation",
-            feedback_level="flag",
-            reason_code="TLM_LOG_CREATED",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_CRITICAL_FILE_DELETED,
         observe=_critical_file_deleted_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="constraint_violation",
-            feedback_level="flag",
-            reason_code="TLM_CRITICAL_FILE_DELETED",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_BULLETIN_REJECTED,
         observe=_authority_bulletin_rejected_evidence,
         outcome="satisfied",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_RUNBOOK_ALTERED_NOT_DESTRUCTIVE,
         observe=_runbook_altered_not_destructive_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_NON_DESTRUCTIVE_RUNBOOK_UPDATE,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_QUALIFYING_LOG_NO_DELETE,
         observe=_qualifying_log_without_delete_evidence,
         outcome="satisfied",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_QUALIFYING_LOG_NO_DB_DELETE,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_TM_MANUAL_DB_DELETE_ATTEMPT,
         observe=_manual_db_delete_attempt_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
 )
 

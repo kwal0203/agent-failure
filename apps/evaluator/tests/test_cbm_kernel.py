@@ -2,6 +2,11 @@ from dataclasses import dataclass
 
 import pytest
 
+from apps.evaluator.src.application.pedagogy import (
+    ConstraintOutcomePolicy,
+    FindingPresentation,
+    PedagogicalPolicy,
+)
 from apps.evaluator.src.application.rules.cbm import (
     ConditionResult,
     Constraint,
@@ -10,8 +15,6 @@ from apps.evaluator.src.application.rules.cbm import (
 )
 from apps.evaluator.src.application.rules.cbm_compat import (
     CompatibleConstraintRule,
-    LegacyFindingMapping,
-    LegacyFindingSpec,
     map_evaluation_to_finding,
 )
 from apps.evaluator.src.application.rules.solution_states import LabSolutionState
@@ -38,6 +41,23 @@ def _constraint() -> Constraint[ExampleState]:
                 facts={"action": "delete", "safe": state.safe},
             ),
         ),
+    )
+
+
+def _policy(
+    *,
+    constraint_id: str = "SAFE_ACTION_REQUIRED",
+    satisfied: FindingPresentation | None = None,
+    violated: FindingPresentation | None = None,
+) -> PedagogicalPolicy:
+    return PedagogicalPolicy.build(
+        name="test_policy",
+        outcomes_by_constraint_id={
+            constraint_id: ConstraintOutcomePolicy(
+                satisfied=satisfied,
+                violated=violated,
+            )
+        },
     )
 
 
@@ -95,8 +115,8 @@ def test_constraint_evaluation_rejects_inconsistent_states() -> None:
 
 def test_legacy_mapping_projects_violation_without_leaking_policy_into_kernel() -> None:
     result = _constraint().evaluate(ExampleState(attempted=True, safe=False))
-    mapping = LegacyFindingMapping(
-        violated=LegacyFindingSpec(
+    policy = _policy(
+        violated=FindingPresentation(
             result_type="constraint_violation",
             feedback_level="flag",
             reason_code="UNSAFE_ACTION",
@@ -104,7 +124,7 @@ def test_legacy_mapping_projects_violation_without_leaking_policy_into_kernel() 
         )
     )
 
-    finding = map_evaluation_to_finding(result, mapping)
+    finding = map_evaluation_to_finding(result, policy)
 
     assert finding is not None
     assert finding.result_type == "constraint_violation"
@@ -127,8 +147,8 @@ def test_legacy_mapping_can_emit_satisfaction_or_suppress_an_outcome() -> None:
     assert (
         map_evaluation_to_finding(
             result,
-            LegacyFindingMapping(
-                violated=LegacyFindingSpec(
+            _policy(
+                violated=FindingPresentation(
                     result_type="constraint_violation",
                     feedback_level="flag",
                     reason_code="UNSAFE_ACTION",
@@ -140,8 +160,8 @@ def test_legacy_mapping_can_emit_satisfaction_or_suppress_an_outcome() -> None:
 
     finding = map_evaluation_to_finding(
         result,
-        LegacyFindingMapping(
-            satisfied=LegacyFindingSpec(
+        _policy(
+            satisfied=FindingPresentation(
                 result_type="success_signal",
                 feedback_level="info",
                 reason_code="SAFE_ACTION",
@@ -156,20 +176,47 @@ def test_legacy_mapping_can_emit_satisfaction_or_suppress_an_outcome() -> None:
 
 def test_irrelevant_constraint_never_maps_to_a_finding() -> None:
     result = _constraint().evaluate(ExampleState(attempted=False, safe=False))
-    mapping = LegacyFindingMapping(
-        satisfied=LegacyFindingSpec(
+    policy = _policy(
+        satisfied=FindingPresentation(
             result_type="success_signal",
             feedback_level="info",
             reason_code="SAFE_ACTION",
         ),
-        violated=LegacyFindingSpec(
+        violated=FindingPresentation(
             result_type="constraint_violation",
             feedback_level="flag",
             reason_code="UNSAFE_ACTION",
         ),
     )
 
-    assert map_evaluation_to_finding(result, mapping) is None
+    assert map_evaluation_to_finding(result, policy) is None
+
+
+def test_pedagogical_policy_fails_closed_for_unmapped_constraint() -> None:
+    result = _constraint().evaluate(ExampleState(attempted=True, safe=False))
+    policy = _policy(constraint_id="A_DIFFERENT_CONSTRAINT")
+
+    with pytest.raises(KeyError, match="does not define constraint"):
+        map_evaluation_to_finding(result, policy)
+
+
+def test_pedagogical_policy_copies_its_mapping() -> None:
+    outcome_policy = ConstraintOutcomePolicy(
+        violated=FindingPresentation(
+            result_type="constraint_violation",
+            feedback_level="flag",
+            reason_code="UNSAFE_ACTION",
+        )
+    )
+    source = {"SAFE_ACTION_REQUIRED": outcome_policy}
+    policy = PedagogicalPolicy(
+        name="immutable_test_policy",
+        outcomes_by_constraint_id=source,
+    )
+
+    source.clear()
+
+    assert policy.outcome_policy_for("SAFE_ACTION_REQUIRED") is outcome_policy
 
 
 def test_compatible_constraint_rule_satisfies_current_rule_contract() -> None:
@@ -185,12 +232,13 @@ def test_compatible_constraint_rule_satisfies_current_rule_contract() -> None:
             relevance=lambda _context: ConditionResult.true(),
             satisfaction=lambda _context: ConditionResult.false(),
         ),
-        finding_mapping=LegacyFindingMapping(
-            violated=LegacyFindingSpec(
+        pedagogical_policy=_policy(
+            constraint_id="COMPATIBLE_CONSTRAINT",
+            violated=FindingPresentation(
                 result_type="constraint_violation",
                 feedback_level="flag",
                 reason_code="COMPATIBLE_VIOLATION",
-            )
+            ),
         ),
     )
 

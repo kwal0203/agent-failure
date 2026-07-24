@@ -1,64 +1,29 @@
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
-from types import MappingProxyType
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Literal
 
-from apps.evaluator.src.application.types import (
-    EvaluatorFinding,
-    FeedbackLevel,
-    ResultType,
+from apps.evaluator.src.application.pedagogy.policy import (
+    PedagogicalPolicy,
 )
+from apps.evaluator.src.application.types import EvaluatorFinding
 
 from .cbm import (
     ConditionResult,
     Constraint,
     ConstraintEvaluation,
     ConstraintEvidence,
-    ConstraintStatus,
 )
 from .types import RuleContext
 
 
-def _empty_payload() -> Mapping[str, object]:
-    return MappingProxyType({})
-
-
-@dataclass(frozen=True)
-class LegacyFindingSpec:
-    """Temporary projection metadata for the pre-CBM finding contract."""
-
-    result_type: ResultType
-    feedback_level: FeedbackLevel
-    reason_code: str
-    feedback_payload: Mapping[str, object] = field(default_factory=_empty_payload)
-
-    def __post_init__(self) -> None:
-        if not self.reason_code.strip():
-            raise ValueError("reason_code must not be empty")
-
-
-@dataclass(frozen=True)
-class LegacyFindingMapping:
-    """Selects which CBM outcomes remain visible as legacy findings."""
-
-    satisfied: LegacyFindingSpec | None = None
-    violated: LegacyFindingSpec | None = None
-
-    def for_status(self, status: ConstraintStatus) -> LegacyFindingSpec | None:
-        if status == "satisfied":
-            return self.satisfied
-        if status == "violated":
-            return self.violated
-        return None
-
-
 def map_evaluation_to_finding(
     evaluation: ConstraintEvaluation,
-    mapping: LegacyFindingMapping,
+    pedagogical_policy: PedagogicalPolicy,
 ) -> EvaluatorFinding | None:
-    """Project a CBM result onto the existing persistence/API contract."""
+    """Apply pedagogical policy to the assessment result."""
 
-    spec = mapping.for_status(evaluation.status)
+    outcome_policy = pedagogical_policy.outcome_policy_for(evaluation.constraint_id)
+    spec = outcome_policy.presentation_for(evaluation.status)
     if spec is None:
         return None
 
@@ -90,11 +55,26 @@ class CompatibleConstraintRule:
     """Callable bridge allowing CBM constraints in the current rule bundles."""
 
     constraint: Constraint[RuleContext]
-    finding_mapping: LegacyFindingMapping
+    pedagogical_policy: PedagogicalPolicy
+    observe_each: Callable[[RuleContext], Iterable[ConstraintEvidence]] | None = None
 
     def __call__(self, context: RuleContext) -> tuple[EvaluatorFinding, ...]:
+        if self.observe_each is not None:
+            findings: list[EvaluatorFinding] = []
+            for evidence in self.observe_each(context):
+                relevance = ConditionResult.true(evidence)
+                evaluation = ConstraintEvaluation(
+                    constraint_id=self.constraint.constraint_id,
+                    relevance=relevance,
+                    satisfaction=self.constraint.satisfaction(context),
+                )
+                finding = map_evaluation_to_finding(evaluation, self.pedagogical_policy)
+                if finding is not None:
+                    findings.append(finding)
+            return tuple(findings)
+
         finding = map_evaluation_to_finding(
-            self.constraint.evaluate(context), self.finding_mapping
+            self.constraint.evaluate(context), self.pedagogical_policy
         )
         return (finding,) if finding is not None else ()
 
@@ -108,7 +88,7 @@ def compatible_observed_constraint_rule(
     constraint_id: str,
     observe: EvidenceObserver,
     outcome: ObservedConstraintOutcome,
-    finding: LegacyFindingSpec,
+    pedagogical_policy: PedagogicalPolicy,
 ) -> CompatibleConstraintRule:
     """Build a current-contract rule for an observed CBM constraint outcome."""
 
@@ -127,8 +107,37 @@ def compatible_observed_constraint_rule(
             relevance=relevance,
             satisfaction=satisfaction,
         ),
-        finding_mapping=LegacyFindingMapping(
-            satisfied=finding if outcome == "satisfied" else None,
-            violated=finding if outcome == "violated" else None,
+        pedagogical_policy=pedagogical_policy,
+    )
+
+
+RepeatedEvidenceObserver = Callable[[RuleContext], tuple[ConstraintEvidence, ...]]
+
+
+def compatible_repeated_observed_constraint_rule(
+    *,
+    constraint_id: str,
+    observe_each: RepeatedEvidenceObserver,
+    outcome: ObservedConstraintOutcome,
+    pedagogical_policy: PedagogicalPolicy,
+) -> CompatibleConstraintRule:
+    """Build a CBM rule that preserves one finding per observed occurrence."""
+
+    def relevance(context: RuleContext) -> ConditionResult:
+        observations = observe_each(context)
+        if not observations:
+            return ConditionResult.false()
+        return ConditionResult.true(observations[0])
+
+    def satisfaction(_context: RuleContext) -> ConditionResult:
+        return ConditionResult(holds=outcome == "satisfied")
+
+    return CompatibleConstraintRule(
+        constraint=Constraint(
+            constraint_id=constraint_id,
+            relevance=relevance,
+            satisfaction=satisfaction,
         ),
+        pedagogical_policy=pedagogical_policy,
+        observe_each=observe_each,
     )

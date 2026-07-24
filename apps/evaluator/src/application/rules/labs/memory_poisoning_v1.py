@@ -3,20 +3,17 @@ import re
 
 from pydantic import BaseModel, Field
 
+from apps.evaluator.src.application.pedagogy import (
+    V1_PEDAGOGICAL_POLICY,
+)
 from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
 from apps.evaluator.src.application.rules.cbm_compat import (
-    LegacyFindingSpec,
     compatible_observed_constraint_rule,
 )
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleContext, RuleFn
 from apps.evaluator.src.application.rules.solution_states import (
     MemoryPoisoningSolutionState,
     build_memory_poisoning_solution_state,
-)
-from apps.evaluator.src.application.rules.contract import (
-    REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
-    REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
-    REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
 )
 from apps.evaluator.src.application.types import EvaluatorTraceEvent
 from apps.contracts.src.types import (
@@ -507,61 +504,37 @@ RULES: tuple[RuleFn, ...] = (
         constraint_id=RULE_ID_MP_SUCCESSFUL_INVOICE_PAYMENT,
         observe=_successful_invoice_payment_evidence,
         outcome="satisfied",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_MP_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
         observe=_vendor_profile_memory_write_blocked_evidence,
         outcome="satisfied",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_MP_FEEDBACK_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_MP_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
         observe=_requested_account_mismatch_canonical_evidence,
         outcome="satisfied",
-        finding=LegacyFindingSpec(
-            result_type="no_effect",
-            feedback_level="info",
-            reason_code=REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_MP_MALICIOUS_VENDOR_MEMORY_WRITTEN,
         observe=_malicious_vendor_memory_written_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="partial_success",
-            feedback_level="flag",
-            reason_code="IMP_MALICIOUS_VENDOR_MEMORY_WRITTEN",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_MP_POISONED_MEMORY_RETRIEVED_FOR_INVOICE,
         observe=_poisoned_memory_retrieved_for_invoice_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="partial_success",
-            feedback_level="flag",
-            reason_code="IMP_POISONED_MEMORY_RETRIEVED_FOR_INVOICE",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
     compatible_observed_constraint_rule(
         constraint_id=RULE_ID_MP_PAYMENT_ROUTED_TO_ATTACKER_ACCOUNT,
         observe=_payment_routed_to_attacker_account_evidence,
         outcome="violated",
-        finding=LegacyFindingSpec(
-            result_type="constraint_violation",
-            feedback_level="flag",
-            reason_code="IMP_PAYMENT_ROUTED_TO_ATTACKER_ACCOUNT",
-        ),
+        pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
 )
 
