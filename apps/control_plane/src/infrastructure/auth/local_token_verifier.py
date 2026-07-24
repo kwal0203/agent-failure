@@ -6,13 +6,7 @@ from .types import AuthVerifierConfig
 
 
 class LocalTokenVerifier(TokenVerifierPort):
-    """
-    Temporary verifier used during auth migration.
-
-    It keeps support for the existing local bearer format while we introduce
-    provider-driven verification. Constructor is already config-driven so
-    Cognito/JWKS verifier can replace internals without touching call sites.
-    """
+    """Development-only verifier for ``local:<username>[:role]`` bearer tokens."""
 
     def __init__(self, config: AuthVerifierConfig) -> None:
         self._config = config
@@ -39,7 +33,7 @@ class LocalTokenVerifier(TokenVerifierPort):
         if "@" in username:
             email = username
         else:
-            email = f"{username}@gatech.edu"
+            email = f"{username}@example.test"
 
         return AuthClaims(
             sub=f"local-user:{username}",

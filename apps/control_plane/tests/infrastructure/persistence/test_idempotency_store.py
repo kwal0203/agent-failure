@@ -133,7 +133,7 @@ def test_save_rejects_missing_transition_event_fk(db_session: Session) -> None:
         operation="transition_session",
         idempotency_key=str(uuid4()),
         session_id=session.id,
-        transition_id=uuid4(),  # TODO: references non-existent transition row
+        transition_id=uuid4(),  # Deliberately violates the transition foreign key.
         response_payload=None,
     )
     db_session.add(record)

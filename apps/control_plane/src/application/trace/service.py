@@ -53,9 +53,9 @@ def append_trace_event(
             ),
         )
 
-    # NOTE(P1-E6-T4): Context validation is intentionally minimal for now.
-    # We currently enforce only learner actor attribution; T4 should extend this
-    # to per-event requirements (e.g. tool/model failure events requiring error metadata).
+    # Context validation is deliberately schema-driven. Learner events require
+    # actor attribution, while event-specific payload requirements live in
+    # REQUIRED_PAYLOAD_FIELDS below.
     missing_fields: list[str] = []
     if trace.family == "learner" and trace.actor_user_id is None:
         missing_fields.append("actor_user_id")

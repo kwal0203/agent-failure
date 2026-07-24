@@ -1,25 +1,15 @@
 from __future__ import annotations
 
-from uuid import UUID
 from typing import Literal, Mapping
 from dataclasses import dataclass, field
 from apps.contracts.src.types import ToolName
 
 
-FailureCode = Literal["provider_failure", "invalid_request", "internal_error"]
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
 
 def default_parameters() -> dict[str, object]:
     return {}
-
-
-@dataclass(frozen=True)
-class HarnessTurnInput:
-    session_id: UUID
-    lab_id: UUID
-    lab_version_id: UUID
-    prompt: str
 
 
 @dataclass(frozen=True)
@@ -46,19 +36,6 @@ class ModelRequest:
 class HarnessChunk:
     content: str
     final: bool
-
-
-@dataclass(frozen=True)
-class HarnessFailure:
-    code: FailureCode
-    message: str
-    details: dict[str, str] | None
-
-
-@dataclass(frozen=True)
-class HarnessTurnResult:
-    chunks: list[HarnessChunk]
-    failure: HarnessFailure | None = None
 
 
 @dataclass(frozen=True)

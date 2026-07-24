@@ -22,7 +22,7 @@ class StopSessionResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: UUID
     lab_id: UUID
-    # TODO: Make lab_version_id non-null once lab version binding is implemented in create flow.
+    # Nullable for historical sessions created before lab-version binding.
     lab_version_id: UUID | None
     state: str
     resume_mode: str

@@ -36,10 +36,8 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                 # )
                 .where(
                     TraceEventModel.session_id == input.session_id,
-                    # TODO(eval-window): MVP widens to session-start history so
-                    # sequence rules can match across turns. Replace with
-                    # checkpointed/rolling-window loading to avoid re-reading
-                    # full session trace on every evaluation task.
+                    # V1 sequence rules may span multiple learner turns, so each
+                    # task evaluates the authoritative trace from session start.
                     TraceEventModel.event_index >= 0,
                     TraceEventModel.event_index <= input.end_event_index,
                 )

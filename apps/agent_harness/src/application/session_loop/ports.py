@@ -3,9 +3,6 @@ from uuid import UUID
 from .types import (
     ModelRequest,
     HarnessChunk,
-    HarnessTurnInput,
-    ChatMessage,
-    HarnessFailure,
     InboxItem,
     ToolDecision,
     DeleteFileResult,
@@ -30,15 +27,6 @@ class ModelClientPort(Protocol):
     def decide_tool_or_text(self, payload: ModelRequest) -> ToolDecision: ...
 
     def agent_chat(self, payload: AgentRequest) -> AgentResponse: ...
-
-
-class LabContextBuilderPort(Protocol):
-    def build_messages(self, turn: HarnessTurnInput) -> list[ChatMessage]: ...
-
-
-class EventSinkPort(Protocol):
-    def on_chunk(self, chunk: HarnessChunk) -> None: ...
-    def on_failure(self, failure: HarnessFailure) -> None: ...
 
 
 class InboxToolPort(Protocol):

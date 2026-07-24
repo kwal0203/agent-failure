@@ -63,8 +63,17 @@ class OrchestratorSettings:
     max_session_lifetime_seconds: int
 
 
+@dataclass(frozen=True)
+class HttpSettings:
+    cors_allowed_origins: tuple[str, ...]
+
+
 LOCAL_APP_ENV = "dev"
 LOCAL_ENROLLMENT_TOKEN_SECRET = "local-dev-enrollment-secret-32-bytes-min"
+LOCAL_CORS_ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
 
 AppEnvironment = Literal["dev", "staging", "production"]
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -214,6 +223,23 @@ class _AuthEnvironmentSettings(_AppEnvironmentSettings):
                 f"Cognito authentication settings are required when "
                 f"APP_ENV={self.app_env}: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_JWKS_URI"
             )
+        return self
+
+
+class _HttpEnvironmentSettings(_AppEnvironmentSettings):
+    cors_allowed_origins: NonEmptyStr | None = Field(
+        default=None,
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
+
+    @model_validator(mode="after")
+    def validate_cors_allowed_origins(self) -> Self:
+        if self.cors_allowed_origins is None and self.app_env != LOCAL_APP_ENV:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS is required outside local development"
+            )
+        if self.cors_allowed_origins is not None:
+            _parse_cors_allowed_origins(self.cors_allowed_origins)
         return self
 
 
@@ -373,6 +399,41 @@ def get_auth_verifier_config() -> AuthVerifierConfig:
     )
 
 
+def _parse_cors_allowed_origins(raw_origins: str) -> tuple[str, ...]:
+    origins: list[str] = []
+    for raw_origin in raw_origins.split(","):
+        origin = raw_origin.strip().rstrip("/")
+        parsed = urlparse(origin)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must be a comma-separated list of HTTP(S) origins"
+            )
+        if origin not in origins:
+            origins.append(origin)
+    if not origins:
+        raise ValueError("CORS_ALLOWED_ORIGINS must contain at least one origin")
+    return tuple(origins)
+
+
+def get_http_settings() -> HttpSettings:
+    settings = _HttpEnvironmentSettings()
+    origins = (
+        _parse_cors_allowed_origins(settings.cors_allowed_origins)
+        if settings.cors_allowed_origins is not None
+        else LOCAL_CORS_ALLOWED_ORIGINS
+    )
+    return HttpSettings(cors_allowed_origins=origins)
+
+
 def get_runtime_pod_env_settings() -> RuntimePodEnvSettings:
     settings = _RuntimePodEnvironmentSettings()
     return RuntimePodEnvSettings(
@@ -418,5 +479,6 @@ def validate_control_plane_settings() -> None:
     _EnrollmentEnvironmentSettings()
     _RuntimeClientEnvironmentSettings()
     _AuthEnvironmentSettings()
+    _HttpEnvironmentSettings()
     _InstructorProvisioningEnvironmentSettings()
     _OrchestratorEnvironmentSettings()
