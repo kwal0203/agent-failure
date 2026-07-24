@@ -97,7 +97,6 @@ class ReconciliationCandidate:
     session_id: UUID
     runtime_id: str | None
     runtime_substate: str | None
-    # updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -115,7 +114,6 @@ class ExpiryCandidate:
     created_at: datetime
     started_at: datetime | None = None
     ended_at: datetime | None = None
-    # last_activity_at: datetime
 
 
 @dataclass(frozen=True)
@@ -130,17 +128,23 @@ class ExpiryOnceResult:
 class UpsertSessionRuntimeBindingInput:
     session_id: UUID
     runtime_kind: RuntimeKind
-    base_url: str
+    base_url: str | None
     auth_token_ref: str | None = None
     status: RuntimeBindingStatus = "provisioning"
     last_error: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.status == "ready" and (
+            self.base_url is None or not self.base_url.strip()
+        ):
+            raise ValueError("A ready runtime binding requires a base URL")
 
 
 @dataclass(frozen=True)
 class SessionRuntimeBinding:
     session_id: UUID
     runtime_kind: RuntimeKind
-    base_url: str
+    base_url: str | None
     auth_token_ref: str | None
     status: RuntimeBindingStatus | None = None
     last_error: str | None = None

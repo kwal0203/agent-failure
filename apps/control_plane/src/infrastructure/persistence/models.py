@@ -264,27 +264,6 @@ class OutboxEventModel(Base):
     )
 
 
-class WorkerHeartbeatModel(Base):
-    __tablename__ = "worker_heartbeats"
-
-    worker_name: Mapped[str] = mapped_column(
-        String(64), nullable=False, primary_key=True
-    )
-    last_tick_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    last_success_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-
 class TraceEventModel(Base):
     __tablename__ = "trace_events"
     __table_args__ = (
@@ -710,13 +689,18 @@ class SessionRuntimeBindingModel(Base):
             "status IN ('provisioning', 'ready', 'failed', 'terminated')",
             name="ck_session_runtime_binding_status",
         ),
+        CheckConstraint(
+            "status != 'ready' OR "
+            "(base_url IS NOT NULL AND length(trim(base_url)) > 0)",
+            name="ck_session_runtime_binding_ready_base_url",
+        ),
     )
 
     session_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id"), primary_key=True
     )
     runtime_kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     auth_token_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(64), nullable=False)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

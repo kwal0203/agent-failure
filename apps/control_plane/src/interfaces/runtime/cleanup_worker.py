@@ -1,6 +1,10 @@
 from apps.control_plane.src.application.orchestrator.service import (
     process_cleanup_pending_once,
 )
+from apps.control_plane.src.application.orchestrator.policy import CleanupPolicy
+from apps.control_plane.src.infrastructure.config.settings import (
+    get_orchestrator_settings,
+)
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_cleanup_session import (
     SQLAlchemyUnitOfWorkCleanupSession,
 )
@@ -31,7 +35,18 @@ def _build_dependencies() -> tuple[
 
 def run_once() -> None:
     uow, teardown = _build_dependencies()
-    result = process_cleanup_pending_once(uow=uow, teardown=teardown)
+    settings = get_orchestrator_settings()
+    result = process_cleanup_pending_once(
+        uow=uow,
+        teardown=teardown,
+        policy=CleanupPolicy(
+            max_attempts=settings.cleanup_max_attempts,
+            retry_backoff_seconds=settings.cleanup_retry_backoff_seconds,
+            already_gone_reverify_backoff_seconds=(
+                settings.cleanup_reverify_backoff_seconds
+            ),
+        ),
+    )
     logger.info(
         "cleanup worker tick claimed=%s succeeded=%s failed=%s retried=%s",
         result.claimed_count,

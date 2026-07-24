@@ -5,8 +5,12 @@ from apps.control_plane.src.domain.session_lifecycle.state_machine import (
     SessionState,
     Trigger,
 )
+from apps.control_plane.src.application.orchestrator.types import (
+    UpsertSessionRuntimeBindingInput,
+)
 from apps.control_plane.src.infrastructure.persistence.models import SessionModel
 from apps.control_plane.src.infrastructure.persistence.session_repository import (
+    SQLAlchemySessionRuntimeBindingRepository,
     SQLAlchemySessionRepository,
     SessionTransitionEventModel,
 )
@@ -49,6 +53,41 @@ def test_get_for_update_returns_none_for_missing(
 ) -> None:
     result = repo.get_for_update(session_id=uuid4())
     assert result is None
+
+
+def test_runtime_binding_represents_missing_url_without_placeholder(
+    db_session: Session,
+) -> None:
+    session = _insert_session(
+        db_session=db_session,
+        state=SessionState.PROVISIONING,
+    )
+    repo = SQLAlchemySessionRuntimeBindingRepository(db=db_session)
+
+    repo.upsert_runtime_binding(
+        input=UpsertSessionRuntimeBindingInput(
+            session_id=session.id,
+            runtime_kind="k8s_pod",
+            base_url=None,
+            status="provisioning",
+        )
+    )
+
+    binding = repo.get_by_session_id(session_id=session.id)
+    assert binding is not None
+    assert binding.runtime_kind == "k8s_pod"
+    assert binding.base_url is None
+    assert binding.status == "provisioning"
+
+
+def test_ready_runtime_binding_requires_base_url() -> None:
+    with pytest.raises(ValueError, match="requires a base URL"):
+        UpsertSessionRuntimeBindingInput(
+            session_id=uuid4(),
+            runtime_kind="k8s_pod",
+            base_url=None,
+            status="ready",
+        )
 
 
 def test_update_state_happy_path(

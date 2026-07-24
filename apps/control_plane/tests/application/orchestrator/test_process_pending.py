@@ -16,6 +16,7 @@ from apps.control_plane.src.application.common.types import (
 from apps.control_plane.src.application.orchestrator.service import process_pending_once
 from apps.control_plane.src.application.orchestrator.types import (
     PendingProvisioningEvent,
+    ProcessPendingOnceResult,
     ProvisionResult,
     RuntimeInspectorRequest,
     RuntimeInspectorResult,
@@ -495,6 +496,7 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
     assert len(transition_calls) == 1
     assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
     assert transition_calls[0]["session_id"] == ev.session_id
+    assert uow.runtime_binding.upsert_calls[0].base_url is None
 
 
 def test_process_pending_once_explicit_difficulty_propagates_to_runtime_request(
@@ -598,6 +600,55 @@ def test_process_pending_once_missing_runtime_id_marks_terminal_and_transitions_
     assert len(transition_calls) == 1
     assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
     assert transition_calls[0]["session_id"] == ev.session_id
+
+
+def test_process_pending_once_missing_base_url_fails_before_activation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ev = _make_event(
+        payload={
+            "lab_id": str(uuid4()),
+            "lab_version_id": str(uuid4()),
+        }
+    )
+    outbox = _FakeOutbox(events=[ev])
+    uow = _FakeProcessPendingOnceUoW(outbox=outbox)
+    provisioner = _FakeProvisioner(
+        result=ProvisionResult(
+            status="accepted",
+            runtime_id="r-1",
+            details={},
+        )
+    )
+    transition_calls: list[dict[str, Any]] = []
+
+    def _fake_transition_session(**kwargs: Any) -> object:
+        transition_calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        orchestrator_service, "transition_session", _fake_transition_session
+    )
+
+    result = process_pending_once(
+        uow=uow,
+        image_resolver=_FakeResolver(),
+        provisioner=provisioner,
+        runtime_inspector=_FakeInspector(responses={}),
+    )
+
+    assert result == ProcessPendingOnceResult(
+        claimed_count=1,
+        succeeded_count=0,
+        failed_count=1,
+        retried_count=0,
+    )
+    assert len(outbox.processed_calls) == 0
+    assert outbox.terminal_calls[0].error_message == (
+        "Provisioning failed: MISSING_BASE_URL"
+    )
+    assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
+    assert transition_calls[0]["metadata"]["reason_code"] == "MISSING_BASE_URL"
 
 
 def test_process_pending_once_terminal_race_skips_activation_and_enqueues_cleanup(

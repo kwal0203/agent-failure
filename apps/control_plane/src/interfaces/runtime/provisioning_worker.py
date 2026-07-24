@@ -1,10 +1,13 @@
 import logging
 import time
 from pathlib import Path
-from datetime import datetime, timezone
 
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
 from apps.control_plane.src.application.orchestrator.service import process_pending_once
+from apps.control_plane.src.application.orchestrator.policy import ProvisioningPolicy
+from apps.control_plane.src.application.orchestrator.types import (
+    ProcessPendingOnceResult,
+)
 from apps.control_plane.src.infrastructure.persistence.unit_of_work_outbox_pending import (
     SQLAlchemyProcessPendingOnceUnitOfWork,
 )
@@ -17,10 +20,6 @@ from apps.control_plane.src.infrastructure.orchestrator.k8s_provisioner import (
 from apps.control_plane.src.infrastructure.orchestrator.k8s_runtime_inspector import (
     K8sRuntimeInspector,
 )
-from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
-    SQLAlchemyWorkerHeartbeatRepository,
-)
-
 from dotenv import load_dotenv
 from apps.control_plane.src.application.common.observability import (
     log_fields,
@@ -29,6 +28,7 @@ from apps.control_plane.src.application.common.observability import (
 )
 from apps.control_plane.src.infrastructure.config.settings import (
     get_app_env,
+    get_orchestrator_settings,
     get_runtime_pod_env_settings,
 )
 
@@ -66,7 +66,6 @@ def _build_dependencies() -> tuple[
     SQLAlchemyProcessPendingOnceUnitOfWork,
     RuntimeImageResolver,
     K8sRuntimeProvisioner,
-    SQLAlchemyWorkerHeartbeatRepository,
     K8sRuntimeInspector,
 ]:
     app_env = get_app_env()
@@ -91,21 +90,35 @@ def _build_dependencies() -> tuple[
         selection_file=selection_file,
     )
     provisioner = K8sRuntimeProvisioner()
-    # NOTE(P2-EA-T4): This is a pragmatic shortcut: the worker directly instantiates
-    # an infrastructure heartbeat adapter. Long-term, heartbeat writes should be
-    # modeled as an application port and composed into the worker UoW so tick
-    # bookkeeping and orchestration outcomes share one transactional boundary.
-    heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
     runtime_inspector = K8sRuntimeInspector()
-    return uow, resolver, provisioner, heartbeat_repo, runtime_inspector
+    return uow, resolver, provisioner, runtime_inspector
 
 
-def run_once() -> None:
-    uow, resolver, provisioner, heartbeat_repo, runtime_inspector = (
-        _build_dependencies()
+ProvisioningWorkerDependencies = tuple[
+    SQLAlchemyProcessPendingOnceUnitOfWork,
+    RuntimeImageResolver,
+    K8sRuntimeProvisioner,
+    K8sRuntimeInspector,
+]
+
+
+def _build_policy() -> ProvisioningPolicy:
+    settings = get_orchestrator_settings()
+    return ProvisioningPolicy(
+        readiness_timeout_seconds=settings.readiness_timeout_seconds,
+        readiness_poll_interval_seconds=settings.readiness_poll_interval_seconds,
+        retry_backoff_seconds=settings.provisioning_retry_backoff_seconds,
     )
-    ts = datetime.now(timezone.utc)
-    heartbeat_repo.record_tick(worker_name="provisioning_worker", at=ts)
+
+
+def run_once(
+    *,
+    dependencies: ProvisioningWorkerDependencies | None = None,
+    policy: ProvisioningPolicy | None = None,
+) -> ProcessPendingOnceResult:
+    uow, resolver, provisioner, runtime_inspector = (
+        dependencies or _build_dependencies()
+    )
 
     try:
         result = process_pending_once(
@@ -113,28 +126,21 @@ def run_once() -> None:
             image_resolver=resolver,
             provisioner=provisioner,
             runtime_inspector=runtime_inspector,
+            policy=policy or _build_policy(),
         )
 
-        heartbeat_repo.record_success(
-            worker_name="provisioning_worker", at=datetime.now(timezone.utc)
-        )
+        if result.claimed_count > 0:
+            logger.info(
+                "provisioning worker tick claimed=%s succeeded=%s failed=%s retried=%s",
+                result.claimed_count,
+                result.succeeded_count,
+                result.failed_count,
+                result.retried_count,
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
+        return result
 
-        logger.info(
-            "provisioning worker tick claimed=%s succeeded=%s failed=%s retried=%s",
-            result.claimed_count,
-            result.succeeded_count,
-            result.failed_count,
-            result.retried_count,
-            extra={**log_fields(), "worker_name": WORKER_NAME},
-        )
-
-    except Exception as exc:
-        heartbeat_repo.record_error(
-            worker_name="provisioning_worker",
-            at=datetime.now(timezone.utc),
-            error_message=str(exc),
-        )
-
+    except Exception:
         logger.exception(
             "provisioning worker tick failed",
             extra={**log_fields(), "worker_name": WORKER_NAME},
@@ -142,13 +148,19 @@ def run_once() -> None:
         raise
 
 
-def run_forever(poll_interval_seconds: float = 1.0) -> None:
-    # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
-    # so unexpected per-tick exceptions are logged and do not kill the process.
+def run_forever(
+    *,
+    poll_interval_seconds: float,
+) -> None:
+    dependencies = _build_dependencies()
+    policy = _build_policy()
     while True:
         token = set_correlation_id(None)
         try:
-            run_once()
+            run_once(
+                dependencies=dependencies,
+                policy=policy,
+            )
         except Exception:
             logger.exception(
                 "provisioning worker tick failed",
@@ -162,4 +174,9 @@ def run_forever(poll_interval_seconds: float = 1.0) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     _load_worker_env()
-    run_forever(poll_interval_seconds=10.0)
+    orchestrator_settings = get_orchestrator_settings()
+    run_forever(
+        poll_interval_seconds=(
+            orchestrator_settings.provisioning_worker_poll_interval_seconds
+        ),
+    )

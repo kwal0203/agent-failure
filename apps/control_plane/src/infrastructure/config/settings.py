@@ -50,6 +50,19 @@ class InstructorProvisioningSettings:
     cognito_instructor_group_name: str
 
 
+@dataclass(frozen=True)
+class OrchestratorSettings:
+    provisioning_worker_poll_interval_seconds: float
+    readiness_timeout_seconds: float
+    readiness_poll_interval_seconds: float
+    provisioning_retry_backoff_seconds: int
+    cleanup_max_attempts: int
+    cleanup_retry_backoff_seconds: int
+    cleanup_reverify_backoff_seconds: int
+    provisioning_timeout_seconds: int
+    max_session_lifetime_seconds: int
+
+
 LOCAL_APP_ENV = "dev"
 LOCAL_ENROLLMENT_TOKEN_SECRET = "local-dev-enrollment-secret-32-bytes-min"
 
@@ -257,6 +270,45 @@ class _InstructorProvisioningEnvironmentSettings(_EnvironmentSettings):
         return self
 
 
+class _OrchestratorEnvironmentSettings(_EnvironmentSettings):
+    provisioning_worker_poll_interval_seconds: PositiveFiniteFloat = Field(
+        default=0.1,
+        validation_alias="ORCHESTRATOR_PROVISIONING_WORKER_POLL_INTERVAL_SECONDS",
+    )
+    readiness_timeout_seconds: PositiveFiniteFloat = Field(
+        default=30.0,
+        validation_alias="ORCHESTRATOR_READINESS_TIMEOUT_SECONDS",
+    )
+    readiness_poll_interval_seconds: PositiveFiniteFloat = Field(
+        default=0.1,
+        validation_alias="ORCHESTRATOR_READINESS_POLL_INTERVAL_SECONDS",
+    )
+    provisioning_retry_backoff_seconds: PositiveInt = Field(
+        default=15,
+        validation_alias="ORCHESTRATOR_PROVISIONING_RETRY_BACKOFF_SECONDS",
+    )
+    cleanup_max_attempts: PositiveInt = Field(
+        default=3,
+        validation_alias="ORCHESTRATOR_CLEANUP_MAX_ATTEMPTS",
+    )
+    cleanup_retry_backoff_seconds: PositiveInt = Field(
+        default=15,
+        validation_alias="ORCHESTRATOR_CLEANUP_RETRY_BACKOFF_SECONDS",
+    )
+    cleanup_reverify_backoff_seconds: PositiveInt = Field(
+        default=5,
+        validation_alias="ORCHESTRATOR_CLEANUP_REVERIFY_BACKOFF_SECONDS",
+    )
+    provisioning_timeout_seconds: PositiveInt = Field(
+        default=900,
+        validation_alias="ORCHESTRATOR_PROVISIONING_TIMEOUT_SECONDS",
+    )
+    max_session_lifetime_seconds: PositiveInt = Field(
+        default=86_400,
+        validation_alias="ORCHESTRATOR_MAX_SESSION_LIFETIME_SECONDS",
+    )
+
+
 def get_app_env() -> str:
     return _AppEnvironmentSettings().app_env
 
@@ -340,6 +392,25 @@ def get_instructor_provisioning_settings() -> InstructorProvisioningSettings:
     )
 
 
+def get_orchestrator_settings() -> OrchestratorSettings:
+    settings = _OrchestratorEnvironmentSettings()
+    return OrchestratorSettings(
+        provisioning_worker_poll_interval_seconds=(
+            settings.provisioning_worker_poll_interval_seconds
+        ),
+        readiness_timeout_seconds=settings.readiness_timeout_seconds,
+        readiness_poll_interval_seconds=settings.readiness_poll_interval_seconds,
+        provisioning_retry_backoff_seconds=(
+            settings.provisioning_retry_backoff_seconds
+        ),
+        cleanup_max_attempts=settings.cleanup_max_attempts,
+        cleanup_retry_backoff_seconds=settings.cleanup_retry_backoff_seconds,
+        cleanup_reverify_backoff_seconds=settings.cleanup_reverify_backoff_seconds,
+        provisioning_timeout_seconds=settings.provisioning_timeout_seconds,
+        max_session_lifetime_seconds=settings.max_session_lifetime_seconds,
+    )
+
+
 def validate_control_plane_settings() -> None:
     """Validate security-sensitive HTTP configuration before accepting traffic."""
     _AppEnvironmentSettings()
@@ -348,3 +419,4 @@ def validate_control_plane_settings() -> None:
     _RuntimeClientEnvironmentSettings()
     _AuthEnvironmentSettings()
     _InstructorProvisioningEnvironmentSettings()
+    _OrchestratorEnvironmentSettings()

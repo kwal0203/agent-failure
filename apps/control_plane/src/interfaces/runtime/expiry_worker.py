@@ -6,6 +6,10 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyExpirySessionRepository,
 )
 from apps.control_plane.src.application.orchestrator.service import process_expiry_once
+from apps.control_plane.src.application.orchestrator.policy import ExpiryPolicy
+from apps.control_plane.src.infrastructure.config.settings import (
+    get_orchestrator_settings,
+)
 
 import time
 import logging
@@ -21,9 +25,17 @@ WORKER_NAME = "expiry_worker"
 
 def run_once() -> None:
     uow = SQLAlchemyUnitOfWork(session_factory=SessionFactory)
+    settings = get_orchestrator_settings()
     with SessionFactory() as db:
         session_query_repo = SQLAlchemyExpirySessionRepository(db=db)
-        result = process_expiry_once(session_query_repo=session_query_repo, uow=uow)
+        result = process_expiry_once(
+            session_query_repo=session_query_repo,
+            uow=uow,
+            policy=ExpiryPolicy(
+                provisioning_timeout_seconds=settings.provisioning_timeout_seconds,
+                max_session_lifetime_seconds=(settings.max_session_lifetime_seconds),
+            ),
+        )
         logger.info(
             "expiry worker tick claimed=%s succeeded=%s failed=%s retried=%s",
             result.claimed_count,
@@ -35,12 +47,15 @@ def run_once() -> None:
 
 
 def run_forever(polling_interval_seconds: float = 1.0) -> None:
-    # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
-    # so unexpected per-tick exceptions are logged and do not kill the process.
     while True:
         token = set_correlation_id(None)
         try:
             run_once()
+        except Exception:
+            logger.exception(
+                "expiry worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
         finally:
             reset_correlation_id(token)
         time.sleep(polling_interval_seconds)

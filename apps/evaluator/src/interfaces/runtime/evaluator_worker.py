@@ -38,8 +38,6 @@ def run_once(*, classifier_repo: ExplanationClassifierPort) -> None:
         lab_lookup_repo = SQLAlchemyEvaluatorLabLookupRepository(db=db)
         outbox_repo = SQLAlchemyOutboxEvaluatorRepository(db=db)
 
-        # NOTE: Need a heartbeat repo for the evaluator worker maybe?
-        # heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository() # TODO: Heartbeat worker not using same db session as the others
         try:
             result = process_evaluate_pending_once(
                 repo=evaluator_repo,
@@ -48,9 +46,6 @@ def run_once(*, classifier_repo: ExplanationClassifierPort) -> None:
                 classifier=classifier_repo,
             )
             db.commit()
-            # heartbeat_repo.record_success(
-            #     worker_name="evaluator_worker", at=datetime.now(timezone.utc)
-            # )
             logger.info(
                 "evaluator worker tick completed",
                 extra={
@@ -63,11 +58,6 @@ def run_once(*, classifier_repo: ExplanationClassifierPort) -> None:
             )
         except Exception:
             db.rollback()
-            # heartbeat_repo.record_error(
-            #     worker_name="provisioning_worker",
-            #     at=datetime.now(timezone.utc),
-            #     error_message=str(exc),
-            # )
             logger.exception(
                 "evaluator worker tick failed",
                 extra={"event": "evaluator_worker_tick_failed"},
