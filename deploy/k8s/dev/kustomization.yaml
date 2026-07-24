@@ -7,5 +7,6 @@ resources:
   - control-plane-ingress.yaml
 
 images:
-  - name: ghcr.io/kwal0203/agent-failure-control-plane
-    digest: sha256:299b30290720e14a6c3d7b31c709f160e683671676ba71f309b74b78c8046b1f
+  # Example only: replace the repository and digest before deployment.
+  - name: ghcr.io/example/agent-failure-control-plane
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

@@ -50,16 +50,16 @@ apps/
   control_plane/     Central API — auth, sessions, WebSocket streaming, trace persistence
   evaluator/         Async constraint evaluation engine with rule bundles per lab
   frontend/          React SPA — lab catalog, session workspace, feedback timeline
-packages/
-  authz/             (planned) Authorization logic
-  shared-types/      (planned) Shared type extraction
-  trace-schema/      (planned) Trace schema extraction
 runtimes/
   agent/             Per-session agent runtime — LLM loop, tool dispatch, lab configs
 deploy/              Environment examples and Kubernetes deployment manifests
 scripts/             Local smoke tests and operational utilities
-docs/                PRD, specs, TDD, lab designs
+docs/                Open-source audit and retained instructor materials
 ```
+
+Files under `deploy/` are operator examples. Replace reserved example domains,
+container repositories, image digests, certificate contacts, and secret
+references before using them in an environment.
 
 ## Getting Started
 

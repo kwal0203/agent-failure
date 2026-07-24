@@ -7,7 +7,8 @@ SESSION_LABEL = "agent-failure/session-id"
 @dataclass(frozen=True)
 class K8sProvisionerConfig:
     namespace: str = "runtime-pool"
-    kubectl_bin: str = "kubectl"
+    field_manager: str = "agent-failure-control-plane"
+    api_request_timeout_seconds: float = 30.0
     runtime_secret_name: str = "runtime-secrets"
     runtime_shared_token_secret_key: str = "RUNTIME_SHARED_TOKEN"
     openrouter_api_key_secret_key: str = "OPENROUTER_API_KEY"
@@ -33,10 +34,12 @@ class K8sProvisionerConfig:
 @dataclass(frozen=True)
 class K8sCleanupConfig:
     namespace: str = "runtime-pool"
-    kubectl_bin: str = "kubectl"
+    api_request_timeout_seconds: float = 30.0
+    deletion_timeout_seconds: float = 30.0
+    deletion_poll_interval_seconds: float = 0.25
 
 
 @dataclass(frozen=True)
 class K8sRuntimeInspectorConfig:
     namespace: str = "runtime-pool"
-    kubectl_bin: str = "kubectl"
+    api_request_timeout_seconds: float = 30.0

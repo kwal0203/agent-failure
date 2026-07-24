@@ -12,8 +12,9 @@ import {
   Target,
   Wrench,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLabCatalogQuery } from "../query/labCatalog";
 import { useShellBootstrap } from "../shell/context";
 import {
   type LabCatalogItem,
@@ -307,9 +308,14 @@ export function LabCatalog({
   loadLabs = loadLabCatalog,
   onOpenPreLab,
 }: LabCatalogProps) {
-  const [labs, setLabs] = useState<LabCatalogItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const labsQuery = useLabCatalogQuery(apiBaseUrl, loadLabs);
+  const labs = labsQuery.data ?? [];
+  const isLoading = labsQuery.isPending;
+  const loadError = labsQuery.error
+    ? labsQuery.error instanceof Error
+      ? labsQuery.error.message
+      : "Failed to load lab catalog"
+    : null;
   const [launchingLabId, setLaunchingLabId] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] =
@@ -317,26 +323,6 @@ export function LabCatalog({
   const [selectedDifficultyByLab] = useState<Record<string, DifficultyChoice>>(
     {},
   );
-
-  const refreshLabs = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const loadedLabs = await loadLabs(apiBaseUrl);
-      setLabs(loadedLabs);
-    } catch (error) {
-      setLoadError(
-        error instanceof Error ? error.message : "Failed to load lab catalog",
-      );
-      setLabs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [apiBaseUrl, loadLabs]);
-
-  useEffect(() => {
-    void refreshLabs();
-  }, [refreshLabs]);
 
   const launchLab = (labId: string) => {
     const chosenDifficulty =
@@ -414,7 +400,7 @@ export function LabCatalog({
             <p style={{ margin: "0 0 8px", color: "#9f1239" }}>
               Error: {loadError}
             </p>
-            <button type="button" onClick={() => void refreshLabs()}>
+            <button type="button" onClick={() => void labsQuery.refetch()}>
               Retry
             </button>
           </div>
@@ -505,7 +491,7 @@ export function LabCatalog({
           <button
             type="button"
             className="rounded-md border border-rose-500/70 bg-rose-900/40 px-3 py-1.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-800/50"
-            onClick={() => void refreshLabs()}
+            onClick={() => void labsQuery.refetch()}
           >
             Retry
           </button>

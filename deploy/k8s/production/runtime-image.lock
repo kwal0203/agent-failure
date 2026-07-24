@@ -1,30 +1,30 @@
 apiVersion: agent-failure/v1alpha1
 kind: RuntimeImageLock
+# Example only: replace all image and build metadata before deployment.
 metadata:
   environment: production
 images:
   - lab_slug: agent-prompt-injection
     lab_version: "v1"
-    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
-    image_digest: "sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    build_git_sha: "57431a9"
-    built_at_utc: "2026-05-24T21:36:27Z"
+    image_repo: "ghcr.io/example/agent-failure-runtime-v1"
+    image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    image_ref: "ghcr.io/example/agent-failure-runtime-v1@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    build_git_sha: "0000000"
+    built_at_utc: "1970-01-01T00:00:00Z"
     status: "active"
   - lab_slug: agent-tool-misuse
     lab_version: "v1"
-    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
-    image_digest: "sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    build_git_sha: "57431a9"
-    built_at_utc: "2026-05-24T21:36:27Z"
+    image_repo: "ghcr.io/example/agent-failure-runtime-v1"
+    image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    image_ref: "ghcr.io/example/agent-failure-runtime-v1@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    build_git_sha: "0000000"
+    built_at_utc: "1970-01-01T00:00:00Z"
     status: "active"
   - lab_slug: agent-memory-poisoning
     lab_version: "v1"
-    image_repo: "ghcr.io/kwal0203/agent-failure-runtime-v1"
-    image_digest: "sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    image_ref: "ghcr.io/kwal0203/agent-failure-runtime-v1@sha256:56e7707a97dfb96e2285f852ff24ecbbac78e2a744761d437441ce769bc3ccf4"
-    build_git_sha: "57431a9"
-    built_at_utc: "2026-05-24T21:36:27Z"
+    image_repo: "ghcr.io/example/agent-failure-runtime-v1"
+    image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    image_ref: "ghcr.io/example/agent-failure-runtime-v1@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    build_git_sha: "0000000"
+    built_at_utc: "1970-01-01T00:00:00Z"
     status: "active"
-

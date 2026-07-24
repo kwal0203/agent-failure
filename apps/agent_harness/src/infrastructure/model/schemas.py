@@ -1,46 +1,6 @@
-from pydantic import BaseModel, Field, field_validator, ValidationInfo
-from typing import Literal, Annotated, Union, cast, Any
+from pydantic import BaseModel, Field, RootModel, ValidationInfo, field_validator
+from typing import Annotated, Literal, Union, cast
 from apps.contracts.src.types import ToolName, CANONICAL_TOOL_ARGS_REQUIRED
-
-
-MessageRole = Literal["system", "user", "assistant", "tool"]
-
-
-class ChatToolCallFunction(BaseModel):
-    name: str
-    arguments: str
-
-
-class ModelClientToolCall(BaseModel):
-    id: str
-    type: Literal["function"] = "function"
-    function: ChatToolCallFunction
-
-
-class ModelClientChatMessage(BaseModel):
-    role: MessageRole
-    content: str | None = None
-    tool_call_id: str | None = None
-    tool_calls: list[ModelClientToolCall] | None = None
-
-
-class ModelClientRequest(BaseModel):
-    model: str
-    messages: list[ModelClientChatMessage]
-    stream: bool = True
-    tools: list[dict[str, Any]] | None = None
-
-
-class StreamDelta(BaseModel):
-    content: str | None = None
-
-
-class StreamChoice(BaseModel):
-    delta: StreamDelta
-
-
-class StreamChunk(BaseModel):
-    choices: list[StreamChoice]
 
 
 class LLMToolCall(BaseModel):
@@ -87,20 +47,5 @@ class TextResponse(BaseModel):
 LLMResponse = Annotated[Union[LLMToolCall, TextResponse], Field(discriminator="kind")]
 
 
-class ChatToolCall(BaseModel):
-    id: str
-    type: Literal["function"] = "function"
-    function: ChatToolCallFunction
-
-
-class ChatMessageResponse(BaseModel):
-    content: str | None = None
-    tool_calls: list[ChatToolCall] | None = None
-
-
-class ChatChoice(BaseModel):
-    message: ChatMessageResponse
-
-
-class ChatResponse(BaseModel):
-    choices: list[ChatChoice]
+class LLMDecisionResponse(RootModel[LLMResponse]):
+    pass

@@ -1,20 +1,7 @@
+import { type PilotLead, pilotLeadSchema } from "../src/schemas/pilotRequest";
+
 const RESEND_EMAILS_URL = "https://api.resend.com/emails";
 const MAX_REQUEST_BYTES = 20_000;
-
-type PilotLead = {
-  fullName: string;
-  workEmail: string;
-  university: string;
-  role?: string;
-  courseName?: string;
-  cohortSize?: number;
-  notes?: string;
-  website?: string;
-};
-
-type ValidationResult =
-  | { ok: true; lead: PilotLead }
-  | { ok: false; detail: string };
 
 function jsonResponse(body: unknown, status: number): Response {
   return Response.json(body, {
@@ -23,91 +10,6 @@ function jsonResponse(body: unknown, status: number): Response {
       "Cache-Control": "no-store",
     },
   });
-}
-
-function optionalString(
-  value: unknown,
-  fieldName: string,
-  maxLength: number,
-): { value?: string; error?: string } {
-  if (value === undefined || value === null || value === "") return {};
-  if (typeof value !== "string") {
-    return { error: `${fieldName} must be a string.` };
-  }
-
-  const trimmed = value.trim();
-  if (trimmed.length > maxLength) {
-    return { error: `${fieldName} is too long.` };
-  }
-  return trimmed ? { value: trimmed } : {};
-}
-
-function requiredString(
-  value: unknown,
-  fieldName: string,
-  maxLength: number,
-): { value?: string; error?: string } {
-  const result = optionalString(value, fieldName, maxLength);
-  if (result.error) return result;
-  if (!result.value) return { error: `${fieldName} is required.` };
-  return result;
-}
-
-function validateLead(value: unknown): ValidationResult {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { ok: false, detail: "Invalid request body." };
-  }
-
-  const body = value as Record<string, unknown>;
-  const fullName = requiredString(body.fullName, "Full name", 120);
-  const workEmail = requiredString(body.workEmail, "Work email", 254);
-  const university = requiredString(body.university, "University", 160);
-  const role = optionalString(body.role, "Role", 120);
-  const courseName = optionalString(body.courseName, "Course name", 160);
-  const notes = optionalString(body.notes, "Notes", 4_000);
-  const website = optionalString(body.website, "Website", 500);
-
-  const error = [
-    fullName.error,
-    workEmail.error,
-    university.error,
-    role.error,
-    courseName.error,
-    notes.error,
-    website.error,
-  ].find(Boolean);
-  if (error) return { ok: false, detail: error };
-
-  if (!workEmail.value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(workEmail.value)) {
-    return { ok: false, detail: "Enter a valid work email." };
-  }
-
-  let cohortSize: number | undefined;
-  if (body.cohortSize !== undefined && body.cohortSize !== null) {
-    if (
-      typeof body.cohortSize !== "number" ||
-      !Number.isInteger(body.cohortSize) ||
-      body.cohortSize < 1 ||
-      body.cohortSize > 100_000
-    ) {
-      return { ok: false, detail: "Cohort size must be a positive integer." };
-    }
-    cohortSize = body.cohortSize;
-  }
-
-  return {
-    ok: true,
-    lead: {
-      fullName: fullName.value as string,
-      workEmail: workEmail.value.toLowerCase(),
-      university: university.value as string,
-      ...(role.value ? { role: role.value } : {}),
-      ...(courseName.value ? { courseName: courseName.value } : {}),
-      ...(cohortSize ? { cohortSize } : {}),
-      ...(notes.value ? { notes: notes.value } : {}),
-      ...(website.value ? { website: website.value } : {}),
-    },
-  };
 }
 
 function escapeHtml(value: string): string {
@@ -223,13 +125,18 @@ async function handleRequest(request: Request): Promise<Response> {
     return jsonResponse({ detail }, 400);
   }
 
-  const validation = validateLead(requestBody);
-  if (validation.ok === false) {
-    return jsonResponse({ detail: validation.detail }, 400);
+  const validation = pilotLeadSchema.safeParse(requestBody);
+  if (!validation.success) {
+    return jsonResponse(
+      {
+        detail: validation.error.issues[0]?.message ?? "Invalid request body.",
+      },
+      400,
+    );
   }
 
   // Silently accept honeypot submissions so bots do not learn how to bypass it.
-  if (validation.lead.website) {
+  if (validation.data.website) {
     return jsonResponse({ ok: true }, 200);
   }
 
@@ -259,10 +166,10 @@ async function handleRequest(request: Request): Promise<Response> {
       body: JSON.stringify({
         from,
         to: recipients,
-        reply_to: validation.lead.workEmail,
-        subject: `New Agent Failure pilot request — ${validation.lead.university.replaceAll(/[\r\n]/g, " ")}`,
-        text: buildText(validation.lead),
-        html: buildHtml(validation.lead),
+        reply_to: validation.data.workEmail,
+        subject: `New Agent Failure pilot request — ${validation.data.university.replaceAll(/[\r\n]/g, " ")}`,
+        text: buildText(validation.data),
+        html: buildHtml(validation.data),
         tags: [{ name: "source", value: "pilot-request" }],
       }),
       signal: AbortSignal.timeout(10_000),

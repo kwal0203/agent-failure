@@ -37,12 +37,17 @@ uv run pytest -m "integration"
 
 ```bash
 cd apps/frontend
+npm run api:check
 npm run biome:check
 npm run typecheck
 npm run lint
 npm test
 npm run build
 ```
+
+The frontend REST client and response types are generated from FastAPI's
+OpenAPI document. Run `npm run api:generate` after changing an HTTP route or
+schema, and commit the resulting `src/api/generated.ts` update.
 
 PostgreSQL must be available for integration tests. The root test configuration prevents database-backed tests from silently using a non-test database.
 

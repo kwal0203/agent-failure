@@ -4,9 +4,9 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   isEnrollmentApiEnabled,
   PENDING_ENROLLMENT_TOKEN_KEY,
-  validateClassCode,
 } from "../../auth/enrollment";
 import { useAuth } from "../../auth/useAuth";
+import { useValidateClassCodeMutation } from "../../query/publicMutations";
 
 type SignupInputProps = {
   id: string;
@@ -53,6 +53,7 @@ function SignupInput({
 export default function SignupPage() {
   const { signup, confirmSignup } = useAuth();
   const navigate = useNavigate();
+  const validateClassCodeMutation = useValidateClassCodeMutation();
 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -72,9 +73,13 @@ export default function SignupPage() {
     setSubmitting(true);
     setError(null);
     setSuccessMessage(null);
+    validateClassCodeMutation.reset();
     try {
       if (isEnrollmentApiEnabled()) {
-        const enrollmentToken = await validateClassCode(classCode, email);
+        const enrollmentToken = await validateClassCodeMutation.mutateAsync({
+          classCode,
+          email,
+        });
         window.sessionStorage.setItem(
           PENDING_ENROLLMENT_TOKEN_KEY,
           enrollmentToken,

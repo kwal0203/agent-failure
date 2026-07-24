@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
+import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import SessionPage from "./SessionPage";
 import * as sessionUi from "./session/ui";
 
@@ -10,15 +11,15 @@ vi.mock("../hooks/useSessionStream", () => ({
 }));
 
 function mockJsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  });
+  return Promise.resolve(Response.json(body, { status }));
+}
+
+function getRequestUrl(input: RequestInfo | URL): string {
+  return input instanceof Request ? input.url : String(input);
 }
 
 function renderSessionPage() {
-  return render(
+  return renderWithQueryClient(
     <MemoryRouter
       initialEntries={["/sessions/11111111-1111-1111-1111-111111111111"]}
     >
@@ -32,7 +33,7 @@ function renderSessionPage() {
 describe("SessionPage completion indicator", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.spyOn(sessionUi, "getAuthHeader").mockReturnValue("Bearer test-token");
+    vi.spyOn(sessionUi, "getAuthHeader").mockResolvedValue("Bearer test-token");
     vi.mocked(useSessionStream).mockReturnValue({
       connectionState: "open",
       messages: [],
@@ -49,7 +50,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           return mockJsonResponse({ feedback: [] });
         }
@@ -89,7 +90,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           return mockJsonResponse({ feedback: [] });
         }
@@ -127,7 +128,7 @@ describe("SessionPage completion indicator", () => {
 
   it("auto-sends stop signal on completed_success and keeps success modal open", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = getRequestUrl(input);
       if (url.endsWith("/evaluator-feedback")) {
         return mockJsonResponse({ feedback: [] });
       }
@@ -164,7 +165,7 @@ describe("SessionPage completion indicator", () => {
     expect(
       fetchMock.mock.calls.some((call) => {
         const input = call[0];
-        return String(input).endsWith("/stop");
+        return getRequestUrl(input).endsWith("/stop");
       }),
     ).toBe(true);
   });
@@ -173,7 +174,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           return mockJsonResponse({ feedback: [] });
         }
@@ -210,7 +211,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           return mockJsonResponse({ feedback: [] });
         }
@@ -247,7 +248,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           progressed = true;
           return mockJsonResponse({
@@ -314,7 +315,7 @@ describe("SessionPage completion indicator", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith("/evaluator-feedback")) {
           return mockJsonResponse({ feedback: [] });
         }

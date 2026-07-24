@@ -1,13 +1,11 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
+import type { PilotRequestItem } from "../../auth/pilotRequests";
 import {
-  type ApproveAndProvisionResponse,
-  approveAndProvisionPilotRequest,
-  listPilotRequests,
-  type PilotRequestItem,
-  type ProvisionPilotResponse,
-  provisionPilotRequest,
-  updatePilotRequestStatus,
-} from "../../auth/pilotRequests";
+  useApproveAndProvisionPilotRequestMutation,
+  usePilotRequestsQuery,
+  useProvisionPilotRequestMutation,
+  useUpdatePilotRequestStatusMutation,
+} from "../../query/pilotRequests";
 
 type StatusFilter =
   | "all"
@@ -28,20 +26,36 @@ const nextStatuses: Record<
   rejected: [],
 };
 
+const EMPTY_PILOT_REQUESTS: PilotRequestItem[] = [];
+
+function getErrorMessage(error: unknown, fallback: string): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function PilotRequestsAdminPage() {
-  const [items, setItems] = useState<PilotRequestItem[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [provisioningId, setProvisioningId] = useState<string | null>(null);
-  const [provisioningResult, setProvisioningResult] =
-    useState<ApproveAndProvisionResponse | null>(null);
-  const [manualProvisioningId, setManualProvisioningId] = useState<
-    string | null
-  >(null);
-  const [manualProvisioningResult, setManualProvisioningResult] =
-    useState<ProvisionPilotResponse | null>(null);
+  const status = filter === "all" ? undefined : filter;
+  const requestsQuery = usePilotRequestsQuery(status);
+  const updateStatusMutation = useUpdatePilotRequestStatusMutation();
+  const approveAndProvisionMutation =
+    useApproveAndProvisionPilotRequestMutation();
+  const provisionMutation = useProvisionPilotRequestMutation();
+  const items = requestsQuery.data?.items ?? EMPTY_PILOT_REQUESTS;
+  const loading = requestsQuery.isPending;
+  const canEdit = !requestsQuery.isFetching && !requestsQuery.error;
+  const updatingId = updateStatusMutation.isPending
+    ? updateStatusMutation.variables?.requestId
+    : undefined;
+  const provisioningId = approveAndProvisionMutation.isPending
+    ? approveAndProvisionMutation.variables?.requestId
+    : undefined;
+  const manualProvisioningId = provisionMutation.isPending
+    ? provisionMutation.variables?.requestId
+    : undefined;
+  const provisioningResult = approveAndProvisionMutation.data ?? null;
+  const manualProvisioningResult = provisionMutation.data ?? null;
+  const [formError, setFormError] = useState<string | null>(null);
   const [expandedProvisioningId, setExpandedProvisioningId] = useState<
     string | null
   >(null);
@@ -64,58 +78,38 @@ export default function PilotRequestsAdminPage() {
     Record<string, string>
   >({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listPilotRequests({
-        status: filter === "all" ? undefined : filter,
-        limit: 100,
-        offset: 0,
-      });
-      setItems(data.items);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load pilot requests.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+  const error =
+    formError ??
+    getErrorMessage(requestsQuery.error, "Failed to load pilot requests.") ??
+    getErrorMessage(
+      updateStatusMutation.error,
+      "Failed to update pilot request.",
+    ) ??
+    getErrorMessage(
+      approveAndProvisionMutation.error,
+      "Failed to approve and provision pilot request.",
+    ) ??
+    getErrorMessage(
+      provisionMutation.error,
+      "Failed to provision pilot request.",
+    );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const resetActionFeedback = () => {
+    setFormError(null);
+    updateStatusMutation.reset();
+    approveAndProvisionMutation.reset();
+    provisionMutation.reset();
+  };
 
-  const canEdit = useMemo(() => !loading && !error, [loading, error]);
-
-  const onUpdateStatus = async (
+  const onUpdateStatus = (
     item: PilotRequestItem,
     nextStatus: PilotRequestItem["status"],
   ) => {
-    setUpdatingId(item.requestId);
-    setError(null);
-    try {
-      const updated = await updatePilotRequestStatus(
-        item.requestId,
-        nextStatus,
-      );
-      setItems((prev) =>
-        prev.map((current) =>
-          current.requestId === updated.requestId ? updated : current,
-        ),
-      );
-    } catch (updateError) {
-      setError(
-        updateError instanceof Error
-          ? updateError.message
-          : "Failed to update pilot request.",
-      );
-    } finally {
-      setUpdatingId(null);
-    }
+    resetActionFeedback();
+    updateStatusMutation.mutate({
+      requestId: item.requestId,
+      status: nextStatus,
+    });
   };
 
   const buildProvisioningPayload = (item: PilotRequestItem) => {
@@ -181,7 +175,7 @@ export default function PilotRequestsAdminPage() {
     return `${classCodeSeed || "PILOT"}-${requestId.slice(0, 4).toUpperCase()}`;
   };
 
-  const onManualProvision = async (item: PilotRequestItem) => {
+  const onManualProvision = (item: PilotRequestItem) => {
     const values = getFormValues(item);
     const parsedCohortSize = Number.parseInt(values.cohortSize, 10);
     const classCodeMaxUses =
@@ -206,53 +200,24 @@ export default function PilotRequestsAdminPage() {
       payload.instructorEmail.length === 0 ||
       payload.classCode.length === 0
     ) {
-      setError("All provisioning fields are required.");
+      resetActionFeedback();
+      setFormError("All provisioning fields are required.");
       return;
     }
 
-    setManualProvisioningId(item.requestId);
-    setManualProvisioningResult(null);
-    setError(null);
-    try {
-      const response = await provisionPilotRequest(item.requestId, payload);
-      setManualProvisioningResult(response);
-    } catch (provisionError) {
-      setError(
-        provisionError instanceof Error
-          ? provisionError.message
-          : "Failed to provision pilot request.",
-      );
-    } finally {
-      setManualProvisioningId(null);
-    }
+    resetActionFeedback();
+    provisionMutation.mutate({
+      requestId: item.requestId,
+      payload,
+    });
   };
 
-  const onApproveAndProvision = async (item: PilotRequestItem) => {
-    setProvisioningId(item.requestId);
-    setError(null);
-    setProvisioningResult(null);
-    try {
-      const response = await approveAndProvisionPilotRequest(
-        item.requestId,
-        buildProvisioningPayload(item),
-      );
-      setProvisioningResult(response);
-      setItems((prev) =>
-        prev.map((current) =>
-          current.requestId === response.pilotRequest.requestId
-            ? response.pilotRequest
-            : current,
-        ),
-      );
-    } catch (provisionError) {
-      setError(
-        provisionError instanceof Error
-          ? provisionError.message
-          : "Failed to approve and provision pilot request.",
-      );
-    } finally {
-      setProvisioningId(null);
-    }
+  const onApproveAndProvision = (item: PilotRequestItem) => {
+    resetActionFeedback();
+    approveAndProvisionMutation.mutate({
+      requestId: item.requestId,
+      payload: buildProvisioningPayload(item),
+    });
   };
 
   return (
@@ -264,7 +229,10 @@ export default function PilotRequestsAdminPage() {
         <div className="flex items-center gap-2">
           <select
             value={filter}
-            onChange={(event) => setFilter(event.target.value as StatusFilter)}
+            onChange={(event) => {
+              resetActionFeedback();
+              setFilter(event.target.value as StatusFilter);
+            }}
             className="rounded-md border border-lime-500/35 bg-black/60 px-3 py-2 text-sm text-lime-100 outline-none ring-0 transition focus:border-lime-400"
           >
             <option value="all">All statuses</option>
@@ -278,10 +246,14 @@ export default function PilotRequestsAdminPage() {
           </select>
           <button
             type="button"
-            onClick={() => void load()}
+            disabled={requestsQuery.isFetching}
+            onClick={() => {
+              resetActionFeedback();
+              void requestsQuery.refetch();
+            }}
             className="rounded-md border border-lime-500/40 bg-lime-950/40 px-3 py-2 text-sm font-semibold text-lime-100 transition hover:bg-lime-900/40"
           >
-            Refresh
+            {requestsQuery.isFetching ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </div>
@@ -326,7 +298,7 @@ export default function PilotRequestsAdminPage() {
                             key={status}
                             type="button"
                             disabled={!canEdit || updatingId === item.requestId}
-                            onClick={() => void onUpdateStatus(item, status)}
+                            onClick={() => onUpdateStatus(item, status)}
                             className="rounded-md border border-lime-500/35 bg-lime-950/30 px-2.5 py-1.5 text-xs font-semibold text-lime-100 transition enabled:hover:bg-lime-900/45 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Mark {status}
@@ -358,7 +330,7 @@ export default function PilotRequestsAdminPage() {
                             disabled={
                               !canEdit || provisioningId === item.requestId
                             }
-                            onClick={() => void onApproveAndProvision(item)}
+                            onClick={() => onApproveAndProvision(item)}
                             className="rounded-md border border-emerald-500/40 bg-emerald-950/35 px-2.5 py-1.5 text-xs font-semibold text-emerald-100 transition enabled:hover:bg-emerald-900/45 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Approve + Provision
@@ -370,7 +342,7 @@ export default function PilotRequestsAdminPage() {
                             disabled={
                               !canEdit || provisioningId === item.requestId
                             }
-                            onClick={() => void onApproveAndProvision(item)}
+                            onClick={() => onApproveAndProvision(item)}
                             className="rounded-md border border-amber-500/40 bg-amber-950/35 px-2.5 py-1.5 text-xs font-semibold text-amber-100 transition enabled:hover:bg-amber-900/45 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Retry Provisioning
@@ -482,7 +454,7 @@ export default function PilotRequestsAdminPage() {
                         <div className="mt-3 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => void onManualProvision(item)}
+                            onClick={() => onManualProvision(item)}
                             disabled={manualProvisioningId === item.requestId}
                             className="rounded-md border border-emerald-500/40 bg-emerald-950/35 px-3 py-2 text-xs font-semibold text-emerald-100 transition enabled:hover:bg-emerald-900/45 disabled:cursor-not-allowed disabled:opacity-50"
                           >

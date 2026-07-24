@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
 
-import httpx
 import jwt
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-from jwt import InvalidTokenError
-from jwt.algorithms import RSAAlgorithm
+from jwt import InvalidTokenError, PyJWKClient
+from jwt.exceptions import (
+    PyJWKClientConnectionError,
+    PyJWKClientError,
+    PyJWKError,
+    PyJWKSetError,
+)
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from apps.control_plane.src.application.auth.errors import (
@@ -27,12 +30,6 @@ class TokenHeader(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     kid: str
-
-
-class JwksDocument(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    keys: list[dict[str, Any]]
 
 
 class CognitoAccessClaims(BaseModel):
@@ -57,8 +54,17 @@ class CognitoJwtVerifier(TokenVerifierPort):
 
     def __init__(self, config: AuthVerifierConfig) -> None:
         self._config = config
-        self._jwks_cache: dict[str, RSAPublicKey] = {}
-        self._jwks_last_refresh_at: datetime | None = None
+        self._jwks_client = (
+            PyJWKClient(
+                config.jwks_uri,
+                cache_jwk_set=True,
+                cache_keys=False,
+                lifespan=config.jwks_cache_ttl_seconds,
+                timeout=5,
+            )
+            if config.jwks_uri
+            else None
+        )
 
     def verify_access_token(self, token: str) -> AuthClaims:
         normalized = token.strip()
@@ -122,57 +128,27 @@ class CognitoJwtVerifier(TokenVerifierPort):
         if not kid:
             raise AuthTokenInvalidError(code="AUTH_TOKEN_MISSING_KID")
 
-        if self._is_cache_stale():
-            self._refresh_jwks_cache()
-
-        key = self._jwks_cache.get(kid)
-        if key is None:
-            self._refresh_jwks_cache()
-            key = self._jwks_cache.get(kid)
-        if key is None:
-            raise AuthTokenInvalidError(code="AUTH_TOKEN_UNKNOWN_KID")
-        return key
-
-    def _is_cache_stale(self) -> bool:
-        if self._jwks_last_refresh_at is None:
-            return True
-        age = (datetime.now(UTC) - self._jwks_last_refresh_at).total_seconds()
-        return age >= self._config.jwks_cache_ttl_seconds
-
-    def _refresh_jwks_cache(self) -> None:
-        if not self._config.jwks_uri:
+        if self._jwks_client is None:
             raise AuthTokenInvalidError(code="AUTH_JWKS_URI_MISSING")
 
         try:
-            with httpx.Client(timeout=5.0) as client:
-                response = client.get(self._config.jwks_uri)
-                response.raise_for_status()
-                payload_raw = response.json()
-            payload = JwksDocument.model_validate(payload_raw)
-        except ValidationError as exc:
-            raise AuthTokenInvalidError(code="AUTH_JWKS_INVALID_FORMAT") from exc
-        except Exception as exc:
+            signing_key = self._jwks_client.get_signing_key(kid)
+        except PyJWKClientConnectionError as exc:
             logger.warning("jwks_fetch_failed")
             raise AuthTokenInvalidError(code="AUTH_JWKS_FETCH_FAILED") from exc
+        except PyJWKClientError as exc:
+            code = (
+                "AUTH_TOKEN_UNKNOWN_KID"
+                if str(exc).startswith("Unable to find a signing key that matches:")
+                else "AUTH_JWKS_INVALID_FORMAT"
+            )
+            raise AuthTokenInvalidError(code=code) from exc
+        except (PyJWKError, PyJWKSetError, TypeError, ValueError) as exc:
+            raise AuthTokenInvalidError(code="AUTH_JWKS_INVALID_FORMAT") from exc
 
-        next_cache: dict[str, RSAPublicKey] = {}
-        for jwk in payload.keys:
-            kid = jwk.get("kid")
-            if not isinstance(kid, str) or not kid.strip():
-                continue
-            try:
-                key = RSAAlgorithm.from_jwk(jwk)
-                if not isinstance(key, RSAPublicKey):
-                    continue
-                next_cache[kid] = key
-            except Exception:
-                continue
-
-        if not next_cache:
-            raise AuthTokenInvalidError(code="AUTH_JWKS_EMPTY")
-
-        self._jwks_cache = next_cache
-        self._jwks_last_refresh_at = datetime.now(UTC)
+        if not isinstance(signing_key.key, RSAPublicKey):
+            raise AuthTokenInvalidError(code="AUTH_JWKS_INVALID_FORMAT")
+        return signing_key.key
 
 
 def _to_datetime_or_none(value: int | float | None) -> datetime | None:

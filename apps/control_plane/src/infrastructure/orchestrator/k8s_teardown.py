@@ -1,4 +1,8 @@
-import subprocess
+import time
+from typing import cast
+
+from kubernetes import client
+from kubernetes.client.exceptions import ApiException
 
 from apps.control_plane.src.application.orchestrator.ports import RuntimeTeardownPort
 from apps.control_plane.src.application.orchestrator.types import (
@@ -6,35 +10,33 @@ from apps.control_plane.src.application.orchestrator.types import (
     RuntimeTeardownResult,
 )
 
+from .k8s_client import create_core_v1_api
 from .types import K8sCleanupConfig, SESSION_LABEL
 
 
 class K8sRuntimeTeardown(RuntimeTeardownPort):
-    def __init__(self, config: K8sCleanupConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: K8sCleanupConfig | None = None,
+        core_api: client.CoreV1Api | None = None,
+    ) -> None:
         self._config = config or K8sCleanupConfig()
+        self._configured_core_api = core_api
+
+    @property
+    def _core_api(self) -> client.CoreV1Api:
+        if self._configured_core_api is None:
+            self._configured_core_api = create_core_v1_api()
+        return self._configured_core_api
 
     def teardown(self, request: RuntimeTeardownRequest) -> RuntimeTeardownResult:
         session_id = request.session_id
-        pod_name = (
-            request.runtime_id
-            if request.runtime_id
-            else f"session-{str(session_id)[:8]}"
-        )
+        pod_name = request.runtime_id or f"session-{str(session_id)[:8]}"
+        selector = f"{SESSION_LABEL}={session_id}"
         try:
-            before = self._kubectl_get_resources(session_id=str(session_id))
-            self._kubectl_delete(session_id=str(session_id))
-            verify = self._kubectl_get_resources(session_id=str(session_id))
-            remaining = self._resource_names(verify)
-            if verify.returncode != 0:
-                return RuntimeTeardownResult(
-                    status="failed",
-                    reason_code="K8S_RESOURCE_DELETE_VERIFICATION_FAILED",
-                    details={
-                        "pod_name": pod_name,
-                        "stdout": str(verify.stdout or ""),
-                        "stderr": str(verify.stderr or ""),
-                    },
-                )
+            before = self._resource_names(selector)
+            self._delete_resources(selector)
+            remaining = self._wait_for_deletion(selector)
             if remaining:
                 return RuntimeTeardownResult(
                     status="failed",
@@ -44,19 +46,14 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
                         "remaining_resources": remaining,
                     },
                 )
-            existed = (
-                bool(self._resource_names(before)) if before.returncode == 0 else True
-            )
+            existed = bool(before)
             return RuntimeTeardownResult(
                 status="deleted" if existed else "already_gone",
                 reason_code=None if existed else "K8S_RESOURCES_NOT_FOUND",
                 details={"pod_name": pod_name, "session_id": str(session_id)},
             )
-        except subprocess.CalledProcessError as exc:
-            stderr_text = str(exc.stderr or "")
-            stdout_text = str(exc.stdout or "")
-            combined = f"{stdout_text}\n{stderr_text}".lower()
-            if "notfound" in combined or "not found" in combined:
+        except ApiException as exc:
+            if exc.status == 404:
                 return RuntimeTeardownResult(
                     status="already_gone",
                     reason_code="K8S_RESOURCES_NOT_FOUND",
@@ -66,8 +63,9 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
                 status="failed",
                 reason_code="K8S_RESOURCE_DELETE_FAILED",
                 details={
-                    "returncode": exc.returncode,
-                    "stderr": stderr_text,
+                    "status": exc.status,
+                    "reason": str(exc.reason or ""),
+                    "body": str(exc.body or ""),
                 },
             )
         except Exception as exc:
@@ -77,53 +75,59 @@ class K8sRuntimeTeardown(RuntimeTeardownPort):
                 details={"error": str(exc)},
             )
 
-    def _kubectl_delete(self, session_id: str) -> None:
-        subprocess.run(
-            [
-                self._config.kubectl_bin,
-                "-n",
-                self._config.namespace,
-                "delete",
-                "pod,service",
-                "-l",
-                f"{SESSION_LABEL}={session_id}",
-                "--ignore-not-found=true",
-                "--wait=true",
-                "--timeout=30s",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+    def _delete_resources(self, selector: str) -> None:
+        # Delete Services explicitly before Pods. The owner reference also lets
+        # Kubernetes garbage-collect a Service if provisioning was interrupted.
+        self._core_api.delete_collection_namespaced_service(
+            namespace=self._config.namespace,
+            label_selector=selector,
+            propagation_policy="Foreground",
+            _request_timeout=self._config.api_request_timeout_seconds,
+        )
+        self._core_api.delete_collection_namespaced_pod(
+            namespace=self._config.namespace,
+            label_selector=selector,
+            propagation_policy="Foreground",
+            _request_timeout=self._config.api_request_timeout_seconds,
         )
 
-    def _kubectl_get_resources(
-        self, session_id: str
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                self._config.kubectl_bin,
-                "-n",
-                self._config.namespace,
-                "get",
-                "pod,service",
-                "-l",
-                f"{SESSION_LABEL}={session_id}",
-                "-o",
-                "name",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+    def _wait_for_deletion(self, selector: str) -> list[str]:
+        deadline = time.monotonic() + self._config.deletion_timeout_seconds
+        while True:
+            remaining = self._resource_names(selector)
+            if not remaining or time.monotonic() >= deadline:
+                return remaining
+            time.sleep(self._config.deletion_poll_interval_seconds)
 
-    @staticmethod
-    def _resource_names(result: subprocess.CompletedProcess[str]) -> list[str]:
-        return [
-            line.strip() for line in (result.stdout or "").splitlines() if line.strip()
+    def _resource_names(self, selector: str) -> list[str]:
+        pods = cast(
+            client.V1PodList,
+            self._core_api.list_namespaced_pod(
+                namespace=self._config.namespace,
+                label_selector=selector,
+                _request_timeout=self._config.api_request_timeout_seconds,
+            ),
+        )
+        services = cast(
+            client.V1ServiceList,
+            self._core_api.list_namespaced_service(
+                namespace=self._config.namespace,
+                label_selector=selector,
+                _request_timeout=self._config.api_request_timeout_seconds,
+            ),
+        )
+        names = [
+            f"pod/{pod.metadata.name}"
+            for pod in pods.items or []
+            if pod.metadata is not None and pod.metadata.name is not None
         ]
+        names.extend(
+            f"service/{service.metadata.name}"
+            for service in services.items or []
+            if service.metadata is not None and service.metadata.name is not None
+        )
+        return sorted(names)
 
     def resources_exist(self, session_id: str) -> bool:
-        result = self._kubectl_get_resources(session_id=session_id)
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr or "kubectl resource verification failed")
-        return bool(self._resource_names(result))
+        selector = f"{SESSION_LABEL}={session_id}"
+        return bool(self._resource_names(selector))

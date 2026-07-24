@@ -1,46 +1,35 @@
-import type {
-  GetFeedbackResponse,
-  GetSessionMetadataResponse,
-  GetSessionReportDraftResponse,
-  GetSessionReportEvidenceResponse,
-  GetSessionTraceResponse,
-  ImportSelectedEvidenceRequest,
-  ImportSelectedEvidenceResponse,
-  PutSessionReportDraftRequest,
-  PutSessionReportEvidenceRequest,
-  ReportEvidenceItem,
-  SessionCompletionStatus,
-  SessionFeedbackResponse,
-  SessionHintResponse,
-  SessionMetadataResponse,
-  SessionProgressChipResponse,
-  SessionRuntimeFileResponse,
-  SessionTraceEvent,
-} from "../../../../contracts/ts/index";
+import type { components } from "../../api/generated";
 
-export type {
-  GetSessionMetadataResponse,
-  GetSessionReportDraftResponse,
-  GetSessionReportEvidenceResponse,
-  GetSessionTraceResponse,
-  ImportSelectedEvidenceRequest,
-  ImportSelectedEvidenceResponse,
-  PutSessionReportDraftRequest,
-  PutSessionReportEvidenceRequest,
-  ReportEvidenceItem,
-  SessionCompletionStatus,
-  SessionTraceEvent,
-};
-export type SessionProgressChip = SessionProgressChipResponse;
-export type SessionHint = SessionHintResponse;
-export type SessionFeedbackItem = SessionFeedbackResponse;
-export type SessionRuntimeFile = SessionRuntimeFileResponse;
-export type SessionMetadata = SessionMetadataResponse;
-
-export type MarkSessionHintsSeenResponse = {
-  session_id: string;
-  updated_count: number;
-};
+export type GetSessionMetadataResponse =
+  components["schemas"]["GetSessionMetadataResponse"];
+export type GetSessionReportDraftResponse =
+  components["schemas"]["GetSessionReportDraftResponse"];
+export type GetSessionReportEvidenceResponse =
+  components["schemas"]["GetSessionReportEvidenceResponse"];
+export type GetSessionTraceResponse =
+  components["schemas"]["GetSessionTraceResponse"];
+export type ImportSelectedEvidenceRequest =
+  components["schemas"]["ImportSelectedEvidenceRequest"];
+export type ImportSelectedEvidenceResponse =
+  components["schemas"]["ImportSelectedEvidenceResponse"];
+export type PutSessionReportDraftRequest =
+  components["schemas"]["PutSessionReportDraftRequest"];
+export type PutSessionReportEvidenceRequest =
+  components["schemas"]["PutSessionReportEvidenceRequest"];
+export type ReportEvidenceItem = components["schemas"]["ReportEvidenceItem"];
+export type SessionCompletionStatus =
+  components["schemas"]["SessionMetadataResponse"]["completion_status"];
+export type SessionTraceEvent = components["schemas"]["SessionTraceEvent"];
+export type SessionProgressChip =
+  components["schemas"]["SessionProgressChipResponse"];
+export type SessionHint = components["schemas"]["SessionHintResponse"];
+export type SessionFeedbackItem =
+  components["schemas"]["SessionFeedbackResponse"];
+export type SessionRuntimeFile =
+  components["schemas"]["SessionRuntimeFileResponse"];
+export type SessionMetadata = components["schemas"]["SessionMetadataResponse"];
+export type MarkSessionHintsSeenResponse =
+  components["schemas"]["MarkSessionHintsSeenResponse"];
 
 export type TranscriptRole = "user" | "agent" | "policy" | "system";
 
@@ -51,17 +40,14 @@ export type TranscriptEntry = {
 };
 
 export type LearnerFeedbackItem = {
-  status: GetFeedbackResponse["feedback"][number]["status"];
+  status: components["schemas"]["GetFeedbackResponse"]["feedback"][number]["status"];
   reason_code: string;
   evidence_snippet: string;
 };
 export type LearnerFeedbackStatus = LearnerFeedbackItem["status"];
 
-export type InjectSessionEmailResponse = {
-  session_id: string;
-  email_id: string | null;
-  accepted: boolean;
-};
+export type InjectSessionEmailResponse =
+  components["schemas"]["InjectSessionEmailResponse"];
 
 export type ToolKey =
   | "email"

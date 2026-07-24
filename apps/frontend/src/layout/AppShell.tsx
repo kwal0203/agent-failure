@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import type { AuthUser } from "../auth/authContext";
 import { useAuth } from "../auth/useAuth";
 import type { ShellBootstrap } from "../shell/context";
 
@@ -31,30 +32,9 @@ const resourceItems = [
   { label: "Support", icon: LifeBuoy },
 ];
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2) return null;
-    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(payload)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function canViewPilotRequests(): boolean {
-  const rawTokens = window.sessionStorage.getItem("agentfailure.auth.tokens");
-  if (!rawTokens) return false;
-  try {
-    const parsed = JSON.parse(rawTokens) as { idToken?: string };
-    if (!parsed.idToken) return false;
-    const payload = decodeJwtPayload(parsed.idToken);
-    const groups = payload?.["cognito:groups"];
-    if (!Array.isArray(groups)) return false;
-    return groups.includes("admin") || groups.includes("staff");
-  } catch {
-    return false;
-  }
+function canViewPilotRequests(user: AuthUser | null): boolean {
+  const groups = user?.groups?.map((group) => group.toLowerCase()) ?? [];
+  return groups.includes("admin") || groups.includes("staff");
 }
 
 type ViewerProfile = {
@@ -63,73 +43,56 @@ type ViewerProfile = {
   roleLabel: string;
 };
 
-function deriveViewerProfile(): ViewerProfile {
+function deriveViewerProfile(user: AuthUser | null): ViewerProfile {
   const defaultProfile: ViewerProfile = {
     displayName: "User",
     initials: "US",
     roleLabel: "Student",
   };
-  const rawTokens = window.sessionStorage.getItem("agentfailure.auth.tokens");
-  if (!rawTokens) return defaultProfile;
+  if (!user) return defaultProfile;
 
-  try {
-    const parsed = JSON.parse(rawTokens) as { idToken?: string };
-    if (!parsed.idToken) return defaultProfile;
-    const payload = decodeJwtPayload(parsed.idToken);
-    if (!payload) return defaultProfile;
+  const displayName =
+    user.name?.trim() ||
+    user.label.trim() ||
+    user.email.split("@")[0]?.trim() ||
+    user.username?.trim() ||
+    defaultProfile.displayName;
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2);
 
-    const name = typeof payload.name === "string" ? payload.name.trim() : "";
-    const email = typeof payload.email === "string" ? payload.email.trim() : "";
-    const username =
-      typeof payload["cognito:username"] === "string"
-        ? payload["cognito:username"].trim()
-        : "";
-    const groups = Array.isArray(payload["cognito:groups"])
-      ? payload["cognito:groups"].filter(
-          (value): value is string => typeof value === "string",
-        )
-      : [];
+  const normalizedGroups =
+    user.groups?.map((group) => group.toLowerCase()) ?? [];
+  const roleLabel = normalizedGroups.includes("admin")
+    ? "Admin"
+    : normalizedGroups.includes("staff") ||
+        normalizedGroups.includes("instructor")
+      ? "Instructor"
+      : defaultProfile.roleLabel;
 
-    const displayName =
-      name ||
-      email.split("@")[0]?.trim() ||
-      username ||
-      defaultProfile.displayName;
-    const initials = displayName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("")
-      .slice(0, 2);
-
-    const normalizedGroups = groups.map((group) => group.toLowerCase());
-    const roleLabel = normalizedGroups.includes("admin")
-      ? "Admin"
-      : normalizedGroups.includes("staff") ||
-          normalizedGroups.includes("instructor")
-        ? "Instructor"
-        : defaultProfile.roleLabel;
-
-    return {
-      displayName,
-      initials: initials || defaultProfile.initials,
-      roleLabel,
-    };
-  } catch {
-    return defaultProfile;
-  }
+  return {
+    displayName,
+    initials: initials || defaultProfile.initials,
+    roleLabel,
+  };
 }
 
 export default function AppShell() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const currentYear = new Date().getFullYear();
   const navigate = useNavigate();
   const location = useLocation();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
-  const showPilotRequestsLink = useMemo(() => canViewPilotRequests(), []);
-  const viewerProfile = useMemo(() => deriveViewerProfile(), []);
+  const showPilotRequestsLink = useMemo(
+    () => canViewPilotRequests(user),
+    [user],
+  );
+  const viewerProfile = useMemo(() => deriveViewerProfile(user), [user]);
 
   const isSessionRoute = /^\/sessions\/[^/]+/.test(location.pathname);
   const isPreLabRoute = /^\/labs\/[^/]+\/pre-lab$/.test(location.pathname);
@@ -307,7 +270,7 @@ export default function AppShell() {
                           role="menuitem"
                           onClick={() => {
                             setIsUserMenuOpen(false);
-                            logout();
+                            void logout();
                           }}
                           className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-lime-500/10 hover:text-lime-100"
                         >
@@ -437,7 +400,7 @@ export default function AppShell() {
                 ) : null}
                 <button
                   type="button"
-                  onClick={logout}
+                  onClick={() => void logout()}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,

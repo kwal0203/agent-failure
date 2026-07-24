@@ -22,7 +22,7 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: ghcr.io/kwal0203/agent-failure-control-plane
+          image: ghcr.io/example/agent-failure-control-plane
           imagePullPolicy: IfNotPresent
           command: ["uv", "run", "alembic", "upgrade", "head"]
           envFrom:
@@ -106,7 +106,7 @@ spec:
                   key: COGNITO_INSTRUCTOR_GROUP_NAME
       containers:
         - name: control-plane
-          image: ghcr.io/kwal0203/agent-failure-control-plane
+          image: ghcr.io/example/agent-failure-control-plane
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

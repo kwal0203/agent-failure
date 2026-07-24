@@ -1,50 +1,30 @@
 import { useState } from "react";
+import { useMarkSessionFeedbackSeenMutation } from "../../../query/sessionMutations";
 import type { SessionFeedbackItem } from "../types";
-import { API_BASE, getAuthHeader } from "../ui";
 
 type UseFeedbackStateParams = {
   sessionId?: string;
   feedbackItems?: SessionFeedbackItem[];
   unreadFeedbackCount?: number;
-  refreshSessionMetadata: () => Promise<void>;
 };
 
 export function useFeedbackState({
   sessionId,
   feedbackItems,
   unreadFeedbackCount,
-  refreshSessionMetadata,
 }: UseFeedbackStateParams) {
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false);
+  const markFeedbackSeenMutation =
+    useMarkSessionFeedbackSeenMutation(sessionId);
   const hasUnreadFeedback = (unreadFeedbackCount ?? 0) > 0;
   const rows = feedbackItems ?? [];
 
   const onFeedbackChipClick = () => {
-    setFeedbackPanelOpen((prev) => {
-      const nextOpen = !prev;
-      if (nextOpen && sessionId && hasUnreadFeedback) {
-        void (async () => {
-          try {
-            const res = await fetch(
-              `${API_BASE}/api/v1/sessions/${sessionId}/feedback/mark-seen`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: getAuthHeader(),
-                  "Content-Type": "application/json",
-                },
-              },
-            );
-            if (!res.ok) return;
-            await res.json();
-            await refreshSessionMetadata();
-          } catch {
-            return;
-          }
-        })();
-      }
-      return nextOpen;
-    });
+    const nextOpen = !feedbackPanelOpen;
+    setFeedbackPanelOpen(nextOpen);
+    if (nextOpen && sessionId && hasUnreadFeedback) {
+      markFeedbackSeenMutation.mutate();
+    }
   };
 
   return {

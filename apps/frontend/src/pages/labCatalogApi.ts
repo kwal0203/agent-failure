@@ -1,12 +1,12 @@
-import type {
-  GetLabsResponse,
-  GetSessionsResponse,
-  LabCatalogItemResponse,
-} from "../../../contracts/ts/index";
-import { getCurrentAuthHeader } from "../auth/tokenStore";
+import {
+  controlPlaneRequestError,
+  createControlPlaneClient,
+} from "../api/client";
+import type { components } from "../api/generated";
+import { getCurrentAuthHeader } from "../auth/session";
 
 export type LabDifficulty = "easy" | "medium";
-export type LabCatalogItem = LabCatalogItemResponse;
+export type LabCatalogItem = components["schemas"]["LabCatalogItemResponse"];
 
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
@@ -50,63 +50,25 @@ const STUB_LABS: LabCatalogItem[] = [
 ];
 
 async function fetchLabsFromApi(apiBaseUrl: string): Promise<LabCatalogItem[]> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/labs`, {
-    method: "GET",
-    headers: {
-      Authorization: getCurrentAuthHeader(),
-      "Content-Type": "application/json",
+  const { data, error, response } = await createControlPlaneClient(
+    apiBaseUrl,
+  ).GET("/api/v1/labs", {
+    params: {
+      header: {
+        Authorization: await getCurrentAuthHeader(),
+      },
     },
   });
 
-  if (!response.ok) {
-    throw new Error(`Lab catalog request failed (HTTP ${response.status})`);
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Lab catalog request failed",
+    );
   }
 
-  const payload = (await response.json()) as GetLabsResponse;
-  const rawLabs = payload.labs;
-  if (!Array.isArray(rawLabs)) {
-    throw new Error("Lab catalog response has invalid labs[] shape");
-  }
-
-  return rawLabs
-    .filter((item): item is LabCatalogItem => {
-      if (typeof item !== "object" || item === null) {
-        return false;
-      }
-      if (
-        !("id" in item) ||
-        !("slug" in item) ||
-        !("name" in item) ||
-        !("summary" in item) ||
-        !("capabilities" in item)
-      ) {
-        return false;
-      }
-
-      const capabilities = item.capabilities;
-      return (
-        typeof item.id === "string" &&
-        typeof item.slug === "string" &&
-        typeof item.name === "string" &&
-        typeof item.summary === "string" &&
-        typeof capabilities === "object" &&
-        capabilities !== null &&
-        "supports_resume" in capabilities &&
-        "supports_uploads" in capabilities &&
-        typeof capabilities.supports_resume === "boolean" &&
-        typeof capabilities.supports_uploads === "boolean"
-      );
-    })
-    .map((item) => ({
-      id: item.id,
-      slug: item.slug,
-      name: item.name,
-      summary: item.summary,
-      capabilities: {
-        supports_resume: item.capabilities.supports_resume,
-        supports_uploads: item.capabilities.supports_uploads,
-      },
-    }));
+  return data.labs;
 }
 
 function normalizeLabCatalog(labs: LabCatalogItem[]): LabCatalogItem[] {
@@ -136,93 +98,55 @@ export async function loadLabCatalog(
   return normalizeLabCatalog(STUB_LABS);
 }
 
-function extractSessionId(payload: unknown): string | undefined {
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "session" in payload &&
-    typeof payload.session === "object" &&
-    payload.session !== null &&
-    "id" in payload.session &&
-    typeof payload.session.id === "string"
-  ) {
-    return payload.session.id;
-  }
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "id" in payload &&
-    typeof payload.id === "string"
-  ) {
-    return payload.id;
-  }
-  return undefined;
-}
-
 export async function createSessionForLab(
   apiBaseUrl: string,
   labId: string,
   labDifficulty: LabDifficulty = "medium",
 ): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/sessions`, {
-    method: "POST",
-    headers: {
-      Authorization: getCurrentAuthHeader(),
-      "Idempotency-Key": `frontend-create-session-${crypto.randomUUID()}`,
-      "Content-Type": "application/json",
+  const { data, error, response } = await createControlPlaneClient(
+    apiBaseUrl,
+  ).POST("/api/v1/sessions", {
+    params: {
+      header: {
+        Authorization: await getCurrentAuthHeader(),
+        "Idempotency-Key": `frontend-create-session-${crypto.randomUUID()}`,
+      },
     },
-    body: JSON.stringify({
+    body: {
       lab_id: labId,
       lab_difficulty: labDifficulty,
-    }),
+    },
   });
 
-  if (!response.ok) {
-    throw new Error(`Session create failed (HTTP ${response.status})`);
+  if (error || !data) {
+    throw controlPlaneRequestError(error, response, "Session create failed");
   }
 
-  const payload = (await response.json()) as unknown;
-  const sessionId = extractSessionId(payload);
-  if (!sessionId) {
-    throw new Error(
-      "Session create succeeded but response did not include session id",
-    );
-  }
-
-  return sessionId;
+  return data.session.id;
 }
 
 export async function getLatestSessionIdForLab(
   apiBaseUrl: string,
   labId: string,
 ): Promise<string | null> {
-  const params = new URLSearchParams({
-    lab_id: labId,
-    limit: "1",
-    sort: "created_at:desc",
-  });
-  const response = await fetch(`${apiBaseUrl}/api/v1/sessions?${params}`, {
-    method: "GET",
-    headers: {
-      Authorization: getCurrentAuthHeader(),
-      "Content-Type": "application/json",
+  const { data, error, response } = await createControlPlaneClient(
+    apiBaseUrl,
+  ).GET("/api/v1/sessions", {
+    params: {
+      query: {
+        lab_id: labId,
+        limit: 1,
+        sort: "created_at:desc",
+      },
+      header: {
+        Authorization: await getCurrentAuthHeader(),
+      },
     },
   });
 
-  if (!response.ok) {
-    throw new Error(`Session query failed (HTTP ${response.status})`);
+  if (error || !data) {
+    throw controlPlaneRequestError(error, response, "Session query failed");
   }
 
-  const payload = (await response.json()) as GetSessionsResponse;
-  const first = Array.isArray(payload.sessions)
-    ? payload.sessions[0]
-    : undefined;
-  if (
-    !first ||
-    typeof first.session_id !== "string" ||
-    first.session_id.length < 1
-  ) {
-    return null;
-  }
-  return first.session_id;
+  return data.sessions[0]?.session_id ?? null;
 }

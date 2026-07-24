@@ -1,21 +1,20 @@
 import { useMemo, useState } from "react";
+import { useMarkSessionHintsSeenMutation } from "../../../query/sessionMutations";
 import type { SessionHint, UnlockedHint } from "../types";
-import { API_BASE, getAuthHeader } from "../ui";
 
 type UseHintsStateParams = {
   sessionId?: string;
   hints?: SessionHint[];
   unreadHintCount?: number;
-  refreshSessionMetadata: () => Promise<void>;
 };
 
 export function useHintsState({
   sessionId,
   hints,
   unreadHintCount,
-  refreshSessionMetadata,
 }: UseHintsStateParams) {
   const [hintsPanelOpen, setHintsPanelOpen] = useState(false);
+  const markHintsSeenMutation = useMarkSessionHintsSeenMutation(sessionId);
 
   const unlockedHints = useMemo<UnlockedHint[]>(() => {
     const unlocked = (hints ?? [])
@@ -38,31 +37,11 @@ export function useHintsState({
   const hasUnreadHint = (unreadHintCount ?? 0) > 0;
 
   const onHintsChipClick = () => {
-    setHintsPanelOpen((prev) => {
-      const nextOpen = !prev;
-      if (nextOpen && sessionId && hasUnreadHint) {
-        void (async () => {
-          try {
-            const res = await fetch(
-              `${API_BASE}/api/v1/sessions/${sessionId}/hints/mark-seen`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: getAuthHeader(),
-                  "Content-Type": "application/json",
-                },
-              },
-            );
-            if (!res.ok) return;
-            await res.json();
-            await refreshSessionMetadata();
-          } catch {
-            return;
-          }
-        })();
-      }
-      return nextOpen;
-    });
+    const nextOpen = !hintsPanelOpen;
+    setHintsPanelOpen(nextOpen);
+    if (nextOpen && sessionId && hasUnreadHint) {
+      markHintsSeenMutation.mutate();
+    }
   };
 
   return { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick };

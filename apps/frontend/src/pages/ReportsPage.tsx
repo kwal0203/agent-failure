@@ -1,3 +1,4 @@
+import { useQueries } from "@tanstack/react-query";
 import {
   BarChart3,
   Boxes,
@@ -12,14 +13,12 @@ import {
   Target,
   Wrench,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLabCatalogQuery } from "../query/labCatalog";
+import { latestSessionQueryOptions } from "../query/sessionQueries";
 import { useShellBootstrap } from "../shell/context";
-import {
-  getLatestSessionIdForLab,
-  type LabCatalogItem,
-  loadLabCatalog,
-} from "./labCatalogApi";
+import type { LabCatalogItem } from "./labCatalogApi";
 
 type CatalogModule = {
   id: string;
@@ -35,6 +34,8 @@ type CatalogModule = {
   statusTone: string;
   isReportEnabled: boolean;
 };
+
+const EMPTY_LABS: LabCatalogItem[] = [];
 
 const modules: CatalogModule[] = [
   {
@@ -171,75 +172,20 @@ function getModuleLab(
 export default function ReportsPage() {
   const bootstrap = useShellBootstrap();
   const navigate = useNavigate();
-  const [labs, setLabs] = useState<LabCatalogItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const labsQuery = useLabCatalogQuery(bootstrap.apiBaseUrl);
+  const labs = labsQuery.data ?? EMPTY_LABS;
+  const isLoading = labsQuery.isPending;
+  const loadError = labsQuery.error
+    ? labsQuery.error instanceof Error
+      ? labsQuery.error.message
+      : "Failed to load labs"
+    : null;
   const [actionError, setActionError] = useState<string | null>(null);
-  const [latestSessionByLab, setLatestSessionByLab] = useState<
-    Record<string, string>
-  >({});
-
-  const refreshLabs = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      setLabs(await loadLabCatalog(bootstrap.apiBaseUrl));
-    } catch (error) {
-      setLoadError(
-        error instanceof Error ? error.message : "Failed to load labs",
-      );
-      setLabs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [bootstrap.apiBaseUrl]);
-
-  useEffect(() => {
-    void refreshLabs();
-  }, [refreshLabs]);
-
-  useEffect(() => {
-    if (labs.length < 1) {
-      setLatestSessionByLab({});
-      return;
-    }
-
-    let cancelled = false;
-    const loadLatestSessions = async () => {
-      const mappedLabs = modules
-        .map((module) => getModuleLab(module.id, labs))
-        .filter((lab): lab is LabCatalogItem => lab !== null);
-      const uniqueLabs = Array.from(
-        new Map(mappedLabs.map((lab) => [lab.id, lab])).values(),
-      );
-      const entries = await Promise.all(
-        uniqueLabs.map(async (lab) => {
-          try {
-            const sessionId = await getLatestSessionIdForLab(
-              bootstrap.apiBaseUrl,
-              lab.id,
-            );
-            return [lab.id, sessionId] as const;
-          } catch {
-            return [lab.id, null] as const;
-          }
-        }),
-      );
-      if (cancelled) return;
-      const next: Record<string, string> = {};
-      for (const [labId, sessionId] of entries) {
-        if (typeof sessionId === "string" && sessionId.length > 0) {
-          next[labId] = sessionId;
-        }
-      }
-      setLatestSessionByLab(next);
-    };
-
-    void loadLatestSessions();
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrap.apiBaseUrl, labs]);
+  const latestSessionQueries = useQueries({
+    queries: labs.map((lab) =>
+      latestSessionQueryOptions(bootstrap.apiBaseUrl, lab.id),
+    ),
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-5 pt-5 pb-8 text-[17px] md:px-8 lg:px-10">
@@ -262,9 +208,11 @@ export default function ReportsPage() {
           {modules.map((module) => {
             const Icon = module.icon;
             const moduleLab = getModuleLab(module.id, labs);
-            const latestSessionId = moduleLab
-              ? latestSessionByLab[moduleLab.id]
-              : undefined;
+            const labIndex = moduleLab
+              ? labs.findIndex((lab) => lab.id === moduleLab.id)
+              : -1;
+            const latestSessionId =
+              labIndex >= 0 ? latestSessionQueries[labIndex]?.data : undefined;
             const isEnabled =
               !!moduleLab &&
               typeof latestSessionId === "string" &&

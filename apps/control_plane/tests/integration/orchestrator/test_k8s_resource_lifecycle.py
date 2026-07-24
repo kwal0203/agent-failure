@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
-import subprocess
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
+
+from kubernetes import client
 
 from apps.control_plane.src.application.orchestrator.types import (
     RuntimeProvisionRequest,
@@ -21,57 +21,88 @@ from apps.control_plane.src.infrastructure.orchestrator.types import (
 )
 
 
-def test_provision_then_teardown_leaves_no_pod_or_service(monkeypatch) -> None:
-    resources: dict[tuple[str, str], dict[str, Any]] = {}
+class _InMemoryCoreApi:
+    def __init__(self) -> None:
+        self.pods: dict[str, client.V1Pod] = {}
+        self.services: dict[str, client.V1Service] = {}
 
-    def _completed(
-        args: list[str], *, stdout: str = ""
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            args=args, returncode=0, stdout=stdout, stderr=""
+    def patch_namespaced_pod(
+        self, name: str, namespace: str, body: client.V1Pod, **kwargs: Any
+    ) -> client.V1Pod:
+        _ = namespace, kwargs
+        assert body.metadata is not None
+        body.metadata.uid = "pod-uid-integration"
+        self.pods[name] = body
+        return body
+
+    def patch_namespaced_service(
+        self, name: str, namespace: str, body: client.V1Service, **kwargs: Any
+    ) -> client.V1Service:
+        _ = namespace, kwargs
+        self.services[name] = body
+        return body
+
+    def list_namespaced_pod(self, namespace: str, **kwargs: Any) -> client.V1PodList:
+        _ = namespace
+        return client.V1PodList(
+            items=[
+                pod
+                for pod in self.pods.values()
+                if pod.metadata is not None
+                and _matches_selector(pod.metadata.labels, kwargs["label_selector"])
+            ]
         )
 
-    def _run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        if "apply" in args:
-            manifest = json.loads(kwargs["input"])
-            kind = str(manifest["kind"]).lower()
-            name = str(manifest["metadata"]["name"])
-            if kind == "pod":
-                manifest["metadata"]["uid"] = "pod-uid-integration"
-            resources[(kind, name)] = manifest
-            return _completed(args)
-
-        if "get" in args and "jsonpath={.metadata.uid}" in args:
-            pod_name = args[args.index("pod") + 1]
-            pod = resources[("pod", pod_name)]
-            return _completed(args, stdout=str(pod["metadata"]["uid"]))
-
-        if "get" in args and "pod,service" in args:
-            selector = args[args.index("-l") + 1]
-            label_key, label_value = selector.split("=", maxsplit=1)
-            names = [
-                f"{kind}/{name}"
-                for (kind, name), manifest in resources.items()
-                if manifest["metadata"]["labels"].get(label_key) == label_value
+    def list_namespaced_service(
+        self, namespace: str, **kwargs: Any
+    ) -> client.V1ServiceList:
+        _ = namespace
+        return client.V1ServiceList(
+            items=[
+                service
+                for service in self.services.values()
+                if service.metadata is not None
+                and _matches_selector(service.metadata.labels, kwargs["label_selector"])
             ]
-            stdout = "".join(f"{name}\n" for name in sorted(names))
-            return _completed(args, stdout=stdout)
+        )
 
-        if "delete" in args and "pod,service" in args:
-            selector = args[args.index("-l") + 1]
-            label_key, label_value = selector.split("=", maxsplit=1)
-            for key, manifest in list(resources.items()):
-                if manifest["metadata"]["labels"].get(label_key) == label_value:
-                    del resources[key]
-            return _completed(args)
+    def delete_collection_namespaced_pod(self, namespace: str, **kwargs: Any) -> None:
+        _ = namespace
+        self.pods = {
+            name: pod
+            for name, pod in self.pods.items()
+            if pod.metadata is not None
+            and not _matches_selector(pod.metadata.labels, kwargs["label_selector"])
+        }
 
-        raise AssertionError(f"Unexpected kubectl invocation: {args}")
+    def delete_collection_namespaced_service(
+        self, namespace: str, **kwargs: Any
+    ) -> None:
+        _ = namespace
+        self.services = {
+            name: service
+            for name, service in self.services.items()
+            if service.metadata is not None
+            and not _matches_selector(service.metadata.labels, kwargs["label_selector"])
+        }
 
-    monkeypatch.setattr(subprocess, "run", _run)
+
+def _matches_selector(labels: dict[str, str], selector: str) -> bool:
+    key, value = selector.split("=", maxsplit=1)
+    return labels.get(key) == value
+
+
+def test_provision_then_teardown_leaves_no_pod_or_service() -> None:
+    api = _InMemoryCoreApi()
+    typed_api = cast(client.CoreV1Api, api)
     provisioner = K8sRuntimeProvisioner(
-        config=K8sProvisionerConfig(namespace="test-runtime")
+        config=K8sProvisionerConfig(namespace="test-runtime"),
+        core_api=typed_api,
     )
-    teardown = K8sRuntimeTeardown(config=K8sCleanupConfig(namespace="test-runtime"))
+    teardown = K8sRuntimeTeardown(
+        config=K8sCleanupConfig(namespace="test-runtime"),
+        core_api=typed_api,
+    )
     request = RuntimeProvisionRequest(
         session_id=uuid4(),
         lab_id=uuid4(),
@@ -84,11 +115,11 @@ def test_provision_then_teardown_leaves_no_pod_or_service(monkeypatch) -> None:
     provisioned = provisioner.provision(request)
 
     assert provisioned.status == "accepted"
-    assert {kind for kind, _ in resources} == {"pod", "service"}
-    service = next(
-        manifest for (kind, _), manifest in resources.items() if kind == "service"
-    )
-    assert service["metadata"]["ownerReferences"][0]["uid"] == "pod-uid-integration"
+    assert len(api.pods) == 1
+    assert len(api.services) == 1
+    service = next(iter(api.services.values()))
+    assert service.metadata is not None
+    assert service.metadata.owner_references[0].uid == "pod-uid-integration"
 
     result = teardown.teardown(
         RuntimeTeardownRequest(
@@ -98,4 +129,5 @@ def test_provision_then_teardown_leaves_no_pod_or_service(monkeypatch) -> None:
     )
 
     assert result.status == "deleted"
-    assert resources == {}
+    assert api.pods == {}
+    assert api.services == {}

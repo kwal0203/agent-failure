@@ -1,13 +1,12 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useInjectSessionEmailMutation } from "../../../query/sessionMutations";
 import type {
   AgentStatus,
-  InjectSessionEmailResponse,
   SessionWorkspaceState,
   ToolKey,
   TranscriptEntry,
 } from "../types";
-import { API_BASE, getAuthHeader } from "../ui";
 
 type UseSessionActionsParams = {
   sessionId?: string;
@@ -18,7 +17,6 @@ type UseSessionActionsParams = {
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
   resetActiveStream: () => void;
   setAgentStatus: (status: AgentStatus) => void;
-  refreshSessionMetadata: () => Promise<void>;
 };
 
 export function useSessionActions(params: UseSessionActionsParams) {
@@ -31,12 +29,11 @@ export function useSessionActions(params: UseSessionActionsParams) {
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
-  const [injectingEmail, setInjectingEmail] = useState(false);
-  const [injectEmailError, setInjectEmailError] = useState<string | null>(null);
-  const [injectEmailResult, setInjectEmailResult] = useState<string | null>(
-    null,
-  );
+  const [injectEmailValidationError, setInjectEmailValidationError] = useState<
+    string | null
+  >(null);
   const [emailFromTouched, setEmailFromTouched] = useState(false);
+  const injectEmailMutation = useInjectSessionEmailMutation(params.sessionId);
   const [workspaceState, setWorkspaceState] = useState<SessionWorkspaceState>({
     selectedTool: null,
     toolPaneOpen: false,
@@ -73,68 +70,37 @@ export function useSessionActions(params: UseSessionActionsParams) {
     const subject = emailSubject.trim();
     const body = emailBody.trim();
     if (!sender || !subject || !body) {
-      setInjectEmailError("From, subject, and body are required.");
+      setInjectEmailValidationError("From, subject, and body are required.");
       return;
     }
     if (!isValidEmail(sender)) {
-      setInjectEmailError("From must be a valid email address.");
+      setInjectEmailValidationError("From must be a valid email address.");
       return;
     }
 
-    setInjectingEmail(true);
-    setInjectEmailError(null);
+    setInjectEmailValidationError(null);
+    injectEmailMutation.reset();
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
       injectSuccessTimeoutRef.current = null;
     }
-    setInjectEmailResult(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/sessions/${params.sessionId}/inbox/email`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: getAuthHeader(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email_from: sender,
-            email_subject: subject,
-            email_body: body,
-            source: "learner",
-          }),
-        },
-      );
-
-      const payload = (await res.json()) as
-        | InjectSessionEmailResponse
-        | { error?: { message?: string } };
-
-      if (!res.ok) {
-        const msg =
-          "error" in payload && payload.error?.message
-            ? payload.error.message
-            : `HTTP ${res.status}`;
-        setInjectEmailError(msg);
-        return;
-      }
-
-      setInjectEmailResult("success");
+      await injectEmailMutation.mutateAsync({
+        emailFrom: sender,
+        emailSubject: subject,
+        emailBody: body,
+      });
       injectSuccessTimeoutRef.current = window.setTimeout(() => {
-        setInjectEmailResult(null);
+        injectEmailMutation.reset();
         injectSuccessTimeoutRef.current = null;
       }, 1800);
       setEmailFromTouched(false);
       setEmailFrom("");
       setEmailSubject("");
       setEmailBody("");
-      await params.refreshSessionMetadata();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "request failed";
-      setInjectEmailError(message);
-    } finally {
-      setInjectingEmail(false);
+    } catch {
+      return;
     }
   };
 
@@ -143,12 +109,12 @@ export function useSessionActions(params: UseSessionActionsParams) {
     setEmailSubject("");
     setEmailBody("");
     setEmailFromTouched(false);
-    setInjectEmailError(null);
+    setInjectEmailValidationError(null);
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
       injectSuccessTimeoutRef.current = null;
     }
-    setInjectEmailResult(null);
+    injectEmailMutation.reset();
   };
 
   const onEmailFromChange = (value: string) => {
@@ -183,6 +149,12 @@ export function useSessionActions(params: UseSessionActionsParams) {
     });
   };
 
+  const injectEmailError =
+    injectEmailValidationError ??
+    (injectEmailMutation.error instanceof Error
+      ? injectEmailMutation.error.message
+      : null);
+
   return {
     prompt,
     setPrompt,
@@ -190,10 +162,10 @@ export function useSessionActions(params: UseSessionActionsParams) {
     emailFrom,
     emailSubject,
     emailBody,
-    injectingEmail,
+    injectingEmail: injectEmailMutation.isPending,
     fromValidationError,
     injectEmailError,
-    injectEmailResult,
+    injectEmailResult: injectEmailMutation.isSuccess ? "success" : null,
     onSubmitEmail,
     onResetEmail,
     onEmailFromChange,
