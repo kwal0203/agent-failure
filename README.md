@@ -8,6 +8,17 @@ Project updates and early-access registration are available at [www.agentfailure
 
 The original hosted application is no longer running. This repository is provided for local use, research, teaching, and community development.
 
+## Project status
+
+Agent Failure is an experimental open-source release of a former commercial
+MVP. Version 0.1.0 is intended for evaluation, research, and controlled
+teaching environments; it is not a supported hosted service or a
+production-ready security boundary.
+
+The labs deliberately execute unsafe agent behavior. Run them only with test
+credentials and disposable infrastructure, and do not expose session runtimes
+directly to the public internet.
+
 ## Architecture
 
 ```
@@ -46,9 +57,10 @@ different lab session.
 
 The evaluator uses deterministic, trace-backed constraints inspired by
 constraint-based modeling. Assessment, evidence, pedagogical presentation, and
-learner-facing feedback are separate layers. See
-[Evaluator Model](docs/evaluator-model.md) for the design, versioning rules, and
-the limited role of LLM classification.
+learner-facing feedback are separate layers. Rule-bundle versions are persisted
+with evaluation results so historical outcomes remain attributable when
+scoring behavior changes. LLM classification is limited to interpreting
+specific simulated artifacts; recorded trace evidence remains authoritative.
 
 ### Simulated telemetry
 
@@ -114,7 +126,6 @@ runtimes/
   agent/             Per-session agent runtime — LLM loop, tool dispatch, lab configs
 deploy/              Environment examples and Kubernetes deployment manifests
 scripts/             Local smoke tests and operational utilities
-docs/                Evaluator design and instructor materials
 ```
 
 Files under `deploy/` are operator examples. Replace reserved example domains,
@@ -126,7 +137,7 @@ references before using them in an environment.
 ### Prerequisites
 
 - Python 3.12+
-- Node.js 20+
+- Node.js 22.22+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Docker (for PostgreSQL)
 
@@ -140,7 +151,8 @@ references before using them in an environment.
 2. **Configure environment:**
    ```bash
    cp .env.example .env
-   # Edit .env with your DATABASE_URL, OPENROUTER_API_KEY, etc.
+   # Edit .env with DATABASE_URL and the settings needed by the component
+   # you are running.
    ```
 
 3. **Install Python dependencies:**
@@ -155,23 +167,64 @@ references before using them in an environment.
 
 5. **Start the control plane:**
    ```bash
-   uv run uvicorn apps.control_plane.src.interfaces.http.main:app --host 0.0.0.0 --port 8000 --reload
+   uv run uvicorn apps.control_plane.src.interfaces.http.main:app \
+     --env-file .env --host 0.0.0.0 --port 8000 --reload
    ```
 
-6. **Start the agent runtime** (separate terminal):
+6. **Start the frontend** (separate terminal):
    ```bash
-   uv run uvicorn runtimes.agent.main:app --host 0.0.0.0 --port 8001
+   cd apps/frontend
+   cp .env.example .env.local
+   # Set VITE_API_BASE_URL=http://localhost:8000 in .env.local.
+   npm ci
+   npm run dev
    ```
 
-7. **Start the frontend** (separate terminal):
-   ```bash
-   cd apps/frontend && npm ci && npm run dev
-   ```
+This starts the database, API, and frontend for component development. Running
+a complete lab also requires a Kubernetes cluster: the provisioning worker
+creates an isolated Pod and Service for every session. Configure the manifests
+under `deploy/k8s/` with your own image references, secrets, ingress, and
+OpenRouter test credentials before applying them. The checked-in deployment
+files are operator examples, not a turnkey production environment.
 
-8. **Start the evaluator worker** (separate terminal, optional):
-   ```bash
-   uv run python -m apps.evaluator.src.interfaces.runtime.evaluator_worker
-   ```
+To run an agent runtime directly for runtime-only development, provide the
+session identity and model settings in `.env`, then use:
+
+```bash
+uv run uvicorn runtimes.agent.main:app \
+  --env-file .env --host 0.0.0.0 --port 8001
+```
+
+The evaluator worker can be run against the local database in another terminal:
+
+```bash
+set -a
+source .env
+set +a
+uv run python -m apps.evaluator.src.interfaces.runtime.evaluator_worker
+```
+
+### Full Kubernetes deployment
+
+The repository includes Kustomize bases and environment overlays:
+
+```bash
+kubectl kustomize deploy/k8s/base
+kubectl kustomize deploy/k8s/dev
+```
+
+Review every rendered resource before applying it. At minimum, replace image
+references and digests, configure the required Kubernetes Secrets, and update
+the example domains and certificate contacts. The helper scripts under
+`scripts/` can bootstrap secrets and verify a configured cluster:
+
+```bash
+scripts/bootstrap_k8s_secrets_from_env.sh
+scripts/verify_k8s_deploy.sh
+```
+
+After deployment, `scripts/smoke_session_roundtrip.sh` exercises a complete
+session lifecycle.
 
 ## Testing
 
@@ -188,8 +241,10 @@ The CI pipeline (`.github/workflows/ci.yml`) runs on push to `main` and all PRs:
 - PostgreSQL 17 service container
 - Dependency audits: `pip-audit`, `npm audit`
 - Frontend: Biome, TypeScript, ESLint, Vitest
+- Production frontend build
 - Backend: Ruff, mypy, Pyright, pytest
 - Kubernetes manifest rendering for all included overlays
+- Control-plane and agent-runtime container builds and import smoke checks
 
 ## License
 

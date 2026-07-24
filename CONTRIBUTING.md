@@ -11,7 +11,7 @@ Thank you for helping improve Agent Failure. Bug reports, documentation fixes, t
 
 ## Development setup
 
-You need Python 3.12 or later, Node.js 20 or later, `uv`, Docker, and npm.
+You need Python 3.12 or later, Node.js 22.22 or later, `uv`, Docker, and npm.
 
 ```bash
 docker compose up -d db

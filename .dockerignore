@@ -9,7 +9,10 @@ __pycache__/
 *.pyd
 .pytest_cache/
 .mypy_cache/
+**/.pytest_cache/
+**/.mypy_cache/
 .ruff_cache/
+**/.ruff_cache/
 .venv/
 venv/
 
@@ -17,6 +20,7 @@ venv/
 **/node_modules/
 **/dist/
 **/coverage/
+**/.vite/
 
 # OS/editor noise
 .DS_Store
