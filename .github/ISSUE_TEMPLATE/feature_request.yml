@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a focused improvement to Agent Failure.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: checkboxes
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and pull requests for this idea.
+          required: true
+        - label: I have read the contribution guidelines for larger changes.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What learner, instructor, contributor, or operator problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest change that would solve the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any workarounds or alternative designs you considered.

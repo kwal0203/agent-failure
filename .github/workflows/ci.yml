@@ -97,6 +97,10 @@ jobs:
         run: npm test
         working-directory: apps/frontend
 
+      - name: Build frontend
+        run: npm run build
+        working-directory: apps/frontend
+
       - name: Run Ruff
         run: uv run ruff check .
 
@@ -115,3 +119,24 @@ jobs:
           kubectl kustomize deploy/k8s/dev >/dev/null
           kubectl kustomize deploy/k8s/staging >/dev/null
           kubectl kustomize deploy/k8s/production >/dev/null
+
+      - name: Build control-plane image
+        run: |
+          docker build --file apps/control_plane/Dockerfile --tag agent-failure-control-plane:ci .
+          docker run --rm \
+            --env APP_ENV=dev \
+            --env DATABASE_URL=postgresql+psycopg://postgres:localdev@localhost/agent_failure_test \
+            --entrypoint python \
+            agent-failure-control-plane:ci \
+            -c 'import apps.control_plane.src.interfaces.http.main'
+
+      - name: Build agent-runtime image
+        run: |
+          docker build --file runtimes/agent/Dockerfile --tag agent-failure-runtime:ci .
+          docker run --rm \
+            --env PROVIDER_ENDPOINT=https://openrouter.ai/api/v1 \
+            --env OPENROUTER_API_KEY=release-build-placeholder \
+            --env MODEL_NAME=release-build-placeholder \
+            --entrypoint python \
+            agent-failure-runtime:ci \
+            -c 'import runtimes.agent.main'
