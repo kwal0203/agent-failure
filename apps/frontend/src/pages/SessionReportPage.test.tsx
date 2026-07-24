@@ -278,7 +278,7 @@ describe("SessionReportPage evidence selection", () => {
     renderReportPage(SESSION_ID);
 
     const selectedChip = await screen.findByRole("button", {
-      name: /malicious email received/i,
+      name: /^malicious email received$/i,
     });
 
     await waitFor(() => {
