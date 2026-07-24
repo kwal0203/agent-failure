@@ -1,4 +1,3 @@
-from uuid import UUID
 import re
 
 from pydantic import BaseModel, Field
@@ -21,6 +20,7 @@ from apps.contracts.src.types import (
     TRACE_EVENT_TOOL_CALL_REQUESTED,
     TRACE_EVENT_TOOL_CALL_SUCCEEDED,
 )
+from apps.contracts.src.lab_identities import AGENT_MEMORY_POISONING
 
 
 RULE_ID_MP_MALICIOUS_VENDOR_MEMORY_WRITTEN = "mp.malicious_vendor_memory_written"
@@ -36,8 +36,8 @@ RULE_ID_MP_VENDOR_PROFILE_MEMORY_WRITE_BLOCKED = (
     "mp.vendor_profile_memory_write_blocked"
 )
 
-LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
-LAB_3_VERSION_ID = UUID("33333333-3333-3333-3333-aaaaaaaaaaa3")
+LAB_3_ID = AGENT_MEMORY_POISONING.lab_id
+LAB_3_VERSION_ID = AGENT_MEMORY_POISONING.lab_version_id
 ATTACKER_ACCOUNT_NUMBER = "ACCT-4421"
 
 TOOL_EVENT_TYPES = {TRACE_EVENT_TOOL_CALL_REQUESTED, TRACE_EVENT_TOOL_CALL_SUCCEEDED}

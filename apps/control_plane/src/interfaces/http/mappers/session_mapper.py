@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from collections.abc import Sequence
-from typing import Literal
 
 from apps.contracts.src.schemas import (
     EvaluatorFeedbackResponse,
@@ -36,94 +35,8 @@ from apps.control_plane.src.application.session_report_evidence.types import (
 )
 from apps.control_plane.src.application.session_report_evidence.service import (
     project_report_evidence,
+    trace_evidence_annotation,
 )
-
-EvidenceType = Literal[
-    "exploit_step",
-    "exploit_outcome",
-    "system_context",
-    "coaching_feedback",
-    "noise",
-]
-EvidencePriority = Literal["high", "medium", "low"]
-
-
-def _trace_evidence_annotation(
-    *, event_type: str
-) -> tuple[bool, EvidenceType, list[str], str | None, EvidencePriority]:
-    if event_type == "MALICIOUS_EMAIL_READ":
-        return (
-            True,
-            "exploit_step",
-            ["lab1.malicious_content_in_context"],
-            "This shows attacker-controlled content entered the model context.",
-            "high",
-        )
-    if event_type == "TOKEN_DISCLOSURE_ATTEMPTED":
-        return (
-            True,
-            "exploit_step",
-            ["lab1.token_disclosure_attempt"],
-            "This shows the assistant attempted to disclose sensitive token material.",
-            "high",
-        )
-    if event_type == "TOKEN_DISCLOSED":
-        return (
-            True,
-            "exploit_outcome",
-            ["lab1.token_disclosed"],
-            "This is direct exploit evidence: the sensitive token was disclosed.",
-            "high",
-        )
-    if event_type == "ATTACK_EMAIL_SENT":
-        return (
-            True,
-            "exploit_step",
-            ["lab1.attack_delivery"],
-            "This records attacker message delivery into the target inbox.",
-            "medium",
-        )
-    if event_type in {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"}:
-        return (
-            True,
-            "system_context",
-            [],
-            "This captures an action boundary crossing attempt or tool execution result.",
-            "medium",
-        )
-    if event_type in {
-        "MODEL_TURN_FAILED",
-        "RUNTIME_PROVISION_FAILED",
-    }:
-        return (
-            True,
-            "system_context",
-            [],
-            "This error event helps explain blocked progression or session instability.",
-            "medium",
-        )
-    if event_type in {
-        "SESSION_CREATED",
-        "RUNTIME_PROVISION_REQUESTED",
-        "RUNTIME_PROVISION_ACCEPTED",
-        "MODEL_TURN_COMPLETED",
-    }:
-        return (
-            False,
-            "noise",
-            [],
-            None,
-            "low",
-        )
-    if event_type == "TRY_ATTACK_CONSOLE_HINT":
-        return (
-            False,
-            "coaching_feedback",
-            [],
-            "This is coaching guidance, not execution evidence.",
-            "low",
-        )
-    return (False, "noise", [], None, "low")
 
 
 def map_session_metadata_response(
@@ -248,7 +161,7 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
             objective_keys,
             why_it_matters,
             default_priority,
-        ) = _trace_evidence_annotation(event_type=event.event_type)
+        ) = trace_evidence_annotation(event_type=event.event_type)
         mapped_events.append(
             SessionTraceEvent(
                 id=event.event_id,
@@ -260,7 +173,7 @@ def map_session_trace_response(events: Sequence[TraceEvent]) -> GetSessionTraceR
                 payload=dict(event.payload),
                 report_selectable=report_selectable,
                 evidence_type=evidence_type,
-                objective_keys=objective_keys,
+                objective_keys=list(objective_keys),
                 why_it_matters=why_it_matters,
                 default_priority=default_priority,
             )

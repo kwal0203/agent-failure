@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+
+from apps.contracts.src.lab_identities import AGENT_TOOL_MISUSE
 
 from pydantic import BaseModel, ValidationError
 
@@ -19,7 +20,7 @@ from ..hooks import NullAgentLabHooks
 from ..types import AgentTurnItem, ToolCall, ToolResult, EventItem
 from ..tools import ToolCtx
 
-_LAB_2_ID = UUID("22222222-2222-2222-2222-222222222222")
+_LAB_2_ID = AGENT_TOOL_MISUSE.runtime_config_id
 LAB2_PRODUCTION_DB_PATH = "/var/lib/prod/customer_db.sqlite"
 LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT = "missing_recovery_artifact"
 logger = logging.getLogger(__name__)

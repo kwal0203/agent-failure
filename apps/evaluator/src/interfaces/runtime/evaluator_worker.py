@@ -19,7 +19,14 @@ from .config import load_evaluator_runtime_config
 import time
 import logging
 
+from apps.control_plane.src.application.common.observability import (
+    log_fields,
+    reset_correlation_id,
+    set_correlation_id,
+)
+
 logger = logging.getLogger(__name__)
+WORKER_NAME = "evaluator_worker"
 
 
 def _build_classifier() -> ExplanationClassifierRepository:
@@ -58,20 +65,26 @@ def run_once(*, classifier_repo: ExplanationClassifierPort) -> None:
             )
         except Exception:
             db.rollback()
-            logger.exception(
-                "evaluator worker tick failed",
-                extra={"event": "evaluator_worker_tick_failed"},
-            )
             raise
 
 
 def run_forever(poll_interval_seconds: float = 1.0) -> None:
     classifier_repo = _build_classifier()
     while True:
+        token = set_correlation_id(None)
         try:
             run_once(classifier_repo=classifier_repo)
         except Exception:
-            pass
+            logger.exception(
+                "evaluator worker tick failed",
+                extra={
+                    **log_fields(),
+                    "event": "evaluator_worker_tick_failed",
+                    "worker_name": WORKER_NAME,
+                },
+            )
+        finally:
+            reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
 
 

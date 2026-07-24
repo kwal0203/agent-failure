@@ -12,14 +12,11 @@ from apps.control_plane.src.infrastructure.persistence.session_repository import
     SQLAlchemyReconciliationSessionRepository,
 )
 
-import time
-
 import logging
 from apps.control_plane.src.application.common.observability import (
     log_fields,
-    reset_correlation_id,
-    set_correlation_id,
 )
+from apps.control_plane.src.interfaces.runtime.worker_loop import run_worker_loop
 
 logger = logging.getLogger(__name__)
 WORKER_NAME = "runtime_inspection_worker"
@@ -47,18 +44,12 @@ def run_once() -> None:
 
 
 def run_forever(poll_interval_seconds: float = 1.0) -> None:
-    while True:
-        token = set_correlation_id(None)
-        try:
-            run_once()
-        except Exception:
-            logger.exception(
-                "runtime inspection worker tick failed",
-                extra={**log_fields(), "worker_name": WORKER_NAME},
-            )
-        finally:
-            reset_correlation_id(token)
-        time.sleep(poll_interval_seconds)
+    run_worker_loop(
+        worker_name=WORKER_NAME,
+        run_once=run_once,
+        poll_interval_seconds=poll_interval_seconds,
+        logger=logger,
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
-from uuid import UUID
-
+from apps.contracts.src.lab_identities import (
+    LEGACY_CODE_EXECUTION_LAB_ID,
+    LEGACY_CODE_EXECUTION_LAB_VERSION_ID,
+)
 from apps.evaluator.src.application.pedagogy import (
     V1_PEDAGOGICAL_POLICY,
 )
@@ -44,8 +46,8 @@ RULES: tuple[RuleFn, ...] = (
 
 CODE_EXECUTION_V1_BUNDLE = RuleBundle(
     name="code_execution_v1",
-    lab_id=UUID("44444444-4444-4444-4444-444444444444"),
-    lab_version_id=UUID("88888888-8888-8888-8888-888888888888"),
+    lab_id=LEGACY_CODE_EXECUTION_LAB_ID,
+    lab_version_id=LEGACY_CODE_EXECUTION_LAB_VERSION_ID,
     rule_bundle_version=1,
     solution_state_type=CodeExecutionSolutionState,
     build_solution_state=build_code_execution_solution_state,

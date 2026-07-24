@@ -63,46 +63,53 @@ presents it alongside persisted runtime signals.
 
 ### WebSocket broadcast
 
-- [ ] Make broadcast delivery concurrent and failure-isolated.
-- [ ] Ensure one failed connection cannot prevent delivery to healthy
+- [x] Make broadcast delivery concurrent and failure-isolated.
+- [x] Ensure one failed connection cannot prevent delivery to healthy
   connections.
-- [ ] Remove failed sockets from the session connection registry.
-- [ ] Add tests with multiple clients, including one client that raises during
+- [x] Remove failed sockets from the session connection registry.
+- [x] Add tests with multiple clients, including one client that raises during
   delivery.
-- [ ] Document that the in-memory connection registry is single-replica unless
+- [x] Document that the in-memory connection registry is single-replica unless
   a cross-replica fan-out mechanism is introduced.
 
 ### Worker loops
 
-- [ ] Prevent a learner-feedback processing exception from terminating its
+- [x] Prevent a learner-feedback processing exception from terminating its
   long-running worker.
-- [ ] Remove the evaluator worker's outer `except Exception: pass`.
-- [ ] Ensure every continued failure is logged with worker and correlation
+- [x] Remove the evaluator worker's outer `except Exception: pass`.
+- [x] Ensure every continued failure is logged with worker and correlation
   context.
-- [ ] Extract a small shared worker-loop helper if it materially removes the
+- [x] Extract a small shared worker-loop helper if it materially removes the
   repeated polling, exception, correlation, and sleep structure.
-- [ ] Preserve each worker's explicit processing function and durable outbox
+- [x] Preserve each worker's explicit processing function and durable outbox
   retry behavior.
 
 ### Pilot request correctness
 
-- [ ] Decide whether duplicate requests are defined by email alone or by
+- [x] Decide whether duplicate requests are defined by email alone or by
   `(email, university)`.
-- [ ] Make the repository query, port name, tests, and learner-facing message
+- [x] Make the repository query, port name, tests, and learner-facing message
   reflect the same definition.
-- [ ] Evaluate whether rate-limit enforcement requires an atomic database or
+- [x] Evaluate whether rate-limit enforcement requires an atomic database or
   Redis-backed mechanism based on expected traffic and deployment topology.
+
+Duplicate pilot requests are defined by normalized work email alone within the
+seven-day window. The database counters remain a documented best-effort abuse
+guard for the low-volume control-plane endpoint. The hosted lead form is a
+separate Vercel function; if the control-plane endpoint becomes a
+multi-replica public intake path, its limits must move to an atomic shared
+token bucket or API-gateway rate limiter.
 
 ### Lab identities and generic-layer policy
 
-- [ ] Inventory production lab IDs, lab-version IDs, aliases, objective keys,
+- [x] Inventory production lab IDs, lab-version IDs, aliases, objective keys,
   and learner-facing scenario constants across all applications.
-- [ ] Give identifiers names that distinguish lab identity from lab-version
+- [x] Give identifiers names that distinguish lab identity from lab-version
   identity.
-- [ ] Establish one authoritative definition or generated artifact where
+- [x] Establish one authoritative definition or generated artifact where
   values cross Python and TypeScript boundaries.
-- [ ] Remove inline UUID construction from generic agent logic.
-- [ ] Move lab-specific objective and scenario policy out of generic HTTP
+- [x] Remove inline UUID construction from generic agent logic.
+- [x] Move lab-specific objective and scenario policy out of generic HTTP
   mapping where practical.
 
 ## Phase 4: Focused consolidation

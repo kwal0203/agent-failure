@@ -1,5 +1,4 @@
-from uuid import UUID
-
+from apps.contracts.src.lab_identities import AGENT_PROMPT_INJECTION
 from apps.evaluator.src.application.pedagogy import V1_PEDAGOGICAL_POLICY
 from apps.evaluator.src.application.rules.cbm_compat import (
     ObservedConstraintOutcome,
@@ -139,8 +138,8 @@ RULES: tuple[RuleFn, ...] = (
 
 PROMPT_INJECTION_V1_BUNDLE = RuleBundle(
     name="prompt_injection_v1",
-    lab_id=UUID("11111111-1111-1111-1111-111111111111"),
-    lab_version_id=UUID("55555555-5555-5555-5555-555555555555"),
+    lab_id=AGENT_PROMPT_INJECTION.lab_id,
+    lab_version_id=AGENT_PROMPT_INJECTION.lab_version_id,
     rule_bundle_version=1,
     solution_state_type=PromptInjectionSolutionState,
     build_solution_state=build_prompt_injection_solution_state,

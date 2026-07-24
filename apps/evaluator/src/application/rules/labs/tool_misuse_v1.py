@@ -1,4 +1,4 @@
-from uuid import UUID
+from apps.contracts.src.lab_identities import AGENT_TOOL_MISUSE
 from pydantic import BaseModel, ValidationError
 
 from apps.evaluator.src.application.pedagogy import (
@@ -515,8 +515,8 @@ RULES: tuple[RuleFn, ...] = (
 
 TOOL_MISUSE_V1_BUNDLE = RuleBundle(
     name="tool_misuse_v1",
-    lab_id=UUID("22222222-2222-2222-2222-222222222222"),
-    lab_version_id=UUID("22222222-2222-2222-2222-aaaaaaaaaaa2"),
+    lab_id=AGENT_TOOL_MISUSE.lab_id,
+    lab_version_id=AGENT_TOOL_MISUSE.lab_version_id,
     rule_bundle_version=1,
     solution_state_type=ToolMisuseSolutionState,
     build_solution_state=build_tool_misuse_solution_state,

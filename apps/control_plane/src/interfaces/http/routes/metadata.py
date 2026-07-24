@@ -10,6 +10,7 @@ from apps.contracts.src.schemas import (
     GetSessionMetadataResponse,
     SessionRuntimeFileResponse,
 )
+from apps.contracts.src.lab_identities import AGENT_TOOL_MISUSE
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.session_email.ports import (
     RuntimeBindingReaderPort,
@@ -41,7 +42,6 @@ from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
 )
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
-AGENT_LAB_2_TOOL_MISUSE_ID = UUID("55555555-5555-5555-5555-555555555555")
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,7 +94,7 @@ async def get_metadata(
                 stalled = session_age_seconds >= PROVISIONING_STALL_SESSION_AGE_SECONDS
 
         runtime_files: list[SessionRuntimeFileResponse] = []
-        if session_metadata.lab_id == AGENT_LAB_2_TOOL_MISUSE_ID:
+        if session_metadata.lab_id == AGENT_TOOL_MISUSE.lab_id:
             try:
                 runtime_binding = runtime_binding_repo.get_by_session_id(
                     session_id=session_id

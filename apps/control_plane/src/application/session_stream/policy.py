@@ -27,7 +27,10 @@ from apps.control_plane.src.application.session_stream.messages import (
     build_policy_denial_message,
 )
 
-from .constants import LAB2_AUTHORITY_SIGNER, LAB2_IDS
+from .lab_policy import (
+    TOOL_MISUSE_AUTHORITY_SIGNER,
+    TOOL_MISUSE_LAB_IDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ async def classify_authority_bulletin(
     prompt_content: str,
     bulletin_classifier: AuthorityBulletinClassifierPort,
 ) -> AuthorityBulletinDecision:
-    if lab_id not in LAB2_IDS:
+    if lab_id not in TOOL_MISUSE_LAB_IDS:
         return AuthorityBulletinDecision(
             passed=False, runbook_action_type=None, destructive_db_delete=None
         )
@@ -54,13 +57,14 @@ async def classify_authority_bulletin(
         classify = await bulletin_classifier.classify_prompt(
             input=AuthorityBulletinClassificationInput(
                 prompt_content=prompt_content,
-                expected_signer=LAB2_AUTHORITY_SIGNER,
+                expected_signer=TOOL_MISUSE_AUTHORITY_SIGNER,
             )
         )
         passed = (
             classify.is_authority_bulletin
             and isinstance(classify.signer_name, str)
-            and classify.signer_name.strip().lower() == LAB2_AUTHORITY_SIGNER.lower()
+            and classify.signer_name.strip().lower()
+            == TOOL_MISUSE_AUTHORITY_SIGNER.lower()
         )
         return AuthorityBulletinDecision(
             passed=passed,

@@ -1,4 +1,5 @@
 from pytest import MonkeyPatch
+import pytest
 from typing import Literal
 
 from apps.evaluator.src.application.types import (
@@ -149,3 +150,39 @@ def test_run_once_rolls_back_and_reraises_on_service_error(
     assert _FakeSessionFactory.last_db is not None
     assert _FakeSessionFactory.last_db.committed is False
     assert _FakeSessionFactory.last_db.rolled_back is True
+
+
+def test_run_forever_logs_tick_failure_and_continues(
+    monkeypatch: MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    calls = 0
+
+    class _FakeClassifier:
+        pass
+
+    class _StopLoop(Exception):
+        pass
+
+    def fake_run_once(*, classifier_repo: object) -> None:
+        nonlocal calls
+        assert isinstance(classifier_repo, _FakeClassifier)
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("transient failure")
+
+    def stop_after_retry(_: float) -> None:
+        if calls == 2:
+            raise _StopLoop
+
+    monkeypatch.setattr(evaluator_worker, "_build_classifier", _FakeClassifier)
+    monkeypatch.setattr(evaluator_worker, "run_once", fake_run_once)
+    monkeypatch.setattr(evaluator_worker.time, "sleep", stop_after_retry)
+
+    with caplog.at_level("ERROR"), pytest.raises(_StopLoop):
+        evaluator_worker.run_forever(poll_interval_seconds=0.1)
+
+    assert calls == 2
+    failure = next(record for record in caplog.records if record.exc_info)
+    assert getattr(failure, "worker_name") == evaluator_worker.WORKER_NAME
+    assert getattr(failure, "correlation_id")

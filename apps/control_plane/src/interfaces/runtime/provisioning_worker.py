@@ -1,5 +1,4 @@
 import logging
-import time
 from pathlib import Path
 
 from apps.control_plane.src.infrastructure.persistence.db import SessionFactory
@@ -23,9 +22,8 @@ from apps.control_plane.src.infrastructure.orchestrator.k8s_runtime_inspector im
 from dotenv import load_dotenv
 from apps.control_plane.src.application.common.observability import (
     log_fields,
-    reset_correlation_id,
-    set_correlation_id,
 )
+from apps.control_plane.src.interfaces.runtime.worker_loop import run_worker_loop
 from apps.control_plane.src.infrastructure.config.settings import (
     get_app_env,
     get_orchestrator_settings,
@@ -154,21 +152,12 @@ def run_forever(
 ) -> None:
     dependencies = _build_dependencies()
     policy = _build_policy()
-    while True:
-        token = set_correlation_id(None)
-        try:
-            run_once(
-                dependencies=dependencies,
-                policy=policy,
-            )
-        except Exception:
-            logger.exception(
-                "provisioning worker tick failed",
-                extra={**log_fields(), "worker_name": WORKER_NAME},
-            )
-        finally:
-            reset_correlation_id(token)
-        time.sleep(poll_interval_seconds)
+    run_worker_loop(
+        worker_name=WORKER_NAME,
+        run_once=lambda: run_once(dependencies=dependencies, policy=policy),
+        poll_interval_seconds=poll_interval_seconds,
+        logger=logger,
+    )
 
 
 if __name__ == "__main__":

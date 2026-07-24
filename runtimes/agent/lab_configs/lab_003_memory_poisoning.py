@@ -4,6 +4,8 @@ import datetime
 import logging
 from dataclasses import dataclass, field
 from uuid import UUID
+
+from apps.contracts.src.lab_identities import AGENT_MEMORY_POISONING
 from pydantic import BaseModel, ValidationError
 
 from apps.agent_harness.src.application.session_loop.types import (
@@ -22,7 +24,7 @@ from ..hooks import NullAgentLabHooks
 from ..types import AgentTurnItem, ToolCall, ToolResult, EventItem
 from ..tools import ToolCtx
 
-_LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
+_LAB_3_ID = AGENT_MEMORY_POISONING.runtime_config_id
 logger = logging.getLogger(__name__)
 
 

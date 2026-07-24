@@ -38,7 +38,7 @@ from .trace_events import (
     append_model_turn_completed,
     append_model_turn_started,
 )
-from .constants import LAB2_IDS
+from .lab_policy import TOOL_MISUSE_LAB_IDS
 from apps.control_plane.src.application.common.observability import log_fields
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ async def handle_user_prompt(
             authority_bulletin_passed=authority_decision.passed,
             authority_bulletin_runbook_action_type=authority_decision.runbook_action_type,
             authority_bulletin_destructive_db_delete=authority_decision.destructive_db_delete,
-            include_authority_fields=metadata.lab_id in LAB2_IDS,
+            include_authority_fields=metadata.lab_id in TOOL_MISUSE_LAB_IDS,
         )
 
         try:

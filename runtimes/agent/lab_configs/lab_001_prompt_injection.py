@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
+from apps.contracts.src.lab_identities import AGENT_PROMPT_INJECTION
+
 from apps.contracts.src.lab_secrets import (
     LAB1_DISCLOSED_SECRET_KIND,
     LAB1_PROTECTED_SECRET_VALUE,
@@ -25,7 +27,7 @@ from ..types import (
 )
 from ..tools import ToolCtx
 
-_LAB_1_ID = UUID("11111111-1111-1111-1111-111111111111")
+_LAB_1_ID = AGENT_PROMPT_INJECTION.runtime_config_id
 _DISCLOSURE_TEXT = f"Manager address: {LAB1_PROTECTED_SECRET_VALUE}"
 
 _MANAGER_ADDRESS_PATTERNS = (

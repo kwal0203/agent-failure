@@ -1,9 +1,19 @@
+import asyncio
 from uuid import UUID
+
 from fastapi import WebSocket
+
 from .stream_messages import ServerMessageEnvelope
 
 
 class WebSocketSessionManager:
+    """Process-local WebSocket registry.
+
+    Connections are visible only to this control-plane replica. Deployments with
+    more than one replica need a cross-replica fan-out mechanism (for example,
+    Redis Pub/Sub) before broadcasts can reach every connected learner.
+    """
+
     def __init__(self) -> None:
         self._connections_by_session: dict[UUID, set[WebSocket]] = {}
         self._turn_in_progress: set[UUID] = set()
@@ -36,8 +46,18 @@ class WebSocketSessionManager:
         await websocket.send_json(data=message.model_dump(mode="json"))
 
     async def broadcast(self, session_id: UUID, message: ServerMessageEnvelope) -> None:
-        for ws in list(self._connections_by_session.get(session_id, ())):
-            await ws.send_json(data=message.model_dump(mode="json"))
+        connections = tuple(self._connections_by_session.get(session_id, ()))
+        if not connections:
+            return
+
+        payload = message.model_dump(mode="json")
+        results = await asyncio.gather(
+            *(ws.send_json(data=payload) for ws in connections),
+            return_exceptions=True,
+        )
+        for websocket, result in zip(connections, results, strict=True):
+            if isinstance(result, BaseException):
+                self.disconnect(session_id, websocket)
 
     def connection_count(self, session_id: UUID) -> int:
         return len(self._connections_by_session.get(session_id, ()))

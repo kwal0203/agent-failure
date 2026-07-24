@@ -4,18 +4,26 @@ import {
 } from "../api/client";
 import type { components } from "../api/generated";
 import { getCurrentAuthHeader } from "../auth/session";
+import {
+  AGENT_MEMORY_POISONING_LAB_ID,
+  AGENT_MEMORY_POISONING_SLUG,
+  AGENT_PROMPT_INJECTION_LAB_ID,
+  AGENT_PROMPT_INJECTION_SLUG,
+  AGENT_TOOL_MISUSE_LAB_ID,
+  AGENT_TOOL_MISUSE_SLUG,
+} from "../labIdentities.generated";
 
 export type LabCatalogItem = components["schemas"]["LabCatalogItemResponse"];
 
 const LAB_CATALOG_SOURCE = (
   import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
 ).toLowerCase();
-const PINNED_FIRST_LAB_SLUG = "agent-prompt-injection";
+const PINNED_FIRST_LAB_SLUG = AGENT_PROMPT_INJECTION_SLUG;
 
 const STUB_LABS: LabCatalogItem[] = [
   {
-    id: "44444444-4444-4444-4444-444444444444",
-    slug: "agent-prompt-injection",
+    id: AGENT_PROMPT_INJECTION_LAB_ID,
+    slug: AGENT_PROMPT_INJECTION_SLUG,
     name: "Indirect Prompt Injection",
     summary:
       "Attack an agent using indirect prompt injection via a malicious email.",
@@ -25,8 +33,8 @@ const STUB_LABS: LabCatalogItem[] = [
     },
   },
   {
-    id: "55555555-5555-5555-5555-555555555555",
-    slug: "agent-tool-misuse",
+    id: AGENT_TOOL_MISUSE_LAB_ID,
+    slug: AGENT_TOOL_MISUSE_SLUG,
     name: "Tool Misuse",
     summary:
       "Induce an LLM agent into performing unsafe tool operations via deceptive inputs.",
@@ -36,8 +44,8 @@ const STUB_LABS: LabCatalogItem[] = [
     },
   },
   {
-    id: "66666666-6666-6666-6666-666666666666",
-    slug: "agent-memory-poisoning",
+    id: AGENT_MEMORY_POISONING_LAB_ID,
+    slug: AGENT_MEMORY_POISONING_SLUG,
     name: "Memory Poisoning",
     summary:
       "Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",

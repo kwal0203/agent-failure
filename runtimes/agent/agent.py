@@ -4,7 +4,6 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Protocol
-from uuid import UUID
 
 from apps.agent_harness.src.application.session_loop.types import (
     AgentRequest,
@@ -20,6 +19,7 @@ from apps.agent_harness.src.infrastructure.model.gateway_client import (
 from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
     PRODUCTION_DB_PATH,
 )
+from apps.contracts.src.lab_identities import AGENT_TOOL_MISUSE
 
 from .types import (
     ChatMessage,
@@ -282,7 +282,7 @@ async def run_agent_turn(
                     )
 
                     if (
-                        ctx.lab_id == UUID("55555555-5555-5555-5555-555555555555")
+                        ctx.lab_id == AGENT_TOOL_MISUSE.lab_id
                         and target == PRODUCTION_DB_PATH
                     ):
                         authority_bulletin_passed = ctx.authority_bulletin_passed

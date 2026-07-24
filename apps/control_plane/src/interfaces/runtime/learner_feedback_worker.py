@@ -15,12 +15,12 @@ from apps.control_plane.src.application.evaluator_feedback.service import (
     process_pending_feedback_publish_once,
 )
 
-import asyncio
 import logging
 from apps.control_plane.src.application.common.observability import (
     log_fields,
-    reset_correlation_id,
-    set_correlation_id,
+)
+from apps.control_plane.src.interfaces.runtime.worker_loop import (
+    run_async_worker_loop,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -55,10 +55,9 @@ async def run_once(*, session_manager: WebSocketSessionManager) -> None:
 async def run_forever(
     *, session_manager: WebSocketSessionManager, polling_interval_seconds: float = 10.0
 ) -> None:
-    while True:
-        token = set_correlation_id(None)
-        try:
-            await run_once(session_manager=session_manager)
-        finally:
-            reset_correlation_id(token)
-        await asyncio.sleep(polling_interval_seconds)
+    await run_async_worker_loop(
+        worker_name=WORKER_NAME,
+        run_once=lambda: run_once(session_manager=session_manager),
+        poll_interval_seconds=polling_interval_seconds,
+        logger=logger,
+    )
