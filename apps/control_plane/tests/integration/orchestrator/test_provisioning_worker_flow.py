@@ -103,6 +103,7 @@ def _launch_session() -> UUID:
                 name="Test Lab",
                 summary="test",
                 is_active=True,
+                is_published=True,
             )
         )
         db.add(
@@ -166,6 +167,7 @@ def _launch_agent_lab2_seeded_session() -> UUID:
                     name="Agent Tool Misuse",
                     summary="Agent runtime Lab 2",
                     is_active=True,
+                    is_published=True,
                 )
             )
 
@@ -489,6 +491,7 @@ def test_provisioning_worker_lab3_resolves_memory_poisoning_runtime_binding() ->
                 name="Memory Poisoning",
                 summary="test",
                 is_active=True,
+                is_published=True,
             )
         )
         db.add(

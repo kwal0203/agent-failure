@@ -43,7 +43,35 @@ def _auth_header(token: str) -> dict[str, str]:
 
 
 def test_get_labs_returns_200_with_catalog() -> None:
+    class _CatalogLabRepo(LabRepository):
+        def get_lab_catalog(self) -> list[GetLabCatalogRow]:
+            return [
+                GetLabCatalogRow(
+                    lab_id=UUID("44444444-4444-4444-4444-444444444444"),
+                    slug="agent-prompt-injection",
+                    name="Indirect Prompt Injection",
+                    summary="Attack an agent through a malicious email.",
+                    supports_resume=False,
+                    supports_uploads=False,
+                )
+            ]
+
+        def validate_lab(self, lab_id: UUID) -> bool:
+            _ = lab_id
+            raise NotImplementedError
+
+        def get_runtime_binding(
+            self, lab_id: UUID, lab_version_id: UUID
+        ) -> LabRuntimeBinding:
+            _ = (lab_id, lab_version_id)
+            raise NotImplementedError
+
+        def get_active_version_id(self, lab_id: UUID) -> UUID | None:
+            _ = lab_id
+            raise NotImplementedError
+
     app.dependency_overrides[get_db_session] = _override_db_session()
+    app.dependency_overrides[get_lab_repository] = lambda: _CatalogLabRepo()
     try:
         client = TestClient(app)
         response = client.get(

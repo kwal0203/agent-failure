@@ -46,6 +46,7 @@ def _seed_lab_with_active_version(*, lab_id: UUID) -> UUID:
                 name="Test Lab",
                 summary="test",
                 is_active=True,
+                is_published=True,
             )
         )
         db.add(
@@ -260,6 +261,7 @@ def test_create_session_lab3_uses_db_active_lab_version() -> None:
                 name="Memory Poisoning",
                 summary="test",
                 is_active=True,
+                is_published=True,
             )
         )
         db.add(

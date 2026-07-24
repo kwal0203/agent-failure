@@ -1,19 +1,20 @@
 from uuid import UUID
-from sqlalchemy.orm import Session
-from sqlalchemy import select
 
-from apps.control_plane.src.application.session_create.ports import (
-    LabRepository,
-)
-from apps.control_plane.src.application.session_create.errors import (
-    LabNotAvailableError,
-)
+from sqlalchemy import exists, select
+from sqlalchemy.orm import Session
+
 from apps.control_plane.src.application.common.types import (
     GetLabCatalogRow,
     LabRuntimeBinding,
 )
+from apps.control_plane.src.application.session_create.errors import (
+    LabNotAvailableError,
+)
+from apps.control_plane.src.application.session_create.ports import (
+    LabRepository,
+)
 
-from .models import LabVersionModel, LabModel
+from .models import LabModel, LabVersionModel
 
 
 class SQLAlchemyLabRepository(LabRepository):
@@ -21,40 +22,60 @@ class SQLAlchemyLabRepository(LabRepository):
         self._db = db
 
     def get_lab_catalog(self) -> list[GetLabCatalogRow]:
-        # TODO(P2 follow-up): replace this stubbed catalog with a real SELECT against
-        # a labs table (published + launchable rows) once lab metadata is persisted.
-        lab_rows: list[GetLabCatalogRow] = [
+        has_active_version = exists(
+            select(LabVersionModel.id).where(
+                LabVersionModel.lab_id == LabModel.id,
+                LabVersionModel.is_active.is_(True),
+            )
+        )
+        rows = self._db.execute(
+            select(
+                LabModel.id,
+                LabModel.slug,
+                LabModel.name,
+                LabModel.summary,
+                LabModel.supports_resume,
+                LabModel.supports_uploads,
+            )
+            .where(
+                LabModel.is_active.is_(True),
+                LabModel.is_published.is_(True),
+                has_active_version,
+            )
+            .order_by(
+                LabModel.catalog_order.asc().nulls_last(),
+                LabModel.name.asc(),
+                LabModel.id.asc(),
+            )
+        ).all()
+
+        return [
             GetLabCatalogRow(
-                lab_id=UUID("44444444-4444-4444-4444-444444444444"),
-                slug="agent-prompt-injection",
-                name="Indirect Prompt Injection",
-                summary="Attack an agent using indirect prompt injection via a malicious email.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
-            GetLabCatalogRow(
-                lab_id=UUID("55555555-5555-5555-5555-555555555555"),
-                slug="agent-tool-misuse",
-                name="Tool Misuse",
-                summary="Induce an LLM agent into unsafe tool operations via deceptive inputs.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
-            GetLabCatalogRow(
-                lab_id=UUID("66666666-6666-6666-6666-666666666666"),
-                slug="agent-memory-poisoning",
-                name="Memory Poisoning",
-                summary="Poison an LLM agent's memory to reroute invoice payments to an attacker-controlled account.",
-                supports_resume=False,
-                supports_uploads=False,
-            ),
+                lab_id=row.id,
+                slug=row.slug,
+                name=row.name,
+                summary=row.summary,
+                supports_resume=row.supports_resume,
+                supports_uploads=row.supports_uploads,
+            )
+            for row in rows
         ]
-        return lab_rows
 
     def validate_lab(self, lab_id: UUID) -> bool:
-        # TODO: Replace with DB-backed published-lab lookup when labs table exists.
-        _ = lab_id
-        return True
+        return (
+            self._db.execute(
+                select(LabModel.id)
+                .join(LabVersionModel, LabVersionModel.lab_id == LabModel.id)
+                .where(
+                    LabModel.id == lab_id,
+                    LabModel.is_active.is_(True),
+                    LabModel.is_published.is_(True),
+                    LabVersionModel.is_active.is_(True),
+                )
+                .limit(1)
+            ).scalar_one_or_none()
+            is not None
+        )
 
     def get_runtime_binding(
         self, lab_id: UUID, lab_version_id: UUID | None
@@ -95,12 +116,15 @@ class SQLAlchemyLabRepository(LabRepository):
         )
 
     def get_active_version_id(self, lab_id: UUID) -> UUID | None:
-        row = self._db.execute(
+        return self._db.execute(
             select(LabVersionModel.id)
+            .join(LabModel, LabModel.id == LabVersionModel.lab_id)
             .where(
                 LabVersionModel.lab_id == lab_id,
+                LabModel.is_active.is_(True),
+                LabModel.is_published.is_(True),
                 LabVersionModel.is_active.is_(True),
             )
+            .order_by(LabVersionModel.created_at.desc(), LabVersionModel.id.asc())
             .limit(1)
         ).scalar_one_or_none()
-        return row

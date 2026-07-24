@@ -51,6 +51,7 @@ def _seed_lab_with_active_version(*, lab_id):
                 name="Test Lab",
                 summary="test",
                 is_active=True,
+                is_published=True,
             )
         )
         db.add(
