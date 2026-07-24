@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditableReportSections } from "../../query/sessionReportDraft";
 import type { EvidenceBySection } from "./reportModel";
 import { REPORT_SECTION_OPTIONS } from "./reportModel";
@@ -18,8 +18,11 @@ export function useReportPdfExport({
   const [isExporting, setIsExporting] = useState(false);
   const latestDraftRef = useRef(draft);
   const latestEvidenceBySectionRef = useRef(evidenceBySection);
-  latestDraftRef.current = draft;
-  latestEvidenceBySectionRef.current = evidenceBySection;
+
+  useEffect(() => {
+    latestDraftRef.current = draft;
+    latestEvidenceBySectionRef.current = evidenceBySection;
+  }, [draft, evidenceBySection]);
 
   const exportReport = useCallback(async () => {
     setIsExporting(true);
