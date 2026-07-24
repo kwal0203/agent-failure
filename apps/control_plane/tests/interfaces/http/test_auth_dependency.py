@@ -93,7 +93,7 @@ def test_get_current_principal_rejects_non_bearer_header_before_verifier() -> No
     assert verifier.called_with is None
 
 
-def test_get_current_principal_accepts_non_gatech_email_claim() -> None:
+def test_get_current_principal_accepts_external_email_claim() -> None:
     verifier = _FakeVerifier(
         claims=AuthClaims(
             sub=str(uuid4()),
