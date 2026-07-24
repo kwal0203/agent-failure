@@ -4,6 +4,7 @@ import {
 } from "../api/client";
 import type { components } from "../api/generated";
 import { getCurrentAuthHeader } from "../auth/session";
+import { readFrontendConfig } from "../config";
 import {
   AGENT_MEMORY_POISONING_LAB_ID,
   AGENT_MEMORY_POISONING_SLUG,
@@ -15,9 +16,6 @@ import {
 
 export type LabCatalogItem = components["schemas"]["LabCatalogItemResponse"];
 
-const LAB_CATALOG_SOURCE = (
-  import.meta.env.VITE_LAB_CATALOG_SOURCE ?? "stub"
-).toLowerCase();
 const PINNED_FIRST_LAB_SLUG = AGENT_PROMPT_INJECTION_SLUG;
 
 const STUB_LABS: LabCatalogItem[] = [
@@ -93,11 +91,12 @@ function normalizeLabCatalog(labs: LabCatalogItem[]): LabCatalogItem[] {
 export async function loadLabCatalog(
   apiBaseUrl: string,
 ): Promise<LabCatalogItem[]> {
-  if (LAB_CATALOG_SOURCE === "empty") {
+  const catalogSource = readFrontendConfig().labCatalogSource;
+  if (catalogSource === "empty") {
     return [];
   }
 
-  if (LAB_CATALOG_SOURCE === "api") {
+  if (catalogSource === "api") {
     const labs = await fetchLabsFromApi(apiBaseUrl);
     return normalizeLabCatalog(labs);
   }

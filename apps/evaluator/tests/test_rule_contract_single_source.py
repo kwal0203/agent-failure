@@ -4,8 +4,11 @@ from apps.evaluator.src.application.rules import contract
 
 
 CONTRACT_SYMBOLS = (
+    "RULE_DEFINITIONS",
+    "RULE_DEFINITION_BY_ID",
     "RULE_IDS_BY_BUNDLE",
     "REQUIRED_EVIDENCE_KEYS_BY_RULE_ID",
+    "REASON_CODE_BY_RULE_ID",
 )
 
 

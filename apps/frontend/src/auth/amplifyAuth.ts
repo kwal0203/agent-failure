@@ -11,6 +11,7 @@ import {
 } from "aws-amplify/auth";
 import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 import { sessionStorage } from "aws-amplify/utils";
+import { readFrontendConfig } from "../config";
 
 let configuredResourceKey: string | null = null;
 
@@ -18,10 +19,9 @@ function getCognitoConfiguration(): {
   userPoolId: string;
   userPoolClientId: string;
 } {
-  const userPoolClientId = (
-    import.meta.env.VITE_COGNITO_CLIENT_ID ?? ""
-  ).trim();
-  const userPoolId = (import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "").trim();
+  const config = readFrontendConfig();
+  const userPoolClientId = config.cognitoClientId ?? "";
+  const userPoolId = config.cognitoUserPoolId ?? "";
 
   if (!userPoolClientId || !userPoolId) {
     throw new Error(

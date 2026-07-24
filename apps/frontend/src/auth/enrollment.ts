@@ -2,11 +2,8 @@ import {
   controlPlaneRequestError,
   createControlPlaneClient,
 } from "../api/client";
+import { getApiBaseUrl, readFrontendConfig } from "../config";
 import { getCurrentAuthHeader } from "./session";
-
-function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-}
 
 export const PENDING_ENROLLMENT_TOKEN_KEY =
   "agentfailure.auth.pendingEnrollmentToken";
@@ -14,10 +11,7 @@ export const ENROLLMENT_REDEEM_ERROR_KEY =
   "agentfailure.auth.enrollmentRedeemError";
 
 export function isEnrollmentApiEnabled(): boolean {
-  return (
-    (import.meta.env.VITE_ENROLLMENT_API_ENABLED ?? "false").toLowerCase() ===
-    "true"
-  );
+  return readFrontendConfig().enrollmentApiEnabled;
 }
 
 export async function validateClassCode(

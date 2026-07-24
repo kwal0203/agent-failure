@@ -5,6 +5,7 @@ import useWebSocket, {
 } from "react-use-websocket";
 import type { ServerMessage } from "../../../contracts/ts/index";
 import { getCurrentAccessToken } from "../auth/session";
+import { getApiBaseUrl } from "../config";
 
 export type { ServerMessage } from "../../../contracts/ts/index";
 
@@ -25,7 +26,7 @@ function shouldReconnect(event: CloseEvent): boolean {
 }
 
 export function useSessionStream(sessionId?: string) {
-  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+  const apiBase = getApiBaseUrl();
   const wsBase = apiBase.replace(/^http/i, "ws");
   const [reconnectNonce, setReconnectNonce] = useState(0);
   const streamKey = `${sessionId ?? "idle"}:${reconnectNonce}`;

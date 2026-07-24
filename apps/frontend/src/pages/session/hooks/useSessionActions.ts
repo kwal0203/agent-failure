@@ -1,6 +1,10 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import type { z } from "zod";
 import { useInjectSessionEmailMutation } from "../../../query/sessionMutations";
+import { injectedEmailSchema } from "../../../schemas/authForms";
 import type {
   AgentStatus,
   SessionWorkspaceState,
@@ -20,30 +24,27 @@ type UseSessionActionsParams = {
 };
 
 export function useSessionActions(params: UseSessionActionsParams) {
-  const isValidEmail = (value: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  };
-
   const injectSuccessTimeoutRef = useRef<number | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [emailFrom, setEmailFrom] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-  const [injectEmailValidationError, setInjectEmailValidationError] = useState<
-    string | null
-  >(null);
-  const [emailFromTouched, setEmailFromTouched] = useState(false);
+  type InjectedEmailForm = z.infer<typeof injectedEmailSchema>;
+  const emailForm = useForm<InjectedEmailForm>({
+    resolver: zodResolver(injectedEmailSchema),
+    defaultValues: { emailFrom: "", emailSubject: "", emailBody: "" },
+    mode: "onChange",
+  });
+  const emailFrom = useWatch({ control: emailForm.control, name: "emailFrom" });
+  const emailSubject = useWatch({
+    control: emailForm.control,
+    name: "emailSubject",
+  });
+  const emailBody = useWatch({ control: emailForm.control, name: "emailBody" });
   const injectEmailMutation = useInjectSessionEmailMutation(params.sessionId);
   const [workspaceState, setWorkspaceState] = useState<SessionWorkspaceState>({
     selectedTool: null,
     toolPaneOpen: false,
   });
   const fromValidationError =
-    emailFromTouched && !emailFrom.trim()
-      ? "From is required."
-      : emailFrom.trim() && !isValidEmail(emailFrom.trim())
-        ? "From must be a valid email address."
-        : null;
+    emailForm.formState.errors.emailFrom?.message ?? null;
 
   const onSubmitPrompt = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -62,23 +63,9 @@ export function useSessionActions(params: UseSessionActionsParams) {
     setPrompt("");
   };
 
-  const onSubmitEmail = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const submitEmail = async (values: InjectedEmailForm) => {
     if (!params.sessionId || params.interactionLocked) return;
 
-    const sender = emailFrom.trim();
-    const subject = emailSubject.trim();
-    const body = emailBody.trim();
-    if (!sender || !subject || !body) {
-      setInjectEmailValidationError("From, subject, and body are required.");
-      return;
-    }
-    if (!isValidEmail(sender)) {
-      setInjectEmailValidationError("From must be a valid email address.");
-      return;
-    }
-
-    setInjectEmailValidationError(null);
     injectEmailMutation.reset();
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
@@ -87,39 +74,30 @@ export function useSessionActions(params: UseSessionActionsParams) {
 
     try {
       await injectEmailMutation.mutateAsync({
-        emailFrom: sender,
-        emailSubject: subject,
-        emailBody: body,
+        emailFrom: values.emailFrom,
+        emailSubject: values.emailSubject,
+        emailBody: values.emailBody,
       });
       injectSuccessTimeoutRef.current = window.setTimeout(() => {
         injectEmailMutation.reset();
         injectSuccessTimeoutRef.current = null;
       }, 1800);
-      setEmailFromTouched(false);
-      setEmailFrom("");
-      setEmailSubject("");
-      setEmailBody("");
+      emailForm.reset();
     } catch {
       return;
     }
   };
+  const onSubmitEmail = (event: FormEvent<HTMLFormElement>) => {
+    void emailForm.handleSubmit(submitEmail)(event);
+  };
 
   const onResetEmail = () => {
-    setEmailFrom("");
-    setEmailSubject("");
-    setEmailBody("");
-    setEmailFromTouched(false);
-    setInjectEmailValidationError(null);
+    emailForm.reset();
     if (injectSuccessTimeoutRef.current !== null) {
       window.clearTimeout(injectSuccessTimeoutRef.current);
       injectSuccessTimeoutRef.current = null;
     }
     injectEmailMutation.reset();
-  };
-
-  const onEmailFromChange = (value: string) => {
-    setEmailFromTouched(true);
-    setEmailFrom(value);
   };
 
   useEffect(() => {
@@ -150,7 +128,8 @@ export function useSessionActions(params: UseSessionActionsParams) {
   };
 
   const injectEmailError =
-    injectEmailValidationError ??
+    emailForm.formState.errors.emailSubject?.message ??
+    emailForm.formState.errors.emailBody?.message ??
     (injectEmailMutation.error instanceof Error
       ? injectEmailMutation.error.message
       : null);
@@ -168,9 +147,21 @@ export function useSessionActions(params: UseSessionActionsParams) {
     injectEmailResult: injectEmailMutation.isSuccess ? "success" : null,
     onSubmitEmail,
     onResetEmail,
-    onEmailFromChange,
-    onEmailSubjectChange: setEmailSubject,
-    onEmailBodyChange: setEmailBody,
+    onEmailFromChange: (value: string) =>
+      emailForm.setValue("emailFrom", value, {
+        shouldDirty: true,
+        shouldValidate: true,
+      }),
+    onEmailSubjectChange: (value: string) =>
+      emailForm.setValue("emailSubject", value, {
+        shouldDirty: true,
+        shouldValidate: true,
+      }),
+    onEmailBodyChange: (value: string) =>
+      emailForm.setValue("emailBody", value, {
+        shouldDirty: true,
+        shouldValidate: true,
+      }),
     workspaceState,
     onToolSelect,
   };

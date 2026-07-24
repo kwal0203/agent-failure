@@ -3,12 +3,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import type { AuthUser } from "../auth/authContext";
 import { useAuth } from "../auth/useAuth";
+import { readFrontendConfig } from "../config";
 import type { ShellBootstrap } from "../shell/context";
 
+const frontendConfig = readFrontendConfig();
 const bootstrap: ShellBootstrap = {
-  mode: "demo",
+  mode: frontendConfig.uiMode,
   learnerLabel: "Demo Learner",
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+  apiBaseUrl: frontendConfig.apiBaseUrl,
 };
 
 const catalogNavItems = [

@@ -116,42 +116,65 @@ token bucket or API-gateway rate limiter.
 
 ### Frontend configuration and APIs
 
-- [ ] Add one typed frontend environment/configuration module.
-- [ ] Read `VITE_API_BASE_URL` and related settings through that module.
-- [ ] Remove duplicated localhost defaults from feature modules.
-- [ ] Keep the same-origin Vercel pilot-request submission separate from the
+- [x] Add one typed frontend environment/configuration module.
+- [x] Read `VITE_API_BASE_URL` and related settings through that module.
+- [x] Remove duplicated localhost defaults from feature modules.
+- [x] Keep the same-origin Vercel pilot-request submission separate from the
   generated FastAPI client unless that endpoint is moved into FastAPI.
-- [ ] Confirm all remaining user-input forms use React Hook Form and shared Zod
+- [x] Confirm all remaining user-input forms use React Hook Form and shared Zod
   schemas where doing so removes meaningful state or validation duplication.
 
 ### Evaluator contracts
 
-- [ ] Replace hand-synchronized evaluator rule dictionaries with one
+- [x] Replace hand-synchronized evaluator rule dictionaries with one
   authoritative typed rule definition.
-- [ ] Derive bundle membership, evidence requirements, and reason-code lookups
+- [x] Derive bundle membership, evidence requirements, and reason-code lookups
   from that definition.
-- [ ] Retain fail-closed coverage tests for missing or inconsistent rule
+- [x] Retain fail-closed coverage tests for missing or inconsistent rule
   metadata.
 
 ### Outbox and retry plumbing
 
-- [ ] Compare the outbox consumers and extract common claim/parse/dispatch
+- [x] Compare the outbox consumers and extract common claim/parse/dispatch
   mechanics only where transaction semantics remain explicit.
-- [ ] Keep the transactional outbox pattern and database-backed retry state.
-- [ ] Consider `tenacity` only for bounded, in-process transient operations
+- [x] Keep the transactional outbox pattern and database-backed retry state.
+- [x] Consider `tenacity` only for bounded, in-process transient operations
   such as readiness checks.
-- [ ] Do not replace durable outbox retries with an in-memory retry library.
-- [ ] Avoid introducing Celery, Dramatiq, Debezium, Kafka, Redis, or Socket.IO
+- [x] Do not replace durable outbox retries with an in-memory retry library.
+- [x] Avoid introducing Celery, Dramatiq, Debezium, Kafka, Redis, or Socket.IO
   unless deployment scale creates a concrete operational requirement.
 
 ### Styling
 
-- [ ] Inventory remaining inline style objects, Tailwind utilities, and stale
+- [x] Inventory remaining inline style objects, Tailwind utilities, and stale
   CSS variables.
-- [ ] Delete orphaned styles.
-- [ ] Consolidate repeated tone/style maps when it improves maintainability.
-- [ ] Treat a complete visual-system rewrite as optional rather than a release
+- [x] Delete orphaned styles.
+- [x] Consolidate repeated tone/style maps when it improves maintainability.
+- [x] Treat a complete visual-system rewrite as optional rather than a release
   requirement.
+
+Frontend environment access now goes through `src/config.ts`. The public pilot
+lead mutation intentionally continues to post to the same-origin Vercel
+function, while authenticated control-plane calls use the generated FastAPI
+client. Login, signup, password reset, enrollment, and injected-email forms use
+shared Zod schemas with React Hook Form. The prompt composer remains controlled
+local state because it is a live WebSocket input with only empty-string
+normalization; adding a form abstraction there would not remove validation or
+request-state complexity.
+
+The outbox adapters now share only SQL row claiming and lifecycle transitions.
+Payload validation and application dispatch remain event-specific. Durable
+retry counters and availability timestamps still live in PostgreSQL. Tenacity
+was not added to readiness polling: that loop evaluates returned Kubernetes
+state as well as exceptions and already has injected clock/sleep functions for
+deterministic tests, so a decorator would obscure rather than simplify it.
+
+The styling inventory found Tailwind as the active visual system plus remaining
+inline styles concentrated in layout-dependent session sizing and older catalog
+views. Orphaned purple-theme variables and an unused social-icon rule were
+removed. Repeated session status tones now resolve to one typed Tailwind class
+map. Converting every dynamic layout style or redesigning the older catalog is
+explicitly outside the release-critical cleanup.
 
 ## Phase 5: Complete the CBM semantics
 

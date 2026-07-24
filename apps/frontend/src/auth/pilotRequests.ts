@@ -3,12 +3,9 @@ import {
   createControlPlaneClient,
 } from "../api/client";
 import type { components } from "../api/generated";
+import { getApiBaseUrl } from "../config";
 import type { PilotLead } from "../schemas/pilotRequest";
 import { getCurrentAuthHeader } from "./session";
-
-function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-}
 
 export async function createPilotRequest(payload: PilotLead): Promise<void> {
   const response = await fetch("/api/pilot-request", {

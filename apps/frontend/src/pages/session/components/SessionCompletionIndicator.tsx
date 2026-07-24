@@ -1,4 +1,4 @@
-import { formatTime, statusChipStyle } from "../helpers";
+import { formatTime, type StatusTone, statusChipClassName } from "../helpers";
 import type { SessionCompletionStatus } from "../types";
 
 type SessionCompletionIndicatorProps = {
@@ -7,30 +7,14 @@ type SessionCompletionIndicatorProps = {
   completionReasonCode: string | null;
 };
 
-function completionTone(status: SessionCompletionStatus): {
-  background: string;
-  border: string;
-  color: string;
-} {
+function completionTone(status: SessionCompletionStatus): StatusTone {
   switch (status) {
     case "completed_success":
-      return {
-        background: "rgba(10, 50, 33, 0.72)",
-        border: "1px solid #2e7b57",
-        color: "#b9ffe0",
-      };
+      return "success";
     case "completed_failure":
-      return {
-        background: "rgba(70, 19, 37, 0.72)",
-        border: "1px solid #8b3252",
-        color: "#ffd1df",
-      };
+      return "danger";
     default:
-      return {
-        background: "rgba(8, 31, 50, 0.72)",
-        border: "1px solid #285272",
-        color: "#9fe4fb",
-      };
+      return "info";
   }
 }
 
@@ -79,18 +63,14 @@ export function SessionCompletionIndicator({
 
   return (
     <div
-      style={{
-        ...statusChipStyle(completionTone(completionStatus)),
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
+      className={statusChipClassName(
+        completionTone(completionStatus),
+        "flex items-center gap-2",
+      )}
     >
       <strong>{completionLabel(completionStatus)}</strong>
       {details ? (
-        <span style={{ fontSize: 12, opacity: 0.92, whiteSpace: "nowrap" }}>
-          {details}
-        </span>
+        <span className="whitespace-nowrap text-xs opacity-90">{details}</span>
       ) : null}
     </div>
   );

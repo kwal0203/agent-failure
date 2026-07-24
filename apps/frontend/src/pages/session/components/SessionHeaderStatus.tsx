@@ -3,7 +3,8 @@ import {
   formatTime,
   hintTone,
   objectiveTone,
-  statusChipStyle,
+  sessionStatusTone,
+  statusChipClassName,
 } from "../helpers";
 import type {
   AgentStatus,
@@ -12,7 +13,6 @@ import type {
   SessionProgressChip,
   UnlockedHint,
 } from "../types";
-import { statusTone } from "../ui";
 import { FeedbackPopover } from "./FeedbackPopover";
 import { SessionCompletionIndicator } from "./SessionCompletionIndicator";
 
@@ -68,20 +68,8 @@ export function ProgressStatusHeader({
   progressChips,
 }: ProgressStatusHeaderProps) {
   if (!progressReady) {
-    const placeholderStyle = {
-      ...statusChipStyle({
-        background: "rgba(36, 43, 52, 0.72)",
-        border: "1px solid #4a5562",
-        color: "#cfd9e2",
-      }),
-      opacity: 0.92,
-    };
-
     return (
-      <div
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={placeholderStyle}
-      >
+      <div className={statusChipClassName("neutral", "opacity-90")}>
         Loading objective status
       </div>
     );
@@ -95,9 +83,8 @@ export function ProgressStatusHeader({
         return (
           <div
             key={chip.objective_key}
-            className="rounded-md px-2.5 py-1.5 text-sm"
+            className={statusChipClassName(tone)}
             style={{
-              ...statusChipStyle(tone),
               animation: "progressChipIn 220ms ease-out both",
               animationDelay: `${index * 40}ms`,
             }}
@@ -134,7 +121,7 @@ export function SessionStatusHeader({
   const hasUnreadFeedback = unreadFeedbackCount > 0;
   const feedbackCount = feedbackItems.length;
   const feedbackTone = hintTone(hasUnreadFeedback, feedbackItems.length > 0);
-  const tone = statusTone(sessionState);
+  const tone = sessionStatusTone(sessionState);
   const normalizedAgentStatus = agentStatus.trim().toLowerCase();
   const agentLabel =
     normalizedAgentStatus === "active" ? "Agent: active" : "Agent: idle";
@@ -197,14 +184,10 @@ export function SessionStatusHeader({
       <button
         type="button"
         onClick={onFeedbackChipClick}
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={{
-          ...statusChipStyle(feedbackTone),
-          cursor: "pointer",
-          boxShadow: hasUnreadFeedback
-            ? "0 0 0 1px rgba(255, 230, 166, 0.2), 0 0 12px rgba(255, 230, 166, 0.24)"
-            : undefined,
-        }}
+        className={statusChipClassName(
+          feedbackTone,
+          `cursor-pointer ${hasUnreadFeedback ? "shadow-[0_0_12px_rgba(255,230,166,0.24)]" : ""}`,
+        )}
       >
         <strong>Feedback</strong>
         {feedbackCount > 0 ? (
@@ -214,30 +197,20 @@ export function SessionStatusHeader({
       <button
         type="button"
         onClick={onHintsChipClick}
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={{
-          ...statusChipStyle(hintsTone),
-          cursor: "pointer",
-          boxShadow: hasUnreadHint
-            ? "0 0 0 1px rgba(255, 230, 166, 0.2), 0 0 12px rgba(255, 230, 166, 0.24)"
-            : undefined,
-        }}
+        className={statusChipClassName(
+          hintsTone,
+          `cursor-pointer ${hasUnreadHint ? "shadow-[0_0_12px_rgba(255,230,166,0.24)]" : ""}`,
+        )}
       >
         <strong>Hints</strong>
         {unlockedHints.length > 0 ? (
           <span className="ml-1.5">({unlockedHints.length})</span>
         ) : null}
       </button>
-      <div
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={statusChipStyle(agentTone)}
-      >
+      <div className={statusChipClassName(agentTone)}>
         <strong>{agentLabel}</strong>
       </div>
-      <div
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={statusChipStyle(tone)}
-      >
+      <div className={statusChipClassName(tone)}>
         <strong>{sessionLabel}</strong>
       </div>
       {completionStatus === "completed_failure" ? (
@@ -251,17 +224,12 @@ export function SessionStatusHeader({
         type="button"
         onClick={onStopSession}
         disabled={!canStopSession || stoppingSession}
-        className="rounded-md px-2.5 py-1.5 text-sm"
-        style={{
-          ...statusChipStyle({
-            background: "rgba(83, 21, 31, 0.72)",
-            border: "1px solid #9b3e50",
-            color: "#ffd7df",
-          }),
-          cursor:
-            !canStopSession || stoppingSession ? "not-allowed" : "pointer",
-          opacity: !canStopSession || stoppingSession ? 0.6 : 1,
-        }}
+        className={statusChipClassName(
+          "danger",
+          !canStopSession || stoppingSession
+            ? "cursor-not-allowed opacity-60"
+            : "cursor-pointer",
+        )}
       >
         <strong>{stoppingSession ? "Stopping..." : "Stop Session"}</strong>
       </button>
