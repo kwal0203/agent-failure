@@ -31,6 +31,9 @@ spec:
             - python
             - -m
             - apps.control_plane.src.interfaces.runtime.cleanup_worker
+          envFrom:
+            - configMapRef:
+                name: control-plane-config
           env:
             - name: DATABASE_URL
               valueFrom:

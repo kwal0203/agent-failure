@@ -647,7 +647,7 @@ class SQLAlchemySessionRuntimeBindingRepository(SessionRuntimeBindingPort):
 
         return SessionRuntimeBinding(
             session_id=row.session_id,
-            runtime_kind=cast(RuntimeKind, row.status),
+            runtime_kind=cast(RuntimeKind, row.runtime_kind),
             base_url=row.base_url,
             auth_token_ref=row.auth_token_ref,
             status=cast(RuntimeBindingStatus, row.status),

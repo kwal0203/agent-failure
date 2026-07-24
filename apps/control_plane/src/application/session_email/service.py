@@ -91,7 +91,11 @@ async def inject_session_email_for_session(
     runtime_binding = deps.runtime_binding_repo.get_by_session_id(
         session_id=command.session_id
     )
-    if runtime_binding is None or runtime_binding.status != "ready":
+    if (
+        runtime_binding is None
+        or runtime_binding.status != "ready"
+        or not runtime_binding.base_url
+    ):
         current_status = (
             runtime_binding.status if runtime_binding is not None else "missing"
         )

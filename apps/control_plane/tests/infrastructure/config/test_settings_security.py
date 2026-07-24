@@ -17,6 +17,7 @@ from apps.control_plane.src.infrastructure.config.settings import (
     get_auth_verifier_config,
     get_enrollment_settings,
     get_instructor_provisioning_settings,
+    get_orchestrator_settings,
     get_runtime_client_config,
     get_runtime_pod_env_settings,
 )
@@ -184,6 +185,16 @@ def test_enrollment_secret_must_be_at_least_32_bytes(
             "nan",
             get_runtime_client_config,
         ),
+        (
+            "ORCHESTRATOR_CLEANUP_MAX_ATTEMPTS",
+            "0",
+            get_orchestrator_settings,
+        ),
+        (
+            "ORCHESTRATOR_READINESS_TIMEOUT_SECONDS",
+            "forever",
+            get_orchestrator_settings,
+        ),
     ],
 )
 def test_invalid_numeric_settings_are_rejected(
@@ -217,6 +228,24 @@ def test_invalid_model_client_mode_is_rejected(
 
     with pytest.raises(ValidationError, match="MODEL_CLIENT_MODE"):
         get_runtime_pod_env_settings()
+
+
+def test_orchestrator_accepts_subsecond_provisioning_intervals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "ORCHESTRATOR_PROVISIONING_WORKER_POLL_INTERVAL_SECONDS",
+        "0.1",
+    )
+    monkeypatch.setenv(
+        "ORCHESTRATOR_READINESS_POLL_INTERVAL_SECONDS",
+        "0.1",
+    )
+
+    settings = get_orchestrator_settings()
+
+    assert settings.provisioning_worker_poll_interval_seconds == 0.1
+    assert settings.readiness_poll_interval_seconds == 0.1
 
 
 def test_enabled_instructor_provisioning_requires_cognito_settings(

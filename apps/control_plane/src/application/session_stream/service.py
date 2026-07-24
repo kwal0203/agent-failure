@@ -99,7 +99,11 @@ async def handle_user_prompt(
             return
 
         runtime_binding = get_runtime_binding_or_none(db=db, session_id=session_id)
-        if runtime_binding is None or runtime_binding.status != "ready":
+        if (
+            runtime_binding is None
+            or runtime_binding.status != "ready"
+            or not runtime_binding.base_url
+        ):
             await session_manager.send_to(
                 websocket,
                 runtime_not_ready_message(

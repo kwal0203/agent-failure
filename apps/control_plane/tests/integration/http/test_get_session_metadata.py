@@ -19,9 +19,6 @@ from apps.control_plane.src.infrastructure.persistence.models import (
     SessionObjectiveModel,
 )
 from apps.control_plane.src.interfaces.http.main import app
-from apps.control_plane.src.interfaces.http.dependencies import (
-    get_worker_heartbeat_repository,
-)
 from apps.control_plane.src.infrastructure.persistence.db import get_db_session
 from apps.control_plane.src.interfaces.runtime.session_hint_unlock_worker import (
     run_once as run_hint_unlock_worker_once,
@@ -635,7 +632,7 @@ def test_get_session_metadata_completed_failure_fields_persist_across_refresh(
 
 
 @pytest.mark.usefixtures("engine")
-def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
+def test_get_session_metadata_marks_old_provisioning_session_stalled(
     db_session: Session,
 ) -> None:
     session_id = uuid4()
@@ -653,15 +650,7 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     )
     db_session.flush()
 
-    class _NoHeartbeatRepo:
-        def read_heartbeat(self, worker_name: str) -> None:
-            assert worker_name == "provisioning_worker"
-            return None
-
-    with _test_client(
-        _override_db_session(db_session),
-        extra_overrides={get_worker_heartbeat_repository: _NoHeartbeatRepo},
-    ) as client:
+    with _test_client(_override_db_session(db_session)) as client:
         response = client.get(
             f"/api/v1/sessions/{session_id}",
             headers=_auth_header(token=f"local:{owner_username}"),
@@ -672,6 +661,35 @@ def test_get_session_metadata_marks_provisioning_stalled_when_heartbeat_missing(
     assert session["state"] == SessionState.PROVISIONING.value
     assert session["provisioning_stalled"] is True
     assert session["provisioning_stall_reason_code"] == "SESSION_PROVISIONING_STALLED"
+
+
+@pytest.mark.usefixtures("engine")
+def test_get_session_metadata_does_not_mark_recent_provisioning_session_stalled(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "recent-provisioning-owner"
+    db_session.add(
+        _make_session(
+            session_id,
+            owner_username,
+            state=SessionState.PROVISIONING.value,
+            runtime_substate="PENDING",
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+    )
+    db_session.flush()
+
+    with _test_client(_override_db_session(db_session)) as client:
+        response = client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+
+    assert response.status_code == 200
+    session = response.json()["session"]
+    assert session["provisioning_stalled"] is False
+    assert session["provisioning_stall_reason_code"] is None
 
 
 @pytest.mark.usefixtures("engine")

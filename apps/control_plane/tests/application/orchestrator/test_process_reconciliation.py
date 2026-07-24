@@ -239,6 +239,41 @@ def test_process_reconciliation_once_duplicate_runtimes_enqueues_extras_only() -
     assert enqueued_runtime_ids == ["runtime-2", "runtime-3"]
 
 
+def test_process_reconciliation_once_selects_deterministic_duplicate_keeper() -> None:
+    session_id = uuid4()
+    candidate = ReconciliationCandidate(
+        state="PROVISIONING",
+        session_id=session_id,
+        runtime_id=None,
+        runtime_substate=None,
+    )
+    repo = _FakeReconciliationQueryRepo([candidate])
+    uow = _FakeReconciliationUoW()
+    inspector = _FakeInspector(
+        {
+            session_id: RuntimeInspectorResult(
+                session_id=session_id,
+                requested_runtime_id=None,
+                matched_runtime_ids=("runtime-z", "runtime-a"),
+                exists=True,
+                duplicate_count=1,
+                phase="Running",
+                ready=True,
+                reason=None,
+            )
+        }
+    )
+
+    result = process_reconciliation_once(
+        session_query_repo=repo,
+        uow=uow,  # type: ignore[arg-type]
+        inspector=inspector,
+    )
+
+    assert result.succeeded_count == 1
+    assert [item["runtime_id"] for item in uow.outbox.cleanup_enqueues] == ["runtime-z"]
+
+
 def test_process_reconciliation_once_phase_failed_transitions_runtime_failed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

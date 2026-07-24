@@ -107,9 +107,6 @@ from apps.control_plane.src.infrastructure.persistence.session_hints_repository 
 from apps.control_plane.src.infrastructure.persistence.unit_of_work import (
     SQLAlchemyUnitOfWork,
 )
-from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
-    SQLAlchemyWorkerHeartbeatRepository,
-)
 from apps.control_plane.src.infrastructure.session_email.deps import (
     SessionEmailDeps,
     build_session_email_deps,
@@ -212,10 +209,6 @@ def get_runtime_binding_repository(
     db: Session = Depends(get_db_session),
 ) -> SQLAlchemySessionRuntimeBindingRepository:
     return SQLAlchemySessionRuntimeBindingRepository(db=db)
-
-
-def get_worker_heartbeat_repository() -> SQLAlchemyWorkerHeartbeatRepository:
-    return SQLAlchemyWorkerHeartbeatRepository()
 
 
 def get_session_feedback_repository(

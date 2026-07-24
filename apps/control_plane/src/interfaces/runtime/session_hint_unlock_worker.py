@@ -1,6 +1,5 @@
 import logging
 import time
-from datetime import datetime, timezone
 from apps.control_plane.src.application.common.observability import (
     log_fields,
     reset_correlation_id,
@@ -15,36 +14,20 @@ from apps.control_plane.src.infrastructure.persistence.outbox import SQLAlchemyO
 from apps.control_plane.src.infrastructure.persistence.session_hints_repository import (
     SQLAlchemySessionHintProjectorRepository,
 )
-from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
-    SQLAlchemyWorkerHeartbeatRepository,
-)
 
 logger = logging.getLogger(__name__)
 WORKER_NAME = "session_hint_unlock_worker"
 
 
 def run_once() -> None:
-    ts = datetime.now(timezone.utc)
-    heartbeat_repo = SQLAlchemyWorkerHeartbeatRepository()
-    heartbeat_repo.record_tick(worker_name="session_hint_unlock_worker", at=ts)
-
     with SessionFactory() as db:
         projector = SQLAlchemySessionHintProjectorRepository(db=db)
         outbox = SQLAlchemyOutbox(db=db)
         try:
             result = process_due_session_hints_once(projector=projector, outbox=outbox)
             db.commit()
-            heartbeat_repo.record_success(
-                worker_name="session_hint_unlock_worker",
-                at=datetime.now(timezone.utc),
-            )
-        except Exception as exc:
+        except Exception:
             db.rollback()
-            heartbeat_repo.record_error(
-                worker_name="session_hint_unlock_worker",
-                at=datetime.now(timezone.utc),
-                error_message=str(exc),
-            )
             raise
 
     logger.info(

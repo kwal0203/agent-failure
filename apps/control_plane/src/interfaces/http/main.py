@@ -1,6 +1,3 @@
-from apps.control_plane.src.infrastructure.persistence.worker_heartbeat_repository import (
-    SQLAlchemyWorkerHeartbeatRepository,
-)
 from apps.control_plane.src.interfaces.runtime.learner_feedback_worker import (
     run_forever,
 )
@@ -14,5 +11,4 @@ __all__ = [
     "app",
     "run_forever",
     "ws_manager",
-    "SQLAlchemyWorkerHeartbeatRepository",
 ]

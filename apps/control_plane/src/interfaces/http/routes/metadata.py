@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import logging
-from typing import Protocol
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -31,7 +30,6 @@ from apps.control_plane.src.interfaces.http.dependencies import (
     get_runtime_binding_repository,
     get_runtime_client_factory,
     get_session_metadata_repository,
-    get_worker_heartbeat_repository,
 )
 from apps.control_plane.src.interfaces.http.errors import (
     forbidden,
@@ -43,19 +41,10 @@ from apps.control_plane.src.interfaces.http.mappers.session_mapper import (
 )
 
 PROVISIONING_STALL_SESSION_AGE_SECONDS = 360
-PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS = 360
 AGENT_LAB_2_TOOL_MISUSE_ID = UUID("55555555-5555-5555-5555-555555555555")
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-class _HeartbeatRecord(Protocol):
-    last_tick_at: datetime | None
-
-
-class WorkerHeartbeatRepositoryPort(Protocol):
-    def read_heartbeat(self, worker_name: str) -> _HeartbeatRecord | None: ...
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -79,9 +68,6 @@ async def get_metadata(
     session_id: UUID,
     principal: PrincipalContext = Depends(get_current_principal),
     repo: SessionMetadataRepository = Depends(get_session_metadata_repository),
-    heartbeat_repo: WorkerHeartbeatRepositoryPort = Depends(
-        get_worker_heartbeat_repository
-    ),
     runtime_binding_repo: RuntimeBindingReaderPort = Depends(
         get_runtime_binding_repository
     ),
@@ -100,28 +86,12 @@ async def get_metadata(
 
         stalled = False
         if session_metadata.state == "PROVISIONING":
-            try:
-                hb = heartbeat_repo.read_heartbeat(worker_name="provisioning_worker")
-
-                created_at = _as_utc(session_metadata.created_at)
-                last_tick_at = _as_utc(hb.last_tick_at) if hb else None
-                now = datetime.now(timezone.utc)
-
-                if created_at:
-                    session_age_s = (now - created_at).total_seconds()
-                    hb_age_s = (
-                        (now - last_tick_at).total_seconds() if last_tick_at else None
-                    )
-                    stalled = (
-                        session_age_s >= PROVISIONING_STALL_SESSION_AGE_SECONDS
-                        and (
-                            hb_age_s is None
-                            or hb_age_s >= PROVISIONING_STALL_HEARTBEAT_AGE_SECONDS
-                        )
-                    )
-
-            except Exception:
-                logger.warning("heartbeat read failed in get_metadata", exc_info=True)
+            created_at = _as_utc(session_metadata.created_at)
+            if created_at is not None:
+                session_age_seconds = (
+                    datetime.now(timezone.utc) - created_at
+                ).total_seconds()
+                stalled = session_age_seconds >= PROVISIONING_STALL_SESSION_AGE_SECONDS
 
         runtime_files: list[SessionRuntimeFileResponse] = []
         if session_metadata.lab_id == AGENT_LAB_2_TOOL_MISUSE_ID:
@@ -129,7 +99,11 @@ async def get_metadata(
                 runtime_binding = runtime_binding_repo.get_by_session_id(
                     session_id=session_id
                 )
-                if runtime_binding is not None and runtime_binding.status == "ready":
+                if (
+                    runtime_binding is not None
+                    and runtime_binding.status == "ready"
+                    and runtime_binding.base_url
+                ):
                     client = runtime_client_factory.create(
                         base_url=runtime_binding.base_url
                     )

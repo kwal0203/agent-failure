@@ -47,12 +47,15 @@ def run_once() -> None:
 
 
 def run_forever(poll_interval_seconds: float = 1.0) -> None:
-    # TODO(P0-E1 follow-up): harden worker loop with try/except around run_once
-    # so unexpected per-tick exceptions are logged and do not kill the process.
     while True:
         token = set_correlation_id(None)
         try:
             run_once()
+        except Exception:
+            logger.exception(
+                "runtime inspection worker tick failed",
+                extra={**log_fields(), "worker_name": WORKER_NAME},
+            )
         finally:
             reset_correlation_id(token)
         time.sleep(poll_interval_seconds)
