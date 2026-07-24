@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { renderWithQueryClient } from "./test/renderWithQueryClient";
 
 const PENDING_ENROLLMENT_TOKEN_KEY = "agentfailure.auth.pendingEnrollmentToken";
 const ENROLLMENT_REDEEM_ERROR_KEY = "agentfailure.auth.enrollmentRedeemError";
@@ -44,7 +45,7 @@ function mockAuthenticatedUser(email = "kane@example.com") {
 }
 
 function renderAt(path: string) {
-  return render(
+  return renderWithQueryClient(
     <MemoryRouter initialEntries={[path]}>
       <App />
     </MemoryRouter>,

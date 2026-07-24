@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   type ReactNode,
   useCallback,
@@ -86,6 +87,7 @@ function unsupportedSignInStepMessage(signInStep: string): string {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
@@ -156,9 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await signOutWithAmplify();
     } finally {
       setUser(null);
+      queryClient.clear();
       window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
     }
-  }, []);
+  }, [queryClient]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const normalizedEmail = email.trim().toLowerCase();

@@ -7,7 +7,7 @@ import {
   useForm,
 } from "react-hook-form";
 import { Link } from "react-router-dom";
-import { createPilotRequest } from "../../auth/pilotRequests";
+import { useSubmitPilotRequestMutation } from "../../query/publicMutations";
 import {
   type PilotLead,
   type PilotLeadFormValues,
@@ -59,11 +59,11 @@ function PilotInput({
 
 export default function PilotRequestPage() {
   const [success, setSuccess] = useState<string | null>(null);
+  const submitPilotRequestMutation = useSubmitPilotRequestMutation();
   const {
     register,
     handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<PilotLeadFormValues, unknown, PilotLead>({
     resolver: zodResolver(pilotLeadSchema),
     defaultValues: {
@@ -78,18 +78,14 @@ export default function PilotRequestPage() {
 
   const onSubmit = handleSubmit(async (lead) => {
     setSuccess(null);
+    submitPilotRequestMutation.reset();
     try {
-      await createPilotRequest(lead);
+      await submitPilotRequestMutation.mutateAsync(lead);
       setSuccess(
         "Request captured. We will follow up to set up your university pilot.",
       );
-    } catch (submitError) {
-      setError("root.server", {
-        message:
-          submitError instanceof Error
-            ? submitError.message
-            : "Pilot request submission failed.",
-      });
+    } catch {
+      // The mutation owns the server error displayed below.
     }
   });
 
@@ -195,18 +191,22 @@ export default function PilotRequestPage() {
               {success ? (
                 <p className="text-sm text-emerald-300">{success}</p>
               ) : null}
-              {errors.root?.server ? (
+              {submitPilotRequestMutation.error ? (
                 <p className="text-sm text-rose-300">
-                  {errors.root.server.message}
+                  {submitPilotRequestMutation.error instanceof Error
+                    ? submitPilotRequestMutation.error.message
+                    : "Pilot request submission failed."}
                 </p>
               ) : null}
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={submitPilotRequestMutation.isPending}
                 className="group flex h-16 w-full items-center justify-center gap-3 rounded-lg bg-lime-300 text-base font-black text-black shadow-[0_0_28px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_42px_rgba(132,204,22,0.75)]"
               >
-                {isSubmitting ? "Submitting..." : "Submit pilot request"}
+                {submitPilotRequestMutation.isPending
+                  ? "Submitting..."
+                  : "Submit pilot request"}
                 <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
               </button>
             </form>

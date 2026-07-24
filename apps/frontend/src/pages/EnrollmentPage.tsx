@@ -6,54 +6,70 @@ import {
   clearPendingEnrollmentToken,
   getEnrollmentRedeemError,
   PENDING_ENROLLMENT_TOKEN_KEY,
-  redeemEnrollmentToken,
-  validateClassCode,
 } from "../auth/enrollment";
 import { useAuth } from "../auth/useAuth";
+import {
+  useRedeemEnrollmentMutation,
+  useValidateClassCodeMutation,
+} from "../query/publicMutations";
+
+function getErrorMessage(error: unknown): string | null {
+  if (!error) return null;
+  return error instanceof Error
+    ? error.message
+    : "Enrollment failed. Please try again.";
+}
 
 export default function EnrollmentPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const validateClassCodeMutation = useValidateClassCodeMutation();
+  const redeemEnrollmentMutation = useRedeemEnrollmentMutation();
 
   const [classCode, setClassCode] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(getEnrollmentRedeemError());
+  const [localError, setLocalError] = useState<string | null>(
+    getEnrollmentRedeemError(),
+  );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const submitting =
+    validateClassCodeMutation.isPending || redeemEnrollmentMutation.isPending;
+  const error =
+    localError ??
+    getErrorMessage(redeemEnrollmentMutation.error) ??
+    getErrorMessage(validateClassCodeMutation.error);
 
   const onValidateAndEnroll = async () => {
     const email = user?.email?.trim() ?? "";
     if (!email) {
-      setError("Authenticated user email is missing.");
+      setLocalError("Authenticated user email is missing.");
       return;
     }
 
     if (!classCode.trim()) {
-      setError("Class code is required.");
+      setLocalError("Class code is required.");
       return;
     }
 
-    setSubmitting(true);
-    setError(null);
+    setLocalError(null);
     setSuccessMessage(null);
+    validateClassCodeMutation.reset();
+    redeemEnrollmentMutation.reset();
 
     try {
-      const token = await validateClassCode(classCode, email);
+      const token = await validateClassCodeMutation.mutateAsync({
+        classCode,
+        email,
+      });
       window.sessionStorage.setItem(PENDING_ENROLLMENT_TOKEN_KEY, token);
-      await redeemEnrollmentToken(token);
+      await redeemEnrollmentMutation.mutateAsync(token);
       window.sessionStorage.removeItem(PENDING_ENROLLMENT_TOKEN_KEY);
       clearEnrollmentRedeemError();
       setSuccessMessage("Enrollment complete. Redirecting to lab catalog.");
       window.setTimeout(() => {
         navigate("/labs", { replace: true });
       }, 500);
-    } catch (enrollError) {
-      const message =
-        enrollError instanceof Error
-          ? enrollError.message
-          : "Enrollment failed. Please try again.";
-      setError(message);
-    } finally {
-      setSubmitting(false);
+    } catch {
+      // The mutation that failed owns the error displayed above.
     }
   };
 
@@ -126,7 +142,9 @@ export default function EnrollmentPage() {
                 onClick={() => {
                   clearPendingEnrollmentToken();
                   clearEnrollmentRedeemError();
-                  setError(null);
+                  validateClassCodeMutation.reset();
+                  redeemEnrollmentMutation.reset();
+                  setLocalError(null);
                   setSuccessMessage(null);
                   setClassCode("");
                 }}

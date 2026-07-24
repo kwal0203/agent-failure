@@ -5,6 +5,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "api:generate": "uv run python ../../scripts/export_openapi.py node_modules/.cache/agent-failure-openapi.json && openapi-typescript node_modules/.cache/agent-failure-openapi.json -o src/api/generated.ts && biome format --write src/api/generated.ts",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated.ts",
     "dev": "vite",
     "dev:development": "vite --mode development",
     "dev:staging": "vite --mode staging",
@@ -19,13 +21,16 @@
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@react-pdf/renderer": "^4.5.1",
+    "@tanstack/react-query": "^5.101.4",
     "aws-amplify": "^6.19.0",
     "lucide-react": "^1.14.0",
+    "openapi-fetch": "^0.15.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.82.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.1",
+    "react-use-websocket": "^4.13.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -43,10 +48,14 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "jsdom": "^29.0.1",
+    "openapi-typescript": "^7.10.1",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.0"
   }
 }

@@ -77,6 +77,10 @@ jobs:
       - name: Run migrations
         run: uv run alembic upgrade head
 
+      - name: Verify generated API client
+        run: npm run api:check
+        working-directory: apps/frontend
+
       - name: Run biome
         run: npm run biome:check
         working-directory: apps/frontend

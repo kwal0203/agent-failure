@@ -1,42 +1,28 @@
 import { ArrowLeft, Download, FileText, Save, X } from "lucide-react";
 import type { MouseEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useBeforeUnload, useNavigate, useParams } from "react-router-dom";
-import { mapPersistedTraceToTimelineEvent } from "./session/timelineEventMapper";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useBeforeUnload,
+  useBlocker,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import {
+  createReportDraftSnapshot,
+  type EditableReportSections,
+  EMPTY_REPORT_SECTIONS,
+  type ReportSectionAssignment,
+  useSaveSessionReportDraftMutation,
+  useSessionReportDraftQuery,
+} from "../query/sessionReportDraft";
+import { useSessionTraceQuery } from "../query/sessionTrace";
 import type {
-  GetSessionReportDraftResponse,
-  GetSessionTraceResponse,
   PutSessionReportDraftRequest,
   TimelineEvent,
 } from "./session/types";
-import { API_BASE, getAuthHeader } from "./session/ui";
-
-type DraftSections = {
-  executiveSummary: string;
-  threatModel: string;
-  methodology: string;
-  evidenceAndResults: string;
-  mitigations: string;
-};
-
-const DEFAULT_DRAFT: DraftSections = {
-  executiveSummary: "",
-  threatModel: "",
-  methodology: "",
-  evidenceAndResults: "",
-  mitigations: "",
-};
-
-type ReportSection =
-  | "unassigned"
-  | "executive_summary"
-  | "threat_model"
-  | "methodology"
-  | "evidence_and_results"
-  | "mitigations";
 
 const REPORT_SECTION_OPTIONS: ReadonlyArray<{
-  value: ReportSection;
+  value: ReportSectionAssignment;
   label: string;
 }> = [
   { value: "unassigned", label: "Unassigned" },
@@ -47,33 +33,39 @@ const REPORT_SECTION_OPTIONS: ReadonlyArray<{
   { value: "mitigations", label: "Mitigations" },
 ];
 
-const AUTOSAVE_INTERVAL_MS = 60_000;
+const AUTOSAVE_DEBOUNCE_MS = 1_500;
+
+type PendingReportSave = {
+  request: PutSessionReportDraftRequest;
+  snapshot: string;
+};
 
 export default function SessionReportPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const [draft, setDraft] = useState<DraftSections>(DEFAULT_DRAFT);
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-  const [loadingEvidence, setLoadingEvidence] = useState(true);
+  const traceQuery = useSessionTraceQuery(sessionId);
+  const reportDraftQuery = useSessionReportDraftQuery(sessionId);
+  const saveReportMutation = useSaveSessionReportDraftMutation(sessionId);
+  const [draft, setDraft] = useState<EditableReportSections>(
+    EMPTY_REPORT_SECTIONS,
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [selectedEventSections, setSelectedEventSections] = useState<
-    Record<string, ReportSection>
+    Record<string, ReportSectionAssignment>
   >({});
-  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
-  const [preselectedTraceEventIds, setPreselectedTraceEventIds] = useState<
-    Set<string>
-  >(() => new Set());
-  const [
-    preselectedSectionsByTraceEventId,
-    setPreselectedSectionsByTraceEventId,
-  ] = useState<Record<string, ReportSection>>({});
   const [isHydrated, setIsHydrated] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>("");
+  const hydratedSessionIdRef = useRef<string | null>(null);
+  const latestSaveRef = useRef<PendingReportSave | null>(null);
+  const lastSavedSnapshotRef = useRef("");
+  const failedSnapshotRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef<Promise<boolean> | null>(null);
+  const latestDraftRef = useRef(draft);
+  const isHandlingBlockedNavigationRef = useRef(false);
 
   const toTraceEventId = useCallback(
     (timelineEventId: string): string | null => {
@@ -168,128 +160,57 @@ export default function SessionReportPage() {
     }
   };
 
-  const refreshEvidence = useCallback(async () => {
-    if (!sessionId) return;
-    setLoadingEvidence(true);
-    setError(null);
-    try {
-      const traceResponse = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/trace`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: await getAuthHeader(),
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (!traceResponse.ok) {
-        throw new Error(
-          `Failed to load session timeline (HTTP ${traceResponse.status})`,
-        );
-      }
-      const tracePayload =
-        (await traceResponse.json()) as GetSessionTraceResponse;
-      const traceEvents = Array.isArray(tracePayload.events)
-        ? tracePayload.events
-        : [];
-      const mappedTimelineEvents = traceEvents
-        .map((event) => mapPersistedTraceToTimelineEvent(event))
-        .filter((event): event is TimelineEvent => event !== null);
-      setTimelineEvents(mappedTimelineEvents);
-
-      const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/report-draft`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: await getAuthHeader(),
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Failed to load report draft (HTTP ${response.status})`,
-        );
-      }
-      const payload = (await response.json()) as GetSessionReportDraftResponse;
-      const items = Array.isArray(payload.items) ? payload.items : [];
-      setDraft({
-        executiveSummary: payload.sections?.executive_summary ?? "",
-        threatModel: payload.sections?.threat_model ?? "",
-        methodology: payload.sections?.methodology ?? "",
-        evidenceAndResults: payload.sections?.evidence_and_results ?? "",
-        mitigations: payload.sections?.mitigations ?? "",
-      });
-      setPreselectedTraceEventIds(
-        new Set(
-          items
-            .map((item) => item.event_id)
-            .filter((eventId): eventId is string => !!eventId),
-        ),
-      );
-      const sectionMap: Record<string, ReportSection> = {};
-      for (const item of items) {
-        if (!item?.event_id) continue;
-        const section =
-          item.report_section &&
-          REPORT_SECTION_OPTIONS.some(
-            (opt) => opt.value === item.report_section,
-          )
-            ? (item.report_section as ReportSection)
-            : "unassigned";
-        sectionMap[item.event_id] = section;
-      }
-      setPreselectedSectionsByTraceEventId(sectionMap);
-      setHasHydratedSelection(true);
-    } catch (fetchError) {
-      setError(
-        fetchError instanceof Error ? fetchError.message : "Unknown error",
-      );
-      setHasHydratedSelection(true);
-    } finally {
-      setLoadingEvidence(false);
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    void refreshEvidence();
-  }, [refreshEvidence]);
+  const traceError =
+    traceQuery.error instanceof Error ? traceQuery.error.message : null;
+  const reportDraftError =
+    reportDraftQuery.error instanceof Error
+      ? reportDraftQuery.error.message
+      : null;
+  const displayedError = error ?? reportDraftError ?? traceError;
+  const loadingEvidence = reportDraftQuery.isPending || traceQuery.isPending;
 
   const orderedEvidence = useMemo(
     () =>
-      [...timelineEvents].sort(
+      [...(traceQuery.data?.timelineEvents ?? [])].sort(
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       ),
-    [timelineEvents],
+    [traceQuery.data],
   );
 
   useEffect(() => {
-    if (!hasHydratedSelection) return;
-    if (orderedEvidence.length === 0) return;
+    if (!sessionId || !reportDraftQuery.data || !traceQuery.data) return;
+    if (hydratedSessionIdRef.current === sessionId) return;
 
     const selectedFromServer = new Set<string>();
-    const sectionsByTimelineEventId: Record<string, ReportSection> = {};
+    const sectionsByTimelineEventId: Record<string, ReportSectionAssignment> =
+      {};
+    const selectedEvidenceIds = new Set(
+      reportDraftQuery.data.selectedEvidenceIds,
+    );
     for (const event of orderedEvidence) {
       if (event.report_selectable !== true) continue;
       const traceEventId = toTraceEventId(event.id);
       if (!traceEventId) continue;
-      if (preselectedTraceEventIds.has(traceEventId)) {
+      if (selectedEvidenceIds.has(traceEventId)) {
         selectedFromServer.add(event.id);
         sectionsByTimelineEventId[event.id] =
-          preselectedSectionsByTraceEventId[traceEventId] ?? "unassigned";
+          reportDraftQuery.data.evidenceSectionsById[traceEventId] ??
+          "unassigned";
       }
     }
+    hydratedSessionIdRef.current = sessionId;
+    setDraft(reportDraftQuery.data.sections);
     setSelectedEventIds(selectedFromServer);
     setSelectedEventSections(sectionsByTimelineEventId);
+    lastSavedSnapshotRef.current = reportDraftQuery.data.persistedSnapshot;
+    setLastSavedSnapshot(reportDraftQuery.data.persistedSnapshot);
     setIsHydrated(true);
   }, [
-    hasHydratedSelection,
     orderedEvidence,
-    preselectedTraceEventIds,
-    preselectedSectionsByTraceEventId,
+    reportDraftQuery.data,
+    sessionId,
+    traceQuery.data,
     toTraceEventId,
   ]);
 
@@ -331,12 +252,15 @@ export default function SessionReportPage() {
     selectEvent(eventId);
   };
 
-  const setEventSection = (eventId: string, section: ReportSection) => {
+  const setEventSection = (
+    eventId: string,
+    section: ReportSectionAssignment,
+  ) => {
     setSelectedEventSections((prev) => ({ ...prev, [eventId]: section }));
   };
 
   const selectedEvidenceBySection = useMemo(() => {
-    const grouped = new Map<ReportSection, TimelineEvent[]>();
+    const grouped = new Map<ReportSectionAssignment, TimelineEvent[]>();
     for (const option of REPORT_SECTION_OPTIONS) {
       grouped.set(option.value, []);
     }
@@ -350,6 +274,9 @@ export default function SessionReportPage() {
     }
     return grouped;
   }, [orderedEvidence, selectedEventIds, selectedEventSections]);
+  const latestEvidenceBySectionRef = useRef(selectedEvidenceBySection);
+  latestDraftRef.current = draft;
+  latestEvidenceBySectionRef.current = selectedEvidenceBySection;
 
   const selectedItemsPayload = useMemo(
     () =>
@@ -386,33 +313,29 @@ export default function SessionReportPage() {
     [orderedEvidence, selectedEventIds, selectedEventSections, toTraceEventId],
   );
 
-  const currentSnapshot = useMemo(
-    () =>
-      JSON.stringify({
-        draft,
-        selectedItems: selectedItemsPayload,
-      }),
-    [draft, selectedItemsPayload],
-  );
+  const currentSnapshot = useMemo(() => {
+    const selectedEvidenceIds = selectedItemsPayload.map(
+      (item) => item.event_id,
+    );
+    const evidenceSectionsById = Object.fromEntries(
+      selectedItemsPayload.map((item) => [
+        item.event_id,
+        item.report_section as ReportSectionAssignment,
+      ]),
+    );
+    return createReportDraftSnapshot({
+      sections: draft,
+      selectedEvidenceIds,
+      evidenceSectionsById,
+    });
+  }, [draft, selectedItemsPayload]);
 
-  useEffect(() => {
-    if (!hasHydratedSelection || !isHydrated) return;
-    if (lastSavedSnapshot) return;
-    setLastSavedSnapshot(currentSnapshot);
-  }, [currentSnapshot, hasHydratedSelection, isHydrated, lastSavedSnapshot]);
+  const isDirty = isHydrated && currentSnapshot !== lastSavedSnapshot;
 
-  const isDirty =
-    hasHydratedSelection &&
-    isHydrated &&
-    lastSavedSnapshot.length > 0 &&
-    currentSnapshot !== lastSavedSnapshot;
-
-  const handleSave = useCallback(async (): Promise<boolean> => {
-    if (!sessionId) return false;
-    setIsSaving(true);
-    setError(null);
-    try {
-      const requestBody: PutSessionReportDraftRequest = {
+  const currentSave = useMemo<PendingReportSave>(
+    () => ({
+      snapshot: currentSnapshot,
+      request: {
         sections: {
           executive_summary: draft.executiveSummary,
           threat_model: draft.threatModel,
@@ -421,49 +344,96 @@ export default function SessionReportPage() {
           mitigations: draft.mitigations,
         },
         items: selectedItemsPayload,
-      };
-      const response = await fetch(
-        `${API_BASE}/api/v1/sessions/${sessionId}/report-draft`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: await getAuthHeader(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Failed to save report draft (HTTP ${response.status})`,
-        );
+      },
+    }),
+    [currentSnapshot, draft, selectedItemsPayload],
+  );
+  latestSaveRef.current = currentSave;
+
+  const {
+    error: saveMutationError,
+    isError: didSaveFail,
+    isPending: isSaving,
+    mutateAsync: saveReport,
+    reset: resetSaveMutation,
+  } = saveReportMutation;
+
+  const performSave = useCallback(
+    (pendingSave: PendingReportSave): Promise<boolean> => {
+      if (saveInFlightRef.current) {
+        return saveInFlightRef.current;
       }
-      setLastSavedSnapshot(currentSnapshot);
-      return true;
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error ? saveError.message : "Unknown error",
-      );
-      return false;
-    } finally {
-      setIsSaving(false);
+
+      resetSaveMutation();
+      const operation = saveReport(pendingSave.request)
+        .then(() => {
+          failedSnapshotRef.current = null;
+          lastSavedSnapshotRef.current = pendingSave.snapshot;
+          setLastSavedSnapshot(pendingSave.snapshot);
+          return true;
+        })
+        .catch(() => {
+          failedSnapshotRef.current = pendingSave.snapshot;
+          return false;
+        })
+        .finally(() => {
+          saveInFlightRef.current = null;
+        });
+      saveInFlightRef.current = operation;
+      return operation;
+    },
+    [resetSaveMutation, saveReport],
+  );
+
+  const flushSave = useCallback(async (): Promise<boolean> => {
+    while (true) {
+      const inFlightSave = saveInFlightRef.current;
+      if (inFlightSave) {
+        if (!(await inFlightSave)) return false;
+        continue;
+      }
+
+      const latestSave = latestSaveRef.current;
+      if (
+        !isHydrated ||
+        !latestSave ||
+        latestSave.snapshot === lastSavedSnapshotRef.current
+      ) {
+        return true;
+      }
+
+      if (!(await performSave(latestSave))) return false;
     }
-  }, [currentSnapshot, draft, selectedItemsPayload, sessionId]);
+  }, [isHydrated, performSave]);
 
   useEffect(() => {
     if (!isDirty || isSaving) return;
-    const timer = window.setInterval(() => {
-      if (!isDirty || isSaving) return;
-      void handleSave();
-    }, AUTOSAVE_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [handleSave, isDirty, isSaving]);
+    if (failedSnapshotRef.current === currentSnapshot) return;
+    const scheduledSnapshot = currentSnapshot;
+    const timer = window.setTimeout(() => {
+      if (latestSaveRef.current?.snapshot !== scheduledSnapshot) return;
+      void flushSave();
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [currentSnapshot, flushSave, isDirty, isSaving]);
+
+  const saveError =
+    saveMutationError instanceof Error ? saveMutationError.message : null;
+  const saveStatus = isSaving
+    ? "Saving..."
+    : didSaveFail
+      ? "Save failed"
+      : isHydrated && !isDirty
+        ? "Saved"
+        : "Unsaved changes";
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
     try {
-      const saved = await handleSave();
+      const saved = await flushSave();
       if (!saved) return;
+      const exportDraft = latestDraftRef.current;
+      const exportEvidenceBySection = latestEvidenceBySectionRef.current;
 
       const { renderSessionReportPdf } = await import(
         "./report/renderSessionReportPdf"
@@ -472,21 +442,24 @@ export default function SessionReportPage() {
         sessionId: sessionId ?? "unknown",
         exportedAt: new Date(),
         sections: [
-          { heading: "Executive Summary", content: draft.executiveSummary },
-          { heading: "Threat Model", content: draft.threatModel },
+          {
+            heading: "Executive Summary",
+            content: exportDraft.executiveSummary,
+          },
+          { heading: "Threat Model", content: exportDraft.threatModel },
           {
             heading: "Exploitation Methodology",
-            content: draft.methodology,
+            content: exportDraft.methodology,
           },
           {
             heading: "Evidence and Results",
-            content: draft.evidenceAndResults,
+            content: exportDraft.evidenceAndResults,
           },
-          { heading: "Mitigations", content: draft.mitigations },
+          { heading: "Mitigations", content: exportDraft.mitigations },
         ],
         evidenceSections: REPORT_SECTION_OPTIONS.map((section) => ({
           heading: section.label,
-          evidence: (selectedEvidenceBySection.get(section.value) ?? []).map(
+          evidence: (exportEvidenceBySection.get(section.value) ?? []).map(
             (event) => ({ id: event.id, title: event.title }),
           ),
         })),
@@ -509,7 +482,7 @@ export default function SessionReportPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [draft, handleSave, selectedEvidenceBySection, sessionId]);
+  }, [flushSave, sessionId]);
 
   useBeforeUnload(
     useCallback(
@@ -522,25 +495,35 @@ export default function SessionReportPage() {
     ),
   );
 
-  const guardedNavigate = useCallback(
-    (path: string) => {
-      if (!isDirty) {
-        navigate(path);
-        return;
-      }
-      const shouldLeave = window.confirm(
-        "You have unsaved report changes. Leave this page?",
-      );
-      if (shouldLeave) {
-        navigate(path);
-      }
-    },
-    [isDirty, navigate],
-  );
+  const navigationBlocker = useBlocker(isDirty);
+  useEffect(() => {
+    if (
+      navigationBlocker.state !== "blocked" ||
+      isHandlingBlockedNavigationRef.current
+    ) {
+      return;
+    }
+    isHandlingBlockedNavigationRef.current = true;
 
-  const updateDraftField = <K extends keyof DraftSections>(
+    if (!window.confirm("Save your report changes and leave this page?")) {
+      navigationBlocker.reset();
+      isHandlingBlockedNavigationRef.current = false;
+      return;
+    }
+
+    void flushSave().then((saved) => {
+      if (saved) {
+        navigationBlocker.proceed();
+      } else {
+        navigationBlocker.reset();
+      }
+      isHandlingBlockedNavigationRef.current = false;
+    });
+  }, [flushSave, navigationBlocker]);
+
+  const updateDraftField = <K extends keyof EditableReportSections>(
     key: K,
-    value: DraftSections[K],
+    value: EditableReportSections[K],
   ) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
@@ -551,17 +534,31 @@ export default function SessionReportPage() {
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => guardedNavigate("/reports")}
+            onClick={() => {
+              navigate("/reports");
+            }}
             className="inline-flex items-center gap-2 rounded-lg border border-lime-500/35 bg-black/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-lime-200 transition hover:bg-lime-500/10"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Reports
           </button>
           <div className="flex items-center gap-2">
+            <span
+              role="status"
+              className={`text-xs font-semibold ${
+                didSaveFail
+                  ? "text-rose-300"
+                  : isSaving
+                    ? "text-amber-300"
+                    : "text-slate-400"
+              }`}
+            >
+              {saveStatus}
+            </span>
             <button
               type="button"
               onClick={() => {
-                void handleSave();
+                void flushSave();
               }}
               disabled={!isDirty || isSaving}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-900/50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-300 disabled:opacity-60"
@@ -598,9 +595,14 @@ export default function SessionReportPage() {
               </div>
               <div />
             </div>
-            {error ? (
+            {displayedError ? (
               <p className="mb-3 rounded-lg border border-rose-500/45 bg-rose-950/25 px-3 py-2 text-sm text-rose-200">
-                {error}
+                {displayedError}
+              </p>
+            ) : null}
+            {saveError ? (
+              <p className="mb-3 rounded-lg border border-rose-500/45 bg-rose-950/25 px-3 py-2 text-sm text-rose-200">
+                {saveError}
               </p>
             ) : null}
             <div className="max-h-[65vh] space-y-2 overflow-y-auto pr-1">
@@ -709,7 +711,8 @@ export default function SessionReportPage() {
                                 onChange={(selectEvent) => {
                                   setEventSection(
                                     event.id,
-                                    selectEvent.target.value as ReportSection,
+                                    selectEvent.target
+                                      .value as ReportSectionAssignment,
                                   );
                                 }}
                                 aria-label={`Assign section for ${event.title}`}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSessionStream } from "../hooks/useSessionStream";
+import { useStopSessionMutation } from "../query/sessionMutations";
 import { FeedbackColumn } from "./session/components/FeedbackColumn";
 import { LabGuideColumn } from "./session/components/LabGuideColumn";
 import { SessionHeaderStatus } from "./session/components/SessionHeaderStatus";
@@ -14,13 +15,11 @@ import { useSessionData } from "./session/hooks/useSessionData";
 import { useSessionStreamIngestion } from "./session/hooks/useSessionStreamIngestion";
 import { useTranscriptStreamView } from "./session/hooks/useTranscriptStreamView";
 import type { AgentStatus } from "./session/types";
-import { API_BASE, getAuthHeader } from "./session/ui";
 
 function SessionPageContent({ sessionId }: { sessionId?: string }) {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("idle");
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
-  const [stoppingSession, setStoppingSession] = useState(false);
   const successAutoStopRequestedRef = useRef(false);
   const navigate = useNavigate();
   const { connectionState, messages, sendPrompt } = useSessionStream(sessionId);
@@ -46,7 +45,6 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
   const sessionData = useSessionData({ sessionId });
   const {
     metadata,
-    setMetadata,
     progressReady,
     progressChips,
     timelineEvents,
@@ -55,6 +53,7 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
     feedbackReady,
     registerLearnerFeedbackEvents,
     refreshSessionMetadata,
+    refreshSessionTrace,
     sessionState,
     telemetryLogs,
     invoices,
@@ -66,6 +65,9 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
     metadata?.completion_status !== "completed_success" &&
     (metadata?.interactive ?? false);
   const showSuccessModal = metadata?.completion_status === "completed_success";
+  const stopSessionMutation = useStopSessionMutation(sessionId);
+  const stoppingSession = stopSessionMutation.isPending;
+  const stopSession = stopSessionMutation.mutateAsync;
 
   const sessionActions = useSessionActions({
     sessionId,
@@ -76,7 +78,6 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
     setIsAwaitingResponse,
     resetActiveStream,
     setAgentStatus,
-    refreshSessionMetadata,
   });
   const {
     prompt,
@@ -107,9 +108,9 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
     finalizePendingRef,
     setIsAwaitingResponse,
     setTranscriptEntries,
-    setMetadata,
     setAgentStatus,
     refreshSessionMetadata,
+    refreshSessionTrace,
   });
 
   const { unlockedHints, hintsPanelOpen, hasUnreadHint, onHintsChipClick } =
@@ -117,14 +118,12 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
       sessionId,
       hints: metadata?.hints,
       unreadHintCount: metadata?.unread_hint_count,
-      refreshSessionMetadata,
     });
   const { feedbackItems, feedbackPanelOpen, onFeedbackChipClick } =
     useFeedbackState({
       sessionId,
       feedbackItems: metadata?.feedback_items,
       unreadFeedbackCount: metadata?.unread_feedback_count,
-      refreshSessionMetadata,
     });
 
   const leftColumnTemplate = isLeftCollapsed ? "38px" : "minmax(280px, 20%)";
@@ -141,39 +140,16 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
         return;
       }
 
-      setStoppingSession(true);
       try {
-        const response = await fetch(
-          `${API_BASE}/api/v1/sessions/${sessionId}/stop`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: await getAuthHeader(),
-              "Content-Type": "application/json",
-              "Idempotency-Key": `stop-session:${sessionId}`,
-            },
-          },
-        );
-        if (!response.ok) {
-          return;
-        }
-        await refreshSessionMetadata();
+        await stopSession();
         if (navigateAfterStop) {
           navigate("/labs");
         }
       } catch {
         return;
-      } finally {
-        setStoppingSession(false);
       }
     },
-    [
-      canStopSession,
-      navigate,
-      refreshSessionMetadata,
-      sessionId,
-      stoppingSession,
-    ],
+    [canStopSession, navigate, sessionId, stopSession, stoppingSession],
   );
 
   useEffect(() => {
@@ -197,8 +173,8 @@ function SessionPageContent({ sessionId }: { sessionId?: string }) {
               progressChips={progressChips}
               agentStatus={agentStatus}
               completionStatus={metadata.completion_status}
-              completedAt={metadata.completed_at}
-              completionReasonCode={metadata.completion_reason_code}
+              completedAt={metadata.completed_at ?? null}
+              completionReasonCode={metadata.completion_reason_code ?? null}
               unreadFeedbackCount={metadata.unread_feedback_count}
               feedbackItems={feedbackItems}
               feedbackPanelOpen={feedbackPanelOpen}

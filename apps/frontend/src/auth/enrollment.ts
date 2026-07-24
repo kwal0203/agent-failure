@@ -1,3 +1,7 @@
+import {
+  controlPlaneRequestError,
+  createControlPlaneClient,
+} from "../api/client";
 import { getCurrentAuthHeader } from "./session";
 
 function getApiBaseUrl(): string {
@@ -8,17 +12,6 @@ export const PENDING_ENROLLMENT_TOKEN_KEY =
   "agentfailure.auth.pendingEnrollmentToken";
 export const ENROLLMENT_REDEEM_ERROR_KEY =
   "agentfailure.auth.enrollmentRedeemError";
-
-type ValidateClassCodeResponse = {
-  valid: boolean;
-  enrollmentToken?: string;
-  error?: string;
-};
-
-type RedeemEnrollmentResponse = {
-  enrolled: boolean;
-  error?: string;
-};
 
 export function isEnrollmentApiEnabled(): boolean {
   return (
@@ -31,47 +24,54 @@ export async function validateClassCode(
   classCode: string,
   email: string,
 ): Promise<string> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/api/v1/enrollment/validate-class-code`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        classCode: classCode.trim(),
-        email: email.trim().toLowerCase(),
-      }),
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).POST("/api/v1/enrollment/validate-class-code", {
+    body: {
+      classCode: classCode.trim(),
+      email: email.trim().toLowerCase(),
     },
-  );
+  });
 
-  const payload = (await response.json()) as ValidateClassCodeResponse;
-
-  if (!response.ok || payload.valid !== true || !payload.enrollmentToken) {
-    throw new Error(payload.error ?? "Class code validation failed.");
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Class code validation failed",
+    );
+  }
+  if (!data.valid || !data.enrollmentToken) {
+    throw new Error(data.error ?? "Class code validation failed.");
   }
 
-  return payload.enrollmentToken;
+  return data.enrollmentToken;
 }
 
 export async function redeemEnrollmentToken(
   enrollmentToken: string,
 ): Promise<void> {
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/enrollment/redeem`, {
-    method: "POST",
-    headers: {
-      Authorization: await getCurrentAuthHeader(),
-      "Content-Type": "application/json",
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).POST("/api/v1/enrollment/redeem", {
+    params: {
+      header: {
+        Authorization: await getCurrentAuthHeader(),
+      },
     },
-    body: JSON.stringify({
+    body: {
       enrollmentToken,
-    }),
+    },
   });
 
-  const payload = (await response.json()) as RedeemEnrollmentResponse;
-
-  if (!response.ok || payload.enrolled !== true) {
-    throw new Error(payload.error ?? "Enrollment token redemption failed.");
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Enrollment token redemption failed",
+    );
+  }
+  if (!data.enrolled) {
+    throw new Error(data.error ?? "Enrollment token redemption failed.");
   }
 }
 

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import { LabCatalog, type LabCatalogItem } from "./LabsPage";
 
 vi.mock("../auth/useAuth", () => ({
@@ -26,7 +27,7 @@ describe("LabCatalog", () => {
     const loadLabs = vi.fn(async () => labs);
     const onOpenPreLab = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <LabCatalog
         apiBaseUrl="http://localhost:8000"
         learnerLabel="Demo Learner"
@@ -72,7 +73,7 @@ describe("LabCatalog", () => {
     ];
     const loadLabs = vi.fn(async () => labs);
 
-    render(
+    renderWithQueryClient(
       <LabCatalog
         apiBaseUrl="http://localhost:8000"
         learnerLabel="Demo Learner"
@@ -104,7 +105,7 @@ describe("LabCatalog", () => {
   it("renders explicit empty state when no labs are launchable", async () => {
     const loadLabs = vi.fn(async () => []);
 
-    render(
+    renderWithQueryClient(
       <LabCatalog
         apiBaseUrl="http://localhost:8000"
         learnerLabel="Demo Learner"

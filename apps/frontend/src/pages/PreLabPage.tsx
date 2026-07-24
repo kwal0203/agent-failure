@@ -25,13 +25,10 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLabCatalogQuery } from "../query/labCatalog";
+import { useCreateSessionMutation } from "../query/sessionMutations";
 import { useShellBootstrap } from "../shell/context";
-import {
-  createSessionForLab,
-  type LabCatalogItem,
-  type LabDifficulty,
-  loadLabCatalog,
-} from "./labCatalogApi";
+import type { LabCatalogItem, LabDifficulty } from "./labCatalogApi";
 
 const LATEST_SESSION_BY_LAB_KEY = "agentfailure.latestSessionByLab";
 
@@ -337,11 +334,23 @@ export default function PreLabPage() {
   const navigate = useNavigate();
   const bootstrap = useShellBootstrap();
 
-  const [lab, setLab] = useState<LabCatalogItem | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const labsQuery = useLabCatalogQuery(bootstrap.apiBaseUrl);
+  const lab = labsQuery.data?.find((item) => item.id === labId) ?? null;
+  const loading = labsQuery.isPending;
+  const loadError = labsQuery.error
+    ? labsQuery.error instanceof Error
+      ? labsQuery.error.message
+      : "Failed to load lab briefing"
+    : !loading && labId && !lab
+      ? "Lab was not found in the catalog."
+      : null;
+  const createSessionMutation = useCreateSessionMutation(bootstrap.apiBaseUrl);
+  const starting = createSessionMutation.isPending;
+  const startError = createSessionMutation.error
+    ? createSessionMutation.error instanceof Error
+      ? createSessionMutation.error.message
+      : "Session create failed"
+    : null;
   const [acknowledged, setAcknowledged] = useState(false);
 
   const difficulty: LabDifficulty = state?.labDifficulty ?? "medium";
@@ -349,41 +358,8 @@ export default function PreLabPage() {
   useEffect(() => {
     if (!labId) {
       navigate("/labs", { replace: true });
-      return;
     }
-
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const labs = await loadLabCatalog(bootstrap.apiBaseUrl);
-        const matched = labs.find((item) => item.id === labId) ?? null;
-        if (!cancelled) {
-          if (!matched) {
-            setLoadError("Lab was not found in the catalog.");
-          }
-          setLab(matched);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load lab briefing",
-          );
-          setLab(null);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrap.apiBaseUrl, labId, navigate]);
+  }, [labId, navigate]);
 
   const briefing = useMemo(() => resolveBriefing(lab), [lab]);
 
@@ -443,27 +419,19 @@ export default function PreLabPage() {
     [briefing],
   );
 
-  const onStartLab = async () => {
+  const onStartLab = () => {
     if (!labId) return;
-    setStarting(true);
-    setStartError(null);
-    try {
-      const sessionId = await createSessionForLab(
-        bootstrap.apiBaseUrl,
-        labId,
-        difficulty,
-      );
-      rememberLatestSessionForLab(labId, sessionId);
-      navigate(`/sessions/${sessionId}`, {
-        state: { labName: lab?.name ?? state?.labName ?? "Lab Session" },
-      });
-    } catch (error) {
-      setStartError(
-        error instanceof Error ? error.message : "Session create failed",
-      );
-    } finally {
-      setStarting(false);
-    }
+    createSessionMutation.mutate(
+      { labId, labDifficulty: difficulty },
+      {
+        onSuccess: (sessionId) => {
+          rememberLatestSessionForLab(labId, sessionId);
+          navigate(`/sessions/${sessionId}`, {
+            state: { labName: lab?.name ?? state?.labName ?? "Lab Session" },
+          });
+        },
+      },
+    );
   };
 
   if (loading) {
@@ -628,7 +596,7 @@ export default function PreLabPage() {
             <button
               type="button"
               disabled={starting || !acknowledged}
-              onClick={() => void onStartLab()}
+              onClick={onStartLab}
               className="mt-5 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-lime-300 text-base font-black uppercase tracking-wide text-black shadow-[0_0_30px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_44px_rgba(132,204,22,0.75)] disabled:cursor-not-allowed disabled:opacity-70"
             >
               <Play className="h-5 w-5 fill-black" />

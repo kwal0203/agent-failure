@@ -1,3 +1,8 @@
+import {
+  controlPlaneRequestError,
+  createControlPlaneClient,
+} from "../api/client";
+import type { components } from "../api/generated";
 import type { PilotLead } from "../schemas/pilotRequest";
 import { getCurrentAuthHeader } from "./session";
 
@@ -24,30 +29,39 @@ export async function createPilotRequest(payload: PilotLead): Promise<void> {
   }
 }
 
-export type PilotRequestItem = {
-  requestId: string;
-  fullName: string;
-  workEmail: string;
-  university: string;
-  role?: string | null;
-  courseName?: string | null;
-  cohortSize?: number | null;
-  notes?: string | null;
-  sourceIp?: string | null;
-  status:
-    | "new"
-    | "contacted"
-    | "approved"
-    | "approved_provisioning_failed"
-    | "rejected";
-  createdAt: string;
+export type PilotRequestStatus =
+  | "new"
+  | "contacted"
+  | "approved"
+  | "approved_provisioning_failed"
+  | "rejected";
+export type PilotRequestItem = Omit<
+  components["schemas"]["PilotRequestItemResponse"],
+  "status"
+> & {
+  status: PilotRequestStatus;
+};
+type ListPilotRequestsResponse = Omit<
+  components["schemas"]["ListPilotRequestsResponse"],
+  "items"
+> & {
+  items: PilotRequestItem[];
 };
 
-type ListPilotRequestsResponse = {
-  items: PilotRequestItem[];
-  limit: number;
-  offset: number;
-};
+function normalizePilotRequestItem(
+  item: components["schemas"]["PilotRequestItemResponse"],
+): PilotRequestItem {
+  switch (item.status) {
+    case "new":
+    case "contacted":
+    case "approved":
+    case "approved_provisioning_failed":
+    case "rejected":
+      return { ...item, status: item.status };
+    default:
+      throw new Error(`Unsupported pilot request status: ${item.status}`);
+  }
+}
 
 export async function listPilotRequests(params?: {
   status?: string;
@@ -55,34 +69,32 @@ export async function listPilotRequests(params?: {
   limit?: number;
   offset?: number;
 }): Promise<ListPilotRequestsResponse> {
-  const query = new URLSearchParams();
-  if (params?.status) query.set("status", params.status);
-  if (params?.createdAfter) query.set("created_after", params.createdAfter);
-  if (typeof params?.limit === "number")
-    query.set("limit", String(params.limit));
-  if (typeof params?.offset === "number")
-    query.set("offset", String(params.offset));
-
-  const suffix = query.toString() ? `?${query.toString()}` : "";
-  const response = await fetch(
-    `${getApiBaseUrl()}/api/v1/pilot-requests${suffix}`,
-    {
-      headers: {
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).GET("/api/v1/pilot-requests", {
+    params: {
+      query: {
+        status: params?.status,
+        created_after: params?.createdAfter,
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+      header: {
         Authorization: await getCurrentAuthHeader(),
       },
     },
-  );
-  const body = (await response.json()) as
-    | ListPilotRequestsResponse
-    | { detail?: string };
-  if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : null;
-    throw new Error(detail ?? "Failed to list pilot requests.");
+  });
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Failed to list pilot requests",
+    );
   }
-  return body as ListPilotRequestsResponse;
+  return {
+    ...data,
+    items: data.items.map(normalizePilotRequestItem),
+  };
 }
 
 export async function updatePilotRequestStatus(
@@ -94,152 +106,89 @@ export async function updatePilotRequestStatus(
     | "approved_provisioning_failed"
     | "rejected",
 ): Promise<PilotRequestItem> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}`,
-    {
-      method: "PATCH",
-      headers: {
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).PATCH("/api/v1/pilot-requests/{request_id}", {
+    params: {
+      path: { request_id: requestId },
+      header: {
         Authorization: await getCurrentAuthHeader(),
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ status }),
     },
-  );
-  const body = (await response.json()) as
-    | PilotRequestItem
-    | { detail?: string };
-  if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : null;
-    throw new Error(detail ?? "Failed to update pilot request status.");
+    body: { status },
+  });
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Failed to update pilot request status",
+    );
   }
-  return body as PilotRequestItem;
+  return normalizePilotRequestItem(data);
 }
 
-export type ApproveAndProvisionPayload = {
-  courseId: string;
-  courseName: string;
-  classCode: string;
-  instructorEmail: string;
-  classCodeMaxUses?: number;
-  createInstructorIfMissing?: boolean;
-};
-
-export type ProvisionPilotPayload = {
-  courseId: string;
-  courseName: string;
-  classCode: string;
-  instructorEmail: string;
-  maxUses?: number;
-};
-
-export type ProvisionPilotResponse = {
-  created: boolean;
-  provisioningSummary: {
-    pilotRequestId: string;
-    courseId: string;
-    courseName: string;
-    classCode: string;
-    classCodeId?: string;
-    classCodeStatus: string;
-    classCodeMaxUses?: number | null;
-    instructorEmail: string;
-    provisionedBy?: string | null;
-    provisioningCorrelationId?: string | null;
-    provisionedAt: string;
-  };
-};
-
-export type ApproveAndProvisionResponse = {
+export type ApproveAndProvisionPayload =
+  components["schemas"]["ApproveAndProvisionRequest"];
+export type ProvisionPilotPayload =
+  components["schemas"]["ProvisionPilotRequestPayload"];
+export type ProvisionPilotResponse =
+  components["schemas"]["ProvisionPilotRequestResponse"];
+export type ApproveAndProvisionResponse = Omit<
+  components["schemas"]["ApproveAndProvisionResponse"],
+  "pilotRequest"
+> & {
   pilotRequest: PilotRequestItem;
-  isRetry: boolean;
-  runCorrelationId: string;
-  approvedStep: boolean;
-  pilotProvisionStep?: {
-    pilotRequestId: string;
-    courseId: string;
-    courseName: string;
-    classCode: string;
-    classCodeId: string;
-    classCodeStatus: string;
-    classCodeMaxUses?: number | null;
-    instructorEmail: string;
-    provisionedBy?: string | null;
-    provisioningCorrelationId?: string | null;
-    provisionedAt: string;
-  };
-  pilotProvisionError?: string | null;
-  instructorProvisionStep?: {
-    pilotRequestId: string;
-    courseId: string;
-    courseName: string;
-    instructorEmail: string;
-    userCreated: boolean;
-    inviteSent: boolean;
-    groupAssigned: boolean;
-    instructorUserId?: string | null;
-    membershipCreated: boolean;
-    provisionedBy?: string | null;
-    provisioningCorrelationId?: string | null;
-    provisionedAt: string;
-  };
-  instructorProvisionError?: string | null;
 };
 
 export async function approveAndProvisionPilotRequest(
   requestId: string,
   payload: ApproveAndProvisionPayload,
 ): Promise<ApproveAndProvisionResponse> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}/approve-and-provision`,
-    {
-      method: "POST",
-      headers: {
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).POST("/api/v1/pilot-requests/{request_id}/approve-and-provision", {
+    params: {
+      path: { request_id: requestId },
+      header: {
         Authorization: await getCurrentAuthHeader(),
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
     },
-  );
-  const body = (await response.json()) as
-    | ApproveAndProvisionResponse
-    | { detail?: string };
-  if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : null;
-    throw new Error(detail ?? "Failed to approve and provision pilot request.");
+    body: payload,
+  });
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Failed to approve and provision pilot request",
+    );
   }
-  return body as ApproveAndProvisionResponse;
+  return {
+    ...data,
+    pilotRequest: normalizePilotRequestItem(data.pilotRequest),
+  };
 }
 
 export async function provisionPilotRequest(
   requestId: string,
   payload: ProvisionPilotPayload,
 ): Promise<ProvisionPilotResponse> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/api/v1/pilot-requests/${requestId}/provision`,
-    {
-      method: "POST",
-      headers: {
+  const { data, error, response } = await createControlPlaneClient(
+    getApiBaseUrl(),
+  ).POST("/api/v1/pilot-requests/{request_id}/provision", {
+    params: {
+      path: { request_id: requestId },
+      header: {
         Authorization: await getCurrentAuthHeader(),
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
     },
-  );
-  const body = (await response.json()) as
-    | ProvisionPilotResponse
-    | { detail?: string };
-  if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? body.detail
-        : null;
-    throw new Error(detail ?? "Failed to provision pilot request.");
+    body: payload,
+  });
+  if (error || !data) {
+    throw controlPlaneRequestError(
+      error,
+      response,
+      "Failed to provision pilot request",
+    );
   }
-  return body as ProvisionPilotResponse;
+  return data;
 }

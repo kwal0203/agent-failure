@@ -4,7 +4,6 @@ import type { ServerMessage } from "../../../hooks/useSessionStream";
 import type {
   AgentStatus,
   LearnerFeedbackItem,
-  SessionMetadata,
   TranscriptEntry,
 } from "../types";
 
@@ -20,9 +19,9 @@ type UseSessionStreamIngestionParams = {
   finalizePendingRef: MutableRefObject<boolean>;
   setIsAwaitingResponse: Dispatch<SetStateAction<boolean>>;
   setTranscriptEntries: Dispatch<SetStateAction<TranscriptEntry[]>>;
-  setMetadata: Dispatch<SetStateAction<SessionMetadata | null>>;
   setAgentStatus: (status: AgentStatus) => void;
   refreshSessionMetadata: () => Promise<void>;
+  refreshSessionTrace: () => Promise<void>;
 };
 
 export function useSessionStreamIngestion(
@@ -37,9 +36,9 @@ export function useSessionStreamIngestion(
     finalizePendingRef,
     setIsAwaitingResponse,
     setTranscriptEntries,
-    setMetadata,
     setAgentStatus,
     refreshSessionMetadata,
+    refreshSessionTrace,
   } = params;
   const processedMessageCount = useRef(0);
 
@@ -53,16 +52,7 @@ export function useSessionStreamIngestion(
 
     for (const message of newMessages) {
       if (message.type === "SESSION_STATUS") {
-        setMetadata((prev) =>
-          prev
-            ? {
-                ...prev,
-                state: message.payload.state,
-                runtime_substate: message.payload.runtime_substate,
-                interactive: message.payload.interactive,
-              }
-            : prev,
-        );
+        void refreshSessionMetadata();
         if (message.payload.state !== "ACTIVE") {
           setAgentStatus("idle");
         }
@@ -99,6 +89,7 @@ export function useSessionStreamIngestion(
       }
 
       if (message.type === "TRACE_EVENT") {
+        void refreshSessionTrace();
         if (
           message.payload.event_code === "TURN_STARTED" ||
           message.payload.event_code === "MODEL_REQUEST_STARTED"
@@ -152,8 +143,8 @@ export function useSessionStreamIngestion(
     pendingBufferRef,
     setIsAwaitingResponse,
     setTranscriptEntries,
-    setMetadata,
     setAgentStatus,
     refreshSessionMetadata,
+    refreshSessionTrace,
   ]);
 }

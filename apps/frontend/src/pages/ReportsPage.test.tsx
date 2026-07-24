@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import ReportsPage from "./ReportsPage";
 
 const loadLabCatalogMock = vi.fn();
@@ -57,7 +58,7 @@ describe("ReportsPage", () => {
   it("keeps Open Report disabled when no latest session exists", async () => {
     getLatestSessionIdForLabMock.mockResolvedValue(null);
 
-    render(
+    renderWithQueryClient(
       <MemoryRouter>
         <ReportsPage />
       </MemoryRouter>,
@@ -72,6 +73,14 @@ describe("ReportsPage", () => {
     });
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons[0]).toBeDisabled();
+    await waitFor(() => {
+      expect(getLatestSessionIdForLabMock).toHaveBeenCalledTimes(3);
+    });
+    expect(getLatestSessionIdForLabMock.mock.calls).toEqual([
+      ["http://localhost:8000", "44444444-4444-4444-4444-444444444444"],
+      ["http://localhost:8000", "55555555-5555-5555-5555-555555555555"],
+      ["http://localhost:8000", "66666666-6666-6666-6666-666666666666"],
+    ]);
   });
 
   it("enables Open Report when latest session exists", async () => {
@@ -82,7 +91,7 @@ describe("ReportsPage", () => {
           : null,
     );
 
-    render(
+    renderWithQueryClient(
       <MemoryRouter>
         <ReportsPage />
       </MemoryRouter>,
@@ -94,5 +103,28 @@ describe("ReportsPage", () => {
         true,
       );
     });
+    expect(getLatestSessionIdForLabMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a report disabled when its latest-session query fails", async () => {
+    getLatestSessionIdForLabMock.mockRejectedValue(
+      new Error("Session query failed"),
+    );
+
+    renderWithQueryClient(
+      <MemoryRouter>
+        <ReportsPage />
+      </MemoryRouter>,
+    );
+
+    const buttons = await screen.findAllByRole("button", {
+      name: /open report/i,
+    });
+    await waitFor(() => {
+      expect(getLatestSessionIdForLabMock).toHaveBeenCalledTimes(3);
+    });
+    expect(buttons.every((button) => button.hasAttribute("disabled"))).toBe(
+      true,
+    );
   });
 });

@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import useWebSocket, {
+  ReadyState,
+  type Options as WebSocketOptions,
+} from "react-use-websocket";
 import type { ServerMessage } from "../../../contracts/ts/index";
 import { getCurrentAccessToken } from "../auth/session";
 
@@ -6,112 +10,137 @@ export type { ServerMessage } from "../../../contracts/ts/index";
 
 type ConnectionState = "idle" | "connecting" | "open" | "closed" | "error";
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_DELAY_MS = 30_000;
+
+function reconnectDelay(attemptNumber: number): number {
+  return Math.min(1_000 * 2 ** attemptNumber, MAX_RECONNECT_DELAY_MS);
+}
+
+function shouldReconnect(event: CloseEvent): boolean {
+  // A normal close is intentional. Policy violations commonly mean that
+  // authentication or authorization failed and retrying the same request
+  // would only create noise.
+  return event.code !== 1000 && event.code !== 1008;
+}
+
 export function useSessionStream(sessionId?: string) {
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
   const wsBase = apiBase.replace(/^http/i, "ws");
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("idle");
-  const [messages, setMessages] = useState<ServerMessage[]>([]);
-  const [reconnectSeq, setReconnectSeq] = useState(0);
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const streamKey = `${sessionId ?? "idle"}:${reconnectNonce}`;
+  const [messageState, setMessageState] = useState<{
+    streamKey: string;
+    messages: ServerMessage[];
+  }>({ streamKey, messages: [] });
+  const [connectionErrorState, setConnectionErrorState] = useState<{
+    streamKey: string;
+    failed: boolean;
+  }>({ streamKey, failed: false });
+  const reconnectSequenceRef = useRef({
+    sessionId,
+    next: 0,
+  });
 
-  const wsRef = useRef<WebSocket | null>(null);
+  const getSocketUrl = useCallback(async () => {
+    if (!sessionId) {
+      throw new Error("Cannot connect a session stream without a session ID.");
+    }
+    if (reconnectSequenceRef.current.sessionId !== sessionId) {
+      reconnectSequenceRef.current = { sessionId, next: 0 };
+    }
 
-  useEffect(() => {
-    if (!sessionId) return;
+    // Amplify refreshes an expired Cognito session while resolving this call.
+    // react-use-websocket invokes the URL factory again for every retry, so a
+    // reconnect never has to reuse the token embedded in the previous URL.
+    const token = encodeURIComponent(await getCurrentAccessToken());
+    const reconnectSequence = Math.max(
+      reconnectSequenceRef.current.next,
+      reconnectNonce,
+    );
+    reconnectSequenceRef.current.next = reconnectSequence + 1;
 
-    const resetTimer = window.setTimeout(() => {
-      setConnectionState("connecting");
-      setMessages([]);
-    }, 0);
+    return `${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSequence}`;
+  }, [reconnectNonce, sessionId, wsBase]);
 
-    let cancelled = false;
-    let activeSocket: WebSocket | null = null;
-
-    const connect = async () => {
-      try {
-        const token = encodeURIComponent(await getCurrentAccessToken());
-        if (cancelled) return;
-
-        const ws = new WebSocket(
-          `${wsBase}/api/v1/sessions/${sessionId}/stream?access_token=${token}&reconnect_seq=${reconnectSeq}`,
-        );
-        activeSocket = ws;
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          // In React StrictMode dev remounts, ignore stale sockets.
-          if (wsRef.current !== ws) {
-            ws.close();
-            return;
-          }
-          setConnectionState("open");
-        };
-
-        ws.onmessage = (event) => {
-          if (wsRef.current !== ws) return;
-          try {
-            const parsed = JSON.parse(event.data) as ServerMessage;
-            setMessages((prev) => [...prev, parsed]);
-          } catch {
-            // ignore malformed messages for now
-          }
-        };
-
-        ws.onerror = () => {
-          if (wsRef.current !== ws) return;
-          setConnectionState("error");
-        };
-        ws.onclose = () => {
-          if (wsRef.current !== ws) return;
-          setConnectionState("closed");
-        };
-      } catch {
-        if (!cancelled) {
-          setConnectionState("error");
+  const options = useMemo<WebSocketOptions>(
+    () => ({
+      onOpen: () => setConnectionErrorState({ streamKey, failed: false }),
+      onMessage: (event) => {
+        try {
+          const parsed = JSON.parse(String(event.data)) as ServerMessage;
+          setMessageState((previous) => ({
+            streamKey,
+            messages:
+              previous.streamKey === streamKey
+                ? [...previous.messages, parsed]
+                : [parsed],
+          }));
+        } catch {
+          // Malformed protocol messages are ignored so one bad frame does not
+          // interrupt the rest of the live session.
         }
-      }
-    };
+      },
+      onError: () => setConnectionErrorState({ streamKey, failed: true }),
+      onClose: (event) => {
+        if (shouldReconnect(event)) {
+          setConnectionErrorState({ streamKey, failed: true });
+        }
+      },
+      onReconnectStop: () =>
+        setConnectionErrorState({ streamKey, failed: true }),
+      shouldReconnect,
+      reconnectAttempts: MAX_RECONNECT_ATTEMPTS,
+      reconnectInterval: reconnectDelay,
+      // This also retries a transient failure while Amplify is obtaining or
+      // refreshing the access token used by the asynchronous URL factory.
+      retryOnError: true,
+    }),
+    [streamKey],
+  );
 
-    void connect();
+  const { readyState, sendJsonMessage } = useWebSocket(
+    sessionId ? getSocketUrl : null,
+    options,
+  );
 
-    return () => {
-      window.clearTimeout(resetTimer);
-      cancelled = true;
-      if (wsRef.current === activeSocket) {
-        wsRef.current = null;
-      }
-      // Avoid closing while CONNECTING to prevent noisy dev-console warning.
-      if (activeSocket?.readyState === WebSocket.OPEN) {
-        activeSocket.close();
-      }
-    };
-  }, [reconnectSeq, sessionId, wsBase]);
+  const messages =
+    messageState.streamKey === streamKey ? messageState.messages : [];
+  const connectionError =
+    connectionErrorState.streamKey === streamKey && connectionErrorState.failed;
+
+  const connectionState = useMemo<ConnectionState>(() => {
+    if (!sessionId) return "idle";
+    if (readyState === ReadyState.OPEN) return "open";
+    if (
+      readyState === ReadyState.CONNECTING ||
+      readyState === ReadyState.UNINSTANTIATED
+    ) {
+      return "connecting";
+    }
+    if (connectionError) return "error";
+    return "closed";
+  }, [connectionError, readyState, sessionId]);
 
   const sendPrompt = useCallback(
     (content: string) => {
-      if (!sessionId) return;
+      if (!sessionId || readyState !== ReadyState.OPEN) return;
 
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-      ws.send(
-        JSON.stringify({
+      sendJsonMessage(
+        {
           type: "USER_PROMPT",
           session_id: sessionId,
           timestamp: new Date().toISOString(),
           payload: { content },
-        }),
+        },
+        false,
       );
     },
-    [sessionId],
+    [readyState, sendJsonMessage, sessionId],
   );
 
   const reconnect = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
-    setReconnectSeq((prev) => prev + 1);
+    setReconnectNonce((previous) => previous + 1);
   }, []);
 
   return {

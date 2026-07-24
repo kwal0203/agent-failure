@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient } from "../../test/renderWithQueryClient";
 import PilotRequestPage from "./PilotRequestPage";
 
 function renderPage() {
-  render(
+  renderWithQueryClient(
     <MemoryRouter>
       <PilotRequestPage />
     </MemoryRouter>,

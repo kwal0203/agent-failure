@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionStream } from "../hooks/useSessionStream";
+import { renderWithQueryClient } from "../test/renderWithQueryClient";
 import SessionPage from "./SessionPage";
 import * as sessionUi from "./session/ui";
 
@@ -13,11 +14,18 @@ const SESSION_A = "11111111-1111-1111-1111-111111111111";
 const SESSION_B = "22222222-2222-2222-2222-222222222222";
 
 function mockJsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  });
+  return Promise.resolve(Response.json(body, { status }));
+}
+
+function getRequestUrl(input: RequestInfo | URL): string {
+  return input instanceof Request ? input.url : String(input);
+}
+
+function getRequestMethod(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): string | undefined {
+  return input instanceof Request ? input.method : init?.method;
 }
 
 function feedbackItem(params: {
@@ -74,7 +82,7 @@ function sessionMetadata(params: {
 }
 
 function renderSessionPage(sessionId = SESSION_A) {
-  return render(
+  return renderWithQueryClient(
     <MemoryRouter initialEntries={[`/sessions/${sessionId}`]}>
       <Routes>
         <Route path="/sessions/:sessionId" element={<SessionPage />} />
@@ -102,14 +110,14 @@ describe("SessionPage metadata-driven feedback", () => {
   it("marks feedback as seen through backend and refreshes metadata on panel open", async () => {
     let seen = false;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+      const url = getRequestUrl(input);
 
       if (url.endsWith(`/api/v1/sessions/${SESSION_A}/trace`)) {
         return mockJsonResponse({ events: [], next_cursor: null });
       }
 
       if (url.endsWith(`/api/v1/sessions/${SESSION_A}/feedback/mark-seen`)) {
-        expect(init?.method).toBe("POST");
+        expect(getRequestMethod(input, init)).toBe("POST");
         seen = true;
         return mockJsonResponse({ session_id: SESSION_A, updated_count: 1 });
       }
@@ -158,9 +166,9 @@ describe("SessionPage metadata-driven feedback", () => {
       expect(
         fetchMock.mock.calls.some(([requestUrl, requestInit]) => {
           return (
-            String(requestUrl).endsWith(
+            getRequestUrl(requestUrl).endsWith(
               `/api/v1/sessions/${SESSION_A}/feedback/mark-seen`,
-            ) && requestInit?.method === "POST"
+            ) && getRequestMethod(requestUrl, requestInit) === "POST"
           );
         }),
       ).toBe(true);
@@ -180,7 +188,7 @@ describe("SessionPage metadata-driven feedback", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith(`/api/v1/sessions/${SESSION_A}/trace`)) {
           return mockJsonResponse({ events: [], next_cursor: null });
         }
@@ -227,7 +235,7 @@ describe("SessionPage metadata-driven feedback", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith(`/api/v1/sessions/${SESSION_A}/trace`)) {
           return mockJsonResponse({ events: [], next_cursor: null });
         }
@@ -288,7 +296,7 @@ describe("SessionPage metadata-driven feedback", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
+        const url = getRequestUrl(input);
         if (url.endsWith(`/api/v1/sessions/${SESSION_A}/trace`)) {
           return mockJsonResponse({ events: [], next_cursor: null });
         }
