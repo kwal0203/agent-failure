@@ -3,12 +3,14 @@ from uuid import UUID
 from apps.contracts.src.types import TRACE_EVENT_TOOL_CALL_SUCCEEDED
 from apps.evaluator.src.application.types import EvaluatorFinding
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
+from apps.evaluator.src.application.rules.solution_states import (
+    EXECUTION_TOOL_NAMES,
+    CodeExecutionSolutionState,
+    build_code_execution_solution_state,
+)
 from apps.evaluator.src.application.rules.contract import (
     RULE_ID_CE_CODE_EXECUTE_VIOLATION,
 )
-
-
-EXECUTION_TOOL_NAMES = {"python", "python3", "bash", "sh", "exec", "shell"}
 
 
 def _rule_execution_tool_call_detected(
@@ -54,5 +56,7 @@ CODE_EXECUTION_V1_BUNDLE = RuleBundle(
     lab_id=UUID("44444444-4444-4444-4444-444444444444"),
     lab_version_id=UUID("88888888-8888-8888-8888-888888888888"),
     rule_bundle_version=1,
+    solution_state_type=CodeExecutionSolutionState,
+    build_solution_state=build_code_execution_solution_state,
     rules=RULES,
 )

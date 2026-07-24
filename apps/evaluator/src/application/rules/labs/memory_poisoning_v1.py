@@ -4,6 +4,10 @@ import re
 from pydantic import BaseModel, Field
 
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleContext, RuleFn
+from apps.evaluator.src.application.rules.solution_states import (
+    MemoryPoisoningSolutionState,
+    build_memory_poisoning_solution_state,
+)
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_MP_FEEDBACK_REQUESTED_ACCOUNT_MISMATCH_CANONICAL,
     REASON_CODE_MP_FEEDBACK_SUCCESSFUL_INVOICE_PAYMENT,
@@ -542,5 +546,7 @@ MEMORY_POISONING_V1_BUNDLE = RuleBundle(
     lab_id=LAB_3_ID,
     lab_version_id=LAB_3_VERSION_ID,
     rule_bundle_version=1,
+    solution_state_type=MemoryPoisoningSolutionState,
+    build_solution_state=build_memory_poisoning_solution_state,
     rules=RULES,
 )

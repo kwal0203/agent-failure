@@ -139,13 +139,20 @@ provenance. Characterization tests preserve the canonical rule ordering,
 evidence, feedback, and objective behavior before the structural CBM refactor
 begins.
 
-The evaluator files are large—Lab 1 exceeds 1,200 lines—and contain many regex
-heuristics and repeated event-search logic.
+The second cleanup phase added one immutable, order-preserving trace index per
+evaluation and explicit solution-state types for Prompt Injection, Tool Misuse,
+Code Execution, and Memory Poisoning. Each rule bundle owns the function that
+derives its state from the trace. Existing rule output remains unchanged through
+an ordered-event compatibility view; the typed states are the input foundation
+for the subsequent CBM-kernel and incremental rule-migration phases.
+
+The evaluator files remain large—Prompt Injection is roughly 900 lines—and
+contain many regex heuristics and repeated event-search logic.
 
 This is custom domain logic, so replacing it wholesale with a framework would
 probably make the code worse. Keep the evaluator, but:
 
-- Extract repeated predicates and event indexes.
+- Migrate repeated predicates and trace searches onto the shared indexed state.
 - Represent simple rules declaratively as data.
 - Separate evidence extraction from instructional message construction.
 - Document why deterministic rules are preferable to LLM-as-judge for these
@@ -153,8 +160,8 @@ probably make the code worse. Keep the evaluator, but:
 - Mark incomplete rules explicitly rather than leaving multiple "need endpoint
   before completed" TODOs inside a supposedly V1 bundle.
 
-The remaining work is to introduce typed solution-state interpretation and
-explicit constraint relevance/satisfaction results, then migrate and split the
+The remaining work is to introduce explicit constraint relevance/satisfaction
+results, then migrate the existing rules onto that CBM kernel and split the
 large lab rule modules incrementally.
 
 This is specialized, not embarrassing.

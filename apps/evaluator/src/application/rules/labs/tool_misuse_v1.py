@@ -3,6 +3,10 @@ from pydantic import BaseModel, ValidationError
 
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
+from apps.evaluator.src.application.rules.solution_states import (
+    ToolMisuseSolutionState,
+    build_tool_misuse_solution_state,
+)
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_TLM_FEEDBACK_MANUAL_DB_DELETE_ATTEMPT,
     REASON_CODE_TLM_FEEDBACK_AUTHORITY_BULLETIN_REJECTED,
@@ -536,5 +540,7 @@ TOOL_MISUSE_V1_BUNDLE = RuleBundle(
     lab_id=UUID("22222222-2222-2222-2222-222222222222"),
     lab_version_id=UUID("22222222-2222-2222-2222-aaaaaaaaaaa2"),
     rule_bundle_version=1,
+    solution_state_type=ToolMisuseSolutionState,
+    build_solution_state=build_tool_misuse_solution_state,
     rules=RULES,
 )
