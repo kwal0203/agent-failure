@@ -7,7 +7,7 @@ COPY runtimes/agent /app/runtimes/agent
 COPY apps/agent_harness /app/apps/agent_harness
 COPY apps/contracts /app/apps/contracts
 
-RUN python -m pip install --no-cache-dir fastapi uvicorn pydantic python-dotenv httpx
+RUN python -m pip install --no-cache-dir fastapi uvicorn pydantic pydantic-settings python-dotenv httpx
 
 ENV PYTHONPATH=/app
 

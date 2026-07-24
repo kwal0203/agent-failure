@@ -59,6 +59,7 @@ def test_build_pod_applies_security_profile_and_resources() -> None:
     }
     env_by_name = {item.name: item for item in container.env}
     assert env_by_name["LAB_DIFFICULTY"].value == "medium"
+    assert env_by_name["RUNTIME_SESSION_ID"].value == str(request.session_id)
 
     shared_token_ref = env_by_name["RUNTIME_SHARED_TOKEN"].value_from.secret_key_ref
     assert shared_token_ref.name == "runtime-secrets"

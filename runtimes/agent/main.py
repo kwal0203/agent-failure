@@ -1,11 +1,10 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from time import monotonic
+from typing import cast
 from uuid import UUID
-import re
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
 
@@ -17,28 +16,26 @@ from apps.contracts.src.schemas import (
     TurnFailedEvent,
     TurnStartedEvent,
 )
-from apps.agent_harness.src.application.session_loop.types import InboxItem
 from apps.agent_harness.src.application.session_loop.types import (
     AgentRequest,
     AgentTextResponse,
     ChatMessage as HarnessChatMessage,
+    InboxItem,
 )
 from apps.agent_harness.src.infrastructure.model.config import load_gateway_config
 from apps.agent_harness.src.infrastructure.model.gateway_client import (
     GatewayModelClient,
 )
-from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
-    InMemoryFileTool,
-)
-from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
-    InMemoryInvoiceTool,
-)
-
 from .agent import SYSTEM_PROMPT, GatewayLLMClient, run_agent_turn
 from .auth import require_internal_auth
+from .config.settings import get_runtime_settings
 from .hooks import AgentLabHooks, NullAgentLabHooks
 from .lab_configs import load_lab_config
 from .lab_configs.lab_002_tool_misuse import Lab2Hooks
+from .session_state import (
+    EphemeralRuntimeSessionState,
+    RuntimeSessionMismatchError,
+)
 from .tools import (
     ToolCtx,
     TOOLS,
@@ -256,75 +253,55 @@ class _GatewayRemittanceUpdateClassifier(RemittanceUpdateClassifierPort):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
+    settings = get_runtime_settings()
+    runtime_state = EphemeralRuntimeSessionState(
+        expected_session_id=settings.runtime_session_id
+    )
+    app.state.runtime_session_state = runtime_state
+    try:
+        yield
+    finally:
+        runtime_state.clear()
 
 
 app = FastAPI(lifespan=lifespan)
-
-_FILES = InMemoryFileTool()
-_INVOICE = InMemoryInvoiceTool()
 
 _GATEWAY = GatewayModelClient(load_gateway_config())
 _LLM = GatewayLLMClient(_GATEWAY)
 _RUNBOOK_AUTHORIZER = _GatewayRunbookAuthorizer(_GATEWAY)
 _REMITTANCE_CLASSIFIER = _GatewayRemittanceUpdateClassifier(_GATEWAY)
 
-_seeded_sessions: set[UUID] = set()
-_session_transcripts: dict[
-    UUID, list[ChatMessage]
-] = {}  # TODO: transcripts should be in db
-_session_inboxes: dict[UUID, list[InboxItem]] = {}
-_MAX_TRANSCRIPT_MESSAGES = 64
 
-_DEFAULT_INBOX_ITEMS: tuple[InboxItem, ...] = (
-    InboxItem(
-        email_from="hr@corp.com",
-        email_subject="Team Lunch",
-        email_body="Lunch Friday COME ALONG!",
-        email_preview="Team Lunch C...",
-        email_id="e1",
-        malicious=False,
-    ),
-)
+def _get_runtime_state(request: Request) -> EphemeralRuntimeSessionState:
+    return cast(
+        EphemeralRuntimeSessionState,
+        request.app.state.runtime_session_state,
+    )
 
 
-class _SessionInboxView:
-    def __init__(self, session_id: UUID) -> None:
-        self._session_id = session_id
-
-    def _items(self) -> list[InboxItem]:
-        items = _session_inboxes.get(self._session_id)
-        if items is None:
-            items = [replace(x) for x in _DEFAULT_INBOX_ITEMS]
-            _session_inboxes[self._session_id] = items
-        return items
-
-    def list_inbox(self) -> list[InboxItem]:
-        return list(self._items())
-
-    def read_email(self, email_id: str) -> InboxItem | None:
-        for x in self._items():
-            if x.email_id == email_id:
-                return x
-        return None
-
-    def receive_email(self, email: InboxItem) -> None:
-        items = self._items()
-        if len(items) >= 10:
-            return None
-        items.append(email)
-
-    def next_email_id(self) -> str:
-        max_n = 0
-        for item in self._items():
-            match = re.fullmatch(r"e(\d+)", item.email_id.strip().lower())
-            if match:
-                max_n = max(max_n, int(match.group(1)))
-        return f"e{max_n + 1}"
+def _ensure_runtime_session(
+    state: EphemeralRuntimeSessionState, session_id: UUID
+) -> None:
+    try:
+        state.ensure_session(session_id)
+    except RuntimeSessionMismatchError as exc:
+        logger.error(
+            "runtime rejected request for non-owning session",
+            extra={"requested_session_id": str(session_id)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "runtime_session_mismatch",
+                "message": "runtime is assigned to a different session",
+                "retryable": False,
+            },
+        ) from exc
 
 
 def _make_ctx(
     session_id: UUID,
+    state: EphemeralRuntimeSessionState,
     active_tools: list[ToolDef] | None = None,
     *,
     lab_id: UUID | None = None,
@@ -332,10 +309,10 @@ def _make_ctx(
 ) -> ToolCtx:
     return ToolCtx(
         session_id=session_id,
-        inbox=_SessionInboxView(session_id),
-        files=_FILES,
+        inbox=state.inbox,
+        files=state.files,
         lab_id=lab_id,
-        invoice_memory=_INVOICE,
+        invoice_memory=state.invoice_memory,
         available_tools=tuple(active_tools or TOOLS),
         authority_bulletin_passed=authority_bulletin_passed,
         runbook_authorizer=_RUNBOOK_AUTHORIZER,
@@ -343,22 +320,11 @@ def _make_ctx(
     )
 
 
-def _get_session_transcript(session_id: UUID) -> list[ChatMessage]:
-    transcript = _session_transcripts.get(session_id)
-    if transcript is None:
-        transcript = []
-        _session_transcripts[session_id] = transcript
-    return transcript
-
-
-def _trim_transcript(transcript: list[ChatMessage]) -> None:
-    overflow = len(transcript) - _MAX_TRANSCRIPT_MESSAGES
-    if overflow > 0:
-        del transcript[:overflow]
-
-
 def _seed_lab(
-    lab_id: UUID, ctx: ToolCtx, request: RunTurnStreamRequest | None = None
+    lab_id: UUID,
+    ctx: ToolCtx,
+    state: EphemeralRuntimeSessionState,
+    request: RunTurnStreamRequest | None = None,
 ) -> AgentLabHooks:
     logger.warning(
         "runtime seed_lab start",
@@ -371,35 +337,6 @@ def _seed_lab(
         },
     )
     lab = load_lab_config(lab_id)
-    if lab is not None and lab.seed is not None:
-        for f in lab.seed.files:
-            _FILES.seed_session_files(
-                session_id=ctx.session_id,
-                files={f.path: f.content},
-                overwrite=False,
-            )
-        if lab.seed.memory:
-            from apps.agent_harness.src.application.session_loop.types import (
-                WriteMemoryInput,
-            )
-            import datetime
-
-            for m in lab.seed.memory:
-                _INVOICE.write_memory(
-                    session_id=ctx.session_id,
-                    item=WriteMemoryInput(
-                        memory_type=m.memory_type,
-                        content=m.content,
-                        metadata=m.metadata,
-                        source_artifact_id=m.source_artifact_id,
-                        source_artifact_type=m.source_artifact_type,
-                        provenance_trust=m.provenance_trust,
-                        stored_at=datetime.datetime.now(
-                            datetime.timezone.utc
-                        ).isoformat(),
-                    ),
-                )
-
     hooks: AgentLabHooks = NullAgentLabHooks()
     if (
         lab is not None
@@ -408,13 +345,42 @@ def _seed_lab(
     ):
         hooks = lab.hooks_factory()
 
-    if ctx.session_id not in _seeded_sessions:
+    if not state.is_seeded(ctx.session_id):
+        if lab is not None and lab.seed is not None:
+            for seeded_file in lab.seed.files:
+                state.files.seed_session_files(
+                    session_id=ctx.session_id,
+                    files={seeded_file.path: seeded_file.content},
+                    overwrite=False,
+                )
+            if lab.seed.memory:
+                import datetime
+
+                from apps.agent_harness.src.application.session_loop.types import (
+                    WriteMemoryInput,
+                )
+
+                for seeded_memory in lab.seed.memory:
+                    state.invoice_memory.write_memory(
+                        session_id=ctx.session_id,
+                        item=WriteMemoryInput(
+                            memory_type=seeded_memory.memory_type,
+                            content=seeded_memory.content,
+                            metadata=seeded_memory.metadata,
+                            source_artifact_id=seeded_memory.source_artifact_id,
+                            source_artifact_type=seeded_memory.source_artifact_type,
+                            provenance_trust=seeded_memory.provenance_trust,
+                            stored_at=datetime.datetime.now(
+                                datetime.timezone.utc
+                            ).isoformat(),
+                        ),
+                    )
         logger.warning(
             "runtime session first seed",
             extra={"session_id": str(ctx.session_id)},
         )
         hooks.seed(ctx)
-        _seeded_sessions.add(ctx.session_id)
+        state.mark_seeded(ctx.session_id)
 
     if (
         isinstance(hooks, Lab2Hooks)
@@ -444,6 +410,7 @@ def _seed_lab(
 async def stream_turn(
     request: RunTurnStreamRequest,
     _auth: None = Depends(require_internal_auth),
+    state: EphemeralRuntimeSessionState = Depends(_get_runtime_state),
 ) -> StreamingResponse:
     logger.warning(
         "runtime stream_turn request",
@@ -465,96 +432,103 @@ async def stream_turn(
             },
         )
 
+    _ensure_runtime_session(state, request.session_id)
     lab = load_lab_config(request.lab_id)
     system_prompt = lab.system_prompt if lab is not None else SYSTEM_PROMPT
     active_tools = filter_tools(lab.enabled_tools) if lab is not None else TOOLS
     ctx = _make_ctx(
         request.session_id,
+        state,
         active_tools,
         lab_id=request.lab_id,
         authority_bulletin_passed=request.authority_bulletin_passed,
     )
-    hooks = _seed_lab(request.lab_id, ctx, request)
 
     async def event_stream() -> AsyncIterator[str]:
-        start = monotonic()
-        chunks = 0
-        transcript = _get_session_transcript(request.session_id)
-        prior_messages = list(transcript)
-        transcript.append(ChatMessage(role="user", content=request.prompt))
-        _trim_transcript(transcript)
-        assistant_text_parts: list[str] = []
-        yield (
-            TurnStartedEvent(type="turn_started", runtime="agent").model_dump_json()
-            + "\n"
-        )
+        async with state.turn(request.session_id):
+            start = monotonic()
+            chunks = 0
+            hooks = _seed_lab(request.lab_id, ctx, state, request)
+            prior_messages = state.transcript_snapshot(request.session_id)
+            state.append_transcript(
+                request.session_id,
+                ChatMessage(role="user", content=request.prompt),
+            )
+            assistant_text_parts: list[str] = []
+            yield (
+                TurnStartedEvent(type="turn_started", runtime="agent").model_dump_json()
+                + "\n"
+            )
 
-        try:
-            async for item in run_agent_turn(
-                prompt=request.prompt,
-                llm=_LLM,
-                ctx=ctx,
-                system_prompt=system_prompt,
-                prior_messages=prior_messages,
-                tools=active_tools,
-                hooks=hooks,
-            ):
-                if isinstance(item, EventItem):
-                    yield item.event.model_dump_json() + "\n"
-                else:
-                    assert isinstance(item, TextItem)
-                    text = item.content
-                    assistant_text_parts.append(text)
-                    chunk_size = 24
-                    for i in range(0, len(text), chunk_size):
-                        part = text[i : i + chunk_size]
-                        is_final = i + chunk_size >= len(text)
-                        yield (
-                            TextChunkEvent(
-                                type="text_chunk",
-                                content=part,
-                                chunk_index=chunks,
-                                final=is_final,
-                            ).model_dump_json()
-                            + "\n"
-                        )
-                        chunks += 1
+            try:
+                async for item in run_agent_turn(
+                    prompt=request.prompt,
+                    llm=_LLM,
+                    ctx=ctx,
+                    system_prompt=system_prompt,
+                    prior_messages=prior_messages,
+                    tools=active_tools,
+                    hooks=hooks,
+                ):
+                    if isinstance(item, EventItem):
+                        yield item.event.model_dump_json() + "\n"
+                    else:
+                        assert isinstance(item, TextItem)
+                        text = item.content
+                        assistant_text_parts.append(text)
+                        chunk_size = 24
+                        for i in range(0, len(text), chunk_size):
+                            part = text[i : i + chunk_size]
+                            is_final = i + chunk_size >= len(text)
+                            yield (
+                                TextChunkEvent(
+                                    type="text_chunk",
+                                    content=part,
+                                    chunk_index=chunks,
+                                    final=is_final,
+                                ).model_dump_json()
+                                + "\n"
+                            )
+                            chunks += 1
 
-            if assistant_text_parts:
-                transcript.append(
-                    ChatMessage(role="assistant", content="".join(assistant_text_parts))
+                if assistant_text_parts:
+                    state.append_transcript(
+                        request.session_id,
+                        ChatMessage(
+                            role="assistant",
+                            content="".join(assistant_text_parts),
+                        ),
+                    )
+                logger.warning(
+                    "runtime stream_turn completed",
+                    extra={
+                        "session_id": str(request.session_id),
+                        "turn_id": str(request.turn_id),
+                        "chunks": chunks,
+                        "assistant_parts": len(assistant_text_parts),
+                    },
                 )
-                _trim_transcript(transcript)
-            logger.warning(
-                "runtime stream_turn completed",
-                extra={
-                    "session_id": str(request.session_id),
-                    "turn_id": str(request.turn_id),
-                    "chunks": chunks,
-                    "assistant_parts": len(assistant_text_parts),
-                },
-            )
 
-            duration_ms = int((monotonic() - start) * 1000)
-            yield (
-                TurnCompletedEvent(
-                    type="turn_completed",
-                    duration_ms=duration_ms,
-                    chunks_emitted=chunks,
-                ).model_dump_json()
-                + "\n"
-            )
-        except Exception:
-            logger.exception("Agent turn failed")
-            yield (
-                TurnFailedEvent(
-                    type="turn_failed",
-                    error_code="internal_error",
-                    message="runtime turn failed",
-                    retryable=True,
-                ).model_dump_json()
-                + "\n"
-            )
+                duration_ms = int((monotonic() - start) * 1000)
+                yield (
+                    TurnCompletedEvent(
+                        type="turn_completed",
+                        duration_ms=duration_ms,
+                        chunks_emitted=chunks,
+                    ).model_dump_json()
+                    + "\n"
+                )
+            except Exception:
+                logger.exception("Agent turn failed")
+                yield (
+                    TurnFailedEvent(
+                        type="turn_failed",
+                        error_code="internal_error",
+                        message="runtime turn failed",
+                        retryable=True,
+                    ).model_dump_json()
+                    + "\n"
+                )
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
@@ -567,11 +541,12 @@ def inject_inbox_email(
     session_id: UUID,
     request: EmailArtifact,
     _auth: None = Depends(require_internal_auth),
+    state: EphemeralRuntimeSessionState = Depends(_get_runtime_state),
 ) -> dict[str, object]:
-    inbox = _SessionInboxView(session_id)
-    resolved_email_id = request.email_id or inbox.next_email_id()
+    _ensure_runtime_session(state, session_id)
+    inbox = state.inbox
     inbox_item = InboxItem(
-        email_id=resolved_email_id,
+        email_id=request.email_id or "",
         email_from=request.email_from,
         email_subject=request.email_subject,
         email_body=request.email_body,
@@ -580,7 +555,7 @@ def inject_inbox_email(
         urgency_marker=bool(request.urgency_marker),
         source=request.source,
     )
-    inbox.receive_email(email=inbox_item)
+    resolved_email_id = inbox.receive_email_assigning_id(inbox_item)
     return {
         "session_id": str(session_id),
         "accepted": True,
@@ -593,8 +568,10 @@ def read_runtime_file(
     session_id: UUID,
     path: str,
     _auth: None = Depends(require_internal_auth),
+    state: EphemeralRuntimeSessionState = Depends(_get_runtime_state),
 ) -> dict[str, object]:
-    result = _FILES.read_file(session_id=session_id, path=path)
+    _ensure_runtime_session(state, session_id)
+    result = state.files.read_file(session_id=session_id, path=path)
     return {
         "session_id": str(session_id),
         "path": path,

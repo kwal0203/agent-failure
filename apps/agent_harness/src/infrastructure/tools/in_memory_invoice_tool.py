@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from threading import RLock
 from uuid import UUID
 
 from apps.agent_harness.src.application.session_loop.ports import InvoiceMemoryToolPort
@@ -126,67 +127,78 @@ class InMemoryInvoiceTool(InvoiceMemoryToolPort):
         self._state_by_session: dict[UUID, _SessionInvoiceMemoryState] = (
             {} if state_by_session is None else dict(state_by_session)
         )
+        self._lock = RLock()
 
     def seed_session_state(self, *, session_id: UUID, overwrite: bool = False) -> None:
-        existing = self._state_by_session.get(session_id)
-        if existing is not None and not overwrite:
-            return
+        with self._lock:
+            existing = self._state_by_session.get(session_id)
+            if existing is not None and not overwrite:
+                return
 
-        writable_memory: dict[MemoryType, list[MemoryRecord]] = {
-            memory_type: [] for memory_type in LAB3_MEMORY_TYPES
-        }
-        self._state_by_session[session_id] = _SessionInvoiceMemoryState(
-            vendor_master_by_name=dict(LAB3_VENDOR_MASTER_CATALOG),
-            attacker_target=LAB3_ATTACKER_TARGET,
-            invoices=LAB3_INVOICE_FIXTURES,
-            writable_memory=writable_memory,
-        )
+            writable_memory: dict[MemoryType, list[MemoryRecord]] = {
+                memory_type: [] for memory_type in LAB3_MEMORY_TYPES
+            }
+            self._state_by_session[session_id] = _SessionInvoiceMemoryState(
+                vendor_master_by_name=dict(LAB3_VENDOR_MASTER_CATALOG),
+                attacker_target=LAB3_ATTACKER_TARGET,
+                invoices=LAB3_INVOICE_FIXTURES,
+                writable_memory=writable_memory,
+            )
 
     def get_vendor_master(
         self, *, session_id: UUID, vendor_name: str
     ) -> VendorMasterRecord | None:
-        state = self._state_by_session.get(session_id)
-        if state is None:
-            return None
-        return state.vendor_master_by_name.get(vendor_name)
+        with self._lock:
+            state = self._state_by_session.get(session_id)
+            if state is None:
+                return None
+            return state.vendor_master_by_name.get(vendor_name)
 
     def get_attacker_target(self, *, session_id: UUID) -> AttackerTargetRecord | None:
-        state = self._state_by_session.get(session_id)
-        if state is None:
-            return None
-        return state.attacker_target
+        with self._lock:
+            state = self._state_by_session.get(session_id)
+            if state is None:
+                return None
+            return state.attacker_target
 
     def list_invoices(self, *, session_id: UUID) -> tuple[InvoiceRecord, ...]:
-        state = self._state_by_session.get(session_id)
-        if state is None:
-            return ()
-        return state.invoices
+        with self._lock:
+            state = self._state_by_session.get(session_id)
+            if state is None:
+                return ()
+            return state.invoices
 
     def list_memory(
         self, *, session_id: UUID, memory_type: MemoryType | None = None
     ) -> tuple[MemoryRecord, ...]:
-        state = self._state_by_session.get(session_id)
-        if state is None:
-            return ()
-        if memory_type is not None:
-            return tuple(state.writable_memory.get(memory_type, []))
-        items: list[MemoryRecord] = []
-        for key in LAB3_MEMORY_TYPES:
-            items.extend(state.writable_memory[key])
-        return tuple(items)
+        with self._lock:
+            state = self._state_by_session.get(session_id)
+            if state is None:
+                return ()
+            if memory_type is not None:
+                return tuple(state.writable_memory.get(memory_type, []))
+            items: list[MemoryRecord] = []
+            for key in LAB3_MEMORY_TYPES:
+                items.extend(state.writable_memory[key])
+            return tuple(items)
 
     def write_memory(self, *, session_id: UUID, item: WriteMemoryInput) -> MemoryRecord:
-        self.seed_session_state(session_id=session_id, overwrite=False)
-        state = self._state_by_session[session_id]
+        with self._lock:
+            self.seed_session_state(session_id=session_id, overwrite=False)
+            state = self._state_by_session[session_id]
 
-        record = MemoryRecord(
-            memory_type=item.memory_type,
-            content=item.content,
-            metadata=dict(item.metadata),
-            source_artifact_id=item.source_artifact_id,
-            source_artifact_type=item.source_artifact_type,
-            provenance_trust=item.provenance_trust,
-            stored_at=item.stored_at,
-        )
-        state.writable_memory[item.memory_type].append(record)
-        return record
+            record = MemoryRecord(
+                memory_type=item.memory_type,
+                content=item.content,
+                metadata=dict(item.metadata),
+                source_artifact_id=item.source_artifact_id,
+                source_artifact_type=item.source_artifact_type,
+                provenance_trust=item.provenance_trust,
+                stored_at=item.stored_at,
+            )
+            state.writable_memory[item.memory_type].append(record)
+            return record
+
+    def clear_session(self, *, session_id: UUID) -> None:
+        with self._lock:
+            self._state_by_session.pop(session_id, None)
