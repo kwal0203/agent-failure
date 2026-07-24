@@ -8,8 +8,8 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "api:generate": "uv run python ../../scripts/export_openapi.py node_modules/.cache/agent-failure-openapi.json && openapi-typescript node_modules/.cache/agent-failure-openapi.json -o src/api/generated.ts && biome format --write src/api/generated.ts",
-    "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated.ts",
+    "api:generate": "uv run python ../../scripts/export_openapi.py node_modules/.cache/agent-failure-openapi.json && openapi-typescript node_modules/.cache/agent-failure-openapi.json -o src/api/generated.ts && uv run python ../../scripts/generate_lab_identities.py && biome format --write src/api/generated.ts src/labIdentities.generated.ts",
+    "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated.ts src/labIdentities.generated.ts",
     "dev": "vite",
     "dev:development": "vite --mode development",
     "dev:staging": "vite --mode staging",

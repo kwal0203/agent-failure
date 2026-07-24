@@ -1,5 +1,7 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, KeyRound, Shield, User } from "lucide-react";
 import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router";
 import {
   clearEnrollmentRedeemError,
@@ -12,6 +14,7 @@ import {
   useRedeemEnrollmentMutation,
   useValidateClassCodeMutation,
 } from "../query/publicMutations";
+import { type EnrollmentForm, enrollmentSchema } from "../schemas/authForms";
 
 function getErrorMessage(error: unknown): string | null {
   if (!error) return null;
@@ -26,27 +29,30 @@ export default function EnrollmentPage() {
   const validateClassCodeMutation = useValidateClassCodeMutation();
   const redeemEnrollmentMutation = useRedeemEnrollmentMutation();
 
-  const [classCode, setClassCode] = useState("");
   const [localError, setLocalError] = useState<string | null>(
     getEnrollmentRedeemError(),
   );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const enrollmentForm = useForm<EnrollmentForm>({
+    resolver: zodResolver(enrollmentSchema),
+    defaultValues: { classCode: "" },
+  });
+  const classCode = useWatch({
+    control: enrollmentForm.control,
+    name: "classCode",
+  });
   const submitting =
     validateClassCodeMutation.isPending || redeemEnrollmentMutation.isPending;
   const error =
     localError ??
     getErrorMessage(redeemEnrollmentMutation.error) ??
-    getErrorMessage(validateClassCodeMutation.error);
+    getErrorMessage(validateClassCodeMutation.error) ??
+    enrollmentForm.formState.errors.classCode?.message;
 
-  const onValidateAndEnroll = async () => {
+  const onValidateAndEnroll = async (values: EnrollmentForm) => {
     const email = user?.email?.trim() ?? "";
     if (!email) {
       setLocalError("Authenticated user email is missing.");
-      return;
-    }
-
-    if (!classCode.trim()) {
-      setLocalError("Class code is required.");
       return;
     }
 
@@ -57,7 +63,7 @@ export default function EnrollmentPage() {
 
     try {
       const token = await validateClassCodeMutation.mutateAsync({
-        classCode,
+        classCode: values.classCode,
         email,
       });
       window.sessionStorage.setItem(PENDING_ENROLLMENT_TOKEN_KEY, token);
@@ -98,7 +104,10 @@ export default function EnrollmentPage() {
           continue to the lab catalog.
         </p>
 
-        <div className="space-y-5">
+        <form
+          className="space-y-5"
+          onSubmit={enrollmentForm.handleSubmit(onValidateAndEnroll)}
+        >
           <label className="block" htmlFor="enrollment-email">
             <span className="mb-2 block text-sm font-bold text-slate-200">
               Signed in as
@@ -118,7 +127,11 @@ export default function EnrollmentPage() {
               <input
                 id="enrollment-class-code"
                 value={classCode}
-                onChange={(event) => setClassCode(event.target.value)}
+                onChange={(event) =>
+                  enrollmentForm.setValue("classCode", event.target.value, {
+                    shouldValidate: true,
+                  })
+                }
                 placeholder="Enter class code"
                 autoComplete="off"
                 className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
@@ -146,7 +159,7 @@ export default function EnrollmentPage() {
                   redeemEnrollmentMutation.reset();
                   setLocalError(null);
                   setSuccessMessage(null);
-                  setClassCode("");
+                  enrollmentForm.reset();
                 }}
               >
                 Enter a new class code
@@ -155,17 +168,14 @@ export default function EnrollmentPage() {
           ) : null}
 
           <button
-            type="button"
-            onClick={() => {
-              void onValidateAndEnroll();
-            }}
+            type="submit"
             disabled={submitting}
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-lime-300 px-4 text-sm font-black text-black shadow-[0_0_28px_rgba(132,204,22,0.45)] transition hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitting ? "Validating..." : "Validate and Enroll"}
             <ArrowRight className="h-4 w-4" />
           </button>
-        </div>
+        </form>
       </section>
     </div>
   );

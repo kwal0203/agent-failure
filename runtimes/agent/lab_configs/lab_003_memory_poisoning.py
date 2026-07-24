@@ -4,6 +4,8 @@ import datetime
 import logging
 from dataclasses import dataclass, field
 from uuid import UUID
+
+from apps.contracts.src.lab_identities import AGENT_MEMORY_POISONING
 from pydantic import BaseModel, ValidationError
 
 from apps.agent_harness.src.application.session_loop.types import (
@@ -22,7 +24,7 @@ from ..hooks import NullAgentLabHooks
 from ..types import AgentTurnItem, ToolCall, ToolResult, EventItem
 from ..tools import ToolCtx
 
-_LAB_3_ID = UUID("33333333-3333-3333-3333-333333333333")
+_LAB_3_ID = AGENT_MEMORY_POISONING.runtime_config_id
 logger = logging.getLogger(__name__)
 
 
@@ -55,11 +57,9 @@ class Lab3Hooks(NullAgentLabHooks):
         vendor_profile_memory: dict[str, str] = field(default_factory=_new_str_map)
         processed_email_ids: set[str] = field(default_factory=_new_str_set)
 
-    _session_memory_state: dict[UUID, _SessionMemoryState] = {}
-    _invoice_feed_emitted_sessions: set[UUID] = set()
-
     def __init__(self) -> None:
-        pass
+        self._session_memory_state: dict[UUID, Lab3Hooks._SessionMemoryState] = {}
+        self._invoice_feed_emitted_sessions: set[UUID] = set()
 
     def get_session_memory_state(self, session_id: UUID) -> _SessionMemoryState | None:
         return self._session_memory_state.get(session_id)
@@ -337,7 +337,7 @@ class Lab3Hooks(NullAgentLabHooks):
         )
 
         if parsed is None:
-            logger.warning(
+            logger.debug(
                 "lab3 authoritative remittance parse returned none",
                 extra={
                     "session_id": str(ctx.session_id),
@@ -431,7 +431,7 @@ def _extract_authoritative_vendor_remittance_update(
         )
         return None
 
-    logger.warning(
+    logger.debug(
         "lab3 remittance classify request",
         extra={
             "session_id": str(ctx.session_id),
@@ -449,7 +449,7 @@ def _extract_authoritative_vendor_remittance_update(
     )
 
     if decision is None:
-        logger.warning(
+        logger.debug(
             "lab3 remittance classify returned none",
             extra={
                 "session_id": str(ctx.session_id),
@@ -458,7 +458,7 @@ def _extract_authoritative_vendor_remittance_update(
         )
         return None
 
-    logger.warning(
+    logger.debug(
         "lab3 remittance classify raw decision",
         extra={
             "session_id": str(ctx.session_id),
@@ -493,7 +493,7 @@ def _extract_authoritative_vendor_remittance_update(
         return None
 
     signer = parsed.authority_signer.strip() if parsed.authority_signer else None
-    logger.warning(
+    logger.info(
         "lab3 remittance classify accepted",
         extra={
             "session_id": str(ctx.session_id),

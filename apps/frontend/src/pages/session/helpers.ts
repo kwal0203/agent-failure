@@ -1,42 +1,13 @@
-import type { CSSProperties } from "react";
 import type { AgentStatus } from "./types";
 
-type StatusTone = {
-  background: string;
-  border: string;
-  color: string;
-};
+export type StatusTone = "danger" | "info" | "neutral" | "success" | "warning";
 
 export function agentStatusTone(status: AgentStatus): StatusTone {
-  switch (status) {
-    case "active":
-      return {
-        background: "rgba(10, 50, 33, 0.72)",
-        border: "1px solid #2e7b57",
-        color: "#b9ffe0",
-      };
-    default:
-      return {
-        background: "rgba(36, 43, 52, 0.72)",
-        border: "1px solid #4a5562",
-        color: "#cfd9e2",
-      };
-  }
+  return status === "active" ? "success" : "neutral";
 }
 
 export function objectiveTone(active: boolean): StatusTone {
-  if (active) {
-    return {
-      background: "rgba(10, 50, 33, 0.72)",
-      border: "1px solid #2e7b57",
-      color: "#b9ffe0",
-    };
-  }
-  return {
-    background: "rgba(8, 31, 50, 0.72)",
-    border: "1px solid #285272",
-    color: "#9fe4fb",
-  };
+  return active ? "success" : "info";
 }
 
 export function hintTone(
@@ -44,37 +15,48 @@ export function hintTone(
   hasUnlockedAny: boolean,
 ): StatusTone {
   if (hasUnread) {
-    return {
-      background: "rgba(95, 69, 10, 0.72)",
-      border: "1px solid #8f7628",
-      color: "#ffe6a6",
-    };
+    return "warning";
   }
   if (hasUnlockedAny) {
-    return {
-      background: "rgba(8, 31, 50, 0.72)",
-      border: "1px solid #285272",
-      color: "#9fe4fb",
-    };
+    return "info";
   }
-  return {
-    background: "rgba(36, 43, 52, 0.72)",
-    border: "1px solid #4a5562",
-    color: "#cfd9e2",
-  };
+  return "neutral";
 }
 
-export function statusChipStyle(tone: StatusTone): CSSProperties {
-  return {
-    fontSize: 13,
-    background: tone.background,
-    border: tone.border,
-    color: tone.color,
-    padding: "6px 10px",
-    borderRadius: 8,
-    transition:
-      "background-color 260ms ease, border-color 260ms ease, color 260ms ease",
-  };
+const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
+  danger: "border-rose-800 bg-rose-950/70 text-rose-100",
+  info: "border-sky-800 bg-sky-950/70 text-sky-100",
+  neutral: "border-slate-600 bg-slate-800/70 text-slate-200",
+  success: "border-emerald-800 bg-emerald-950/70 text-emerald-100",
+  warning: "border-amber-700 bg-amber-950/70 text-amber-100",
+};
+
+export function statusChipClassName(
+  tone: StatusTone,
+  additionalClasses = "",
+): string {
+  return [
+    "rounded-lg border px-2.5 py-1.5 text-[13px] transition-colors duration-[260ms]",
+    STATUS_TONE_CLASSES[tone],
+    additionalClasses,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function sessionStatusTone(state: string | undefined): StatusTone {
+  switch ((state ?? "").toUpperCase()) {
+    case "PROVISIONING":
+      return "warning";
+    case "ACTIVE":
+    case "COMPLETED":
+      return "success";
+    case "FAILED":
+    case "ERROR":
+      return "danger";
+    default:
+      return "neutral";
+  }
 }
 
 export function formatTime(isoTs: string): string {

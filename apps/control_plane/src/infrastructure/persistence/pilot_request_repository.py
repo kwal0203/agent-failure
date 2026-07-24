@@ -37,10 +37,7 @@ class SQLAlchemyPilotRequestRepository(PilotRequestRepositoryPort):
             .count()
         )
 
-    def exists_recent_duplicate(
-        self, *, work_email: str, university: str, since: datetime
-    ) -> bool:
-        _ = university
+    def exists_recent_by_work_email(self, *, work_email: str, since: datetime) -> bool:
         row = (
             self._db.query(PilotRequestModel.id)
             .filter(

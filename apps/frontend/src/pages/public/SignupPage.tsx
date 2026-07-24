@@ -1,5 +1,7 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Eye, EyeOff, Shield, User } from "lucide-react";
 import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import {
   isEnrollmentApiEnabled,
@@ -7,6 +9,12 @@ import {
 } from "../../auth/enrollment";
 import { useAuth } from "../../auth/useAuth";
 import { useValidateClassCodeMutation } from "../../query/publicMutations";
+import {
+  type ConfirmSignupForm,
+  confirmSignupSchema,
+  type SignupForm,
+  signupSchema,
+} from "../../schemas/authForms";
 
 type SignupInputProps = {
   id: string;
@@ -57,28 +65,45 @@ export default function SignupPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [classCode, setClassCode] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmationCode, setConfirmationCode] = useState("");
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const signupForm = useForm<SignupForm>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { classCode: "", email: "", password: "" },
+  });
+  const confirmationForm = useForm<ConfirmSignupForm>({
+    resolver: zodResolver(confirmSignupSchema),
+    defaultValues: { email: "", confirmationCode: "" },
+  });
+  const classCode = useWatch({
+    control: signupForm.control,
+    name: "classCode",
+  });
+  const email = useWatch({ control: signupForm.control, name: "email" });
+  const password = useWatch({ control: signupForm.control, name: "password" });
+  const confirmationCode = useWatch({
+    control: confirmationForm.control,
+    name: "confirmationCode",
+  });
+  const validationError = awaitingConfirmation
+    ? (confirmationForm.formState.errors.confirmationCode?.message ??
+      confirmationForm.formState.errors.email?.message)
+    : (signupForm.formState.errors.classCode?.message ??
+      signupForm.formState.errors.email?.message ??
+      signupForm.formState.errors.password?.message);
+  const submitting =
+    signupForm.formState.isSubmitting ||
+    confirmationForm.formState.isSubmitting;
 
-  const onSignup = async () => {
-    if (!classCode.trim() || !email.trim() || !password.trim()) {
-      setError("Class code, email, and password are required.");
-      return;
-    }
-    setSubmitting(true);
+  const onSignup = async (values: SignupForm) => {
     setError(null);
     setSuccessMessage(null);
     validateClassCodeMutation.reset();
     try {
       if (isEnrollmentApiEnabled()) {
         const enrollmentToken = await validateClassCodeMutation.mutateAsync({
-          classCode,
-          email,
+          classCode: values.classCode,
+          email: values.email,
         });
         window.sessionStorage.setItem(
           PENDING_ENROLLMENT_TOKEN_KEY,
@@ -86,7 +111,8 @@ export default function SignupPage() {
         );
       }
 
-      await signup(email, password);
+      await signup(values.email, values.password);
+      confirmationForm.setValue("email", values.email);
       setAwaitingConfirmation(true);
       setSuccessMessage(
         "Account created. Enter the confirmation code from your email.",
@@ -95,21 +121,14 @@ export default function SignupPage() {
       setError(
         signupError instanceof Error ? signupError.message : "Signup failed.",
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const onConfirmSignup = async () => {
-    if (!email.trim() || !confirmationCode.trim()) {
-      setError("Email and confirmation code are required.");
-      return;
-    }
-    setSubmitting(true);
+  const onConfirmSignup = async (values: ConfirmSignupForm) => {
     setError(null);
     setSuccessMessage(null);
     try {
-      await confirmSignup(email, confirmationCode);
+      await confirmSignup(values.email, values.confirmationCode);
       setSuccessMessage("Email confirmed. You can now log in.");
       window.setTimeout(() => {
         navigate("/login", { replace: true });
@@ -120,8 +139,6 @@ export default function SignupPage() {
           ? confirmError.message
           : "Confirmation failed.",
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -159,10 +176,11 @@ export default function SignupPage() {
 
             <form
               className="space-y-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void (awaitingConfirmation ? onConfirmSignup() : onSignup());
-              }}
+              onSubmit={
+                awaitingConfirmation
+                  ? confirmationForm.handleSubmit(onConfirmSignup)
+                  : signupForm.handleSubmit(onSignup)
+              }
             >
               {!awaitingConfirmation ? (
                 <>
@@ -171,7 +189,11 @@ export default function SignupPage() {
                     label="Class Code"
                     placeholder="Enter class code"
                     value={classCode}
-                    onChange={setClassCode}
+                    onChange={(value) =>
+                      signupForm.setValue("classCode", value, {
+                        shouldValidate: true,
+                      })
+                    }
                     autoComplete="off"
                   />
                   <SignupInput
@@ -180,7 +202,11 @@ export default function SignupPage() {
                     label="Email Address"
                     placeholder="you@example.edu"
                     value={email}
-                    onChange={setEmail}
+                    onChange={(value) =>
+                      signupForm.setValue("email", value, {
+                        shouldValidate: true,
+                      })
+                    }
                     autoComplete="email"
                   />
                   <SignupInput
@@ -189,7 +215,11 @@ export default function SignupPage() {
                     label="Password"
                     placeholder="Create a password"
                     value={password}
-                    onChange={setPassword}
+                    onChange={(value) =>
+                      signupForm.setValue("password", value, {
+                        shouldValidate: true,
+                      })
+                    }
                     autoComplete="new-password"
                     rightSlot={
                       <button
@@ -215,7 +245,11 @@ export default function SignupPage() {
                   label="Confirmation Code"
                   placeholder="Enter confirmation code"
                   value={confirmationCode}
-                  onChange={setConfirmationCode}
+                  onChange={(value) =>
+                    confirmationForm.setValue("confirmationCode", value, {
+                      shouldValidate: true,
+                    })
+                  }
                   autoComplete="one-time-code"
                 />
               )}
@@ -223,7 +257,11 @@ export default function SignupPage() {
               {successMessage ? (
                 <p className="text-sm text-emerald-300">{successMessage}</p>
               ) : null}
-              {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+              {error || validationError ? (
+                <p className="text-sm text-rose-300">
+                  {error ?? validationError}
+                </p>
+              ) : null}
 
               <button
                 type="submit"

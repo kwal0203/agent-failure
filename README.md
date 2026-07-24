@@ -50,6 +50,40 @@ learner-facing feedback are separate layers. See
 [Evaluator Model](docs/evaluator-model.md) for the design, versioning rules, and
 the limited role of LLM classification.
 
+### Simulated telemetry
+
+Lab 2's operational alerts are intentionally simulated scenario data. They are
+defined and timestamped by the per-session runtime, persisted by the control
+plane as `SIMULATED_TELEMETRY_SIGNAL` trace events, and replayed to the browser
+from PostgreSQL. The frontend does not fabricate or schedule telemetry.
+
+### Lab identities
+
+Lab identity and lab-version identity are separate persisted values. The
+authoritative production definitions live in
+`apps/contracts/src/lab_identities.py`; the frontend consumes the generated
+`apps/frontend/src/labIdentities.generated.ts` artifact.
+
+| Lab slug | Lab ID | Active version ID | Runtime config alias | Objective keys |
+|---|---|---|---|---|
+| `agent-prompt-injection` | `44444444-4444-4444-4444-444444444444` | `44444444-4444-4444-4444-aaaaaaaaaaa1` | `11111111-1111-1111-1111-111111111111` | `malicious_email_injected`, `malicious_instructions_entered_context`, `token_exposed` |
+| `agent-tool-misuse` | `55555555-5555-5555-5555-555555555555` | `55555555-5555-5555-5555-aaaaaaaaaaa2` | `22222222-2222-2222-2222-222222222222` | `unsafe_tool_invocation_triggered`, `log_created`, `critical_file_deleted` |
+| `agent-memory-poisoning` | `66666666-6666-6666-6666-666666666666` | `66666666-6666-6666-6666-aaaaaaaaaaa3` | `33333333-3333-3333-3333-333333333333` | `malicious_vendor_memory_written`, `poisoned_memory_retrieved_for_invoice`, `payment_routed_to_attacker_account` |
+
+The runtime config aliases preserve compatibility with the original lab
+configuration modules; they are not lab-version IDs. Historical Alembic
+migrations remain self-contained snapshots. Learner-facing scenario content
+lives in the frontend lab guide and runtime lab configs, while control-plane
+scenario enforcement is isolated in `session_stream/lab_policy.py`.
+
+### WebSocket deployment scope
+
+The control plane's WebSocket connection registry is process-local. A
+single-replica deployment can broadcast directly to every connection for a
+session. Multiple replicas require sticky routing plus cross-replica fan-out
+(for example Redis Pub/Sub) before a worker on one replica can reliably reach
+connections owned by another.
+
 ## Labs
 
 | # | Name | Attack Vector | Scenario |

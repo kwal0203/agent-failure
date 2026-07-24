@@ -124,6 +124,20 @@ class TryAttackConsoleHintEvent(BaseModel):
     message: str
 
 
+class SimulatedTelemetrySignalEvent(BaseModel):
+    """A server-authored operational signal belonging to a simulated lab."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["simulated_telemetry_signal"]
+    signal_id: str = Field(min_length=1, max_length=128)
+    observed_at: datetime
+    section: str = Field(min_length=1, max_length=32)
+    severity: Literal["info", "warning", "error"]
+    message: str = Field(min_length=1, max_length=256)
+    simulated: Literal[True] = True
+
+
 class ToolCallRequestedEvent(BaseModel):
     type: Literal["tool_call_requested"]
     tool_name: str
@@ -205,6 +219,7 @@ RuntimeStreamEvent = Annotated[
     | TokenDisclosureAttemptedEvent
     | TokenDisclosedEvent
     | TryAttackConsoleHintEvent
+    | SimulatedTelemetrySignalEvent
     | ToolCallRequestedEvent
     | ToolCallSucceededEvent
     | ToolCallFailedEvent,

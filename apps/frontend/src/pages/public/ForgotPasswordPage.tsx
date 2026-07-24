@@ -1,7 +1,15 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Eye, EyeOff, Shield, User } from "lucide-react";
 import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "../../auth/useAuth";
+import {
+  type PasswordResetConfirmationForm,
+  type PasswordResetRequestForm,
+  passwordResetConfirmationSchema,
+  passwordResetRequestSchema,
+} from "../../schemas/authForms";
 
 type ResetInputProps = {
   id: string;
@@ -49,50 +57,64 @@ export default function ForgotPasswordPage() {
   const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<"request" | "confirm">("request");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const requestForm = useForm<PasswordResetRequestForm>({
+    resolver: zodResolver(passwordResetRequestSchema),
+    defaultValues: { email: "" },
+  });
+  const confirmationForm = useForm<PasswordResetConfirmationForm>({
+    resolver: zodResolver(passwordResetConfirmationSchema),
+    defaultValues: { email: "", code: "", newPassword: "" },
+  });
+  const requestEmail = useWatch({
+    control: requestForm.control,
+    name: "email",
+  });
+  const confirmationEmail = useWatch({
+    control: confirmationForm.control,
+    name: "email",
+  });
+  const email = step === "request" ? requestEmail : confirmationEmail;
+  const code = useWatch({ control: confirmationForm.control, name: "code" });
+  const newPassword = useWatch({
+    control: confirmationForm.control,
+    name: "newPassword",
+  });
+  const validationError =
+    step === "request"
+      ? requestForm.formState.errors.email?.message
+      : (confirmationForm.formState.errors.email?.message ??
+        confirmationForm.formState.errors.code?.message ??
+        confirmationForm.formState.errors.newPassword?.message);
+  const submitting =
+    requestForm.formState.isSubmitting ||
+    confirmationForm.formState.isSubmitting;
 
-  const onRequest = async () => {
-    if (!email.trim()) {
-      setError("Email is required.");
-      return;
-    }
-    setSubmitting(true);
+  const onRequest = async (values: PasswordResetRequestForm) => {
     setError(null);
     setMessage(null);
     try {
-      await requestPasswordReset(email);
+      await requestPasswordReset(values.email);
+      confirmationForm.setValue("email", values.email);
       setStep("confirm");
       setMessage("Reset code sent. Check your email.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reset request failed.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const onConfirm = async () => {
-    if (!email.trim() || !code.trim() || !newPassword.trim()) {
-      setError("Email, code, and new password are required.");
-      return;
-    }
-    setSubmitting(true);
+  const onConfirm = async (values: PasswordResetConfirmationForm) => {
     setError(null);
     setMessage(null);
     try {
-      await confirmPasswordReset(email, code, newPassword);
+      await confirmPasswordReset(values.email, values.code, values.newPassword);
       setMessage("Password updated. Redirecting to login.");
       window.setTimeout(() => navigate("/login", { replace: true }), 700);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Password reset failed.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -130,10 +152,11 @@ export default function ForgotPasswordPage() {
 
             <form
               className="space-y-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void (step === "request" ? onRequest() : onConfirm());
-              }}
+              onSubmit={
+                step === "request"
+                  ? requestForm.handleSubmit(onRequest)
+                  : confirmationForm.handleSubmit(onConfirm)
+              }
             >
               <ResetInput
                 id="reset-email"
@@ -141,7 +164,17 @@ export default function ForgotPasswordPage() {
                 label="Email Address"
                 placeholder="you@example.edu"
                 value={email}
-                onChange={setEmail}
+                onChange={(value) => {
+                  if (step === "request") {
+                    requestForm.setValue("email", value, {
+                      shouldValidate: true,
+                    });
+                  } else {
+                    confirmationForm.setValue("email", value, {
+                      shouldValidate: true,
+                    });
+                  }
+                }}
                 autoComplete="email"
               />
 
@@ -152,7 +185,11 @@ export default function ForgotPasswordPage() {
                     label="Verification Code"
                     placeholder="Enter verification code"
                     value={code}
-                    onChange={setCode}
+                    onChange={(value) =>
+                      confirmationForm.setValue("code", value, {
+                        shouldValidate: true,
+                      })
+                    }
                     autoComplete="one-time-code"
                   />
                   <ResetInput
@@ -161,7 +198,11 @@ export default function ForgotPasswordPage() {
                     label="New Password"
                     placeholder="Enter new password"
                     value={newPassword}
-                    onChange={setNewPassword}
+                    onChange={(value) =>
+                      confirmationForm.setValue("newPassword", value, {
+                        shouldValidate: true,
+                      })
+                    }
                     autoComplete="new-password"
                     rightSlot={
                       <button
@@ -186,7 +227,11 @@ export default function ForgotPasswordPage() {
               {message ? (
                 <p className="text-sm text-emerald-300">{message}</p>
               ) : null}
-              {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+              {error || validationError ? (
+                <p className="text-sm text-rose-300">
+                  {error ?? validationError}
+                </p>
+              ) : null}
 
               <button
                 type="submit"

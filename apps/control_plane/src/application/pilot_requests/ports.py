@@ -12,8 +12,8 @@ class PilotRequestRepositoryPort(Protocol):
 
     def count_recent_by_source_ip(self, *, source_ip: str, since: datetime) -> int: ...
 
-    def exists_recent_duplicate(
-        self, *, work_email: str, university: str, since: datetime
+    def exists_recent_by_work_email(
+        self, *, work_email: str, since: datetime
     ) -> bool: ...
 
     def create_pilot_request(

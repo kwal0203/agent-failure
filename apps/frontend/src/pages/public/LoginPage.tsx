@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,9 +16,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { POST_LOGIN_REDIRECT_KEY } from "../../auth/redirect";
 import { useAuth } from "../../auth/useAuth";
+import { type LoginForm, loginSchema } from "../../schemas/authForms";
 
 function FeatureChip({ children }: { children: ReactNode }) {
   return (
@@ -88,10 +91,22 @@ export default function LoginPage() {
   const existingAccountRef = useRef<HTMLHeadingElement | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const {
+    control,
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    setValue,
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+  const email = useWatch({ control, name: "email" });
+  const password = useWatch({ control, name: "password" });
+  const validationError =
+    errors.email && errors.password
+      ? "Email and password are required."
+      : (errors.email?.message ?? errors.password?.message ?? null);
 
   useEffect(() => {
     if (window.location.hash !== "#already-have-account") {
@@ -105,17 +120,11 @@ export default function LoginPage() {
     });
   }, []);
 
-  const onLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      setSubmitError("Email and password are required.");
-      return;
-    }
-
+  const onLogin = async (values: LoginForm) => {
     setSubmitError(null);
-    setSubmitting(true);
     try {
       window.sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, "/labs");
-      await login(email, password);
+      await login(values.email, values.password);
       navigate("/labs", { replace: true });
       window.setTimeout(() => {
         window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
@@ -127,8 +136,6 @@ export default function LoginPage() {
           ? error.message
           : "Login failed. Please try again.",
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -255,13 +262,7 @@ export default function LoginPage() {
               Already have an account?
             </h3>
 
-            <form
-              className="mt-4 space-y-6"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void onLogin();
-              }}
-            >
+            <form className="mt-4 space-y-6" onSubmit={handleSubmit(onLogin)}>
               <LoginInput
                 label="Email Address"
                 placeholder="you@example.edu"
@@ -269,7 +270,9 @@ export default function LoginPage() {
                 id="login-email"
                 type="email"
                 value={email}
-                onChange={setEmail}
+                onChange={(value) =>
+                  setValue("email", value, { shouldValidate: true })
+                }
                 autoComplete="email"
                 active
               />
@@ -281,7 +284,9 @@ export default function LoginPage() {
                 icon={Eye}
                 id="login-password"
                 value={password}
-                onChange={setPassword}
+                onChange={(value) =>
+                  setValue("password", value, { shouldValidate: true })
+                }
                 autoComplete="current-password"
                 rightSlot={
                   <button
@@ -301,57 +306,25 @@ export default function LoginPage() {
                 }
               />
 
-              {submitError ? (
-                <p className="text-sm text-rose-300">{submitError}</p>
+              {submitError || validationError ? (
+                <p className="text-sm text-rose-300">
+                  {submitError ?? validationError}
+                </p>
               ) : null}
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={isSubmitting}
                 className="group flex h-16 w-full items-center justify-center gap-3 rounded-lg bg-lime-300 text-base font-black text-black shadow-[0_0_28px_rgba(132,204,22,0.55)] transition hover:bg-lime-200 hover:shadow-[0_0_42px_rgba(132,204,22,0.75)] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {submitting ? "Signing In..." : "Sign In"}
+                {isSubmitting ? "Signing In..." : "Sign In"}
                 <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
               </button>
             </form>
 
-            <div className="my-8 flex items-center gap-4">
-              <div className="h-px flex-1 bg-lime-500/15" />
-              <span className="text-sm font-semibold text-slate-500">
-                CONTINUE WITH
-              </span>
-              <div className="h-px flex-1 bg-lime-500/15" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                GitHub (soon)
-              </button>
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                Google (soon)
-              </button>
-            </div>
-
             <div className="my-8 h-px bg-lime-500/15" />
 
             <div className="mt-2 space-y-2 text-sm text-slate-400">
-              {/* <p>
-                Don&apos;t have an account?{" "}
-                <Link
-                  to="/signup"
-                  className="font-semibold text-lime-300 transition hover:text-lime-200"
-                >
-                  Create account
-                </Link>
-              </p> */}
               <p>
                 Forgot your password?{" "}
                 <Link

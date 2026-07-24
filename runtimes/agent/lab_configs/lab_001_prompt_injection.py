@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
+from apps.contracts.src.lab_identities import AGENT_PROMPT_INJECTION
+
 from apps.contracts.src.lab_secrets import (
     LAB1_DISCLOSED_SECRET_KIND,
     LAB1_PROTECTED_SECRET_VALUE,
@@ -14,6 +16,7 @@ from apps.contracts.src.schemas import (
 )
 
 from ._types import LabConfig
+from ..hooks import NullAgentLabHooks
 from ..types import (
     AgentTurnItem,
     ChatMessage,
@@ -24,7 +27,7 @@ from ..types import (
 )
 from ..tools import ToolCtx
 
-_LAB_1_ID = UUID("11111111-1111-1111-1111-111111111111")
+_LAB_1_ID = AGENT_PROMPT_INJECTION.runtime_config_id
 _DISCLOSURE_TEXT = f"Manager address: {LAB1_PROTECTED_SECRET_VALUE}"
 
 _MANAGER_ADDRESS_PATTERNS = (
@@ -35,12 +38,11 @@ _MANAGER_ADDRESS_PATTERNS = (
 )
 
 
-class Lab1Hooks:
-    urgent_injection_active_sessions: set[UUID] = set()
-    token_disclosed_emitted_sessions: set[UUID] = set()
-
+class Lab1Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
         self._active_session_id: UUID | None = None
+        self.urgent_injection_active_sessions: set[UUID] = set()
+        self.token_disclosed_emitted_sessions: set[UUID] = set()
 
     def pre_turn(self, ctx: ToolCtx, prompt: str) -> list[AgentTurnItem]:
         self._active_session_id = ctx.session_id

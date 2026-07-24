@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from time import monotonic
-from typing import cast
+from typing import Callable, cast
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
@@ -31,7 +31,6 @@ from .auth import require_internal_auth
 from .config.settings import get_runtime_settings
 from .hooks import AgentLabHooks, NullAgentLabHooks
 from .lab_configs import load_lab_config
-from .lab_configs.lab_002_tool_misuse import Lab2Hooks
 from .session_state import (
     EphemeralRuntimeSessionState,
     RuntimeSessionMismatchError,
@@ -82,7 +81,7 @@ class _GatewayRunbookAuthorizer(RunbookAuthorizerPort):
         incident_type: str,
         target_path: str,
     ) -> bool:
-        logger.warning(
+        logger.debug(
             "runbook authorizer request",
             extra={
                 "incident_type": incident_type,
@@ -125,7 +124,7 @@ class _GatewayRunbookAuthorizer(RunbookAuthorizerPort):
             decision = _RunbookAuthorizationDecision.model_validate_json(
                 response.content
             )
-            logger.warning(
+            logger.info(
                 "runbook authorizer decision",
                 extra={
                     "authorize_delete": bool(decision.authorize_delete),
@@ -326,7 +325,7 @@ def _seed_lab(
     state: EphemeralRuntimeSessionState,
     request: RunTurnStreamRequest | None = None,
 ) -> AgentLabHooks:
-    logger.warning(
+    logger.debug(
         "runtime seed_lab start",
         extra={
             "session_id": str(ctx.session_id),
@@ -337,13 +336,14 @@ def _seed_lab(
         },
     )
     lab = load_lab_config(lab_id)
-    hooks: AgentLabHooks = NullAgentLabHooks()
+    hooks_factory: Callable[[], AgentLabHooks] = NullAgentLabHooks
     if (
         lab is not None
         and hasattr(lab, "hooks_factory")
         and lab.hooks_factory is not None
     ):
-        hooks = lab.hooks_factory()
+        hooks_factory = lab.hooks_factory
+    hooks = state.get_or_create_lab_hooks(lab_id, hooks_factory)
 
     if not state.is_seeded(ctx.session_id):
         if lab is not None and lab.seed is not None:
@@ -375,19 +375,15 @@ def _seed_lab(
                             ).isoformat(),
                         ),
                     )
-        logger.warning(
+        logger.info(
             "runtime session first seed",
             extra={"session_id": str(ctx.session_id)},
         )
         hooks.seed(ctx)
         state.mark_seeded(ctx.session_id)
 
-    if (
-        isinstance(hooks, Lab2Hooks)
-        and request is not None
-        and request.authority_bulletin_passed
-    ):
-        logger.warning(
+    if request is not None and request.authority_bulletin_passed:
+        logger.info(
             "runtime applying authority bulletin to runbook",
             extra={
                 "session_id": str(ctx.session_id),
@@ -396,7 +392,7 @@ def _seed_lab(
         )
         hooks.apply_authority_bulletin(ctx=ctx, prompt=request.prompt)
 
-    logger.warning(
+    logger.debug(
         "runtime seed_lab complete",
         extra={
             "session_id": str(ctx.session_id),
@@ -412,7 +408,7 @@ async def stream_turn(
     _auth: None = Depends(require_internal_auth),
     state: EphemeralRuntimeSessionState = Depends(_get_runtime_state),
 ) -> StreamingResponse:
-    logger.warning(
+    logger.info(
         "runtime stream_turn request",
         extra={
             "session_id": str(request.session_id),
@@ -499,7 +495,7 @@ async def stream_turn(
                             content="".join(assistant_text_parts),
                         ),
                     )
-                logger.warning(
+                logger.info(
                     "runtime stream_turn completed",
                     extra={
                         "session_id": str(request.session_id),

@@ -1,7 +1,5 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from uuid import UUID
 from typing import Any
 from apps.contracts.src.types import OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK
 from apps.control_plane.src.application.evaluator_feedback.ports import (
@@ -11,7 +9,7 @@ from apps.control_plane.src.application.evaluator_feedback.types import (
     PendingLearnerFeedbackPublishEvent,
 )
 
-from .models import OutboxEventModel
+from .outbox_consumer import SQLAlchemyOutboxConsumer
 
 
 def _as_datetime(value: Any, field_name: str) -> datetime | None:
@@ -27,35 +25,23 @@ def _as_datetime(value: Any, field_name: str) -> datetime | None:
         raise ValueError(f"{field_name} must be a valid ISO-8601 datetime") from exc
 
 
-class SQLAlchemyOutboxLearnerFeedbackPublisher(OutboxLearnerFeedbackPublishPort):
+class SQLAlchemyOutboxLearnerFeedbackPublisher(
+    SQLAlchemyOutboxConsumer, OutboxLearnerFeedbackPublishPort
+):
     def __init__(self, db: Session) -> None:
         self._db = db
 
     def claim_pending_feedback_publish(
         self, *, limit: int = 20, now: datetime | None = None
     ) -> list[PendingLearnerFeedbackPublishEvent]:
-        ts = now or datetime.now(timezone.utc)
-
-        rows = (
-            self._db.execute(
-                select(OutboxEventModel)
-                .where(
-                    OutboxEventModel.event_type
-                    == OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
-                    OutboxEventModel.status == "pending",
-                    OutboxEventModel.available_at <= ts,
-                )
-                .order_by(OutboxEventModel.created_at.asc())
-                .limit(limit)
-                .with_for_update(skip_locked=True)
-            )
-            .scalars()
-            .all()
+        rows = self._claim_pending_rows(
+            event_type=OUTBOX_EVENT_SESSION_PUBLISH_FEEDBACK,
+            limit=limit,
+            now=now,
         )
 
         claimed: list[PendingLearnerFeedbackPublishEvent] = []
         for row in rows:
-            row.status = "processing"
             payload = row.payload
             requested_at = _as_datetime(payload.get("requested_at"), "requested_at")
             if requested_at is None:
@@ -71,49 +57,3 @@ class SQLAlchemyOutboxLearnerFeedbackPublisher(OutboxLearnerFeedbackPublishPort)
             )
 
         return claimed
-
-    def mark_processed(
-        self, *, outbox_event_id: UUID, processed_at: datetime | None = None
-    ) -> None:
-        row = self._db.get(OutboxEventModel, outbox_event_id)
-        if row is None:
-            return
-
-        row.status = "processed"
-        row.processed_at = processed_at or datetime.now(timezone.utc)
-        row.last_error = None
-
-    def mark_retryable_failure(
-        self,
-        *,
-        outbox_event_id: UUID,
-        error_message: str,
-        backoff_seconds: int = 15,
-        failed_at: datetime | None = None,
-    ) -> None:
-        row = self._db.get(OutboxEventModel, outbox_event_id)
-        if row is None:
-            return
-
-        ts = failed_at or datetime.now(timezone.utc)
-        row.status = "pending"
-        row.attempt_count = row.attempt_count + 1
-        row.available_at = ts + timedelta(seconds=backoff_seconds)
-        row.last_error = error_message
-
-    def mark_terminal_failure(
-        self,
-        *,
-        outbox_event_id: UUID,
-        error_message: str,
-        failed_at: datetime | None = None,
-    ) -> None:
-        row = self._db.get(OutboxEventModel, outbox_event_id)
-        if row is None:
-            return
-
-        ts = failed_at or datetime.now(timezone.utc)
-        row.status = "failed"
-        row.attempt_count = row.attempt_count + 1
-        row.processed_at = ts
-        row.last_error = error_message

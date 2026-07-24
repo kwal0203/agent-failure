@@ -1,35 +1,21 @@
-import {
-  Bell,
-  BookOpen,
-  FileText,
-  GraduationCap,
-  LifeBuoy,
-  Shield,
-  Users,
-} from "lucide-react";
+import { BookOpen, FileText, Shield } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import type { AuthUser } from "../auth/authContext";
 import { useAuth } from "../auth/useAuth";
+import { readFrontendConfig } from "../config";
 import type { ShellBootstrap } from "../shell/context";
 
+const frontendConfig = readFrontendConfig();
 const bootstrap: ShellBootstrap = {
-  mode: "demo",
+  mode: frontendConfig.uiMode,
   learnerLabel: "Demo Learner",
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+  apiBaseUrl: frontendConfig.apiBaseUrl,
 };
 
 const catalogNavItems = [
   { label: "Catalog", icon: BookOpen, to: "/labs" },
-  { label: "Courses", icon: GraduationCap, to: null },
   { label: "Reports", icon: FileText, to: "/reports" },
-];
-
-const resourceItems = [
-  { label: "Standards", icon: Shield },
-  { label: "Documentation", icon: FileText },
-  { label: "Community", icon: Users },
-  { label: "Support", icon: LifeBuoy },
 ];
 
 function canViewPilotRequests(user: AuthUser | null): boolean {
@@ -187,31 +173,6 @@ export default function AppShell() {
                 );
               })}
             </nav>
-
-            <div className="px-4 py-5">
-              <div className="mb-5 border-t border-lime-500/20" />
-
-              <p className="mb-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500">
-                Resources
-              </p>
-
-              <div className="space-y-1">
-                {resourceItems.map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-lime-500/5 hover:text-lime-200"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </aside>
 
           <main className="relative flex min-w-0 flex-1 flex-col">
@@ -220,14 +181,6 @@ export default function AppShell() {
                 <div />
 
                 <div className="ml-auto flex items-center gap-4">
-                  <button
-                    type="button"
-                    className="rounded-full p-2 text-slate-300 transition hover:bg-lime-500/10 hover:text-lime-200"
-                    aria-label="Notifications"
-                  >
-                    <Bell className="h-5 w-5" />
-                  </button>
-
                   <div className="relative pl-1" ref={userMenuRef}>
                     <button
                       type="button"

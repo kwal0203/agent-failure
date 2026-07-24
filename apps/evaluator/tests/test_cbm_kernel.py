@@ -13,8 +13,8 @@ from apps.evaluator.src.application.rules.cbm import (
     ConstraintEvaluation,
     ConstraintEvidence,
 )
-from apps.evaluator.src.application.rules.cbm_compat import (
-    CompatibleConstraintRule,
+from apps.evaluator.src.application.rules.cbm_rule import (
+    ConstraintRule,
     map_evaluation_to_finding,
 )
 from apps.evaluator.src.application.rules.solution_states import LabSolutionState
@@ -219,14 +219,14 @@ def test_pedagogical_policy_copies_its_mapping() -> None:
     assert policy.outcome_policy_for("SAFE_ACTION_REQUIRED") is outcome_policy
 
 
-def test_compatible_constraint_rule_satisfies_current_rule_contract() -> None:
+def test_constraint_rule_satisfies_rule_contract() -> None:
     trace = TraceIndex.build(())
     context = RuleContext(
         trace=trace,
         solution_state=LabSolutionState(trace=trace),
         explanation_signals=(),
     )
-    rule: RuleFn = CompatibleConstraintRule(
+    rule: RuleFn = ConstraintRule(
         constraint=Constraint(
             constraint_id="COMPATIBLE_CONSTRAINT",
             relevance=lambda _context: ConditionResult.true(),

@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from apps.contracts.src.lab_identities import (
+    AGENT_MEMORY_POISONING,
+    AGENT_PROMPT_INJECTION,
+    AGENT_TOOL_MISUSE,
+)
+
 from ._types import LabConfig
 from .lab_001_prompt_injection import LAB_001_CONFIG
 from .lab_002_tool_misuse import LAB_002_CONFIG
@@ -18,10 +24,6 @@ __all__ = [
 
 from ._types import SeedConfig, SeedFilesConfig, SeedMemoryConfig
 
-_AGENT_LAB_1_ID = UUID("44444444-4444-4444-4444-444444444444")
-_AGENT_LAB_2_ID = UUID("55555555-5555-5555-5555-555555555555")
-_AGENT_LAB_3_ID = UUID("66666666-6666-6666-6666-666666666666")
-
 _BASE_CONFIGS: dict[UUID, LabConfig] = {
     LAB_001_CONFIG.lab_id: LAB_001_CONFIG,
     LAB_002_CONFIG.lab_id: LAB_002_CONFIG,
@@ -29,9 +31,9 @@ _BASE_CONFIGS: dict[UUID, LabConfig] = {
 }
 
 _AGENT_ALIASES: dict[UUID, LabConfig] = {
-    _AGENT_LAB_1_ID: LAB_001_CONFIG,
-    _AGENT_LAB_2_ID: LAB_002_CONFIG,
-    _AGENT_LAB_3_ID: LAB_003_CONFIG,
+    AGENT_PROMPT_INJECTION.lab_id: LAB_001_CONFIG,
+    AGENT_TOOL_MISUSE.lab_id: LAB_002_CONFIG,
+    AGENT_MEMORY_POISONING.lab_id: LAB_003_CONFIG,
 }
 
 _ALL_CONFIGS: dict[UUID, LabConfig] = {**_BASE_CONFIGS, **_AGENT_ALIASES}

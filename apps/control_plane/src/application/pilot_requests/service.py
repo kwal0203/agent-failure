@@ -34,9 +34,8 @@ def create_pilot_request(
 
     now = datetime.now(UTC)
     duplicate_window = now - timedelta(days=7)
-    if repo.exists_recent_duplicate(
+    if repo.exists_recent_by_work_email(
         work_email=work_email,
-        university=university,
         since=duplicate_window,
     ):
         return CreatePilotRequestResult(
@@ -45,6 +44,10 @@ def create_pilot_request(
             error_code="DUPLICATE_REQUEST",
         )
 
+    # These database counts are a best-effort abuse guard for the low-volume
+    # control-plane endpoint, not an atomic distributed rate limiter. If this
+    # endpoint becomes public on multiple replicas, enforce limits in a shared
+    # Redis/database token bucket or at the API gateway.
     email_window = now - timedelta(hours=1)
     if repo.count_recent_by_work_email(work_email=work_email, since=email_window) >= 3:
         return CreatePilotRequestResult(

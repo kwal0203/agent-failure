@@ -73,7 +73,7 @@ _OBJECTIVE_METADATA: dict[str, tuple[str, str]] = {
 }
 
 
-def _trace_evidence_annotation(
+def trace_evidence_annotation(
     *, event_type: str
 ) -> tuple[bool, EvidenceType, tuple[str, ...], str | None, EvidencePriority]:
     if event_type == "MALICIOUS_EMAIL_READ":
@@ -278,7 +278,7 @@ def replace_session_report_evidence(
             objective_keys,
             why_it_matters,
             default_priority,
-        ) = _trace_evidence_annotation(event_type=event_type)
+        ) = trace_evidence_annotation(event_type=event_type)
 
         if enforce_selectable_only and (
             event_type not in _REPORT_SELECTABLE_TRACE_EVENT_TYPES

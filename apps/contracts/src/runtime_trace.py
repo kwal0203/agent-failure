@@ -21,6 +21,7 @@ ALLOWED_EVENT_TYPES: dict[TraceFamily, set[str]] = {
         "MALICIOUS_EMAIL_READ",
         "TOKEN_DISCLOSURE_ATTEMPTED",
         "TOKEN_DISCLOSED",
+        "SIMULATED_TELEMETRY_SIGNAL",
     },
     "tool": {"TOOL_CALL_REQUESTED", "TOOL_CALL_SUCCEEDED", "TOOL_CALL_FAILED"},
     "model": {
@@ -53,21 +54,17 @@ REQUIRED_PAYLOAD_FIELDS: dict[tuple[TraceFamily, str], set[str]] = {
     ("runtime", "MALICIOUS_EMAIL_READ"): {"email_id", "subject", "malicious_marker"},
     ("runtime", "TOKEN_DISCLOSURE_ATTEMPTED"): {"channel", "target"},
     ("runtime", "TOKEN_DISCLOSED"): {"channel", "token_kind"},
+    ("runtime", "SIMULATED_TELEMETRY_SIGNAL"): {
+        "signal_id",
+        "section",
+        "severity",
+        "message",
+        "simulated",
+    },
     ("tool", "TOOL_CALL_REQUESTED"): {"tool_name"},
     ("tool", "TOOL_CALL_SUCCEEDED"): {"tool_name"},
     ("tool", "TOOL_CALL_FAILED"): {"tool_name"},
     ("model", "MODEL_TURN_FAILED"): {"provider", "error_code"},
-    # ("lifecycle", "SESSION_CREATED"): set(),
-    # ("lifecycle", "SESSION_TRANSITIONED"): set(),
-    # ("learner", "USER_PROMPT_SUBMITTED"): set(),
-    # ("runtime", "RUNTIME_PROVISION_REQUESTED"): set(),
-    # ("runtime", "RUNTIME_PROVISION_ACCEPTED"): set(),
-    # ("runtime", "RUNTIME_HEALTH_STATUS"): set(),
-    # ("tool", "TOOL_CALL_REQUESTED"): set(),
-    # ("tool", "TOOL_CALL_SUCCEEDED"): set(),
-    # ("model", "MODEL_TURN_STARTED"): set(),
-    # ("model", "MODEL_CHUNK_EMITTED"): set(),
-    # ("model", "MODEL_TURN_COMPLETED"): set(),
 }
 
 RuntimeTraceEventType: TypeAlias = Literal[
@@ -76,32 +73,24 @@ RuntimeTraceEventType: TypeAlias = Literal[
     "MALICIOUS_EMAIL_READ",
     "TOKEN_DISCLOSURE_ATTEMPTED",
     "TOKEN_DISCLOSED",
+    "SIMULATED_TELEMETRY_SIGNAL",
     "TOOL_CALL_REQUESTED",
     "TOOL_CALL_SUCCEEDED",
     "TOOL_CALL_FAILED",
 ]
-
-
-# @dataclass(frozen=True, slots=True)
-# class RuntimeTraceEvent:
-#     session_id: UUID
-#     lab_id: UUID
-#     lab_version_id: UUID
-#     family: TraceFamily
-#     event_type: RuntimeTraceEventType
-#     payload: RuntimePayload
-#     occurred_at: datetime | None = None
-#     correlation_id: str | None = None
-#     request_id: str | None = None
-#     actor_user_id: UUID | None = None
-
-
 REQUIRED_PAYLOAD_KEYS_BY_EVENT_TYPE: dict[RuntimeTraceEventType, tuple[str, ...]] = {
     "TRY_ATTACK_CONSOLE_HINT": ("message",),
     "ATTACK_EMAIL_SENT": ("email_id", "recipient", "subject"),
     "MALICIOUS_EMAIL_READ": ("email_id", "subject", "malicious_marker"),
     "TOKEN_DISCLOSURE_ATTEMPTED": ("channel", "target"),
     "TOKEN_DISCLOSED": ("channel", "token_kind"),
+    "SIMULATED_TELEMETRY_SIGNAL": (
+        "signal_id",
+        "section",
+        "severity",
+        "message",
+        "simulated",
+    ),
     "TOOL_CALL_REQUESTED": ("tool_name",),
     "TOOL_CALL_SUCCEEDED": ("tool_name",),
     "TOOL_CALL_FAILED": ("tool_name",),

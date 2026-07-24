@@ -7,6 +7,14 @@ from .tools import ToolCtx
 
 
 class AgentLabHooks(Protocol):
+    def apply_authority_bulletin(
+        self,
+        ctx: ToolCtx,
+        prompt: str,
+    ) -> None:
+        """Apply a trusted authority bulletin when the lab supports one."""
+        ...
+
     def pre_turn(
         self,
         ctx: ToolCtx,
@@ -56,6 +64,10 @@ class AgentLabHooks(Protocol):
 
 
 class NullAgentLabHooks:
+    def apply_authority_bulletin(self, ctx: ToolCtx, prompt: str) -> None:
+        _ = ctx
+        _ = prompt
+
     def pre_turn(self, ctx: ToolCtx, prompt: str) -> list[AgentTurnItem]:
         _ = ctx
         _ = prompt
@@ -82,4 +94,4 @@ class NullAgentLabHooks:
         return []
 
     def seed(self, ctx: ToolCtx) -> None:
-        pass
+        _ = ctx

@@ -23,6 +23,7 @@ def build_trace_event(
     actor_user_id: UUID | None = None,
     lab_id: UUID | None = None,
     lab_version_id: UUID | None = None,
+    occurred_at: datetime | None = None,
 ) -> TraceEvent:
     resolved_correlation_id = correlation_id
     if resolved_correlation_id is None:
@@ -32,7 +33,7 @@ def build_trace_event(
         session_id=session_id,
         family=family,
         event_type=event_type,
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=occurred_at or datetime.now(timezone.utc),
         source=source,
         event_index=trace_repo.get_next_event_index(session_id=session_id),
         payload=payload,

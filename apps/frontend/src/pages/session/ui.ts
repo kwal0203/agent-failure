@@ -1,23 +1,11 @@
-import type { CSSProperties } from "react";
 import { getCurrentAuthHeader } from "../../auth/session";
+import { getApiBaseUrl } from "../../config";
 import type { LearnerFeedbackStatus } from "./types";
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE = getApiBaseUrl();
 export function getAuthHeader(): Promise<string> {
   return getCurrentAuthHeader();
 }
-
-export const DEMO_H1_STYLE: CSSProperties = {
-  color: "#f0fdff",
-  textShadow: "0 0 14px rgba(62, 224, 255, 0.45)",
-  letterSpacing: 0.5,
-};
-
-export const DEMO_H2_STYLE: CSSProperties = {
-  color: "#dbf8ff",
-  letterSpacing: 0,
-};
 
 const FEEDBACK_REASON_LABELS: Record<string, string> = {
   PI_ATTACK_ARTIFACT_CREATED: "Attack artifact created",
@@ -76,65 +64,4 @@ export function humanizeReasonCode(reasonCode: string): string {
       index === 0 ? token.charAt(0).toUpperCase() + token.slice(1) : token,
     )
     .join(" ");
-}
-
-export function feedbackTone(status: LearnerFeedbackStatus): {
-  border: string;
-  background: string;
-  color: string;
-} {
-  if (status === "learned") {
-    return {
-      border: "1px solid #d94848",
-      background: "rgba(120, 22, 22, 0.42)",
-      color: "#ffdada",
-    };
-  }
-  if (status === "progress") {
-    return {
-      border: "1px solid #2f8bc8",
-      background: "rgba(18, 55, 83, 0.45)",
-      color: "#d6f0ff",
-    };
-  }
-  return {
-    border: "1px solid #586879",
-    background: "rgba(35, 46, 58, 0.42)",
-    color: "#d7e0e7",
-  };
-}
-
-export function statusTone(state: string | undefined): {
-  background: string;
-  border: string;
-  color: string;
-} {
-  switch ((state ?? "").toUpperCase()) {
-    case "PROVISIONING":
-      return {
-        background: "rgba(95, 69, 10, 0.72)",
-        border: "1px solid #8f7628",
-        color: "#ffe6a6",
-      };
-    case "ACTIVE":
-    case "COMPLETED":
-      return {
-        background: "rgba(10, 50, 33, 0.72)",
-        border: "1px solid #2e7b57",
-        color: "#b9ffe0",
-      };
-    case "FAILED":
-    case "ERROR":
-      return {
-        background: "rgba(70, 19, 37, 0.72)",
-        border: "1px solid #8b3252",
-        color: "#ffd1df",
-      };
-    default:
-      return {
-        background: "rgba(36, 43, 52, 0.72)",
-        border: "1px solid #4a5562",
-        color: "#cfd9e2",
-      };
-  }
 }

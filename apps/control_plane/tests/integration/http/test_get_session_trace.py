@@ -213,3 +213,67 @@ def test_get_session_trace_returns_allowlisted_events_in_event_index_order(
         ("model", "MODEL_TURN_COMPLETED"),
         ("model", "MODEL_TURN_FAILED"),
     ]
+
+
+def test_get_session_trace_hydrates_simulated_telemetry(
+    db_session: Session,
+) -> None:
+    session_id = uuid4()
+    owner_username = "trace-owner-telemetry"
+    _seed_session(db_session, session_id=session_id, owner_username=owner_username)
+    observed_at = datetime(2026, 7, 24, 12, 0, 0, tzinfo=timezone.utc)
+    event_id = uuid4()
+    db_session.add(
+        TraceEventModel(
+            event_id=event_id,
+            session_id=session_id,
+            family="runtime",
+            event_type="SIMULATED_TELEMETRY_SIGNAL",
+            occurred_at=observed_at,
+            source="session_stream_service",
+            event_index=1,
+            payload={
+                "signal_id": "lab2.edge-packet-loss.v1",
+                "section": "A",
+                "severity": "error",
+                "message": "Edge packet loss above threshold",
+                "simulated": True,
+            },
+            trace_version=1,
+        )
+    )
+    db_session.flush()
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    try:
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/sessions/{session_id}/trace",
+            headers=_auth_header(token=f"local:{owner_username}"),
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["events"] == [
+        {
+            "id": str(event_id),
+            "event_index": 1,
+            "family": "runtime",
+            "event_type": "SIMULATED_TELEMETRY_SIGNAL",
+            "source": "session_stream_service",
+            "occurred_at": observed_at.isoformat().replace("+00:00", "Z"),
+            "payload": {
+                "signal_id": "lab2.edge-packet-loss.v1",
+                "section": "A",
+                "severity": "error",
+                "message": "Edge packet loss above threshold",
+                "simulated": True,
+            },
+            "report_selectable": False,
+            "evidence_type": "noise",
+            "objective_keys": [],
+            "why_it_matters": None,
+            "default_priority": "low",
+        }
+    ]
