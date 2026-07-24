@@ -26,6 +26,10 @@ class LabModel(Base):
         UniqueConstraint("slug", name="uq_labs_slug"),
         CheckConstraint("slug <> ''", name="ck_labs_slug_not_empty"),
         CheckConstraint("name <> ''", name="ck_labs_name_not_empty"),
+        CheckConstraint(
+            "catalog_order IS NULL OR catalog_order >= 0",
+            name="ck_labs_catalog_order_non_negative",
+        ),
     )
 
     id: Mapped[PyUUID] = mapped_column(
@@ -35,6 +39,14 @@ class LabModel(Base):
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    catalog_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    supports_resume: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    supports_uploads: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
