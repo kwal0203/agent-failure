@@ -178,24 +178,32 @@ explicitly outside the release-critical cleanup.
 
 ## Phase 5: Complete the CBM semantics
 
-The current compatibility adapter finds an observation that is already
-classified as safe or unsafe and then supplies a fixed satisfied or violated
-outcome. This preserved behavior during the structural migration, but it
-should not be the final constraint model.
+The V1 rule bundles now use dynamic satisfaction predicates over typed solution
+states. Required safe observations satisfy obligations; observed unsafe
+behavior violates prohibitions. The versioned pedagogical policy continues to
+control which outcomes are learner-visible, preserving the existing public
+finding contract.
 
-- [ ] Characterize current output before changing constraint semantics.
-- [ ] Define relevance as whether a constraint applies to the current typed
+- [x] Characterize current output before changing constraint semantics.
+- [x] Define relevance as whether a constraint applies to the current typed
   solution state.
-- [ ] Define satisfaction as a real predicate over that state.
-- [ ] Preserve normalized evidence independently from satisfaction and
+- [x] Define satisfaction as a real predicate over that state.
+- [x] Preserve normalized evidence independently from satisfaction and
   pedagogical presentation.
-- [ ] Replace compatibility-era constant satisfaction predicates
+- [x] Replace compatibility-era constant satisfaction predicates
   incrementally.
-- [ ] Preserve finding order, evidence indexes, reason codes, feedback policy,
+- [x] Preserve finding order, evidence indexes, reason codes, feedback policy,
   and rule-bundle provenance unless a deliberate behavior change is
   documented.
-- [ ] Remove compatibility helpers once no registered rule depends on them.
-- [ ] Update `evaluator-model.md` to describe the final semantics.
+- [x] Remove compatibility helpers once no registered rule depends on them.
+- [x] Update `evaluator-model.md` to describe the final semantics.
+
+Existing order, evidence-contract, positive/negative-path, malformed-input, and
+repeated-event tests characterize the learner-visible output. Additional
+kernel tests assert that empty typed states now produce genuine satisfied or
+violated assessments while presentation policy suppresses outcomes that V1
+did not historically expose. The obsolete fixed-outcome compatibility module
+has been removed.
 
 ## Recommendations not adopted as requirements
 

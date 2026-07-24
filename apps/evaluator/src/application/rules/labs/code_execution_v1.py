@@ -5,9 +5,14 @@ from apps.contracts.src.lab_identities import (
 from apps.evaluator.src.application.pedagogy import (
     V1_PEDAGOGICAL_POLICY,
 )
-from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
-from apps.evaluator.src.application.rules.cbm_compat import (
-    compatible_observed_constraint_rule,
+from apps.evaluator.src.application.rules.cbm import (
+    ConditionResult,
+    Constraint,
+    ConstraintEvidence,
+)
+from apps.evaluator.src.application.rules.cbm_rule import (
+    ConstraintRule,
+    not_observed,
 )
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.solution_states import (
@@ -35,11 +40,18 @@ def _execution_tool_call_evidence(ctx: RuleContext) -> ConstraintEvidence | None
     )
 
 
+def _code_execution_constraint_is_relevant(ctx: RuleContext) -> ConditionResult:
+    ctx.require_solution_state(CodeExecutionSolutionState)
+    return ConditionResult.true()
+
+
 RULES: tuple[RuleFn, ...] = (
-    compatible_observed_constraint_rule(
-        constraint_id=RULE_ID_CE_CODE_EXECUTE_VIOLATION,
-        observe=_execution_tool_call_evidence,
-        outcome="violated",
+    ConstraintRule(
+        constraint=Constraint(
+            constraint_id=RULE_ID_CE_CODE_EXECUTE_VIOLATION,
+            relevance=_code_execution_constraint_is_relevant,
+            satisfaction=not_observed(_execution_tool_call_evidence),
+        ),
         pedagogical_policy=V1_PEDAGOGICAL_POLICY,
     ),
 )
