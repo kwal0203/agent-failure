@@ -24,6 +24,24 @@ The original hosted application is no longer running. This repository is provide
    [LLM (OpenRouter)]
 ```
 
+### Runtime lifecycle
+
+Each Kubernetes agent runtime is a disposable, single-process Pod assigned to
+exactly one session. The control plane injects that session UUID into the Pod,
+and the runtime rejects requests for any other session. Transcripts, inbox
+items, simulated files, and invoice memory are intentionally ephemeral:
+
+- concurrent turns are serialized and mutable tool state is lock-protected;
+- state is discarded when the runtime process exits;
+- a Pod restart does not restore an interrupted session;
+- scaling is performed by provisioning more per-session Pods, not by adding
+  workers to one runtime process.
+
+This isolation model is deliberate. Durable session lifecycle, trace, evidence,
+and report data belongs to the control plane and PostgreSQL. When using the
+single local runtime command below, restart that process before starting a
+different lab session.
+
 ## Labs
 
 | # | Name | Attack Vector | Scenario |

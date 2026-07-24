@@ -1,6 +1,26 @@
 # Open-Source Release Codebase Audit
 
-## Verdict
+## Current status
+
+This audit originally described the repository before its open-source cleanup.
+As of July 24, 2026, the release-blocking findings and the general-purpose
+library replacements have been completed. The remaining substantive
+maintainability project is the evaluator-rule cleanup described below.
+
+| Area | Status |
+| --- | --- |
+| Report page decomposition and PDF generation | Completed |
+| Orchestrator lifecycle service | Completed |
+| Runtime state isolation | Completed |
+| Database-backed lab catalog | Completed |
+| Evaluator-rule organization | Remaining |
+| General-purpose library replacements | Completed |
+| Repository presentation cleanup | Completed |
+
+The original findings are retained below as a record of what was reviewed and
+why the changes were made.
+
+## Original verdict
 
 This is not an amateur codebase. It is an overextended commercial MVP with
 some genuinely solid engineering and several unfinished or hand-built areas.
@@ -11,11 +31,15 @@ not be the general architecture—it would be releasing a security product with
 exposed Git-history secrets, known dependency vulnerabilities, failing frontend
 checks, and production-hardening TODOs.
 
-No files were changed during this audit.
+No files were changed during the original audit.
 
 ## Code I would clean up because it looks unfinished
 
 ### The report page
+
+**Status: Completed.** The page has been split into focused report hooks and
+components, persisted data uses shared query infrastructure, autosave has
+explicit draft safety, and PDF generation uses `@react-pdf/renderer`.
 
 `apps/frontend/src/pages/SessionReportPage.tsx:1` is 897 lines and currently
 combines:
@@ -41,6 +65,12 @@ editor components, evidence components, and export rendering.
 
 ### The orchestrator service
 
+**Status: Completed.** Provisioning, cleanup, reconciliation, expiry, trace,
+and policy handling now live in focused modules. Retry and timeout policy is
+validated configuration, runtime URLs have explicit pending semantics,
+duplicate-runtime selection is deterministic, and database heartbeats were
+removed.
+
 `apps/control_plane/src/application/orchestrator/service.py:142` is 1,080
 lines. Complexity analysis rated `process_pending_once` at 30 and `cleanup` at
 26. It also contains visible scaffolding:
@@ -62,6 +92,12 @@ more burden than value.
 
 ### Runtime state
 
+**Status: Completed.** Mutable runtime data is owned by an explicit
+`EphemeralRuntimeSessionState`. Kubernetes supplies the owning session UUID,
+cross-session requests fail closed, turns are serialized, tool mutations are
+lock-protected, and shutdown clears the state. The intentionally ephemeral
+one-Pod-per-session lifecycle is documented in the README.
+
 `runtimes/agent/main.py:264` stores files, invoices, session transcripts,
 inboxes, and seeded-session state in process-global memory.
 
@@ -79,6 +115,9 @@ PostgreSQL, or Redis.
 
 ### Lab catalog validation
 
+**Status: Completed.** The catalog and validation paths now query active,
+published labs and active lab versions from PostgreSQL.
+
 `apps/control_plane/src/infrastructure/persistence/lab_repository.py:23`
 hardcodes the catalog, and `validate_lab()` returns `True` for every UUID. That
 looks particularly unfinished because there are already lab tables and
@@ -88,6 +127,8 @@ Finish the database-backed catalog or clearly label this adapter as a demo
 implementation.
 
 ### Evaluator rules
+
+**Status: Remaining.**
 
 The evaluator files are large—Lab 1 exceeds 1,200 lines—and contain many regex
 heuristics and repeated event-search logic.
@@ -107,24 +148,31 @@ This is specialized, not embarrassing.
 
 ## Good library replacements
 
-| Current custom code | Recommended replacement | Priority |
+**Status: Completed.**
+
+| Original custom code | Implemented replacement | Priority |
 | --- | --- | --- |
-| Manual environment parsing in `settings.py` | [`pydantic-settings`](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) with environment-aware validators | High |
-| `kubectl` subprocesses and untyped manifest dictionaries | [Official Kubernetes Python client](https://github.com/kubernetes-client/python) or [`kubernetes-asyncio`](https://github.com/tomplus/kubernetes_asyncio) | High |
-| Manual PDF object generation | [`@react-pdf/renderer`](https://react-pdf.org/) | High |
-| Scattered fetch, loading, error, and autosave state | [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/guides/queries) for queries and mutations | Medium |
-| Raw Cognito HTTP calls and homegrown token-refresh lifecycle | AWS Amplify Auth, Cognito managed login, or a standard OIDC client | High |
-| Handwritten REST response assertions and casts | Generate a client from FastAPI OpenAPI using [Orval](https://orval.dev/) or [`openapi-typescript`](https://openapi-ts.dev/) with `openapi-fetch` | Medium |
-| Manual form parsing and validation | React Hook Form and Zod on the frontend; Zod in the Vercel function | Medium |
-| Repeated raw OpenRouter HTTP and JSON extraction | An OpenAI-compatible SDK plus provider structured-output or JSON Schema support; retain Pydantic validation | Medium |
-| Manual WebSocket lifecycle | `react-use-websocket` if reconnect, backoff, or heartbeat requirements grow | Low |
-| Custom JWT/JWKS cache | PyJWT's `PyJWKClient`, Authlib, or OIDC middleware | Medium |
+| Manual environment parsing in `settings.py` | `pydantic-settings` with environment-aware validators | High |
+| `kubectl` subprocesses and untyped manifest dictionaries | Official Kubernetes Python client | High |
+| Manual PDF object generation | `@react-pdf/renderer` | High |
+| Scattered fetch, loading, error, and autosave state | TanStack Query queries and mutations | Medium |
+| Raw Cognito HTTP calls and homegrown token-refresh lifecycle | AWS Amplify Auth | High |
+| Handwritten REST response assertions and casts | Generated OpenAPI TypeScript client | Medium |
+| Manual form parsing and validation | React Hook Form and Zod | Medium |
+| Repeated raw OpenRouter HTTP and JSON extraction | OpenAI-compatible SDK with schema-constrained output and Pydantic validation | Medium |
+| Manual WebSocket lifecycle | `react-use-websocket` | Low |
+| Custom JWT/JWKS cache | PyJWT `PyJWKClient` | Medium |
 
 The current WebSocket protocol, evaluator rules, idempotency builders, state
 machine, trace schema, and transactional outbox are project-specific enough
 that I would not replace them merely to add fashionable dependencies.
 
 ## Repository presentation problems
+
+**Status: Completed.** The README and package metadata were corrected,
+obsolete deployment and generated release artifacts were removed, and the
+documentation directory was curated to retain this audit and the instructor
+pack. The findings below describe the original repository.
 
 These are easy to fix but make the repository look abandoned:
 
@@ -181,13 +229,14 @@ These parts will reflect well on you:
   resource limits, and disabled service-account token mounting.
 - Good specifications and unusually thorough educational content.
 
-My honest categorization is:
+The original categorization was:
 
 - About 70%: respectable and worth publishing.
 - About 20%: normal MVP debt that should be labeled or tidied.
 - About 10%: release blockers that would attract justified criticism.
 
-Fix the secrets and history, auth behavior, dependency advisories, CI
-omissions, Kubernetes cleanup, licensing, and public-facing repository
-curation. After that, this becomes an interesting open-source security lab—not
-an embarrassing failed project.
+The secrets and history, auth behavior, dependency advisories, CI omissions,
+Kubernetes cleanup, licensing, and public-facing repository curation have now
+been addressed. The repository is suitable for an open-source security lab;
+the remaining evaluator work is maintainability cleanup rather than a release
+blocker.

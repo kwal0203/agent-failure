@@ -1,3 +1,4 @@
+from threading import RLock
 from uuid import UUID
 
 from apps.agent_harness.src.application.session_loop.ports import FileToolPort
@@ -48,39 +49,49 @@ class InMemoryFileTool(FileToolPort):
                 for session_id, files in files_by_session.items()
             }
         )
+        self._lock = RLock()
 
     def seed_session_files(
         self, *, session_id: UUID, files: dict[str, str], overwrite: bool = False
     ) -> None:
-        existing = self._files_by_session.get(session_id)
-        if existing is None or overwrite:
-            self._files_by_session[session_id] = dict(files)
-            return
+        with self._lock:
+            existing = self._files_by_session.get(session_id)
+            if existing is None or overwrite:
+                self._files_by_session[session_id] = dict(files)
+                return
 
-        for path, content in files.items():
-            existing.setdefault(path, content)
+            for path, content in files.items():
+                existing.setdefault(path, content)
 
     def read_file(self, *, session_id: UUID, path: str) -> ReadFileResult:
-        session_files = self._files_by_session.get(session_id, {})
-        content = session_files.get(path)
+        with self._lock:
+            content = self._files_by_session.get(session_id, {}).get(path)
         if content is None:
             return ReadFileResult(content=None, error_code="FILE_NOT_FOUND")
         return ReadFileResult(content=content, error_code=None)
 
     def list_files(self, *, session_id: UUID) -> tuple[str, ...]:
-        session_files = self._files_by_session.get(session_id, {})
-        return tuple(sorted(session_files.keys()))
+        with self._lock:
+            return tuple(sorted(self._files_by_session.get(session_id, {}).keys()))
 
     def write_file(
         self, *, session_id: UUID, path: str, content: str
     ) -> WriteFileResult:
-        session_files = self._files_by_session.setdefault(session_id, {})
-        session_files[path] = content
+        with self._lock:
+            session_files = self._files_by_session.setdefault(session_id, {})
+            session_files[path] = content
         return WriteFileResult(path=path, bytes_written=len(content.encode("utf-8")))
 
     def delete_file(self, *, session_id: UUID, path: str) -> DeleteFileResult:
-        session_files = self._files_by_session.setdefault(session_id, {})
-        existed = path in session_files
-        if existed:
-            del session_files[path]
-        return DeleteFileResult(deleted=existed, exists_after=(path in session_files))
+        with self._lock:
+            session_files = self._files_by_session.setdefault(session_id, {})
+            existed = path in session_files
+            if existed:
+                del session_files[path]
+            return DeleteFileResult(
+                deleted=existed, exists_after=(path in session_files)
+            )
+
+    def clear_session(self, *, session_id: UUID) -> None:
+        with self._lock:
+            self._files_by_session.pop(session_id, None)

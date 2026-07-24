@@ -222,6 +222,7 @@ class K8sRuntimeProvisioner(RuntimeProvisionerPort):
             ),
             client.V1EnvVar(name="MODEL_NAME", value=self._runtime_env.model_name),
             client.V1EnvVar(name="LAB_DIFFICULTY", value=request.lab_difficulty),
+            client.V1EnvVar(name="RUNTIME_SESSION_ID", value=str(request.session_id)),
         ]
         if self._runtime_env.model_client_mode == "gateway":
             runtime_env.append(
