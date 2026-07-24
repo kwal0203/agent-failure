@@ -38,7 +38,7 @@ class EvaluatorPersistedResult:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    evaluator_version: int
+    rule_bundle_version: int
 
 
 @dataclass(frozen=True)

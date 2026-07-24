@@ -70,7 +70,6 @@ class Outbox(Protocol):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
         requested_at: datetime | None = None,

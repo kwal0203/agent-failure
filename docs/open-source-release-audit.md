@@ -131,10 +131,13 @@ implementation.
 **Status: In progress.** The first cleanup phase removed the unfinished
 Easy/Medium/Hard dimension across the UI, API, persistence, runtime, and
 evaluator. The former Medium behavior is now the single canonical lab model.
-Evaluator bundles resolve only by lab slug, lab version, and evaluator version;
-unknown tuples fail closed. Characterization tests preserve the canonical rule
-ordering, evidence, feedback, and objective behavior before the structural CBM
-refactor begins.
+Evaluator bundles resolve only by lab slug and lab version; unknown lab bundles
+fail closed. The registry, rather than a caller or queued task, owns each
+bundle's `rule_bundle_version`. That version is retained on evaluation results,
+idempotency keys, logs, and evaluator-authored objective events as scoring-rule
+provenance. Characterization tests preserve the canonical rule ordering,
+evidence, feedback, and objective behavior before the structural CBM refactor
+begins.
 
 The evaluator files are large—Lab 1 exceeds 1,200 lines—and contain many regex
 heuristics and repeated event-search logic.

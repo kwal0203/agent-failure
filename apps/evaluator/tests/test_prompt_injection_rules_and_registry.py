@@ -34,20 +34,18 @@ from apps.evaluator.src.application.types import (
 )
 
 DEFAULT_SUPPORTED_TUPLE = next(iter(SUPPORTED_BUNDLES))
-LAB1_AGENT_SUPPORTED_TUPLE = ("agent-prompt-injection", "v1", 1)
+LAB1_AGENT_SUPPORTED_TUPLE = ("agent-prompt-injection", "v1")
 
 
 def _task(
     *,
     lab_id: UUID | None = None,
     lab_version_id: UUID | None = None,
-    evaluator_version: int = DEFAULT_SUPPORTED_TUPLE[2],
 ) -> EvaluatorTaskInput:
     return EvaluatorTaskInput(
         session_id=uuid4(),
         lab_id=lab_id or uuid4(),
         lab_version_id=lab_version_id or uuid4(),
-        evaluator_version=evaluator_version,
         start_event_index=0,
         end_event_index=0,
     )
@@ -79,11 +77,11 @@ def _event(
 
 
 def _prompt_injection_binding() -> EvaluatorLabRuntimeBinding:
-    lab_slug, lab_version, _ = LAB1_AGENT_SUPPORTED_TUPLE
+    lab_slug, lab_version = LAB1_AGENT_SUPPORTED_TUPLE
     return EvaluatorLabRuntimeBinding(lab_slug=lab_slug, lab_version=lab_version)
 
 
-def test_registry_includes_agent_lab1_prompt_injection_v1_tuple() -> None:
+def test_registry_includes_agent_lab1_prompt_injection_v1_bundle() -> None:
     assert LAB1_AGENT_SUPPORTED_TUPLE in SUPPORTED_BUNDLES
 
 
@@ -94,13 +92,14 @@ def test_resolve_bundle_selects_prompt_injection_bundle() -> None:
     bundle = resolve_bundle(binding=binding, task=task)
 
     assert bundle is PROMPT_INJECTION_V1_BUNDLE
+    assert bundle.rule_bundle_version == 1
 
 
 def test_resolve_bundle_selects_memory_poisoning_bundle_for_agent_lab3() -> None:
     binding = EvaluatorLabRuntimeBinding(
         lab_slug="agent-memory-poisoning", lab_version="v1"
     )
-    task = _task(evaluator_version=1)
+    task = _task()
 
     bundle = resolve_bundle(binding=binding, task=task)
 
@@ -156,13 +155,6 @@ def test_canonical_prompt_injection_attack_finding_order() -> None:
                 lab_slug=DEFAULT_SUPPORTED_TUPLE[0], lab_version="v999"
             ),
             _task(),
-        ),
-        (
-            EvaluatorLabRuntimeBinding(
-                lab_slug=DEFAULT_SUPPORTED_TUPLE[0],
-                lab_version=DEFAULT_SUPPORTED_TUPLE[1],
-            ),
-            _task(evaluator_version=999),
         ),
     ],
 )

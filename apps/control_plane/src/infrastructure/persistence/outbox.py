@@ -89,7 +89,6 @@ class SQLAlchemyOutbox(Outbox):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
         requested_at: datetime | None = None,
@@ -97,7 +96,6 @@ class SQLAlchemyOutbox(Outbox):
         payload_model = SessionEvaluateRequestedPayload(
             lab_id=lab_id,
             lab_version_id=lab_version_id,
-            evaluator_version=evaluator_version,
             start_event_index=start_event_index,
             end_event_index=end_event_index,
         )
@@ -141,7 +139,7 @@ class SQLAlchemyOutbox(Outbox):
         trigger_event_index: int,
         idempotency_key: str,
         source: str = "control_plane",
-        evaluator_version: int | None = None,
+        rule_bundle_version: int | None = None,
         occurred_at: datetime | None = None,
     ) -> None:
         existing = (
@@ -170,7 +168,7 @@ class SQLAlchemyOutbox(Outbox):
             "occurred_at": (occurred_at or datetime.now(timezone.utc)).isoformat(),
             "idempotency_key": idempotency_key,
             "source": source,
-            "evaluator_version": evaluator_version,
+            "rule_bundle_version": rule_bundle_version,
         }
 
         event = OutboxEventModel(

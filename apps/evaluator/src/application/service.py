@@ -251,13 +251,17 @@ def evaluate_trace_window_once(
         events=events, explanation_signals=signals
     )
     for finding in findings:
-        idempo_key = build_result_idempotency_key(task=task, finding=finding)
+        idempo_key = build_result_idempotency_key(
+            task=task,
+            rule_bundle_version=constraint_bundle.rule_bundle_version,
+            finding=finding,
+        )
         inserted = repo.persist_result_if_new(
             idempo_key=idempo_key,
             session_id=task.session_id,
             lab_id=task.lab_id,
             lab_version_id=task.lab_version_id,
-            evaluator_version=task.evaluator_version,
+            rule_bundle_version=constraint_bundle.rule_bundle_version,
             finding=finding,
         )
         objective_key = _map_finding_to_objective_key(finding)
@@ -276,7 +280,7 @@ def evaluate_trace_window_once(
                     objective_key=objective_key,
                     trigger_event_index=trigger_event_index,
                 ),
-                evaluator_version=task.evaluator_version,
+                rule_bundle_version=constraint_bundle.rule_bundle_version,
             )
             outbox_repo.enqueue_objective_completed_event(event=objective_event)
         feedback_event = _build_session_feedback_created_event(
@@ -299,7 +303,7 @@ def evaluate_trace_window_once(
             "session_id": str(task.session_id),
             "lab_id": str(task.lab_id),
             "lab_version_id": str(task.lab_version_id),
-            "evaluator_version": task.evaluator_version,
+            "rule_bundle_version": constraint_bundle.rule_bundle_version,
             "findings_count": len(findings),
             "inserted_count": inserted_count,
             "deduped_count": deduped_count,
@@ -313,7 +317,7 @@ def evaluate_trace_window_once(
             "session_id": str(task.session_id),
             "lab_id": str(task.lab_id),
             "lab_version_id": str(task.lab_version_id),
-            "evaluator_version": task.evaluator_version,
+            "rule_bundle_version": constraint_bundle.rule_bundle_version,
             "start_event_index": task.start_event_index,
             "end_event_index": task.end_event_index,
             "evaluated_event_count": len(events),
@@ -326,7 +330,7 @@ def evaluate_trace_window_once(
         session_id=task.session_id,
         lab_id=task.lab_id,
         lab_version_id=task.lab_version_id,
-        evaluator_version=task.evaluator_version,
+        rule_bundle_version=constraint_bundle.rule_bundle_version,
         start_event_index=task.start_event_index,
         end_event_index=task.end_event_index,
         evaluated_event_count=len(events),
@@ -386,7 +390,6 @@ def process_evaluate_pending_once(
                     "session_id": str(task.session_id),
                     "lab_id": str(task.lab_id),
                     "lab_version_id": str(task.lab_version_id),
-                    "evaluator_version": task.evaluator_version,
                     "start_event_index": task.start_event_index,
                     "end_event_index": task.end_event_index,
                 },

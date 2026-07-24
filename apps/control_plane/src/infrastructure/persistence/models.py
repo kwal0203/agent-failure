@@ -658,7 +658,7 @@ class EvaluatorResultModel(Base):
     lab_version_id: Mapped[PyUUID] = mapped_column(
         UUID(as_uuid=True), nullable=False, index=True
     )
-    evaluator_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    rule_bundle_version: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class SessionRuntimeBindingModel(Base):

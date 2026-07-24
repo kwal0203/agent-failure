@@ -112,7 +112,7 @@ def test_get_evaluator_feedback_returns_200_populated_feedback(
                 session_id=session_id,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                evaluator_version=1,
+                rule_bundle_version=1,
             ),
             EvaluatorResultModel(
                 id=uuid4(),
@@ -132,7 +132,7 @@ def test_get_evaluator_feedback_returns_200_populated_feedback(
                 session_id=session_id,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                evaluator_version=1,
+                rule_bundle_version=1,
             ),
         ]
     )

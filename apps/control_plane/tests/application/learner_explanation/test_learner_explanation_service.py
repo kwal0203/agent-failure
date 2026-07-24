@@ -83,12 +83,11 @@ class _FakeOutbox:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
         requested_at: datetime | None = None,
     ) -> None:
-        _ = (lab_id, lab_version_id, evaluator_version, requested_at)
+        _ = (lab_id, lab_version_id, requested_at)
         self.enqueued.append((session_id, start_event_index, end_event_index))
 
 

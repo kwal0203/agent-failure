@@ -45,7 +45,7 @@ def test_list_results_for_session_returns_ordered_rows(db_session: Session) -> N
         session_id=session_id,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
+        rule_bundle_version=1,
     )
     second = EvaluatorResultModel(
         id=uuid4(),
@@ -62,7 +62,7 @@ def test_list_results_for_session_returns_ordered_rows(db_session: Session) -> N
         session_id=session_id,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        evaluator_version=1,
+        rule_bundle_version=1,
     )
     db_session.add_all([first, second])
     db_session.flush()

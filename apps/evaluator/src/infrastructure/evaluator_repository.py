@@ -78,7 +78,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        evaluator_version: int,
+        rule_bundle_version: int,
         finding: EvaluatorFinding,
     ) -> bool:
         stmt = (
@@ -97,7 +97,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                 session_id=session_id,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                evaluator_version=evaluator_version,
+                rule_bundle_version=rule_bundle_version,
             )
             .on_conflict_do_nothing(index_elements=["idempotency_key"])
             .returning(EvaluatorResultModel.id)
@@ -139,7 +139,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                     session_id=row.session_id,
                     lab_id=row.lab_id,
                     lab_version_id=row.lab_version_id,
-                    evaluator_version=row.evaluator_version,
+                    rule_bundle_version=row.rule_bundle_version,
                 )
             )
 

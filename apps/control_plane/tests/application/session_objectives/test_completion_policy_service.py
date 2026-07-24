@@ -199,7 +199,7 @@ def _build_event(
                 f"objective:{session_id}:{objective_key}:{trigger_event_index}"
             ),
             "source": "evaluator",
-            "evaluator_version": 1,
+            "rule_bundle_version": 1,
         },
         attempt_count=0,
         requested_at=occurred_at,

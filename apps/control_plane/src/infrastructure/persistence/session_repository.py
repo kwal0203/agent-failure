@@ -580,7 +580,7 @@ class SQLAlchemyEvaluatorRepository(EvaluatorPort):
                     session_id=row.session_id,
                     lab_id=row.lab_id,
                     lab_version_id=row.lab_version_id,
-                    evaluator_version=row.evaluator_version,
+                    rule_bundle_version=row.rule_bundle_version,
                 )
             )
 
