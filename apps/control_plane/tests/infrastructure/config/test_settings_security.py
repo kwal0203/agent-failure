@@ -16,6 +16,7 @@ from apps.control_plane.src.infrastructure.config.settings import (
     get_app_env,
     get_auth_verifier_config,
     get_enrollment_settings,
+    get_http_settings,
     get_instructor_provisioning_settings,
     get_orchestrator_settings,
     get_runtime_client_config,
@@ -143,6 +144,54 @@ def test_dev_uses_local_enrollment_secret(
     monkeypatch.delenv("ENROLLMENT_TOKEN_SECRET", raising=False)
 
     assert get_enrollment_settings().token_secret == LOCAL_ENROLLMENT_TOKEN_SECRET
+
+
+def test_dev_uses_local_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+
+    assert get_http_settings().cors_allowed_origins == (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    )
+
+
+def test_cors_origins_are_required_outside_dev(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+
+    with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
+        get_http_settings()
+
+
+def test_cors_origins_are_validated_normalized_and_deduplicated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        "https://www.agentfailure.com/, https://agentfailure.com,"
+        "https://www.agentfailure.com",
+    )
+
+    assert get_http_settings().cors_allowed_origins == (
+        "https://www.agentfailure.com",
+        "https://agentfailure.com",
+    )
+
+
+def test_cors_origins_reject_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://example.test/not-an-origin")
+
+    with pytest.raises(ValidationError, match="HTTP\\(S\\) origins"):
+        get_http_settings()
 
 
 def test_enrollment_secret_must_be_at_least_32_bytes(

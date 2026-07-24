@@ -74,7 +74,7 @@ class _LocalTestTokenVerifier:
 
         username = parts[0]
         role = parts[1] if len(parts) > 1 else "learner"
-        email = username if "@" in username else f"{username}@gatech.edu"
+        email = username if "@" in username else f"{username}@example.test"
 
         return AuthClaims(
             sub=f"local-user:{username}",

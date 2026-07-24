@@ -6,7 +6,8 @@ from datetime import datetime
 class CreateSessionResult(BaseModel):
     session_id: UUID
     lab_id: UUID
-    # TODO: Make lab_version_id non-null once lab version binding is implemented in create flow.
+    # Nullable for compatibility with sessions created before version binding
+    # became mandatory. New sessions always carry an active lab version.
     lab_version_id: UUID | None
     state: str
     resume_mode: str

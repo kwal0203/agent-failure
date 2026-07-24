@@ -2,10 +2,15 @@
 
 from argparse import ArgumentParser
 import json
+import os
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Schema export never starts the server or accepts traffic. The development
+# profile keeps composition-root imports deterministic without production
+# credentials while preserving fail-closed behavior for actual startup.
+os.environ.setdefault("APP_ENV", "dev")
 from apps.control_plane.src.interfaces.http.app import app
 
 

@@ -114,7 +114,7 @@ runtimes/
   agent/             Per-session agent runtime — LLM loop, tool dispatch, lab configs
 deploy/              Environment examples and Kubernetes deployment manifests
 scripts/             Local smoke tests and operational utilities
-docs/                Evaluator design, open-source audit, and instructor materials
+docs/                Evaluator design and instructor materials
 ```
 
 Files under `deploy/` are operator examples. Replace reserved example domains,

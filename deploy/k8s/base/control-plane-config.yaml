@@ -5,6 +5,7 @@ metadata:
   namespace: runtime-pool
 data:
   APP_ENV: "staging"
+  CORS_ALLOWED_ORIGINS: "https://www.agentfailure.com,https://agentfailure.com,https://app.agentfailure.com"
   LOG_LEVEL: "INFO"
   MODEL_CLIENT_MODE: "gateway"
   PROVIDER_ENDPOINT: "https://openrouter.ai/api/v1/chat/completions"

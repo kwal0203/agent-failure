@@ -1,5 +1,6 @@
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { BookOpen, FileText, Shield } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import type { AuthUser } from "../auth/authContext";
 import { useAuth } from "../auth/useAuth";
@@ -72,8 +73,6 @@ export default function AppShell() {
   const currentYear = new Date().getFullYear();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement | null>(null);
   const showPilotRequestsLink = useMemo(
     () => canViewPilotRequests(user),
     [user],
@@ -102,30 +101,6 @@ export default function AppShell() {
       : location.pathname === "/reports" || isSessionReportRoute
         ? "Reports"
         : null;
-
-  useEffect(() => {
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (!userMenuRef.current) return;
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (!userMenuRef.current.contains(target)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleDocumentClick);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleDocumentClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, []);
 
   if (showCatalogShell) {
     return (
@@ -181,56 +156,51 @@ export default function AppShell() {
                 <div />
 
                 <div className="ml-auto flex items-center gap-4">
-                  <div className="relative pl-1" ref={userMenuRef}>
-                    <button
-                      type="button"
-                      aria-haspopup="menu"
-                      aria-expanded={isUserMenuOpen}
-                      onClick={() => setIsUserMenuOpen((open) => !open)}
-                      className="flex items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-lime-500/10"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-extrabold text-slate-100 ring-1 ring-lime-500/20">
-                        {viewerProfile.initials}
-                      </div>
-                      <span className="hidden text-sm font-semibold text-slate-300 sm:inline">
-                        {viewerProfile.displayName}
-                      </span>
-                      <span className="hidden rounded-md border border-lime-500/30 bg-lime-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-lime-200 md:inline">
-                        {viewerProfile.roleLabel}
-                      </span>
-                    </button>
-
-                    {isUserMenuOpen && (
-                      <div
-                        role="menu"
-                        className="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-lime-500/30 bg-black/95 p-1 shadow-[0_0_20px_rgba(132,204,22,0.18)] backdrop-blur"
-                      >
-                        {showPilotRequestsLink ? (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              navigate("/pilot-requests");
-                            }}
-                            className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-lime-500/10 hover:text-lime-100"
-                          >
-                            Pilot Requests
-                          </button>
-                        ) : null}
+                  <div className="pl-1">
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
                         <button
                           type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            void logout();
-                          }}
-                          className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-lime-500/10 hover:text-lime-100"
+                          className="flex items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-lime-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400"
                         >
-                          Log Out
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-extrabold text-slate-100 ring-1 ring-lime-500/20">
+                            {viewerProfile.initials}
+                          </div>
+                          <span className="hidden text-sm font-semibold text-slate-300 sm:inline">
+                            {viewerProfile.displayName}
+                          </span>
+                          <span className="hidden rounded-md border border-lime-500/30 bg-lime-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-lime-200 md:inline">
+                            {viewerProfile.roleLabel}
+                          </span>
                         </button>
-                      </div>
-                    )}
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content
+                          align="end"
+                          sideOffset={8}
+                          className="z-30 w-40 rounded-lg border border-lime-500/30 bg-black/95 p-1 shadow-[0_0_20px_rgba(132,204,22,0.18)] backdrop-blur"
+                        >
+                          {showPilotRequestsLink ? (
+                            <DropdownMenu.Item
+                              onSelect={() => {
+                                navigate("/pilot-requests");
+                              }}
+                              className="flex cursor-pointer select-none items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 outline-none transition data-[highlighted]:bg-lime-500/10 data-[highlighted]:text-lime-100"
+                            >
+                              Pilot Requests
+                            </DropdownMenu.Item>
+                          ) : null}
+                          <DropdownMenu.Item
+                            onSelect={() => {
+                              void logout();
+                            }}
+                            className="flex cursor-pointer select-none items-center rounded-md px-3 py-2 text-sm font-semibold text-slate-200 outline-none transition data-[highlighted]:bg-lime-500/10 data-[highlighted]:text-lime-100"
+                          >
+                            Log Out
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                   </div>
                 </div>
               </div>
@@ -271,82 +241,34 @@ export default function AppShell() {
   }
 
   return (
-    <div
-      className="font-sans antialiased"
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        color: "#d7ffd7",
-        background:
-          "radial-gradient(1200px 680px at 8% -2%, rgba(60, 200, 100, 0.16), transparent 50%), radial-gradient(900px 540px at 95% -6%, rgba(46, 125, 50, 0.2), transparent 52%), linear-gradient(180deg, #040704 0%, #071007 52%, #081108 100%)",
-      }}
-    >
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(1200px_680px_at_8%_-2%,rgba(60,200,100,0.16),transparent_50%),radial-gradient(900px_540px_at_95%_-6%,rgba(46,125,50,0.2),transparent_52%),linear-gradient(180deg,#040704_0%,#071007_52%,#081108_100%)] font-sans text-[#d7ffd7] antialiased">
       {!hideLegacyHeader ? (
-        <header
-          style={{
-            borderBottom: "1px solid #1b5e20",
-            background:
-              "linear-gradient(180deg, rgba(10, 18, 10, 0.95), rgba(6, 12, 6, 0.9))",
-            backdropFilter: "blur(6px)",
-            position: "sticky",
-            top: 0,
-            zIndex: 3,
-          }}
-        >
+        <header className="sticky top-0 z-[3] border-b border-[#1b5e20] bg-[linear-gradient(180deg,rgba(10,18,10,0.95),rgba(6,12,6,0.9))] backdrop-blur-[6px]">
           <div
-            style={{
-              maxWidth: isWideContentRoute ? undefined : 1240,
-              margin: isWideContentRoute ? 0 : "0 auto",
-              padding: isWideContentRoute ? "14px 16px" : "14px 24px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
+            className={[
+              "flex items-center justify-between",
+              isWideContentRoute
+                ? "px-4 py-3.5"
+                : "mx-auto max-w-[1240px] px-6 py-3.5",
+            ].join(" ")}
           >
             <div>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  letterSpacing: 0.4,
-                  color: "#8bff8f",
-                  fontFamily:
-                    '"Orbitron", "Space Grotesk", "Avenir Next Condensed", sans-serif',
-                  textTransform: "uppercase",
-                }}
-              >
+              <div className="font-['Orbitron','Space_Grotesk','Avenir_Next_Condensed',sans-serif] text-[22px] font-bold tracking-[0.4px] text-[#8bff8f] uppercase">
                 Agent Failure
               </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  opacity: 1,
-                  color: "#7ea683",
-                  letterSpacing: 0.3,
-                }}
-              >
+              <div className="text-xs tracking-[0.3px] text-[#7ea683]">
                 Cyberrange Demo Surface
               </div>
             </div>
             {isWideContentRoute ? (
               <div />
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="flex items-center gap-2.5">
                 {isPreLabRoute || isPilotRequestsRoute ? (
                   <button
                     type="button"
                     onClick={() => navigate("/labs")}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "7px 10px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      border: "1px solid #2e7d32",
-                      background: "#102810",
-                      color: "#b6ffb9",
-                    }}
+                    className="cursor-pointer rounded-lg border border-[#2e7d32] bg-[#102810] px-2.5 py-[7px] text-xs font-bold text-[#b6ffb9]"
                   >
                     Back to Labs
                   </button>
@@ -354,16 +276,7 @@ export default function AppShell() {
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    padding: "7px 10px",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    border: "1px solid #7a2f3a",
-                    background: "#3a1118",
-                    color: "#ffd7de",
-                  }}
+                  className="cursor-pointer rounded-lg border border-[#7a2f3a] bg-[#3a1118] px-2.5 py-[7px] text-xs font-bold text-[#ffd7de]"
                 >
                   Log Out
                 </button>
@@ -373,26 +286,21 @@ export default function AppShell() {
         </header>
       ) : null}
       <main
-        style={{
-          maxWidth: isWideContentRoute ? undefined : 1240,
-          margin: isWideContentRoute ? 0 : "0 auto",
-          padding: isWideContentRoute ? 0 : "28px 24px 34px",
-          flex: "1 1 auto",
-          minHeight: 0,
-          width: "100%",
-          display: isWideContentRoute ? "flex" : undefined,
-          flexDirection: isWideContentRoute ? "column" : undefined,
-        }}
+        className={[
+          "min-h-0 w-full flex-1",
+          isWideContentRoute
+            ? "flex flex-col"
+            : "mx-auto max-w-[1240px] px-6 pt-7 pb-[34px]",
+        ].join(" ")}
       >
         <Outlet context={bootstrap} />
       </main>
       <footer className="border-t border-lime-800/70 bg-[rgba(6,12,6,0.9)] px-6 py-2.5 text-xs text-lime-200/70">
         <div
-          className="flex flex-wrap items-center justify-between gap-3"
-          style={{
-            maxWidth: isWideContentRoute ? undefined : 1240,
-            margin: isWideContentRoute ? 0 : "0 auto",
-          }}
+          className={[
+            "flex flex-wrap items-center justify-between gap-3",
+            isWideContentRoute ? "" : "mx-auto max-w-[1240px]",
+          ].join(" ")}
         >
           <span>© {currentYear} Agent Failure</span>
           <nav aria-label="Footer links" className="flex flex-wrap gap-3">

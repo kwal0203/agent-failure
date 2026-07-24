@@ -6,6 +6,13 @@ from datetime import datetime
 
 RuntimeBindingStatus = Literal["provisioning", "ready", "failed", "terminated"]
 RuntimeKind = Literal["k8s_pod"]
+RUNTIME_BINDING_STATUSES: tuple[RuntimeBindingStatus, ...] = (
+    "provisioning",
+    "ready",
+    "failed",
+    "terminated",
+)
+RUNTIME_KINDS: tuple[RuntimeKind, ...] = ("k8s_pod",)
 
 
 @dataclass(frozen=True)

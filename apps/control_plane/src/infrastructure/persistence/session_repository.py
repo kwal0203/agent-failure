@@ -52,8 +52,8 @@ from apps.control_plane.src.application.orchestrator.types import (
     ReconciliationCandidate,
     UpsertSessionRuntimeBindingInput,
     SessionRuntimeBinding,
-    RuntimeKind,
-    RuntimeBindingStatus,
+    RUNTIME_BINDING_STATUSES,
+    RUNTIME_KINDS,
 )
 from apps.control_plane.src.application.trace.ports import TraceEventPort
 from apps.control_plane.src.application.trace.types import TraceEvent, TraceFamily
@@ -629,22 +629,22 @@ class SQLAlchemySessionRuntimeBindingRepository(SessionRuntimeBindingPort):
             SessionRuntimeBindingModel.session_id == session_id
         )
 
-        # TODO: Can multiple runtimes exists for a session?
+        # session_id is the binding table's primary key, enforcing one runtime
+        # binding per session.
         row = self._db.execute(stmt).scalar_one_or_none()
         if row is None:
             return None
 
-        # TODO: These allowed types and statuses should be put in a contract somewhere.
-        if row.runtime_kind not in {"k8s_pod"}:
+        if row.runtime_kind not in RUNTIME_KINDS:
             raise ValueError(f"Unknown runtime kind: {row.runtime_kind}")
-        if row.status not in {"provisioning", "ready", "failed", "terminated"}:
+        if row.status not in RUNTIME_BINDING_STATUSES:
             raise ValueError(f"Unknown status: {row.status}")
 
         return SessionRuntimeBinding(
             session_id=row.session_id,
-            runtime_kind=cast(RuntimeKind, row.runtime_kind),
+            runtime_kind=row.runtime_kind,
             base_url=row.base_url,
             auth_token_ref=row.auth_token_ref,
-            status=cast(RuntimeBindingStatus, row.status),
+            status=row.status,
             last_error=row.last_error,
         )

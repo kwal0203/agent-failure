@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from apps.control_plane.src.interfaces.http.auth import UnauthenticatedError
 from apps.control_plane.src.infrastructure.config.settings import (
+    get_http_settings,
     validate_control_plane_settings,
 )
 from apps.control_plane.src.interfaces.http.dependencies import (
@@ -83,18 +84,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+http_settings = get_http_settings()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://project-lerj2.vercel.app",
-        "https://staging.agentfailure.com",
-        "https://app.agentfailure.com",
-        "https://www.agentfailure.com",
-        "https://agentfailure.com",
-    ],
+    allow_origins=list(http_settings.cors_allowed_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

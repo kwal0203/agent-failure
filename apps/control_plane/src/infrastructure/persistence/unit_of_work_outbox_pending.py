@@ -110,10 +110,9 @@ class SQLAlchemyProcessPendingOnceUnitOfWork(ProcessPendingOnceUnitOfWork):
         db_session = self._session_factory()
         self._outbox = SQLAlchemyOutboxProvisionSession(db=db_session)
         self._lab = SQLAlchemyLabRepository(db=db_session)
-        # TODO(E4 follow-up): this lifecycle UoW uses a separate DB session/
-        # transaction from outbox claim/mark writes in this UoW. This is
-        # acceptable for E4-T3 baseline wiring, but should be tightened to a
-        # shared-session adapter for stronger atomicity.
+        # Lifecycle transitions own their transaction because they may be
+        # retried independently. The claimed outbox row remains locked in this
+        # transaction until the worker records the final delivery outcome.
         self._lifecycle_uow = SQLAlchemyUnitOfWork(
             session_factory=self._session_factory
         )
