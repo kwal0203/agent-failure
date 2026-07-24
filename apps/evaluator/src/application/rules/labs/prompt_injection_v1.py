@@ -2,6 +2,10 @@ from uuid import UUID
 
 from apps.evaluator.src.application.types import EvaluatorFinding, EvaluatorTraceEvent
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
+from apps.evaluator.src.application.rules.solution_states import (
+    PromptInjectionSolutionState,
+    build_prompt_injection_solution_state,
+)
 from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
     REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
@@ -878,6 +882,8 @@ PROMPT_INJECTION_V1_BUNDLE = RuleBundle(
     lab_id=UUID("11111111-1111-1111-1111-111111111111"),
     lab_version_id=UUID("55555555-5555-5555-5555-555555555555"),
     rule_bundle_version=1,
+    solution_state_type=PromptInjectionSolutionState,
+    build_solution_state=build_prompt_injection_solution_state,
     rules=BASE_RULES
     + (
         _compliance_authority_spoofed,
