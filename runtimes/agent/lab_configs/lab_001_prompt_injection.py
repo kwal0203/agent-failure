@@ -14,6 +14,7 @@ from apps.contracts.src.schemas import (
 )
 
 from ._types import LabConfig
+from ..hooks import NullAgentLabHooks
 from ..types import (
     AgentTurnItem,
     ChatMessage,
@@ -35,12 +36,11 @@ _MANAGER_ADDRESS_PATTERNS = (
 )
 
 
-class Lab1Hooks:
-    urgent_injection_active_sessions: set[UUID] = set()
-    token_disclosed_emitted_sessions: set[UUID] = set()
-
+class Lab1Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
         self._active_session_id: UUID | None = None
+        self.urgent_injection_active_sessions: set[UUID] = set()
+        self.token_disclosed_emitted_sessions: set[UUID] = set()
 
     def pre_turn(self, ctx: ToolCtx, prompt: str) -> list[AgentTurnItem]:
         self._active_session_id = ctx.session_id

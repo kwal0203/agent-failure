@@ -13,6 +13,7 @@ from runtimes.agent.session_state import (
     EphemeralRuntimeSessionState,
     RuntimeSessionMismatchError,
 )
+from runtimes.agent.hooks import NullAgentLabHooks
 from runtimes.agent.types import ChatMessage
 
 
@@ -74,6 +75,8 @@ def test_clear_discards_all_ephemeral_session_data() -> None:
         content="temporary",
     )
     state.invoice_memory.seed_session_state(session_id=session_id)
+    lab_id = uuid4()
+    original_hooks = state.get_or_create_lab_hooks(lab_id, NullAgentLabHooks)
     state.mark_seeded(session_id)
 
     state.clear()
@@ -95,6 +98,19 @@ def test_clear_discards_all_ephemeral_session_data() -> None:
         is None
     )
     assert state.is_seeded(session_id) is False
+    assert (
+        state.get_or_create_lab_hooks(lab_id, NullAgentLabHooks) is not original_hooks
+    )
+
+
+def test_lab_hooks_are_reused_for_the_runtime_session() -> None:
+    state = EphemeralRuntimeSessionState(expected_session_id=uuid4())
+    lab_id = uuid4()
+
+    first = state.get_or_create_lab_hooks(lab_id, NullAgentLabHooks)
+    second = state.get_or_create_lab_hooks(lab_id, NullAgentLabHooks)
+
+    assert first is second
 
 
 def test_inbox_assigns_unique_ids_as_part_of_the_locked_append() -> None:

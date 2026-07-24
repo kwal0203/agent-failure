@@ -24,7 +24,7 @@ from .outbox_create_session import SQLAlchemyOutboxCreateSession
 from .lab_repository import SQLAlchemyLabRepository
 
 
-def _is_idempo_unique_violoation(exc: IntegrityError) -> bool:
+def _is_idempo_unique_violation(exc: IntegrityError) -> bool:
     constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
     return constraint == "uq_idempo_operation_key"
 
@@ -74,7 +74,7 @@ class SQLAlchemyCreateSessionUnitOfWork(CreateSessionUnitOfWork):
             db_session.commit()
         except IntegrityError as exc:
             db_session.rollback()
-            if _is_idempo_unique_violoation(exc=exc):
+            if _is_idempo_unique_violation(exc=exc):
                 raise DuplicateIdempotencyKeyError(
                     code="DUPLICATE_IDEMPOTENCY_KEY",
                     details={"constraint": "uq_idempo_operation_key"},

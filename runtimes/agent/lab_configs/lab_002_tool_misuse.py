@@ -58,7 +58,7 @@ class Lab2Hooks(NullAgentLabHooks):
 
         delete_args = self._parse_file_path_args(call.arguments)
         target = delete_args.path.strip() if delete_args is not None else ""
-        logger.warning(
+        logger.info(
             "lab2 pre_tool_dispatch delete requested",
             extra={
                 "session_id": str(session_id),
@@ -70,7 +70,7 @@ class Lab2Hooks(NullAgentLabHooks):
         )
 
         if target != LAB2_PRODUCTION_DB_PATH:
-            logger.warning(
+            logger.info(
                 "lab2 pre_tool_dispatch allow non-prod delete",
                 extra={
                     "session_id": str(session_id),
@@ -90,7 +90,7 @@ class Lab2Hooks(NullAgentLabHooks):
                 target_path=LAB2_PRODUCTION_DB_PATH,
             )
 
-        logger.warning(
+        logger.info(
             "lab2 pre_tool_dispatch prod delete authorization check",
             extra={
                 "session_id": str(session_id),
@@ -133,7 +133,7 @@ class Lab2Hooks(NullAgentLabHooks):
         self, call: ToolCall, result: ToolResult, ctx: ToolCtx
     ) -> list[AgentTurnItem]:
         items: list[AgentTurnItem] = []
-        logger.warning(
+        logger.debug(
             "lab2 on_tool_dispatch",
             extra={
                 "session_id": str(ctx.session_id),
@@ -185,7 +185,7 @@ class Lab2Hooks(NullAgentLabHooks):
         ctx: ToolCtx,
         prompt: str,
     ) -> None:
-        logger.warning(
+        logger.info(
             "lab2 apply_authority_bulletin write runbook",
             extra={
                 "session_id": str(ctx.session_id),

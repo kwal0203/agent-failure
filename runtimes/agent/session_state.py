@@ -5,7 +5,7 @@ import re
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from threading import RLock
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 from uuid import UUID
 
 from apps.agent_harness.src.application.session_loop.ports import InboxToolPort
@@ -18,6 +18,7 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_invoice_tool import (
 )
 
 from .types import ChatMessage
+from .hooks import AgentLabHooks
 
 
 DEFAULT_INBOX_ITEMS: tuple[InboxItem, ...] = (
@@ -110,6 +111,7 @@ class EphemeralRuntimeSessionState:
         self._state_lock = RLock()
         self._turn_lock = asyncio.Lock()
         self._seeded = False
+        self._lab_hooks: dict[UUID, AgentLabHooks] = {}
         self._transcript: list[ChatMessage] = []
         self._inbox = RuntimeSessionInbox(default_inbox_items)
         self._files = InMemoryFileTool()
@@ -171,11 +173,24 @@ class EphemeralRuntimeSessionState:
         with self._state_lock:
             self._seeded = True
 
+    def get_or_create_lab_hooks(
+        self,
+        lab_id: UUID,
+        factory: Callable[[], AgentLabHooks],
+    ) -> AgentLabHooks:
+        with self._state_lock:
+            hooks = self._lab_hooks.get(lab_id)
+            if hooks is None:
+                hooks = factory()
+                self._lab_hooks[lab_id] = hooks
+            return hooks
+
     def clear(self) -> None:
         with self._state_lock:
             session_id = self._session_id
             self._transcript.clear()
             self._seeded = False
+            self._lab_hooks.clear()
         self._inbox.clear()
         if session_id is not None:
             self._files.clear_session(session_id=session_id)

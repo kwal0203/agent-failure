@@ -389,7 +389,7 @@ def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
     account_number = str(args.get("account_number", "")).strip().upper()
     amount_raw = args.get("amount", "")
     invoice_id = str(args.get("invoice_id", "")).strip()
-    logger.warning(
+    logger.debug(
         "lab3 pay_invoice input",
         extra={
             "session_id": str(ctx.session_id),
@@ -431,7 +431,7 @@ def _handle_pay_invoice(ctx: ToolCtx, args: dict[str, object]) -> str:
         )
         if vendor_master is not None and vendor_master.vendor_name == vendor_name:
             canonical_account = vendor_master.official_account
-    logger.warning(
+    logger.info(
         "lab3 pay_invoice accepted",
         extra={
             "session_id": str(ctx.session_id),

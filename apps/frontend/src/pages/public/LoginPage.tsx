@@ -315,43 +315,9 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="my-8 flex items-center gap-4">
-              <div className="h-px flex-1 bg-lime-500/15" />
-              <span className="text-sm font-semibold text-slate-500">
-                CONTINUE WITH
-              </span>
-              <div className="h-px flex-1 bg-lime-500/15" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                GitHub (soon)
-              </button>
-              <button
-                type="button"
-                disabled
-                className="h-12 rounded-lg border border-lime-400/40 bg-black/35 text-sm font-bold text-lime-200 opacity-65"
-              >
-                Google (soon)
-              </button>
-            </div>
-
             <div className="my-8 h-px bg-lime-500/15" />
 
             <div className="mt-2 space-y-2 text-sm text-slate-400">
-              {/* <p>
-                Don&apos;t have an account?{" "}
-                <Link
-                  to="/signup"
-                  className="font-semibold text-lime-300 transition hover:text-lime-200"
-                >
-                  Create account
-                </Link>
-              </p> */}
               <p>
                 Forgot your password?{" "}
                 <Link

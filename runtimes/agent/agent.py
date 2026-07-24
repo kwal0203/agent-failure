@@ -125,7 +125,7 @@ async def run_agent_turn(
     max_iterations: int = MAX_ITERATIONS,
     hooks: AgentLabHooks | None = None,
 ) -> AsyncIterator[AgentTurnItem]:
-    logger.warning(
+    logger.info(
         "agent turn start",
         extra={
             "session_id": str(ctx.session_id),
@@ -147,7 +147,7 @@ async def run_agent_turn(
 
     _hooks = hooks or NullAgentLabHooks()
     pre_turn_items = _hooks.pre_turn(ctx, prompt)
-    logger.warning(
+    logger.debug(
         "agent pre_turn completed",
         extra={
             "session_id": str(ctx.session_id),
@@ -162,7 +162,7 @@ async def run_agent_turn(
             return
 
     for i in range(max_iterations):
-        logger.warning(
+        logger.debug(
             "agent loop iteration",
             extra={
                 "session_id": str(ctx.session_id),
@@ -172,7 +172,7 @@ async def run_agent_turn(
             },
         )
         pre_model_items = _hooks.pre_model_call(ctx, messages)
-        logger.warning(
+        logger.debug(
             "agent pre_model_call completed",
             extra={
                 "session_id": str(ctx.session_id),
@@ -187,7 +187,7 @@ async def run_agent_turn(
                 return
 
         response = llm.chat(messages, openai_tools)
-        logger.warning(
+        logger.debug(
             "agent model response received",
             extra={
                 "session_id": str(ctx.session_id),
@@ -197,7 +197,7 @@ async def run_agent_turn(
 
         if isinstance(response, TextResponse):
             if response.content.strip():
-                logger.warning(
+                logger.debug(
                     "agent text response",
                     extra={
                         "session_id": str(ctx.session_id),
@@ -220,7 +220,7 @@ async def run_agent_turn(
         )
 
         for tc in response.tool_calls:
-            logger.warning(
+            logger.debug(
                 "agent tool call requested by model",
                 extra={
                     "session_id": str(ctx.session_id),
@@ -244,7 +244,7 @@ async def run_agent_turn(
             )
 
             pre_dispatch_result = _hooks.pre_tool_dispatch(tc, ctx)
-            logger.warning(
+            logger.debug(
                 "agent pre_tool_dispatch evaluated",
                 extra={
                     "session_id": str(ctx.session_id),
@@ -254,7 +254,8 @@ async def run_agent_turn(
                 },
             )
             result = pre_dispatch_result or dispatch(tc, ctx)
-            logger.warning(
+            dispatch_log = logger.debug if result.success else logger.warning
+            dispatch_log(
                 "agent tool dispatch result",
                 extra={
                     "session_id": str(ctx.session_id),
@@ -317,7 +318,7 @@ async def run_agent_turn(
                 )
 
             for item in _hooks.on_tool_dispatch(tc, result, ctx):
-                logger.warning(
+                logger.debug(
                     "agent hook on_tool_dispatch emitted item",
                     extra={
                         "session_id": str(ctx.session_id),
@@ -336,6 +337,13 @@ async def run_agent_turn(
                     tool_name=tc.tool_name,
                 )
             )
+    logger.warning(
+        "agent reached maximum iterations",
+        extra={
+            "session_id": str(ctx.session_id),
+            "max_iterations": max_iterations,
+        },
+    )
     yield TextItem(
         content="I've reached the maximum number of steps. Please try again with a more specific request."
     )

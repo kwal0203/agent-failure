@@ -273,7 +273,6 @@ export default function ReportsPage() {
           })}
         </section>
       ) : null}
-      {/* sidebar/top bar now rendered by AppShell */}
     </div>
   );
 }
