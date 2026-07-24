@@ -5,7 +5,6 @@ import {
 import type { components } from "../api/generated";
 import { getCurrentAuthHeader } from "../auth/session";
 
-export type LabDifficulty = "easy" | "medium";
 export type LabCatalogItem = components["schemas"]["LabCatalogItemResponse"];
 
 const LAB_CATALOG_SOURCE = (
@@ -101,7 +100,6 @@ export async function loadLabCatalog(
 export async function createSessionForLab(
   apiBaseUrl: string,
   labId: string,
-  labDifficulty: LabDifficulty = "medium",
 ): Promise<string> {
   const { data, error, response } = await createControlPlaneClient(
     apiBaseUrl,
@@ -114,7 +112,6 @@ export async function createSessionForLab(
     },
     body: {
       lab_id: labId,
-      lab_difficulty: labDifficulty,
     },
   });
 

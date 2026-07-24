@@ -37,7 +37,6 @@ def _seed_active_session() -> tuple[UUID, datetime]:
                 ended_at=None,
                 last_transition_actor="seed",
                 last_transition_reason=None,
-                lab_difficulty="medium",
             )
         )
         db.commit()

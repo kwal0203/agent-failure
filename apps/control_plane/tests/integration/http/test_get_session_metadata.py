@@ -228,7 +228,7 @@ def test_get_session_metadata_returns_200(db_session: Session) -> None:
     assert session["id"] == str(session_id)
     assert session["lab_id"] == str(lab_id)
     assert session["lab_version_id"] == str(lab_version_id)
-    assert session["lab_difficulty"] == "medium"
+    assert "lab_difficulty" not in session
     assert session["state"] == SessionState.ACTIVE.value
     assert session["runtime_substate"] == "WAITING_FOR_INPUT"
     assert session["resume_mode"] == "hot_resume"
@@ -475,26 +475,6 @@ def test_get_session_metadata_returns_200_for_admin_non_owner(
     assert response.status_code == 200
 
 
-def test_get_session_metadata_returns_lab_difficulty_when_set(
-    db_session: Session,
-) -> None:
-    session_id = uuid4()
-    owner_username = "difficulty-owner"
-
-    db_session.add(_make_session(session_id, owner_username, lab_difficulty="easy"))
-    db_session.flush()
-
-    with _test_client(_override_db_session(db_session)) as client:
-        response = client.get(
-            f"/api/v1/sessions/{session_id}",
-            headers=_auth_header(token=f"local:{owner_username}"),
-        )
-
-    assert response.status_code == 200
-    session = response.json()["session"]
-    assert session["lab_difficulty"] == "easy"
-
-
 def test_get_session_metadata_returns_terminal_session_with_interactive_false(
     db_session: Session,
 ) -> None:
@@ -705,7 +685,6 @@ def test_lab3_smoke_objective_and_hint_state_stable_across_refresh_reconnect() -
             owner_username,
             lab_id=lab_3_id,
             lab_version_id=lab_3_version_id,
-            lab_difficulty="medium",
         )
         db.add(session)
         db.flush()
@@ -801,7 +780,6 @@ def test_completion_fields_persist_across_refresh_after_objective_projection(
         owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()
@@ -871,7 +849,6 @@ def test_completion_projects_through_workers_and_persists_in_metadata() -> None:
                 owner_username,
                 lab_id=lab_id,
                 lab_version_id=lab_version_id,
-                lab_difficulty="medium",
             )
         )
         db.add(
@@ -938,7 +915,6 @@ def test_objective_flow_emits_one_terminal_completion_and_metadata_is_stable_on_
         owner_username,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()

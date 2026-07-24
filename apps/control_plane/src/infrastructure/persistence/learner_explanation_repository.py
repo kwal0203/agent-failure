@@ -54,7 +54,6 @@ class LearnerExplanationRepository(LearnerExplanationPort):
             session_id=input.session_id,
             lab_id=input.lab_id,
             lab_version_id=input.lab_version_id,
-            lab_difficulty=input.lab_difficulty,
             source=input.source,
             actor_user_id=input.actor_user_id,
             idempotency_key=input.idempotency_key,

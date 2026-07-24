@@ -91,7 +91,6 @@ def runtime_not_ready_message(
     *,
     session_id: UUID,
     runtime_binding: SessionRuntimeBinding | None,
-    lab_difficulty: str | None,
 ) -> ServerMessageEnvelope:
     current_status = (
         runtime_binding.status if runtime_binding is not None else "missing"
@@ -105,7 +104,6 @@ def runtime_not_ready_message(
             "base_url": runtime_binding.base_url
             if runtime_binding is not None
             else None,
-            "lab_difficulty": lab_difficulty,
         },
     )
     return build_policy_denial_message(

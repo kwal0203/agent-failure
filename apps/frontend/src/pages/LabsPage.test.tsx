@@ -53,7 +53,6 @@ describe("LabCatalog", () => {
         labName: "Prompt Injection Basics",
         labSlug: "prompt-injection-basics",
         labSummary: "Practice attacking a retrieval-enabled agent.",
-        labDifficulty: "medium",
       });
     });
   });

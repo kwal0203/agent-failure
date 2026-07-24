@@ -75,7 +75,7 @@ class _FakeTraceRepo(TraceEventPort):
 
 @dataclass
 class _FakeOutbox:
-    enqueued: list[tuple[UUID, int, int, str]]
+    enqueued: list[tuple[UUID, int, int]]
 
     def enqueue_for_evaluator(
         self,
@@ -83,16 +83,13 @@ class _FakeOutbox:
         session_id: UUID,
         lab_id: UUID,
         lab_version_id: UUID,
-        lab_difficulty: str,
         evaluator_version: int,
         start_event_index: int,
         end_event_index: int,
         requested_at: datetime | None = None,
     ) -> None:
         _ = (lab_id, lab_version_id, evaluator_version, requested_at)
-        self.enqueued.append(
-            (session_id, start_event_index, end_event_index, lab_difficulty)
-        )
+        self.enqueued.append((session_id, start_event_index, end_event_index))
 
 
 def _valid_input() -> LearnerExplanationInput:
@@ -101,7 +98,6 @@ def _valid_input() -> LearnerExplanationInput:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         actor_user_id=uuid4(),
         idempotency_key="explain-service-key",
         source="learner",
@@ -128,7 +124,7 @@ def test_inject_learner_explanation_happy_path_emits_trace_and_outbox() -> None:
     assert trace_repo.appended[0].event_type == "LEARNER_EXPLANATION_SUBMITTED"
     assert trace_repo.appended[0].event_index == 7
     assert len(outbox.enqueued) == 1
-    assert outbox.enqueued[0] == (input_data.session_id, 7, 7, "medium")
+    assert outbox.enqueued[0] == (input_data.session_id, 7, 7)
 
 
 def test_inject_learner_explanation_replay_returns_existing_without_side_effects() -> (
@@ -208,7 +204,6 @@ def test_inject_learner_explanation_rejects_blank_explanation() -> None:
         session_id=input_data.session_id,
         lab_id=input_data.lab_id,
         lab_version_id=input_data.lab_version_id,
-        lab_difficulty=input_data.lab_difficulty,
         actor_user_id=input_data.actor_user_id,
         idempotency_key=input_data.idempotency_key,
         source=input_data.source,

@@ -75,7 +75,6 @@ def _create_sessions_for_user(*, owner_user_id, count, lab_id):
                     owner_user_id=owner_user_id,
                     state="ACTIVE",
                     last_transition_actor="system",
-                    lab_difficulty="medium",
                 )
             )
         db.commit()
@@ -201,7 +200,6 @@ def test_create_session_does_not_count_terminal_sessions() -> None:
                     owner_user_id=principal_id,
                     state=state,
                     last_transition_actor="system",
-                    lab_difficulty="medium",
                 )
             )
         db.commit()

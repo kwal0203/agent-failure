@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime
 
@@ -24,7 +24,6 @@ class SessionResponse(BaseModel):
     lab_id: UUID
     # TODO: Make lab_version_id non-null once lab version binding is implemented in create flow.
     lab_version_id: UUID | None
-    lab_difficulty: str
     state: str
     resume_mode: str
     created_at: datetime
@@ -35,8 +34,9 @@ class CreateSessionResponse(BaseModel):
 
 
 class CreateSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     lab_id: UUID
-    lab_difficulty: str = "medium"
 
 
 class InjectSessionEmailResponse(BaseModel):

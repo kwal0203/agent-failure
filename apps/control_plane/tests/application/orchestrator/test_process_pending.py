@@ -451,7 +451,6 @@ def test_process_pending_once_success_marks_processed_and_transitions(
     assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_SUCCEEDED
     assert transition_calls[0]["session_id"] == ev.session_id
     assert len(provisioner.requests) == 1
-    assert provisioner.requests[0].lab_difficulty == "medium"
 
 
 def test_process_pending_once_failed_provision_marks_terminal_and_transitions_failed(
@@ -497,57 +496,6 @@ def test_process_pending_once_failed_provision_marks_terminal_and_transitions_fa
     assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_FAILED
     assert transition_calls[0]["session_id"] == ev.session_id
     assert uow.runtime_binding.upsert_calls[0].base_url is None
-
-
-def test_process_pending_once_explicit_difficulty_propagates_to_runtime_request(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ev = _make_event(
-        payload={
-            "lab_id": str(uuid4()),
-            "lab_version_id": str(uuid4()),
-            "lab_difficulty": "easy",
-        }
-    )
-    outbox = _FakeOutbox(events=[ev])
-    uow = _FakeProcessPendingOnceUoW(outbox=outbox)
-    provisioner = _FakeProvisioner(
-        result=ProvisionResult(
-            status="accepted",
-            runtime_id="r-1",
-            details={"base_url": "http://runtime.test.local:8000"},
-        )
-    )
-    inspector = _FakeInspector(responses={})
-    resolver = _FakeResolver()
-
-    transition_calls: list[dict[str, Any]] = []
-
-    def _fake_transition_session(**kwargs: Any) -> object:
-        transition_calls.append(kwargs)
-        return object()
-
-    monkeypatch.setattr(
-        orchestrator_service, "transition_session", _fake_transition_session
-    )
-
-    result = process_pending_once(
-        uow=uow,
-        image_resolver=resolver,
-        provisioner=provisioner,
-        runtime_inspector=inspector,
-    )
-
-    assert result.claimed_count == 1
-    assert result.succeeded_count == 1
-    assert result.failed_count == 0
-    assert len(outbox.processed_calls) == 1
-    assert len(outbox.terminal_calls) == 0
-    assert len(transition_calls) == 1
-    assert transition_calls[0]["trigger"] == Trigger.PROVISIONING_SUCCEEDED
-    assert transition_calls[0]["session_id"] == ev.session_id
-    assert len(provisioner.requests) == 1
-    assert provisioner.requests[0].lab_difficulty == "easy"
 
 
 def test_process_pending_once_missing_runtime_id_marks_terminal_and_transitions_failed(

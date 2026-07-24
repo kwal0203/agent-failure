@@ -25,7 +25,6 @@ def _insert_session(db_session: Session) -> SessionModel:
         ended_at=None,
         last_transition_actor="seed",
         last_transition_reason=None,
-        lab_difficulty="medium",
     )
     db_session.add(session)
     db_session.flush()

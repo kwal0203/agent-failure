@@ -33,7 +33,6 @@ def _seed_session(db_session: Session) -> SessionModel:
         resume_mode="hot_resume",
         last_transition_actor="seed",
         last_transition_reason=None,
-        lab_difficulty="medium",
     )
     db_session.add(row)
     db_session.flush()
@@ -50,7 +49,6 @@ def _input_for(
         session_id=session.id,
         lab_id=session.lab_id,
         lab_version_id=session.lab_version_id,
-        lab_difficulty="medium",
         actor_user_id=session.owner_user_id,
         idempotency_key=key,
         source="learner",
@@ -91,7 +89,6 @@ def test_get_latest_for_session_returns_most_recent_attempt(
         session_id=session.id,
         lab_id=session.lab_id,
         lab_version_id=session.lab_version_id,
-        lab_difficulty="medium",
         source="learner",
         actor_user_id=session.owner_user_id,
         idempotency_key="repo-latest-1",
@@ -103,7 +100,6 @@ def test_get_latest_for_session_returns_most_recent_attempt(
         session_id=session.id,
         lab_id=session.lab_id,
         lab_version_id=session.lab_version_id,
-        lab_difficulty="medium",
         source="learner",
         actor_user_id=session.owner_user_id,
         idempotency_key="repo-latest-2",

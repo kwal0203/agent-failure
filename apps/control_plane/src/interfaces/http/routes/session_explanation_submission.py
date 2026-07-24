@@ -66,7 +66,6 @@ def learner_explanation(
                 "event": "learner_explanation_invalid_idempotency_key",
                 "session_id": str(session_id),
                 "lab_id": None,
-                "lab_difficulty": None,
                 "user_id": str(principal.user_id),
             },
         )

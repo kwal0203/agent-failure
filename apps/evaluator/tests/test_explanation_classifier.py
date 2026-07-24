@@ -28,7 +28,6 @@ def _explanation() -> LearnerExplanation:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         source="learner",
         actor_user_id=uuid4(),
         idempotency_key="idempo-test",
@@ -80,7 +79,6 @@ def test_classifier_uses_json_schema_and_returns_validated_signal() -> None:
 
     signal = classifier.classify(
         explanations=(_explanation(),),
-        lab_difficulty="medium",
     )[0]
 
     assert signal.confidence == 0.95
@@ -102,7 +100,7 @@ def test_classifier_http_failure_returns_fallback_signal_without_raising() -> No
     )
 
     explanation = _explanation()
-    signals = classifier.classify(explanations=(explanation,), lab_difficulty="medium")
+    signals = classifier.classify(explanations=(explanation,))
 
     assert len(signals) == 1
     assert signals[0].explanation_id == explanation.explanation_id

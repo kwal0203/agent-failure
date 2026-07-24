@@ -50,9 +50,9 @@ def test_run_once_invokes_service_and_commits(monkeypatch: MonkeyPatch) -> None:
 
     class _FakeClassifier:
         def classify(
-            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+            self, explanations: tuple[LearnerExplanation, ...]
         ) -> tuple[ExplanationSignal, ...]:
-            _ = (explanations, lab_difficulty)
+            _ = explanations
             return ()
 
     def _fake_process_once(
@@ -113,9 +113,9 @@ def test_run_once_rolls_back_and_reraises_on_service_error(
 
     class _FakeClassifier:
         def classify(
-            self, explanations: tuple[LearnerExplanation, ...], *, lab_difficulty: str
+            self, explanations: tuple[LearnerExplanation, ...]
         ) -> tuple[ExplanationSignal, ...]:
-            _ = (explanations, lab_difficulty)
+            _ = explanations
             return ()
 
     def _fake_process_once(

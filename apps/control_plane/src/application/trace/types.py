@@ -22,4 +22,3 @@ class TraceEvent:
     actor_user_id: UUID | None = None
     lab_id: UUID | None = None
     lab_version_id: UUID | None = None
-    lab_difficulty: str | None = None

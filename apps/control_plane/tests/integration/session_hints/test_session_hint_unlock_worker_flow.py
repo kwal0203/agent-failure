@@ -43,7 +43,6 @@ def _insert_active_session(
                 ended_at=None,
                 last_transition_actor="seed",
                 last_transition_reason=None,
-                lab_difficulty="medium",
             )
         )
         db.commit()

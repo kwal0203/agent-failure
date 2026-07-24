@@ -41,7 +41,6 @@ function renderPreLabPage() {
           pathname: `/labs/${lab.id}/pre-lab`,
           state: {
             labName: lab.name,
-            labDifficulty: "medium",
           },
         },
       ]}
@@ -82,7 +81,6 @@ describe("PreLabPage session creation", () => {
     expect(apiMocks.createSessionForLab).toHaveBeenCalledWith(
       "http://localhost:8000",
       lab.id,
-      "medium",
     );
 
     await act(async () => {

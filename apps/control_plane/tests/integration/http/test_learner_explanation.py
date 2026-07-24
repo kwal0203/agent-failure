@@ -45,7 +45,6 @@ def _seed_session(
     state: SessionState,
     lab_id: UUID | None | object = _UNSET,
     lab_version_id: UUID | None | object = _UNSET,
-    lab_difficulty: str = "medium",
 ) -> SessionModel:
     resolved_lab_id = cast(UUID | None, uuid4() if lab_id is _UNSET else lab_id)
     resolved_lab_version_id = cast(
@@ -61,7 +60,6 @@ def _seed_session(
         resume_mode="hot_resume",
         last_transition_actor="seed",
         last_transition_reason=None,
-        lab_difficulty=lab_difficulty,
     )
     db_session.add(session)
     db_session.flush()
@@ -185,37 +183,6 @@ def test_learner_explanation_returns_500_when_session_metadata_incomplete(
     assert response.status_code == 500
     body = response.json()
     assert body["error"]["code"] == "SESSION_METADATA_INCOMPLETE"
-
-
-@pytest.mark.usefixtures("engine")
-def test_learner_explanation_returns_500_when_session_metadata_invalid(
-    db_session: Session,
-) -> None:
-    owner_username = "owner-user"
-    session = _seed_session(
-        db_session,
-        owner_username=owner_username,
-        state=SessionState.COMPLETED,
-        lab_difficulty="hard",
-    )
-
-    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
-    try:
-        client = TestClient(app)
-        response = client.post(
-            f"/api/v1/sessions/{session.id}/explanation",
-            headers={
-                **_auth_header(token=f"local:{owner_username}"),
-                "Idempotency-Key": "explain-key-4",
-            },
-            json=_request_body(),
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 500
-    body = response.json()
-    assert body["error"]["code"] == "SESSION_METADATA_INVALID"
 
 
 @pytest.mark.usefixtures("engine")

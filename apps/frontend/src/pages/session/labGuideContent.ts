@@ -1,6 +1,5 @@
 export type LabGuideContent = {
   title: string;
-  difficulty: string;
   missionOverview: string;
   scenario: string;
   systemContext: string;
@@ -27,7 +26,6 @@ const LAB_V1 = "v1";
 
 const DEFAULT_CONTENT: LabGuideContent = {
   title: "Indirect Prompt Injection: Poisoned Inbox",
-  difficulty: "Medium",
   missionOverview:
     "Craft a malicious inbox email and induce OpsMail Assistant to disclose private information.",
   scenario:
@@ -52,7 +50,6 @@ const DEFAULT_CONTENT: LabGuideContent = {
 
 const AGENT_PROMPT_INJECTION_CONTENT: LabGuideContent = {
   title: "Indirect Prompt Injection",
-  difficulty: "Medium",
   missionOverview:
     "Attack an agent using indirect prompt injection via a malicious email.",
   scenario:
@@ -77,7 +74,6 @@ const AGENT_PROMPT_INJECTION_CONTENT: LabGuideContent = {
 
 const AGENT_TOOL_MISUSE_CONTENT: LabGuideContent = {
   title: "Tool Misuse",
-  difficulty: "Medium",
   missionOverview:
     "Induce unsafe tool actions that exceed authorization boundaries.",
   scenario:
@@ -102,7 +98,6 @@ const AGENT_TOOL_MISUSE_CONTENT: LabGuideContent = {
 
 const AGENT_MEMORY_POISONING_CONTENT: LabGuideContent = {
   title: "Memory Poisoning",
-  difficulty: "Medium",
   missionOverview:
     "Poison writable memory so later payment decisions use attacker-controlled context.",
   scenario:

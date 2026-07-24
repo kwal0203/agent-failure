@@ -36,7 +36,6 @@ def _event(
         actor_user_id=None,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty=None,
     )
 
 

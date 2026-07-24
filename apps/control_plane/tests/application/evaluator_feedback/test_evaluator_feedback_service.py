@@ -285,8 +285,8 @@ def test_process_pending_feedback_publish_once_includes_explanation_derived_find
             session_id: [
                 _make_result(
                     result_type="partial_success",
-                    code="pi.global.explanation.mentioned_root_cause",
-                    reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                    code="pi.explanation.mentioned_root_cause",
+                    reason_code="PI_EXPLANATION_MENTIONED_ROOT_CAUSE",
                     feedback_payload={"confidence": 0.92},
                 )
             ]
@@ -308,10 +308,7 @@ def test_process_pending_feedback_publish_once_includes_explanation_derived_find
     published_feedback = publisher.calls[0][1]
     assert len(published_feedback) == 1
     assert published_feedback[0].status == "progress"
-    assert (
-        published_feedback[0].reason_code
-        == "PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE"
-    )
+    assert published_feedback[0].reason_code == "PI_EXPLANATION_MENTIONED_ROOT_CAUSE"
 
 
 def test_process_pending_feedback_publish_once_marks_terminal_on_unknown_result_type() -> (

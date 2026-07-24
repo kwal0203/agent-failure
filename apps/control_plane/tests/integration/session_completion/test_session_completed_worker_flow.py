@@ -40,7 +40,6 @@ def _seed_session(*, completion_status: str = "in_progress") -> tuple[UUID, date
                 ended_at=None,
                 last_transition_actor="seed",
                 last_transition_reason=None,
-                lab_difficulty="medium",
             )
         )
         db.commit()

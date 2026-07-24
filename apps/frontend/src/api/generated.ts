@@ -480,11 +480,6 @@ export interface components {
     /** CreateSessionRequest */
     CreateSessionRequest: {
       /**
-       * Lab Difficulty
-       * @default medium
-       */
-      lab_difficulty: string;
-      /**
        * Lab Id
        * Format: uuid
        */
@@ -1015,11 +1010,6 @@ export interface components {
       id: string;
       /** Interactive */
       interactive: boolean;
-      /**
-       * Lab Difficulty
-       * @default medium
-       */
-      lab_difficulty: string;
       /** Lab Id */
       lab_id: string | null;
       /** Lab Version Id */
@@ -1087,8 +1077,6 @@ export interface components {
        * Format: uuid
        */
       id: string;
-      /** Lab Difficulty */
-      lab_difficulty: string;
       /**
        * Lab Id
        * Format: uuid

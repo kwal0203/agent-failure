@@ -255,7 +255,7 @@ describe("SessionPage completion indicator", () => {
             feedback: [
               {
                 status: "progress",
-                reason_code: "PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
+                reason_code: "PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT",
                 evidence_snippet: "artifact entered context",
               },
             ],

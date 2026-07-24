@@ -99,18 +99,13 @@ def append_trace_event(
     if trace.event_type not in {"MODEL_TURN_COMPLETED", "MODEL_TURN_FAILED"}:
         return
 
-    if (
-        trace.lab_id is None
-        or trace.lab_version_id is None
-        or trace.lab_difficulty is None
-    ):
+    if trace.lab_id is None or trace.lab_version_id is None:
         return
 
     outbox_repo.enqueue_for_evaluator(
         session_id=trace.session_id,
         lab_id=trace.lab_id,
         lab_version_id=trace.lab_version_id,
-        lab_difficulty=trace.lab_difficulty,
         evaluator_version=1,
         start_event_index=trace.event_index,
         end_event_index=trace.event_index,

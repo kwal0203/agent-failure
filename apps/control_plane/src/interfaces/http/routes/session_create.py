@@ -74,7 +74,6 @@ def create_session_endpoint(
             principal=application_principal,
             admission_policy=admission_policy,
             lab_id=request.lab_id,
-            lab_difficulty=request.lab_difficulty,
             idempotency_key=key,
             uow=uow,
         )
@@ -82,7 +81,6 @@ def create_session_endpoint(
             id=result.session_id,
             lab_id=result.lab_id,
             lab_version_id=result.lab_version_id,
-            lab_difficulty=result.lab_difficulty,
             state=result.state,
             resume_mode=result.resume_mode,
             created_at=result.created_at,
@@ -101,7 +99,6 @@ def create_session_endpoint(
                 "lab_version_id": str(result.lab_version_id)
                 if result.lab_version_id is not None
                 else None,
-                "lab_difficulty": result.lab_difficulty,
             },
         )
 
@@ -120,7 +117,6 @@ def create_session_endpoint(
                     principal_id=application_principal.user_id,
                     idempotency_key=safe_idempo,
                 ),
-                "lab_difficulty": request.lab_difficulty,
             },
         )
         return map_unexpected_exception()

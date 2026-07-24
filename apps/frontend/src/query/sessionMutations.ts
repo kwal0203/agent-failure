@@ -3,10 +3,7 @@ import {
   controlPlaneRequestError,
   createControlPlaneClient,
 } from "../api/client";
-import {
-  createSessionForLab,
-  type LabDifficulty,
-} from "../pages/labCatalogApi";
+import { createSessionForLab } from "../pages/labCatalogApi";
 import type {
   InjectSessionEmailResponse,
   MarkSessionHintsSeenResponse,
@@ -17,7 +14,6 @@ import { sessionTraceQueryKey } from "./sessionTrace";
 
 type CreateSessionVariables = {
   labId: string;
-  labDifficulty: LabDifficulty;
 };
 
 export type InjectSessionEmailVariables = {
@@ -63,11 +59,8 @@ function useInvalidateSessionData(sessionId?: string) {
 export function useCreateSessionMutation(apiBaseUrl: string) {
   return useMutation({
     mutationKey: sessionMutationKeys.create(apiBaseUrl),
-    mutationFn: ({
-      labId,
-      labDifficulty,
-    }: CreateSessionVariables): Promise<string> =>
-      createSessionForLab(apiBaseUrl, labId, labDifficulty),
+    mutationFn: ({ labId }: CreateSessionVariables): Promise<string> =>
+      createSessionForLab(apiBaseUrl, labId),
   });
 }
 

@@ -9,7 +9,7 @@ from apps.evaluator.src.application.rules.labs.code_execution_v1 import (
     CODE_EXECUTION_V1_BUNDLE,
 )
 from apps.evaluator.src.application.rules.labs.prompt_injection_v1 import (
-    PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY,
+    PROMPT_INJECTION_V1_BUNDLE,
 )
 from apps.evaluator.src.application.rules.labs.memory_poisoning_v1 import (
     MEMORY_POISONING_V1_BUNDLE,
@@ -44,7 +44,6 @@ def _event(
         actor_user_id=None,
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty=None,
     )
 
 
@@ -343,18 +342,17 @@ def test_emitted_finding_payload_keys_match_contract_for_all_bundles() -> None:
 def test_contract_bundle_names_match_registry_bundles() -> None:
     registry_bundle_names = {
         bundle.name
-        for bundles_by_difficulty in SUPPORTED_BUNDLES.values()
-        for bundle in bundles_by_difficulty.values()
+        for bundle in SUPPORTED_BUNDLES.values()
         if bundle.name
         in {
+            "prompt_injection_v1",
             "tool_misuse_v1",
             "code_execution_v1",
             "memory_poisoning_v1",
         }
     }
-    # Prompt-injection is currently tiered and validated by dedicated tier tests.
-    # Keep this contract test scoped to non-tiered bundles.
     contract_bundle_names = {
+        "prompt_injection_v1",
         "tool_misuse_v1",
         "code_execution_v1",
         "memory_poisoning_v1",
@@ -363,7 +361,7 @@ def test_contract_bundle_names_match_registry_bundles() -> None:
 
 
 def test_prompt_injection_benign_feedback_payload_keys_match_contract() -> None:
-    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    bundle = PROMPT_INJECTION_V1_BUNDLE
     findings = bundle.run(
         events=[
             _event(
@@ -398,7 +396,7 @@ def test_prompt_injection_benign_feedback_payload_keys_match_contract() -> None:
 def test_prompt_injection_malicious_email_not_read_yet_payload_keys_match_contract() -> (
     None
 ):
-    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    bundle = PROMPT_INJECTION_V1_BUNDLE
     findings = bundle.run(
         events=[
             _event(
@@ -439,7 +437,7 @@ def test_prompt_injection_malicious_email_not_read_yet_payload_keys_match_contra
 def test_prompt_injection_malicious_email_read_no_disclosure_payload_keys_match_contract() -> (
     None
 ):
-    bundle = PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY["medium"]
+    bundle = PROMPT_INJECTION_V1_BUNDLE
     findings = bundle.run(
         events=[
             _event(

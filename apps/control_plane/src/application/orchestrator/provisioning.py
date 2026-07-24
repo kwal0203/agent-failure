@@ -184,7 +184,6 @@ class ProvisioningEventHandler:
             session_id=event.session_id,
             lab_id=payload.lab_id,
             lab_version_id=payload.lab_version_id,
-            lab_difficulty=payload.lab_difficulty,
             image_ref=image_ref,
             metadata={
                 "outbox_event_id": str(event.outbox_event_id),
@@ -211,7 +210,6 @@ class ProvisioningEventHandler:
         inspection = self._wait_until_ready(
             session_id=context.event.session_id,
             runtime_id=runtime_id,
-            lab_difficulty=context.payload.lab_difficulty,
             attempt_count=context.event.attempt_count,
         )
         if not inspection.ready:
@@ -289,7 +287,6 @@ class ProvisioningEventHandler:
                 "session_id": str(context.event.session_id),
                 "outbox_event_id": str(context.event.outbox_event_id),
                 "reason_code": reason_code,
-                "lab_difficulty": context.payload.lab_difficulty,
                 "retryable": True,
                 "k8s_namespace": details.get("k8s_namespace"),
                 "pod_name": details.get("pod_name"),
@@ -305,7 +302,6 @@ class ProvisioningEventHandler:
         *,
         session_id: UUID,
         runtime_id: str,
-        lab_difficulty: str,
         attempt_count: int,
     ) -> "_ReadinessOutcome":
         deadline = self._monotonic() + self._policy.readiness_timeout_seconds
@@ -329,7 +325,6 @@ class ProvisioningEventHandler:
                     extra={
                         "event": "runtime_readiness_inspect_failed",
                         "session_id": str(session_id),
-                        "lab_difficulty": lab_difficulty,
                         "runtime_id": runtime_id,
                         "attempt_count": attempt_count,
                         "error": str(exc),

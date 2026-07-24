@@ -234,7 +234,6 @@ async def stream_runtime_turn(
                         "first_chunk_emitted": first_chunk_emitted,
                         "chunks_emitted": chunks_emitted,
                         "upstream_error_type": "WS_SEND_TIMEOUT",
-                        "lab_difficulty": metadata.lab_difficulty,
                     },
                 )
                 await session_manager.send_to(
@@ -271,7 +270,6 @@ async def stream_runtime_turn(
                         ),
                         "event": "turn_stream_disconnected",
                         "chunks_emitted": chunks_emitted,
-                        "lab_difficulty": metadata.lab_difficulty,
                     },
                 )
                 db.commit()
@@ -292,7 +290,6 @@ async def stream_runtime_turn(
                         "retryable": True,
                         "first_chunk_emitted": first_chunk_emitted,
                         "chunks_emitted": chunks_emitted,
-                        "lab_difficulty": metadata.lab_difficulty,
                     },
                 )
                 await session_manager.send_to(
@@ -351,7 +348,6 @@ async def stream_runtime_turn(
                     "time_to_failure_ms": int(
                         (datetime.now(timezone.utc) - turn_start).total_seconds() * 1000
                     ),
-                    "lab_difficulty": metadata.lab_difficulty,
                 },
             )
             default_message = (

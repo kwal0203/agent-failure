@@ -20,7 +20,6 @@ class EvaluatorTaskInput:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    lab_difficulty: str
     evaluator_version: int
     start_event_index: int
     end_event_index: int
@@ -78,7 +77,6 @@ class EvaluatorTraceEvent:
     actor_user_id: UUID | None
     lab_id: UUID | None
     lab_version_id: UUID | None
-    lab_difficulty: str | None
 
 
 @dataclass(frozen=True)
@@ -149,7 +147,6 @@ class LearnerExplanation:
     session_id: UUID
     lab_id: UUID
     lab_version_id: UUID
-    lab_difficulty: str
     source: str
     actor_user_id: UUID
     idempotency_key: str

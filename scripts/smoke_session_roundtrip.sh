@@ -4,7 +4,6 @@ set -euo pipefail
 NS="${NS:-runtime-pool}"
 API_BASE="${API_BASE:-http://127.0.0.1:18080}"
 LAB_ID="${LAB_ID:-44444444-4444-4444-4444-444444444444}"
-LAB_DIFFICULTY="${LAB_DIFFICULTY:-medium}"
 AUTH_HEADER="${AUTH_HEADER:-Bearer local:learner@example.com:learner}"
 PROVISION_TIMEOUT="${PROVISION_TIMEOUT:-90}"
 CLEANUP_TIMEOUT="${CLEANUP_TIMEOUT:-120}"
@@ -66,7 +65,7 @@ run_one() {
       -H "Authorization: $AUTH_HEADER" \
       -H "Idempotency-Key: $idem" \
       -H "Content-Type: application/json" \
-      --data "{\"lab_id\":\"$LAB_ID\",\"lab_difficulty\":\"$LAB_DIFFICULTY\"}"
+      --data "{\"lab_id\":\"$LAB_ID\"}"
   )
   if [[ "$create_code" != "202" ]]; then
     printf "result=FAIL stage=create http=%s\n" "$create_code" >"$out"

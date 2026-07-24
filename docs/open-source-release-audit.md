@@ -128,7 +128,13 @@ implementation.
 
 ### Evaluator rules
 
-**Status: Remaining.**
+**Status: In progress.** The first cleanup phase removed the unfinished
+Easy/Medium/Hard dimension across the UI, API, persistence, runtime, and
+evaluator. The former Medium behavior is now the single canonical lab model.
+Evaluator bundles resolve only by lab slug, lab version, and evaluator version;
+unknown tuples fail closed. Characterization tests preserve the canonical rule
+ordering, evidence, feedback, and objective behavior before the structural CBM
+refactor begins.
 
 The evaluator files are large—Lab 1 exceeds 1,200 lines—and contain many regex
 heuristics and repeated event-search logic.
@@ -143,6 +149,10 @@ probably make the code worse. Keep the evaluator, but:
   labs.
 - Mark incomplete rules explicitly rather than leaving multiple "need endpoint
   before completed" TODOs inside a supposedly V1 bundle.
+
+The remaining work is to introduce typed solution-state interpretation and
+explicit constraint relevance/satisfaction results, then migrate and split the
+large lab rule modules incrementally.
 
 This is specialized, not embarrassing.
 

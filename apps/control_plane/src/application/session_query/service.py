@@ -98,7 +98,6 @@ def get_session_metadata(
         completion_status=metadata.completion_status,
         completed_at=metadata.completed_at,
         completion_reason_code=metadata.completion_reason_code,
-        lab_difficulty=metadata.lab_difficulty,
         progress_chips=objectives,
         hints=hints,
         unread_hint_count=unread_hint_count,

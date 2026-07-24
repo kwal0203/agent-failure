@@ -3,7 +3,6 @@
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
 
 from apps.control_plane.src.application.errors import (
     AdmissionDecisionError,
@@ -15,7 +14,6 @@ from apps.control_plane.src.application.errors import (
     ForbiddenErrorSessionQuery,
     ForbiddenErrorSessionReportEvidence,
     InvalidIdempotencyKeyError,
-    InvalidLabDifficulty,
     InvalidLearnerExplanationError,
     InvalidSessionReportEvidenceError,
     InvalidTransition,
@@ -99,14 +97,6 @@ def map_exception_to_http_response(
             status_code=400,
             details=exc.details,
         )
-    if isinstance(exc, InvalidLabDifficulty):
-        return api_error(
-            code="INVALID_LAB_DIFFICULTY",
-            message=exc.message,
-            retryable=False,
-            status_code=400,
-            details=exc.details,
-        )
     if isinstance(exc, InvalidTransition):
         details: dict[str, object] = {
             "current_state": exc.current_state.value,
@@ -173,17 +163,6 @@ def map_exception_to_http_response(
             retryable=False,
             status_code=400,
             details=exc.details,
-        )
-    if isinstance(exc, ValidationError):
-        metadata_details: dict[str, object] | None = (
-            {"session_id": str(session_id)} if session_id is not None else None
-        )
-        return api_error(
-            code="SESSION_METADATA_INVALID",
-            message="Invalid lab difficulty on session_metadata",
-            retryable=False,
-            status_code=500,
-            details=metadata_details,
         )
     if isinstance(exc, DuplicateIdempotencyKeyError):
         return api_error(

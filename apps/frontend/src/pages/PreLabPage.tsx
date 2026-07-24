@@ -12,7 +12,6 @@ import {
   Play,
   Radar,
   Search,
-  Tag,
   Target,
   User,
   Wifi,
@@ -28,7 +27,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLabCatalogQuery } from "../query/labCatalog";
 import { useCreateSessionMutation } from "../query/sessionMutations";
 import { useShellBootstrap } from "../shell/context";
-import type { LabCatalogItem, LabDifficulty } from "./labCatalogApi";
+import type { LabCatalogItem } from "./labCatalogApi";
 
 const LATEST_SESSION_BY_LAB_KEY = "agentfailure.latestSessionByLab";
 
@@ -53,7 +52,6 @@ type PreLabRouteState = {
   labName?: string;
   labSlug?: string;
   labSummary?: string;
-  labDifficulty?: LabDifficulty;
 };
 
 type BriefingContent = {
@@ -353,8 +351,6 @@ export default function PreLabPage() {
     : null;
   const [acknowledged, setAcknowledged] = useState(false);
 
-  const difficulty: LabDifficulty = state?.labDifficulty ?? "medium";
-
   useEffect(() => {
     if (!labId) {
       navigate("/labs", { replace: true });
@@ -422,7 +418,7 @@ export default function PreLabPage() {
   const onStartLab = () => {
     if (!labId) return;
     createSessionMutation.mutate(
-      { labId, labDifficulty: difficulty },
+      { labId },
       {
         onSuccess: (sessionId) => {
           rememberLatestSessionForLab(labId, sessionId);
@@ -472,7 +468,6 @@ export default function PreLabPage() {
             </p>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <MetadataPill icon={Tag} label="Difficulty" value={difficulty} />
               <MetadataPill
                 icon={Clock}
                 label="Estimated"

@@ -59,7 +59,6 @@ class SQLAlchemyOutboxEvaluatorRepository(EvaluatorOutboxPort):
                     session_id=row.aggregate_id,
                     lab_id=p.lab_id,
                     lab_version_id=p.lab_version_id,
-                    lab_difficulty=p.lab_difficulty,
                     evaluator_version=p.evaluator_version,
                     start_event_index=p.start_event_index,
                     end_event_index=p.end_event_index,

@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass
 from uuid import UUID
 
-from apps.control_plane.src.application.common.schemas import LabDifficultyParser
 from apps.control_plane.src.application.common.types import PrincipalContext
 from apps.control_plane.src.application.learner_explanation.service import (
     inject_learner_explanation,
@@ -86,16 +85,11 @@ def submit_learner_explanation(
             details={"session_id": str(command.session_id)},
         )
 
-    parsed = LabDifficultyParser.model_validate(
-        {"lab_difficulty": session_metadata.lab_difficulty}
-    )
-
     explanation_artifact = LearnerExplanationInput(
         explanation=command.explanation,
         session_id=session_metadata.id,
         lab_id=lab_id,
         lab_version_id=lab_version_id,
-        lab_difficulty=parsed.lab_difficulty,
         actor_user_id=command.principal.user_id,
         idempotency_key=command.idempotency_key,
         source="learner",
@@ -114,7 +108,6 @@ def submit_learner_explanation(
             "event": "learner_explanation_submitted",
             "session_id": str(command.session_id),
             "lab_id": str(lab_id),
-            "lab_difficulty": parsed.lab_difficulty,
             "user_id": str(command.principal.user_id),
         },
     )

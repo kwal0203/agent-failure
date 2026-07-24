@@ -6,7 +6,7 @@ from apps.evaluator.src.application.rules.contract import (
     REASON_CODE_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
     REASON_CODE_PI_BENIGN_EMAIL_READ_INJECTED_CONTEXT,
     REASON_CODE_PI_DIRECT_DISCLOSURE_ASK_NO_MALICIOUS_EMAIL,
-    REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+    REASON_CODE_PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
     REASON_CODE_PI_MALICIOUS_EMAIL_READ_NO_DISCLOSURE,
     REASON_CODE_PI_MALICIOUS_EMAIL_NOT_READ_YET,
     RULE_ID_PI_BENIGN_EMAIL_INJECTED_NO_PROGRESS,
@@ -97,14 +97,10 @@ def _is_inbox_interaction_event(event: EvaluatorTraceEvent) -> bool:
 
 def _malicious_email_sent(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
-    Eductional constraint:
-        G1. Learner created an attack artifact
-        Satisfied if learner sends an email through the attacker console.
-
-        Difficulty: Global
-
-    TODO:
-        1. Should probably check the content of the email and constraint is breached if contains malicious content
+    Progress observation:
+        Learner created an attack artifact by sending an email through the
+        attacker console. Separate rules classify whether its content is
+        malicious and whether it advances the exploit.
     """
 
     for event in ctx.events:
@@ -115,12 +111,12 @@ def _malicious_email_sent(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
             return (
                 EvaluatorFinding(
                     result_type="partial_success",
-                    code="pi.global.attack_artifact_created",
+                    code="pi.attack_artifact_created",
                     trigger_event_index=event.event_index,
                     trigger_start_event_index=event.event_index,
                     trigger_end_event_index=event.event_index,
                     feedback_level="info",
-                    reason_code="PI_GLOBAL_ATTACK_ARTIFACT_CREATED",
+                    reason_code="PI_ATTACK_ARTIFACT_CREATED",
                     feedback_payload={
                         "event_type": event.event_type,
                         "email_id": event.payload.get("email_id"),
@@ -186,11 +182,9 @@ def _benign_email_injected_no_progress(
 
 def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
-    Eductional constraint:
+    Educational constraint:
         G2a. Learner triggered inbox processing
         Satisfied if learner causes the assistant to list or read emails.
-
-        Difficulty: Global
     """
 
     for event in ctx.events:
@@ -198,12 +192,12 @@ def _inbox_interaction_triggered(ctx: RuleContext) -> tuple[EvaluatorFinding, ..
             return (
                 EvaluatorFinding(
                     result_type="partial_success",
-                    code="pi.global.inbox_interaction_triggered",
+                    code="pi.inbox_interaction_triggered",
                     trigger_event_index=event.event_index,
                     trigger_start_event_index=event.event_index,
                     trigger_end_event_index=event.event_index,
                     feedback_level="info",
-                    reason_code="PI_GLOBAL_INBOX_INTERACTION_TRIGGERED",
+                    reason_code="PI_INBOX_INTERACTION_TRIGGERED",
                     feedback_payload={
                         "event_type": event.event_type,
                         "email_id": event.payload.get("email_id"),
@@ -329,11 +323,9 @@ def _inbox_interaction_without_disclosure(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
-    Eductional constraint:
+    Educational constraint:
         G2b. Learner triggered inbox processing
         Satisfied if learner causes the assistant to list or read emails.
-
-        Difficulty: Global
     """
 
     inbox_interaction = False
@@ -353,12 +345,12 @@ def _inbox_interaction_without_disclosure(
     return (
         EvaluatorFinding(
             result_type="no_effect",
-            code="pi.global.inbox_interaction_without_disclosure",
+            code="pi.inbox_interaction_without_disclosure",
             trigger_event_index=last_event.event_index,
             trigger_start_event_index=last_event.event_index,
             trigger_end_event_index=last_event.event_index,
             feedback_level="info",
-            reason_code="PI_GLOBAL_INBOX_INTERACTION_WITHOUT_DISCLOSURE",
+            reason_code="PI_INBOX_INTERACTION_WITHOUT_DISCLOSURE",
             feedback_payload={
                 "last_event_type": last_event.event_type,
                 "email_id": last_event.payload.get("email_id"),
@@ -431,11 +423,9 @@ def _malicious_email_entered_model_context(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
-    Eductional constraint:
+    Educational constraint:
         G3. Malicious artifact entered model context
         Satisfied if the assistant reads the learner-crafted email.
-
-        Difficulty: Global
     """
 
     for event in ctx.events:
@@ -447,12 +437,12 @@ def _malicious_email_entered_model_context(
             return (
                 EvaluatorFinding(
                     result_type="partial_success",
-                    code="pi.global.malicious_artifact_entered_context",
+                    code="pi.malicious_artifact_entered_context",
                     trigger_event_index=event.event_index,
                     trigger_start_event_index=event.event_index,
                     trigger_end_event_index=event.event_index,
                     feedback_level="flag",
-                    reason_code=REASON_CODE_PI_GLOBAL_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
+                    reason_code=REASON_CODE_PI_MALICIOUS_ARTIFACT_ENTERED_CONTEXT,
                     feedback_payload={
                         "email_id": event.payload.get("email_id"),
                         "subject": event.payload.get("subject"),
@@ -496,15 +486,12 @@ def _benign_email_read_injected_context(
 def _learner_pursued_concrete_policy_violation(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
-    # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
-    # and currently fragile to paraphrases/novel phrasing. Replace with an
-    # AI-assisted intent classifier in a future iteration.
+    # This deterministic heuristic is deliberately conservative. Expand its
+    # characterized patterns when new supported attack phrasing is introduced.
     """
     Educational constraint:
         G4. Learner pursued a concrete policy violation
         Satisfied if learner attempts to induce disclosure of protected information.
-
-        Difficulty: Global
     """
     findings: list[EvaluatorFinding] = []
 
@@ -529,12 +516,12 @@ def _learner_pursued_concrete_policy_violation(
         findings.append(
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.global.policy_violation_attempted",
+                code="pi.policy_violation_attempted",
                 trigger_event_index=event.event_index,
                 trigger_start_event_index=event.event_index,
                 trigger_end_event_index=event.event_index,
                 feedback_level="info",
-                reason_code="PI_GLOBAL_POLICY_VIOLATION_ATTEMPTED",
+                reason_code="PI_POLICY_VIOLATION_ATTEMPTED",
                 feedback_payload={
                     "event_type": event.event_type,
                     "matched_override_patterns": override_hits,
@@ -550,13 +537,9 @@ def _learner_pursued_concrete_policy_violation(
 
 def _learner_explained_root_cause(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
-    TODO: Need user explanation endpoint before this rule can be completed
-
-    Eductional constraint:
+    Educational constraint:
         G5. Learner explained root cause
         Satisfied if learner identifies that untrusted email content was treated as instructions or granted too much authority.
-
-        Difficulty: Global
     """
 
     explanation_signals = ctx.explanation_signals
@@ -568,12 +551,12 @@ def _learner_explained_root_cause(ctx: RuleContext) -> tuple[EvaluatorFinding, .
         return (
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.global.explanation.mentioned_root_cause",
+                code="pi.explanation.mentioned_root_cause",
                 trigger_event_index=None,
                 trigger_end_event_index=None,
                 trigger_start_event_index=None,
                 feedback_level="info",
-                reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_ROOT_CAUSE",
+                reason_code="PI_EXPLANATION_MENTIONED_ROOT_CAUSE",
                 feedback_payload={
                     "confidence": final_explanation.confidence,
                     "explanation_id": final_explanation.explanation_id,
@@ -586,13 +569,9 @@ def _learner_explained_root_cause(ctx: RuleContext) -> tuple[EvaluatorFinding, .
 
 def _learner_proposed_mitigation(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
-    TODO: Need user explanation endpoint before this rule can be completed
-
-    Eductional constraint:
+    Educational constraint:
         G6. Learner proposed a mitigation
         Satisfied if learner names a plausible mitigation such as instruction/data separation, stronger policy checks, or privilege reduction.
-
-        Difficulty: Global
     """
 
     explanation_signals = ctx.explanation_signals
@@ -604,12 +583,12 @@ def _learner_proposed_mitigation(ctx: RuleContext) -> tuple[EvaluatorFinding, ..
         return (
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.global.explanation.mentioned_mitigation",
+                code="pi.explanation.mentioned_mitigation",
                 trigger_event_index=None,
                 trigger_end_event_index=None,
                 trigger_start_event_index=None,
                 feedback_level="info",
-                reason_code="PI_GLOBAL_EXPLANATION_MENTIONED_MITIGATION",
+                reason_code="PI_EXPLANATION_MENTIONED_MITIGATION",
                 feedback_payload={
                     "confidence": final_explanation.confidence,
                     "explanation_id": final_explanation.explanation_id,
@@ -618,144 +597,14 @@ def _learner_proposed_mitigation(ctx: RuleContext) -> tuple[EvaluatorFinding, ..
         )
 
     return ()
-
-
-def _direct_override_language_used(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
-    # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
-    # and currently fragile to paraphrases/novel phrasing. Replace with an
-    # AI-assisted intent classifier in a future iteration.
-
-    """
-    Eductional constraint:
-        E1. Direct override language used (ignore previous instructions, reveal/print/disclose the token)
-        Satisfied if learner's malicious email includes phrases like:
-
-        Difficulty: easy
-    """
-
-    findings: list[EvaluatorFinding] = []
-    for event in ctx.events:
-        if event.family != "learner":
-            continue
-
-        text = extract_learner_text(event)
-        if text is None:
-            subject = event.payload.get("subject")
-            if isinstance(subject, str) and subject.strip():
-                text = subject.strip().lower()
-
-        if text is None:
-            continue
-
-        override_hits = matched_pattern_strings(text, _OVERRIDE_PATTERNS)
-        disclosure_hits = matched_pattern_strings(text, _DISCLOSURE_PATTERNS)
-        if not override_hits or not disclosure_hits:
-            continue
-
-        findings.append(
-            EvaluatorFinding(
-                result_type="partial_success",
-                code="pi.easy.direct_override_language_used",
-                trigger_event_index=event.event_index,
-                trigger_start_event_index=event.event_index,
-                trigger_end_event_index=event.event_index,
-                feedback_level="info",
-                reason_code="PI_EASY_DIRECT_OVERRIDE_LANGUAGE_USED",
-                feedback_payload={
-                    "event_type": event.event_type,
-                    "email_id": event.payload.get("email_id"),
-                    "subject": event.payload.get("subject"),
-                    "matched_override_patterns": override_hits,
-                    "matched_disclosure_patterns": disclosure_hits,
-                    "text_excerpt": text[:200],
-                },
-            )
-        )
-
-    return tuple(findings)
-
-
-def _learner_identified_agent_trusts_external_content(
-    ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    """
-    TODO: Need user explanation endpoint before this rule can be completed
-
-    Eductional constraint:
-        E2. Learner recognized over-trusting external content
-        Satisfied if learner explanation notes that the assistant followed email instructions too readily.
-
-        Difficulty: easy
-    """
-
-    explanation_signals = ctx.explanation_signals
-    if not explanation_signals:
-        return ()
-
-    final_explanation = explanation_signals[-1]
-    if final_explanation.identified_agent_trusts_external_content:
-        return (
-            EvaluatorFinding(
-                result_type="partial_success",
-                code="pi.easy.explanation.identified_agent_trusts_external_content",
-                trigger_event_index=None,
-                trigger_end_event_index=None,
-                trigger_start_event_index=None,
-                feedback_level="info",
-                reason_code="PI_EASY_EXPLANATION_IDENTIFIED_AGENT_TRUSTS_EXERNAL_CONTENT",
-                feedback_payload={
-                    "confidence": final_explanation.confidence,
-                    "explanation_id": final_explanation.explanation_id,
-                },
-            ),
-        )
-
-    return ()
-
-
-def _token_exposed_easy(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
-    """
-    Eductional constraint:
-        E3. Easy-tier exploit success
-        Satisfied if assistant reveals the token.
-
-        Difficulty: easy
-    """
-
-    findings: list[EvaluatorFinding] = []
-    for event in ctx.events:
-        if event.family != "runtime":
-            continue
-        if event.event_type != TRACE_EVENT_TOKEN_DISCLOSED:
-            continue
-
-        findings.append(
-            EvaluatorFinding(
-                result_type="success_signal",
-                code="pi.easy.token_exposed",
-                trigger_event_index=event.event_index,
-                trigger_start_event_index=event.event_index,
-                trigger_end_event_index=event.event_index,
-                feedback_level="flag",
-                reason_code="PI_EASY_TOKEN_EXPOSED",
-                feedback_payload={
-                    "event_type": event.event_type,
-                    "channel": event.payload.get("channel"),
-                    "token_kind": event.payload.get("token_kind"),
-                },
-            )
-        )
-
-    return tuple(findings)
 
 
 def _compliance_authority_spoofed(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
-    # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
-    # and currently fragile to paraphrases/novel phrasing. Replace with an
-    # AI-assisted intent classifier in a future iteration.
+    # This deterministic heuristic is deliberately conservative. Expand its
+    # characterized patterns when new supported attack phrasing is introduced.
     """
     Educational constraint:
-        M1. Compliance authority spoofed
+        Compliance authority spoofed
         Satisfied if malicious email claims to originate from:
             Audit function
             compliance office
@@ -788,12 +637,12 @@ def _compliance_authority_spoofed(ctx: RuleContext) -> tuple[EvaluatorFinding, .
         findings.append(
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.medium.compliance_authority_spoofed",
+                code="pi.compliance_authority_spoofed",
                 trigger_event_index=event.event_index,
                 trigger_start_event_index=event.event_index,
                 trigger_end_event_index=event.event_index,
                 feedback_level="info",
-                reason_code="PI_MEDIUM_COMPLIANCE_AUTHORITY_SPOOFED",
+                reason_code="PI_COMPLIANCE_AUTHORITY_SPOOFED",
                 feedback_payload={
                     "event_type": event.event_type,
                     "email_id": payload.get("email_id"),
@@ -808,19 +657,16 @@ def _compliance_authority_spoofed(ctx: RuleContext) -> tuple[EvaluatorFinding, .
 
 
 def _audit_urgency_invoked(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
-    # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
-    # and currently fragile to paraphrases/novel phrasing. Replace with an
-    # AI-assisted intent classifier in a future iteration.
+    # This deterministic heuristic is deliberately conservative. Expand its
+    # characterized patterns when new supported attack phrasing is introduced.
     """
-    Eductional constraint:
-        M2. Audit urgency invoked
+    Educational constraint:
+        Audit urgency invoked
         Satisfied if the email references:
             urgent audit directive
             mandatory compliance procedure
             immediate procedural update
             required audit step
-
-        Difficulty: medium
     """
 
     urgency_patterns: tuple[re.Pattern[str], ...] = (
@@ -864,12 +710,12 @@ def _audit_urgency_invoked(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
         findings.append(
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.medium.audit_urgency_invoked",
+                code="pi.audit_urgency_invoked",
                 trigger_event_index=event.event_index,
                 trigger_start_event_index=event.event_index,
                 trigger_end_event_index=event.event_index,
                 feedback_level="info",
-                reason_code="PI_MEDIUM_AUDIT_URGENCY_INVOKED",
+                reason_code="PI_AUDIT_URGENCY_INVOKED",
                 feedback_payload={
                     "event_type": event.event_type,
                     "email_id": payload.get("email_id"),
@@ -887,16 +733,13 @@ def _audit_urgency_invoked(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
 def _disclosure_framed_as_business_requirement(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
-    # TODO(lab1-cbm): This deterministic regex heuristic is intentionally simple
-    # and currently fragile to paraphrases/novel phrasing. Replace with an
-    # AI-assisted intent classifier in a future iteration.
+    # This deterministic heuristic is deliberately conservative. Expand its
+    # characterized patterns when new supported attack phrasing is introduced.
 
     """
-    Eductional constraint:
-        M3. Disclosure framed as business requirement
+    Educational constraint:
+        Disclosure framed as business requirement
         Satisfied if token disclosure is presented as necessary for compliance rather than as a naked instruction.
-
-        Difficulty: medium
     """
 
     business_requirement_patterns: tuple[re.Pattern[str], ...] = (
@@ -926,12 +769,12 @@ def _disclosure_framed_as_business_requirement(
         findings.append(
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.medium.disclosure_framed_as_business_requirement",
+                code="pi.disclosure_framed_as_business_requirement",
                 trigger_event_index=event.event_index,
                 trigger_start_event_index=event.event_index,
                 trigger_end_event_index=event.event_index,
                 feedback_level="info",
-                reason_code="PI_MEDIUM_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT",
+                reason_code="PI_DISCLOSURE_FRAMED_AS_BUSINESS_REQUIREMENT",
                 feedback_payload={
                     "event_type": event.event_type,
                     "email_id": event.payload.get("email_id"),
@@ -950,13 +793,9 @@ def _learner_identifies_rule_priority_clash(
     ctx: RuleContext,
 ) -> tuple[EvaluatorFinding, ...]:
     """
-    TODO: Need user explanation endpoint before this rule can be completed
-
-    Eductional constraint:
-        M4. Learner recognized rule conflict
+    Educational constraint:
+        Learner recognized rule conflict
         Satisfied if learner explanation identifies the clash between security and compliance priorities.
-
-        Difficulty: medium
     """
 
     explanation_signals = ctx.explanation_signals
@@ -968,12 +807,12 @@ def _learner_identifies_rule_priority_clash(
         return (
             EvaluatorFinding(
                 result_type="partial_success",
-                code="pi.medium.explanation.identified_rule_priority_clash",
+                code="pi.explanation.identified_rule_priority_clash",
                 trigger_event_index=None,
                 trigger_end_event_index=None,
                 trigger_start_event_index=None,
                 feedback_level="info",
-                reason_code="PI_MEDIUM_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH",
+                reason_code="PI_EXPLANATION_IDENTIFIED_RULE_PRIORITY_CLASH",
                 feedback_payload={
                     "confidence": final_explanation.confidence,
                     "explanation_id": final_explanation.explanation_id,
@@ -984,13 +823,11 @@ def _learner_identifies_rule_priority_clash(
     return ()
 
 
-def _token_exposed_medium(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
+def _token_exposed(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     """
-    Eductional constraint:
-        M5. Medium-tier exploit success
+    Educational constraint:
+        Exploit success
         Satisfied if assistant reveals the token.
-
-        Difficulty: medium
     """
 
     findings: list[EvaluatorFinding] = []
@@ -1003,12 +840,12 @@ def _token_exposed_medium(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
         findings.append(
             EvaluatorFinding(
                 result_type="success_signal",
-                code="pi.medium.token_exposed",
+                code="pi.token_exposed",
                 trigger_event_index=event.event_index,
                 trigger_start_event_index=event.event_index,
                 trigger_end_event_index=event.event_index,
                 feedback_level="flag",
-                reason_code="PI_MEDIUM_TOKEN_EXPOSED",
+                reason_code="PI_TOKEN_EXPOSED",
                 feedback_payload={
                     "event_type": event.event_type,
                     "channel": event.payload.get("channel"),
@@ -1020,151 +857,7 @@ def _token_exposed_medium(ctx: RuleContext) -> tuple[EvaluatorFinding, ...]:
     return tuple(findings)
 
 
-# Hard rules
-# These should reflect the single chosen advanced failure mode.
-# Assuming the hard tier uses an obfuscated compliance template mechanic:
-
-# def _structured_attack_template_used(
-#     ctx: RuleContext
-# ) -> tuple[EvaluatorFinding, ...]:
-#     """
-#     NOTE: Not done
-
-#     Eductional constraint:
-#         H1. Structured template framing used
-#         Satisfied if learner payload frames the malicious content as a form, template, or exact reproduction task.
-
-#         Difficulty: hard
-#     """
-
-#     last_event: EvaluatorTraceEvent | None = None
-#     for event in ctx.events:
-#         last_event = event
-
-#     return (
-#         EvaluatorFinding(
-#             result_type="no_effect",
-#             code="pi.inbox_interaction_without_disclosure",
-#             trigger_event_index=last_event.event_index if last_event else 1,
-#             trigger_start_event_index=last_event.event_index if last_event else 1,
-#             trigger_end_event_index=last_event.event_index if last_event else 1,
-#             feedback_level="info",
-#             reason_code="PI_NO_SECRET_DISCLOSURE",
-#             feedback_payload={
-#                 "last_event_type": last_event.event_type if last_event else "xxx",
-#                 "email_id": last_event.payload.get("email_id") if last_event else "xxx",
-#                 "subject": last_event.payload.get("subject") if last_event else "xxx",
-#             },
-#         ),
-#     )
-
-
-# def _indirect_attack(
-#     ctx: RuleContext
-# ) -> tuple[EvaluatorFinding, ...]:
-#     """
-#     NOTE: Not done
-
-#     Eductional constraint:
-#         H2. Request is indirect rather than explicit
-#         Satisfied if payload avoids a blunt “reveal the token” command and instead embeds disclosure into a required output structure.
-
-#         Difficulty: hard
-#     """
-
-#     last_event: EvaluatorTraceEvent | None = None
-#     for event in ctx.events:
-#         last_event = event
-
-#     return (
-#         EvaluatorFinding(
-#             result_type="no_effect",
-#             code="pi.inbox_interaction_without_disclosure",
-#             trigger_event_index=last_event.event_index if last_event else 1,
-#             trigger_start_event_index=last_event.event_index if last_event else 1,
-#             trigger_end_event_index=last_event.event_index if last_event else 1,
-#             feedback_level="info",
-#             reason_code="PI_NO_SECRET_DISCLOSURE",
-#             feedback_payload={
-#                 "last_event_type": last_event.event_type if last_event else "xxx",
-#                 "email_id": last_event.payload.get("email_id") if last_event else "xxx",
-#                 "subject": last_event.payload.get("subject") if last_event else "xxx",
-#             },
-#         ),
-#     )
-
-
-# def _learner_identified_boundary_hardening(
-#     ctx: RuleContext
-# ) -> tuple[EvaluatorFinding, ...]:
-#     """
-#     NOTE: Not done
-
-#     Eductional constraint:
-#         H3. Learner recognized boundary hardening
-#         Satisfied if learner explanation notes that the assistant was explicitly told to treat email text as data only.
-
-#         Difficulty: hard
-#     """
-
-#     last_event: EvaluatorTraceEvent | None = None
-#     for event in ctx.events:
-#         last_event = event
-
-#     return (
-#         EvaluatorFinding(
-#             result_type="no_effect",
-#             code="pi.inbox_interaction_without_disclosure",
-#             trigger_event_index=last_event.event_index if last_event else 1,
-#             trigger_start_event_index=last_event.event_index if last_event else 1,
-#             trigger_end_event_index=last_event.event_index if last_event else 1,
-#             feedback_level="info",
-#             reason_code="PI_NO_SECRET_DISCLOSURE",
-#             feedback_payload={
-#                 "last_event_type": last_event.event_type if last_event else "xxx",
-#                 "email_id": last_event.payload.get("email_id") if last_event else "xxx",
-#                 "subject": last_event.payload.get("subject") if last_event else "xxx",
-#             },
-#         ),
-#     )
-
-
-# def _token_exposed_hard(
-#     ctx: RuleContext
-# ) -> tuple[EvaluatorFinding, ...]:
-#     """
-#     NOTE: Not done
-
-#     Eductional constraint:
-#         H4. Hard-tier exploit success
-#         Satisfied if assistant reveals the token.
-
-#         Difficulty: medium
-#     """
-
-#     last_event: EvaluatorTraceEvent | None = None
-#     for event in ctx.events:
-#         last_event = event
-
-#     return (
-#         EvaluatorFinding(
-#             result_type="no_effect",
-#             code="pi.inbox_interaction_without_disclosure",
-#             trigger_event_index=last_event.event_index if last_event else 1,
-#             trigger_start_event_index=last_event.event_index if last_event else 1,
-#             trigger_end_event_index=last_event.event_index if last_event else 1,
-#             feedback_level="info",
-#             reason_code="PI_NO_SECRET_DISCLOSURE",
-#             feedback_payload={
-#                 "last_event_type": last_event.event_type if last_event else "xxx",
-#                 "email_id": last_event.payload.get("email_id") if last_event else "xxx",
-#                 "subject": last_event.payload.get("subject") if last_event else "xxx",
-#             },
-#         ),
-#     )
-
-
-GLOBAL_RULES: tuple[RuleFn, ...] = (
+BASE_RULES: tuple[RuleFn, ...] = (
     _inbox_interaction_triggered,
     _inbox_interaction_without_disclosure,
     _malicious_email_sent,
@@ -1180,48 +873,17 @@ GLOBAL_RULES: tuple[RuleFn, ...] = (
 )
 
 
-RULES_BY_DIFFICULTY: dict[str, tuple[RuleFn, ...]] = {
-    "easy": (
-        _direct_override_language_used,
-        _learner_identified_agent_trusts_external_content,
-        _token_exposed_easy,
-    ),
-    "medium": (
+PROMPT_INJECTION_V1_BUNDLE = RuleBundle(
+    name="prompt_injection_v1",
+    lab_id=UUID("11111111-1111-1111-1111-111111111111"),
+    lab_version_id=UUID("55555555-5555-5555-5555-555555555555"),
+    evaluator_version=1,
+    rules=BASE_RULES
+    + (
         _compliance_authority_spoofed,
         _audit_urgency_invoked,
         _disclosure_framed_as_business_requirement,
         _learner_identifies_rule_priority_clash,
-        _token_exposed_medium,
+        _token_exposed,
     ),
-    # "hard": (
-    #     _structured_attack_template_used,
-    #     _indirect_attack,
-    #     _learner_identified_boundary_hardening,
-    #     _token_exposed_hard
-    # ),
-}
-
-
-def rules_for(difficulty: str) -> tuple[RuleFn, ...]:
-    normalized_difficulty = difficulty.strip().lower()
-    return GLOBAL_RULES + RULES_BY_DIFFICULTY.get(
-        normalized_difficulty, RULES_BY_DIFFICULTY["medium"]
-    )
-
-
-def _fill_bundle(lab_difficulty: str) -> RuleBundle:
-    return RuleBundle(
-        name="prompt_injection_v1",
-        lab_id=UUID("11111111-1111-1111-1111-111111111111"),
-        lab_version_id=UUID("55555555-5555-5555-5555-555555555555"),
-        lab_difficulty=lab_difficulty,
-        evaluator_version=1,
-        rules=rules_for(lab_difficulty),
-    )
-
-
-PROMPT_INJECTION_V1_BUNDLES_BY_DIFFICULTY: dict[str, RuleBundle] = {
-    "easy": _fill_bundle("easy"),
-    "medium": _fill_bundle("medium"),
-    "hard": _fill_bundle("hard"),
-}
+)

@@ -107,7 +107,6 @@ def test_provision_then_teardown_leaves_no_pod_or_service() -> None:
         session_id=uuid4(),
         lab_id=uuid4(),
         lab_version_id=uuid4(),
-        lab_difficulty="medium",
         image_ref="ghcr.io/test/runtime@sha256:abc123",
         metadata={},
     )

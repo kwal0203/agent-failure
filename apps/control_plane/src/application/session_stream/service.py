@@ -109,7 +109,6 @@ async def handle_user_prompt(
                 runtime_not_ready_message(
                     session_id=session_id,
                     runtime_binding=runtime_binding,
-                    lab_difficulty=metadata.lab_difficulty,
                 ),
             )
             return
@@ -241,7 +240,6 @@ async def handle_user_prompt(
                     "event": "runtime_stream_failed",
                     "error_code": exc.code,
                     "retryable": exc.retryable,
-                    "lab_difficulty": metadata.lab_difficulty,
                 },
             )
             await session_manager.send_to(

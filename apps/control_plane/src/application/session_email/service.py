@@ -171,7 +171,6 @@ async def inject_session_email_for_session(
         actor_user_id=command.principal.user_id,
         lab_id=session_metadata.lab_id,
         lab_version_id=session_metadata.lab_version_id,
-        lab_difficulty=session_metadata.lab_difficulty,
     )
     append_trace_event(
         trace=trace_event, repo=deps.trace_repo, outbox_repo=deps.outbox_repo
@@ -185,7 +184,6 @@ async def inject_session_email_for_session(
             session_id=command.session_id,
             lab_id=session_metadata.lab_id,
             lab_version_id=session_metadata.lab_version_id,
-            lab_difficulty=session_metadata.lab_difficulty,
             evaluator_version=1,
             start_event_index=trace_event.event_index,
             end_event_index=trace_event.event_index,
