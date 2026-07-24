@@ -104,6 +104,7 @@ export type SessionTelemetryLog = {
   message: string;
   created_at: string;
   log_case: string;
+  simulated: boolean;
 };
 
 export type SessionInvoice = {

@@ -186,7 +186,16 @@ def append_runtime_event(
     family: Literal["lifecycle", "learner", "runtime", "tool", "model"],
     event_type: str,
     payload: RuntimeEventPayload,
+    occurred_at: datetime | None = None,
 ) -> None:
+    signal_id = payload.get("signal_id")
+    if isinstance(signal_id, str) and any(
+        existing.event_type == event_type
+        and existing.payload.get("signal_id") == signal_id
+        for existing in trace_repo.list_trace_events_for_session(session_id=session_id)
+    ):
+        return
+
     trace_event = build_trace_event(
         trace_repo=trace_repo,
         session_id=session_id,
@@ -197,5 +206,6 @@ def append_runtime_event(
         actor_user_id=principal.user_id,
         lab_id=metadata.lab_id,
         lab_version_id=metadata.lab_version_id,
+        occurred_at=occurred_at,
     )
     append_trace_event(trace=trace_event, repo=trace_repo, outbox_repo=outbox_repo)

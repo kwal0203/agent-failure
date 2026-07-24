@@ -50,6 +50,13 @@ learner-facing feedback are separate layers. See
 [Evaluator Model](docs/evaluator-model.md) for the design, versioning rules, and
 the limited role of LLM classification.
 
+### Simulated telemetry
+
+Lab 2's operational alerts are intentionally simulated scenario data. They are
+defined and timestamped by the per-session runtime, persisted by the control
+plane as `SIMULATED_TELEMETRY_SIGNAL` trace events, and replayed to the browser
+from PostgreSQL. The frontend does not fabricate or schedule telemetry.
+
 ## Labs
 
 | # | Name | Attack Vector | Scenario |

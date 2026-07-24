@@ -66,3 +66,7 @@ class RuntimeEventPayload(TypedDict, total=False):
     channel: str
     target: str
     token_kind: str
+    signal_id: str
+    section: str
+    severity: str
+    simulated: bool

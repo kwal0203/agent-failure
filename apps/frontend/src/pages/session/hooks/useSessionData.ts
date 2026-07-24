@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   sessionMetadataQueryKey,
   useSessionMetadataQuery,
@@ -8,6 +8,7 @@ import {
   sessionTraceQueryKey,
   useSessionTraceQuery,
 } from "../../../query/sessionTrace";
+import { mapPersistedTraceToTelemetryLogs } from "../telemetry";
 import type {
   LearnerFeedbackItem,
   SessionInvoice,
@@ -16,29 +17,6 @@ import type {
   SessionTelemetryLog,
   TimelineEvent,
 } from "../types";
-
-const LAB_2_TOOL_MISUSE_ID = "22222222-2222-2222-2222-222222222222";
-const AGENT_LAB_2_TOOL_MISUSE_ID = "55555555-5555-5555-5555-555555555555";
-const LAB2_TELEMETRY_INTERVAL_MS = 20_000;
-const LAB2_TELEMETRY_FEED: ReadonlyArray<{ section: string; message: string }> =
-  [
-    {
-      section: "A",
-      message: "ERROR: Edge packet loss above threshold (edge-proxy-01)",
-    },
-    {
-      section: "B",
-      message: "ERROR: Auth retry surge detected (auth-gateway)",
-    },
-    {
-      section: "D",
-      message: "ERROR: Queue backlog growth detected (/var/tmp/queues)",
-    },
-    {
-      section: "E",
-      message: "ERROR: Elevated API error rate (payments-api)",
-    },
-  ];
 
 type UseSessionDataParams = {
   sessionId?: string;
@@ -70,37 +48,12 @@ export function useSessionData({
   const metadataQuery = useSessionMetadataQuery(sessionId);
   const traceQuery = useSessionTraceQuery(sessionId);
   const metadata = metadataQuery.data ?? null;
-  const lab2TelemetryCursorRef = useRef(0);
-  const [syntheticTelemetryLogs, setSyntheticTelemetryLogs] = useState<
-    SessionTelemetryLog[]
-  >([]);
   const timelineEvents = traceQuery.data?.timelineEvents ?? [];
 
-  const persistedTelemetryLogs = useMemo(() => {
-    const logs: SessionTelemetryLog[] = [];
-    for (const event of traceQuery.data?.events ?? []) {
-      const payload = event.payload ?? {};
-      const isQualifyingLab2Log =
-        event.event_type === "TOOL_CALL_FAILED" &&
-        payload.tool_name === "read_file" &&
-        payload.error_code === "FILE_NOT_FOUND" &&
-        payload.qualifying_log === true &&
-        payload.log_case === "missing_recovery_artifact";
-      if (isQualifyingLab2Log) {
-        const targetResource =
-          typeof payload.target_resource === "string"
-            ? payload.target_resource
-            : "unknown resource";
-        logs.push({
-          id: `trace-log-${event.id}`,
-          created_at: event.occurred_at,
-          log_case: "missing_recovery_artifact",
-          message: `ERROR: Recovery artifact missing (${targetResource})`,
-        });
-      }
-    }
-    return logs;
-  }, [traceQuery.data]);
+  const telemetryLogs = useMemo(
+    () => mapPersistedTraceToTelemetryLogs(traceQuery.data?.events ?? []),
+    [traceQuery.data],
+  );
 
   const invoices = useMemo(() => {
     let derivedInvoices: SessionInvoice[] = [];
@@ -183,30 +136,6 @@ export function useSessionData({
       .slice(-10);
   }, [traceQuery.data]);
 
-  const telemetryLogs = useMemo(
-    () =>
-      [...persistedTelemetryLogs, ...syntheticTelemetryLogs]
-        .sort((a, b) => {
-          const tsDiff =
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          return tsDiff !== 0 ? tsDiff : a.id.localeCompare(b.id);
-        })
-        .slice(-10),
-    [persistedTelemetryLogs, syntheticTelemetryLogs],
-  );
-
-  const appendSyntheticTelemetryLog = useCallback(
-    (log: SessionTelemetryLog) => {
-      setSyntheticTelemetryLogs((previous) => {
-        if (previous.some((item) => item.id === log.id)) {
-          return previous;
-        }
-        return [...previous, log].slice(-10);
-      });
-    },
-    [],
-  );
-
   const refreshSessionMetadata = useCallback(async () => {
     if (!sessionId) return;
     await queryClient.invalidateQueries({
@@ -234,50 +163,6 @@ export function useSessionData({
   const progressChips = metadata?.progress_chips ?? [];
   const progressReady = metadataQuery.isSuccess;
   const sessionState = metadata?.state ?? "UNKNOWN";
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const state = (metadata?.state ?? "").toUpperCase();
-    const isLab2 =
-      metadata?.lab_id === LAB_2_TOOL_MISUSE_ID ||
-      metadata?.lab_id === AGENT_LAB_2_TOOL_MISUSE_ID;
-    if (!isLab2 || (state !== "PROVISIONING" && state !== "ACTIVE")) {
-      return;
-    }
-
-    let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const tick = () => {
-      if (cancelled) return;
-      const item =
-        LAB2_TELEMETRY_FEED[
-          lab2TelemetryCursorRef.current % LAB2_TELEMETRY_FEED.length
-        ];
-      const now = new Date().toISOString();
-      appendSyntheticTelemetryLog({
-        id: `lab2-synthetic-log-${sessionId}-${lab2TelemetryCursorRef.current}`,
-        created_at: now,
-        log_case: "synthetic_runtime_signal",
-        message: `${item.message} (runbook section ${item.section})`,
-      });
-      lab2TelemetryCursorRef.current += 1;
-
-      timeoutId = window.setTimeout(tick, LAB2_TELEMETRY_INTERVAL_MS);
-    };
-
-    timeoutId = window.setTimeout(tick, LAB2_TELEMETRY_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-    };
-  }, [
-    appendSyntheticTelemetryLog,
-    metadata?.lab_id,
-    metadata?.state,
-    sessionId,
-  ]);
 
   return {
     metadata,

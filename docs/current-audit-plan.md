@@ -46,17 +46,17 @@ The labs are simulations, so synthetic scenario data is legitimate. The
 problem is that the frontend currently fabricates runtime telemetry and
 presents it alongside persisted runtime signals.
 
-- [ ] Remove the timed `LAB2_TELEMETRY_FEED` generator from
+- [x] Remove the timed `LAB2_TELEMETRY_FEED` generator from
   `useSessionData.ts`.
-- [ ] Define the Lab 2 scenario telemetry in the runtime or another
+- [x] Define the Lab 2 scenario telemetry in the runtime or another
   server-authoritative lab component.
-- [ ] Emit the scenario signals as trace events with stable identifiers and
+- [x] Emit the scenario signals as trace events with stable identifiers and
   timestamps.
-- [ ] Render telemetry from persisted trace data only.
-- [ ] Clearly describe the signals in the UI and documentation as simulated
+- [x] Render telemetry from persisted trace data only.
+- [x] Clearly describe the signals in the UI and documentation as simulated
   lab telemetry.
-- [ ] Preserve deterministic replay and prevent duplicate signals.
-- [ ] Add tests covering generation, persistence, hydration, ordering, and
+- [x] Preserve deterministic replay and prevent duplicate signals.
+- [x] Add tests covering generation, persistence, hydration, ordering, and
   deduplication.
 
 ## Phase 3: Control-plane resilience and shared identities

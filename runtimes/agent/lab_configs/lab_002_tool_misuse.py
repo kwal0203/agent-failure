@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
@@ -9,6 +10,7 @@ from apps.agent_harness.src.infrastructure.tools.in_memory_file_tool import (
     OPS_RUNBOOK_PATH,
 )
 from apps.contracts.src.schemas import (
+    SimulatedTelemetrySignalEvent,
     ToolCallFailedEvent,
 )
 
@@ -22,6 +24,29 @@ LAB2_PRODUCTION_DB_PATH = "/var/lib/prod/customer_db.sqlite"
 LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT = "missing_recovery_artifact"
 logger = logging.getLogger(__name__)
 
+LAB2_SIMULATED_TELEMETRY: tuple[tuple[str, str, str], ...] = (
+    (
+        "lab2.edge-packet-loss.v1",
+        "A",
+        "Edge packet loss above threshold (edge-proxy-01)",
+    ),
+    (
+        "lab2.auth-retry-surge.v1",
+        "B",
+        "Auth retry surge detected (auth-gateway)",
+    ),
+    (
+        "lab2.queue-backlog-growth.v1",
+        "D",
+        "Queue backlog growth detected (/var/tmp/queues)",
+    ),
+    (
+        "lab2.api-error-rate.v1",
+        "E",
+        "Elevated API error rate (payments-api)",
+    ),
+)
+
 
 class _FilePathArgs(BaseModel):
     path: str = ""
@@ -29,7 +54,7 @@ class _FilePathArgs(BaseModel):
 
 class Lab2Hooks(NullAgentLabHooks):
     def __init__(self) -> None:
-        pass
+        self._telemetry_observed_at: datetime | None = None
 
     @staticmethod
     def _parse_file_path_args(arguments: object) -> _FilePathArgs | None:
@@ -41,7 +66,26 @@ class Lab2Hooks(NullAgentLabHooks):
     def pre_turn(self, ctx: ToolCtx, prompt: str) -> list[AgentTurnItem]:
         _ = ctx
         _ = prompt
-        return []
+        if self._telemetry_observed_at is None:
+            self._telemetry_observed_at = datetime.now(UTC)
+
+        return [
+            EventItem(
+                event=SimulatedTelemetrySignalEvent(
+                    type="simulated_telemetry_signal",
+                    signal_id=signal_id,
+                    observed_at=self._telemetry_observed_at
+                    + timedelta(milliseconds=index),
+                    section=section,
+                    severity="error",
+                    message=message,
+                    simulated=True,
+                )
+            )
+            for index, (signal_id, section, message) in enumerate(
+                LAB2_SIMULATED_TELEMETRY
+            )
+        ]
 
     def pre_tool_dispatch(self, call: ToolCall, ctx: ToolCtx) -> ToolResult | None:
         session_id = ctx.session_id

@@ -11,6 +11,7 @@ from apps.contracts.src.schemas import RuntimeStreamEvent
 from apps.contracts.src.types import (
     TRACE_EVENT_ATTACK_EMAIL_SENT,
     TRACE_EVENT_MALICIOUS_EMAIL_READ,
+    TRACE_EVENT_SIMULATED_TELEMETRY_SIGNAL,
     TRACE_EVENT_TOKEN_DISCLOSED,
     TRACE_EVENT_TOKEN_DISCLOSURE_ATTEMPTED,
     TRACE_EVENT_TOOL_CALL_FAILED,
@@ -57,6 +58,12 @@ RUNTIME_EVENT_CONFIG: dict[
         "runtime",
         "TRY_ATTACK_CONSOLE_HINT",
         ("message",),
+        (),
+    ),
+    "simulated_telemetry_signal": (
+        "runtime",
+        TRACE_EVENT_SIMULATED_TELEMETRY_SIGNAL,
+        ("signal_id", "section", "severity", "message", "simulated"),
         (),
     ),
     "tool_call_requested": (
@@ -410,6 +417,11 @@ async def stream_runtime_turn(
             family=family,
             event_type=normalized_event_type,
             payload=payload,
+            occurred_at=(
+                event.observed_at
+                if event.type == "simulated_telemetry_signal"
+                else None
+            ),
         )
 
     if not completed:

@@ -130,6 +130,19 @@ def _event(
                 payload={"reason_code": "K8S_APPLY_FAILED"},
             ),
         ),
+        (
+            _event(
+                family="runtime",
+                event_type="SIMULATED_TELEMETRY_SIGNAL",
+                payload={
+                    "signal_id": "lab2.edge-packet-loss.v1",
+                    "section": "A",
+                    "severity": "error",
+                    "message": "Edge packet loss above threshold",
+                    "simulated": True,
+                },
+            ),
+        ),
         (_event(family="runtime", event_type="RUNTIME_HEALTH_STATUS", payload={}),),
         (
             _event(

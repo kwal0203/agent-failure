@@ -15,6 +15,7 @@ from apps.contracts.src.schemas import (
     AttackEmailSentEvent,
     MaliciousEmailReadEvent,
     RuntimeStreamEvent,
+    SimulatedTelemetrySignalEvent,
     TokenDisclosedEvent,
     ToolCallFailedEvent,
     ToolCallRequestedEvent,
@@ -681,6 +682,85 @@ def test_runtime_lab_events_are_persisted_to_runtime_trace_family(
         "TOOL_CALL_SUCCEEDED",
     ]
     assert tool_events[0].payload["tool_name"] == "read_email"
+
+
+@pytest.mark.usefixtures("engine")
+def test_simulated_telemetry_is_timestamped_ordered_and_deduplicated(
+    db_session: Session,
+) -> None:
+    owner_username = "stream-owner"
+    session = _seed_active_session(db_session, owner_username=owner_username)
+    first_observed_at = datetime(2026, 7, 24, 12, 0, 0, tzinfo=timezone.utc)
+    second_observed_at = datetime(2026, 7, 24, 12, 0, 1, tzinfo=timezone.utc)
+
+    async def _stream(_input: RunTurnInput) -> AsyncIterator[RuntimeStreamEvent]:
+        yield TurnStartedEvent(type="turn_started")
+        yield SimulatedTelemetrySignalEvent(
+            type="simulated_telemetry_signal",
+            signal_id="lab2.signal-a.v1",
+            observed_at=first_observed_at,
+            section="A",
+            severity="error",
+            message="First simulated signal",
+        )
+        yield SimulatedTelemetrySignalEvent(
+            type="simulated_telemetry_signal",
+            signal_id="lab2.signal-b.v1",
+            observed_at=second_observed_at,
+            section="B",
+            severity="warning",
+            message="Second simulated signal",
+        )
+        yield SimulatedTelemetrySignalEvent(
+            type="simulated_telemetry_signal",
+            signal_id="lab2.signal-a.v1",
+            observed_at=second_observed_at,
+            section="A",
+            severity="error",
+            message="Duplicate should be ignored",
+        )
+        yield TurnCompletedEvent(type="turn_completed", duration_ms=1, chunks_emitted=0)
+
+    app.dependency_overrides[get_db_session] = _override_db_session(db_session)
+    app.dependency_overrides[get_runtime_client_factory] = _override_runtime_client(
+        _FakeRuntimeClient(stream_factory=_stream)
+    )
+    try:
+        client = TestClient(app)
+        with client.websocket_connect(
+            f"/api/v1/sessions/{session.id}/stream",
+            headers=_auth_headers(token=f"local:{owner_username}"),
+        ) as ws:
+            _ = ws.receive_json()
+            ws.send_json(_user_prompt_message(session.id, "investigate"))
+            _ = ws.receive_json()
+            _ = ws.receive_json()
+            _ = ws.receive_json()
+    finally:
+        app.dependency_overrides.clear()
+
+    telemetry_events = (
+        db_session.execute(
+            select(TraceEventModel)
+            .where(
+                TraceEventModel.session_id == session.id,
+                TraceEventModel.event_type == "SIMULATED_TELEMETRY_SIGNAL",
+            )
+            .order_by(TraceEventModel.event_index.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+    assert [event.payload["signal_id"] for event in telemetry_events] == [
+        "lab2.signal-a.v1",
+        "lab2.signal-b.v1",
+    ]
+    assert [event.occurred_at for event in telemetry_events] == [
+        first_observed_at,
+        second_observed_at,
+    ]
+    assert all(event.payload["simulated"] is True for event in telemetry_events)
 
 
 @pytest.mark.usefixtures("engine")

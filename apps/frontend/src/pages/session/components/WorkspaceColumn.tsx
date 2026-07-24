@@ -257,7 +257,7 @@ export function WorkspaceColumn({
                 Telemetry Log Feed
               </h3>
               <p className="mb-2.5 mt-0 text-sm text-slate-300">
-                Runtime-generated operational errors appear here.
+                Simulated lab telemetry emitted by the runtime appears here.
               </p>
               <div className="hints-scroll-region max-h-[180px] overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2.5">
                 {telemetryLogs.length === 0 ? (
@@ -274,9 +274,11 @@ export function WorkspaceColumn({
                         className="mb-2 mt-0 text-sm text-slate-900 last:mb-0"
                       >
                         {formatTime(log.created_at)} - {log.message}{" "}
-                        <span className="font-semibold text-emerald-700">
-                          [Handled by A-SRE]
-                        </span>
+                        {log.simulated ? (
+                          <span className="font-semibold text-sky-700">
+                            [Simulated]
+                          </span>
+                        ) : null}
                       </p>
                     ))
                 )}

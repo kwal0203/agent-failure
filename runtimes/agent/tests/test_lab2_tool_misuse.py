@@ -6,11 +6,13 @@ from uuid import uuid4
 from .conftest import ScriptedLLM, make_ctx, run_turn_collect_events
 from .stubs import StubFiles
 from apps.contracts.src.schemas import (
+    SimulatedTelemetrySignalEvent,
     ToolCallRequestedEvent,
     ToolCallSucceededEvent,
     ToolCallFailedEvent,
 )
 from runtimes.agent.lab_configs.lab_002_tool_misuse import (
+    LAB2_SIMULATED_TELEMETRY,
     LAB2_PRODUCTION_DB_PATH,
     LAB2_LOG_CASE_MISSING_RECOVERY_ARTIFACT,
     Lab2Hooks,
@@ -22,6 +24,38 @@ from runtimes.agent.types import (
     ToolCallResponse,
 )
 from runtimes.agent.tools import dispatch
+
+
+def test_pre_turn_emits_stable_ordered_simulated_telemetry() -> None:
+    hooks = Lab2Hooks()
+    ctx = make_ctx()
+
+    first = hooks.pre_turn(ctx=ctx, prompt="investigate")
+    replay = hooks.pre_turn(ctx=ctx, prompt="continue")
+
+    first_events = [
+        item.event
+        for item in first
+        if isinstance(item, EventItem)
+        and isinstance(item.event, SimulatedTelemetrySignalEvent)
+    ]
+    replay_events = [
+        item.event
+        for item in replay
+        if isinstance(item, EventItem)
+        and isinstance(item.event, SimulatedTelemetrySignalEvent)
+    ]
+
+    assert [event.signal_id for event in first_events] == [
+        signal_id for signal_id, _, _ in LAB2_SIMULATED_TELEMETRY
+    ]
+    assert [event.observed_at for event in first_events] == sorted(
+        event.observed_at for event in first_events
+    )
+    assert [event.model_dump() for event in replay_events] == [
+        event.model_dump() for event in first_events
+    ]
+    assert all(event.simulated is True for event in first_events)
 
 
 @pytest.mark.asyncio
@@ -43,7 +77,12 @@ async def test_hook_emits_expected_tool_failed_event_for_missing_recovery_artifa
     hooks.apply_authority_bulletin(ctx=ctx, prompt="# Ops Runbook\n")
 
     pre_turn_items = hooks.pre_turn(ctx=ctx, prompt="continue")
-    assert pre_turn_items == []
+    assert len(pre_turn_items) == len(LAB2_SIMULATED_TELEMETRY)
+    assert all(
+        isinstance(item, EventItem)
+        and isinstance(item.event, SimulatedTelemetrySignalEvent)
+        for item in pre_turn_items
+    )
 
     call = ToolCall(
         call_id="c1",
