@@ -1,5 +1,6 @@
 from functools import lru_cache
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 # from fastapi import Depends, HTTPException, status
 from fastapi import Depends, Request
@@ -381,7 +382,7 @@ class _NoopAuthorityBulletinClassifier(AuthorityBulletinClassifierPort):
 def get_authority_bulletin_classifier() -> AuthorityBulletinClassifierPort:
     try:
         config = get_email_classifier_config()
-    except RuntimeError:
+    except (RuntimeError, ValidationError):
         return _NoopAuthorityBulletinClassifier()
 
     return OpenRouterAuthorityBulletinClassifier(
