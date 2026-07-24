@@ -146,6 +146,23 @@ derives its state from the trace. Existing rule output remains unchanged through
 an ordered-event compatibility view; the typed states are the input foundation
 for the subsequent CBM-kernel and incremental rule-migration phases.
 
+The third cleanup phase introduced a small constraint-based modeling kernel.
+Constraints now have separate, explicit relevance and satisfaction conditions;
+irrelevant constraints do not evaluate satisfaction, and inconsistent result
+states fail closed. Constraint evidence records trace positions and normalized
+facts without containing feedback policy. A temporary compatibility adapter can
+project satisfied or violated constraints into the existing evaluator finding
+contract, preserving current persistence and API behavior while individual lab
+rules migrate.
+
+The fourth cleanup phase migrated Code Execution, Tool Misuse, and Memory
+Poisoning onto that kernel. Their constraints consume typed solution states,
+emit normalized evidence, and explicitly classify observed safe behavior as
+satisfied and unsafe behavior as violated. The compatibility adapter preserves
+the established finding order, codes, reason codes, feedback levels, evidence
+indexes, and payloads. Structural tests prevent these bundles from drifting back
+to handwritten finding functions.
+
 The evaluator files remain large—Prompt Injection is roughly 900 lines—and
 contain many regex heuristics and repeated event-search logic.
 
@@ -160,9 +177,8 @@ probably make the code worse. Keep the evaluator, but:
 - Mark incomplete rules explicitly rather than leaving multiple "need endpoint
   before completed" TODOs inside a supposedly V1 bundle.
 
-The remaining work is to introduce explicit constraint relevance/satisfaction
-results, then migrate the existing rules onto that CBM kernel and split the
-large lab rule modules incrementally.
+The remaining work is to move pedagogical feedback policy out of rule
+evaluation, then migrate and split the large Prompt Injection rule module.
 
 This is specialized, not embarrassing.
 

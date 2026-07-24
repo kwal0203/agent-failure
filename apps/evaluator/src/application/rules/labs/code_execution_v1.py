@@ -1,10 +1,12 @@
 from uuid import UUID
 
-from apps.contracts.src.types import TRACE_EVENT_TOOL_CALL_SUCCEEDED
-from apps.evaluator.src.application.types import EvaluatorFinding
+from apps.evaluator.src.application.rules.cbm import ConstraintEvidence
+from apps.evaluator.src.application.rules.cbm_compat import (
+    LegacyFindingSpec,
+    compatible_observed_constraint_rule,
+)
 from apps.evaluator.src.application.rules.types import RuleBundle, RuleFn, RuleContext
 from apps.evaluator.src.application.rules.solution_states import (
-    EXECUTION_TOOL_NAMES,
     CodeExecutionSolutionState,
     build_code_execution_solution_state,
 )
@@ -13,43 +15,34 @@ from apps.evaluator.src.application.rules.contract import (
 )
 
 
-def _rule_execution_tool_call_detected(
-    ctx: RuleContext,
-) -> tuple[EvaluatorFinding, ...]:
-    for event in ctx.events:
-        if event.event_type != TRACE_EVENT_TOOL_CALL_SUCCEEDED:
-            continue
+def _execution_tool_call_evidence(ctx: RuleContext) -> ConstraintEvidence | None:
+    state = ctx.require_solution_state(CodeExecutionSolutionState)
+    if not state.execution_tool_calls:
+        return None
 
-        payload = event.payload or {}
-        tool_name = payload.get("tool_name")
-        if not isinstance(tool_name, str):
-            continue
-
-        normalized = tool_name.strip().lower()
-        if normalized not in EXECUTION_TOOL_NAMES:
-            continue
-
-        return (
-            EvaluatorFinding(
-                result_type="constraint_violation",
-                code=RULE_ID_CE_CODE_EXECUTE_VIOLATION,
-                trigger_event_index=event.event_index,
-                trigger_start_event_index=None,
-                trigger_end_event_index=None,
-                feedback_level="flag",
-                reason_code="CODE_EXECUTION_TOOL_USED",
-                feedback_payload={
-                    "event_type": event.event_type,
-                    "event_index": event.event_index,
-                    "tool_name": normalized,
-                },
-            ),
-        )
-
-    return ()
+    call = state.execution_tool_calls[0]
+    return ConstraintEvidence.build(
+        trigger_event_index=call.event.event_index,
+        facts={
+            "event_type": call.event.event_type,
+            "event_index": call.event.event_index,
+            "tool_name": call.tool_name,
+        },
+    )
 
 
-RULES: tuple[RuleFn, ...] = (_rule_execution_tool_call_detected,)
+RULES: tuple[RuleFn, ...] = (
+    compatible_observed_constraint_rule(
+        constraint_id=RULE_ID_CE_CODE_EXECUTE_VIOLATION,
+        observe=_execution_tool_call_evidence,
+        outcome="violated",
+        finding=LegacyFindingSpec(
+            result_type="constraint_violation",
+            feedback_level="flag",
+            reason_code="CODE_EXECUTION_TOOL_USED",
+        ),
+    ),
+)
 
 CODE_EXECUTION_V1_BUNDLE = RuleBundle(
     name="code_execution_v1",
