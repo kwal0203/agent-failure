@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "api:generate": "uv run python ../../scripts/export_openapi.py node_modules/.cache/agent-failure-openapi.json && openapi-typescript node_modules/.cache/agent-failure-openapi.json -o src/api/generated.ts && biome format --write src/api/generated.ts",
     "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated.ts",
@@ -25,11 +28,11 @@
     "aws-amplify": "^6.19.0",
     "lucide-react": "^1.14.0",
     "openapi-fetch": "^0.17.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-hook-form": "^7.82.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.18.1",
+    "react-router": "^8.3.0",
     "react-use-websocket": "^4.13.0",
     "zod": "^4.4.3"
   },

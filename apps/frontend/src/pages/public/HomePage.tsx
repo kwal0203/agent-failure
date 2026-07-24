@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #1c3f5b",

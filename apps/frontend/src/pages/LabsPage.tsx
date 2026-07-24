@@ -12,7 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { useLabCatalogQuery } from "../query/labCatalog";
 import { useShellBootstrap } from "../shell/context";
 import { type LabCatalogItem, loadLabCatalog } from "./labCatalogApi";

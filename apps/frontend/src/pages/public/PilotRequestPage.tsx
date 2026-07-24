@@ -6,7 +6,7 @@ import {
   type UseFormRegisterReturn,
   useForm,
 } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useSubmitPilotRequestMutation } from "../../query/publicMutations";
 import {
   type PilotLead,

@@ -23,7 +23,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { useLabCatalogQuery } from "../query/labCatalog";
 import { useCreateSessionMutation } from "../query/sessionMutations";
 import { useShellBootstrap } from "../shell/context";

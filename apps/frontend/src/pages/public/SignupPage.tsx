@@ -1,6 +1,6 @@
 import { ArrowRight, Eye, EyeOff, Shield, User } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import {
   isEnrollmentApiEnabled,
   PENDING_ENROLLMENT_TOKEN_KEY,
