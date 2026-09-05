@@ -18,7 +18,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.41.0",
-    "websockets>=16.0",
+    "websockets>=17.0",
 ]
 
 [dependency-groups]
